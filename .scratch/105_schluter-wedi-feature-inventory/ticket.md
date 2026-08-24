@@ -17,8 +17,12 @@ Labels: ready-for-human
 > plan).
 > **Round 8 (.scratch/108):** landed E10 (the print layout sheet — both
 > drawings, cut list, materials table) and E11 (Copy for order entry —
-> orderCopyLines, stocked SKU ⇥ qty / SO by description). Still open: E3
-> (line swaps), B4 (overwrite confirm), C17 (thumbnails), D4 (starred).
+> orderCopyLines, stocked SKU ⇥ qty / SO by description).
+> **Round 9 (.scratch/109):** landed the last four — E3 (⇄ swaps via
+> cfg.swaps: grate/curb/One-size board), B4 (overwrite confirm), C17
+> (option-card thumbnails), D4 (★ starred). **The MISSING column is empty:**
+> every wedi behavior is now ported, blessed as different (D5), or recorded
+> N/A. This ticket is the standing record; close it when the PR merges.
 
 # Schluter ⇄ wedi feature inventory — the fine-toothed comb, done once
 

@@ -702,7 +702,7 @@ export function openRuns(cfg) {
 // The one wall-panel pool Fit and One-size both pick from: ½" boards only
 // (thickMm keys it so a fatter live board can't sneak in), never the
 // fastener boxes or the 2" bench stock.
-const halfBoardPool = (cat, source) =>
+export const halfBoardPool = (cat, source) =>
   stockPool(cat.filter((i) => i.g === "board" && !i.thick2 && !i.fastener && i.sf
     && (i.thickMm == null || i.thickMm <= 13)), source);
 
@@ -876,6 +876,12 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
   const add = (g, item, qty, note) => {
     if (item) L.push({ g, item, qty, note, so: !item.stock });
   };
+  // cfg.swaps (round 9, the wedi swap-popover rule): a hand-picked part wins
+  // its role over the recipe's own pick — grate finish, curb, the One-size
+  // wall board — looked up by sku within the role so a stale sku falls back
+  // to the recipe rather than landing the wrong kind of part.
+  const swaps = cfg.swaps || {};
+  const swapped = (sku, pred) => (sku ? cat.find((i) => i.sku === sku && pred(i)) : null);
   const benches = cfgBenches(cfg, cat);
   const cand = pick || trayCandidates(cfg, cat, { source })[0];
 
@@ -931,7 +937,8 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
   } else {
     add("Drain", pickFrom(cat, (i) => i.g === "drain" && i.part === "flange" && i.drain === "point", { source }), 1,
       'bonded flange, 2" PVC');
-    add("Drain", pickFrom(cat, (i) => i.g === "drain" && i.part === "grate", { source }), 1,
+    add("Drain", swapped(swaps.grate, (i) => i.part === "grate")
+      || pickFrom(cat, (i) => i.g === "drain" && i.part === "grate", { source }), 1,
       "finish pick — tileable & floral stocked too");
   }
 
@@ -939,7 +946,8 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
   if (cfg.wallSys === "board") {
     // largest ½" panel wins the "One size" wall pick — same pool the Fit
     // planner draws from (halfBoardPool), so the two modes can't diverge
-    const b = halfBoardPool(cat, source).slice().sort((x, y) => y.sf - x.sf)[0];
+    const b = swapped(swaps.board, (i) => i.g === "board" && !i.thick2 && !i.fastener && i.sf)
+      || halfBoardPool(cat, source).slice().sort((x, y) => y.sf - x.sf)[0];
     add("Walls", b, b ? Math.ceil((sf * 1.05) / b.sf) : 0, `${sf.toFixed(0)} sf of wall`);
     // recipe density: one 100-ct box per 60 sf — scaled to the box actually
     // in the catalog so a 40-ct pack doesn't silently under-order
@@ -978,7 +986,8 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
     // stock-only prefers stocked multiples cut end-to-end over a covering
     // special-order curb (the P2 example: a SO 60" loses to 2× stocked 48")
     const curbs = stockPool(cat.filter((i) => i.g === "curb" && i.len).sort((a, b) => a.len - b.len), source);
-    const c = curbs.find((x) => x.len >= runs.need) || curbs[curbs.length - 1];
+    const c = swapped(swaps.curb, (i) => i.g === "curb" && i.len)
+      || curbs.find((x) => x.len >= runs.need) || curbs[curbs.length - 1];
     const sideOpen = runs.segs.some((s) => s.side !== "entry");
     add("Curb", c, c ? Math.max(1, Math.ceil(runs.need / c.len)) : 0,
       c ? (c.len < runs.need ? "cut to length end-to-end"

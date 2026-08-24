@@ -716,8 +716,14 @@ src/
                     # only when one sheet covers it whole — zero seams —
                     # and horizontal would have used more than one sheet.
                     # halfBoardPool is the ONE wall-panel pool Fit and the
-                    # One-size area pick both draw from. wallArea is
-                    # exported (the popup's plan note reads it).
+                    # One-size area pick both draw from (exported — the
+                    # popup's board swap lists it). wallArea is exported
+                    # (the popup's plan note reads it). cfg.swaps (round 9)
+                    # lets a hand pick win its role in buildKit — grate,
+                    # curb (qty re-figured for the chosen length), One-size
+                    # board — looked up by sku WITHIN the role so a stale
+                    # sku falls back to the recipe, never the wrong part.
+                    # orderCopyLines (round 8) is the clipboard rule.
                     # cfg.drain "any" (round 2) pools every tray and the
                     # PICKED tray decides what gets billed and drawn — the
                     # channel vs flange/grate/corner-pack branches key on
@@ -1095,6 +1101,18 @@ src/
                     # unmounts) and Copy for order entry (engine
                     # orderCopyLines: stocked SKU ⇥ qty, SO by description,
                     # noteOnly dropped; the toast reports the copy result).
+                    # Round 9 — the ⇄ swap popovers (cfg.swaps → engine:
+                    # grate finish, curb with qty re-figured, the One-size
+                    # wall board — under Fit the PLAN picks the sheets so
+                    # the board line doesn't swap; persisted in the marker,
+                    # any swap flips mode to custom); a kit row over
+                    # customized work raises the wedi overwrite-confirm
+                    # modal (kitDirty — an untouched kit-to-kit hop stays
+                    # one click); option cards carry the mini TopDown plan
+                    # thumbnail; Browse gets the wedi ★ starred pin list
+                    # (localStorage ft-schluter-starred, per-device) with
+                    # its filter chip. Esc ladder rungs: payload →
+                    # confirmKit → swap → picker → bench → wall → placing.
   schluterpreview.jsx  # dev-only harness (schluter-preview.html): the REAL
                     # SchluterConfigurator over the fixture pushed BACKWARDS
                     # through normOrderItem into live registry shape (shop

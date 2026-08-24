@@ -15,7 +15,7 @@ import { useEscClose, SourceSwitch, NumIn } from "./widgets.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
   trayCandidates, pickRolls, buildKit, tierPrice, lineItems, orderCopyLines, normBench, benchTrayRoom,
-  boardPlan, expandBoardFaces, wallArea,
+  boardPlan, expandBoardFaces, wallArea, halfBoardPool,
 } from "./schluter.js";
 import { mortarItemFrom, MORTAR_BED_SF_PER_BAG } from "./schluteradapter.js";
 import { useSchluterCatalog } from "./useschlutercatalog.js";
@@ -178,6 +178,12 @@ const CSS = `
 .sch-pop .optcard .rank.warn{color:var(--s-rust)}
 .sch-pop .optcard .big{font-size:15px;font-weight:800;margin:2px 0 1px;letter-spacing:-.01em}
 .sch-pop .optcard .sub{font-size:10.5px;color:var(--ft-muted);line-height:1.45;min-height:29px}
+.sch-pop .optcard .thumb{margin-top:6px}
+.sch-pop .optcard .thumb svg{display:block;width:100%;height:auto;background:var(--s-paper);border:1px solid var(--ft-border);border-radius:6px}
+.sch-pop .swapb{flex:none;border:1px solid var(--ft-border);background:var(--ft-card);border-radius:5px;color:var(--ft-muted);font-size:11px;font-weight:800;width:22px;height:20px;cursor:pointer;line-height:1}
+.sch-pop .swapb:hover{border-color:var(--ft-brand);color:var(--ft-brand-deep)}
+.sch-pop .starb{flex:none;border:none;background:none;color:var(--ft-faint);font-size:13px;cursor:pointer;padding:0 2px;line-height:1}
+.sch-pop .starb.on{color:var(--ft-brand-deep)}
 .sch-pop .optcard .foot{display:flex;align-items:center;gap:6px;margin-top:6px}
 .sch-pop .optcard .foot .pr{font-weight:800;font-size:12.5px;margin-left:auto;font-variant-numeric:tabular-nums}
 .sch-pop .stockdot{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;font-weight:700;color:var(--ft-brand-deep);background:var(--ft-brand-soft);border-radius:4px;padding:1px 6px}
@@ -361,7 +367,7 @@ function seedState(seed) {
     walls: DEF_WALLS.map((x) => ({ ...x })), xwalls: [], wallH: String(DEF_WALL_H),
     corners: {}, maxIn: false, tileT: "", benches: [], mortarName: "", ramp: false,
     drainX: "", drainY: "", drainRef: "left",
-    manual: [], q: "", source: "all", kitPick: false, pick: null,
+    manual: [], q: "", source: "all", kitPick: false, pick: null, swaps: {},
   };
   if (!seed) return s;
   const cfg = seed.cfg;
@@ -413,6 +419,7 @@ function seedState(seed) {
       : cfg.bench === "framed" ? [{ id: 1, kind: "wall", side: "back", build: "framed" }]
         : cfg.bench === "buildup" ? [{ id: 1, kind: "wall", side: "back", build: "site" }] : [];
     s.mortarName = cfg.mortarItem?.name || "";
+    s.swaps = cfg.swaps && typeof cfg.swaps === "object" ? { ...cfg.swaps } : {};
     s.manual = Array.isArray(cfg.manual) ? cfg.manual.map((m) => ({ ...m })) : [];
     s.source = cfg.source === "stock" ? "stock" : "all";
     s.pick = typeof cfg.pick === "string" ? cfg.pick : null;
@@ -465,6 +472,9 @@ export default function SchluterConfigurator({
   const [picker, setPicker] = useState(null);       // { key: "niche", x, y } — an add-on chip's choice list
   const [mortarName, setMortarName] = useState(s0.mortarName);
   const [ramp, setRamp] = useState(!!s0.ramp);
+  const [swaps, setSwaps] = useState(s0.swaps);
+  const [swap, setSwap] = useState(null);           // { key, rect } — a line's ⇄ popover
+  const [confirmKit, setConfirmKit] = useState(null); // tray clicked over a customized build
   const [manual, setManual] = useState(s0.manual);
   const [qtyOv, setQtyOv] = useState({}); // hand-stepped line quantities (the wedi idiom) — session only, never in the marker
   const [pick, setPick] = useState(s0.pick);    // chosen tray candidate's sku
@@ -475,6 +485,17 @@ export default function SchluterConfigurator({
   const [q, setQ] = useState(s0.q);
   const [sec, setSec] = useState("");
   const [sub, setSub] = useState("");
+  // Starred items (the wedi owner sketch 2026-07-30): a per-device pin list,
+  // the ★ filter shows just them — localStorage, never the shared record.
+  const [starred, setStarred] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem("ft-schluter-starred") || "[]")); } catch (x) { return new Set(); }
+  });
+  const toggleStar = (sku) => setStarred((s) => {
+    const n = new Set(s);
+    if (n.has(sku)) n.delete(sku); else n.add(sku);
+    try { localStorage.setItem("ft-schluter-starred", JSON.stringify([...n])); } catch (x) { }
+    return n;
+  });
   const [figOpen, setFigOpen] = useState(false);
   const [figSf, setFigSf] = useState("");
   const [payload, setPayload] = useState(null);
@@ -546,6 +567,8 @@ export default function SchluterConfigurator({
 
   useEscClose(true, () => {
     if (payload) setPayload(null);
+    else if (confirmKit) setConfirmKit(null);
+    else if (swap) setSwap(null);
     else if (picker) setPicker(null);
     else if (benchMenu) setBenchMenu(null);
     else if (wallMenu) setWallMenu(null);
@@ -637,13 +660,14 @@ export default function SchluterConfigurator({
         : {}),
       ...(drain !== "linear" && +drainY > 0 ? { drainY: +drainY } : {}),
       ...(mortarItem ? { mortarItem } : {}),
+      ...(Object.keys(swaps).length ? { swaps } : {}),
     };
     // only OPEN corners carry a cut — a corner re-boxed by a wall drops its
     // stale cut everywhere (bill, drawings, marker) at once
     const open = schluterOpenCorners(base);
     const cut = Object.keys(corners).filter((k) => corners[k] && open[k]).sort();
     return cut.length ? { ...base, corners: cut } : base;
-  }, [w, d, curbed, drain, wallSys, cfgBenchRows, walls, liveXwalls, drainX, drainY, drainRef, mortarItem, maxIn, tileNum, wallHNum, corners, ramp]);
+  }, [w, d, curbed, drain, wallSys, cfgBenchRows, walls, liveXwalls, drainX, drainY, drainRef, mortarItem, maxIn, tileNum, wallHNum, corners, ramp, swaps]);
 
   // a blanked size input mid-edit means "no room yet" — no candidates, no
   // build, no drawings (topGeom would divide by the room dims)
@@ -704,7 +728,7 @@ export default function SchluterConfigurator({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cfg, cat, source, pickCand, manual, qtyOv, plan]);
   const mode = kitPick && !manual.length && !benches.length && !liveXwalls.length && !cfg.drainX && !cfg.drainY
-    && !(cfg.corners || []).length && !cfg.maxIn && !cfg.ramp ? "kit" : "custom";
+    && !(cfg.corners || []).length && !cfg.maxIn && !cfg.ramp && !cfg.swaps ? "kit" : "custom";
   // the saved marker records the PICKED tray too — Reconfigure must reopen on
   // the candidate that was quoted, not whatever ranks first that day
   const markCfg = useMemo(() => ({ ...cfg, manual, source, pick: pickCand?.tray?.sku || null }), [cfg, manual, source, pickCand]);
@@ -772,6 +796,12 @@ export default function SchluterConfigurator({
     document.addEventListener("mousedown", away);
     return () => document.removeEventListener("mousedown", away);
   }, [picker]);
+  useEffect(() => {
+    if (!swap) return;
+    const away = (e) => { if (!e.target.closest?.(".sch-swappanel")) setSwap(null); };
+    document.addEventListener("mousedown", away, true);
+    return () => document.removeEventListener("mousedown", away, true);
+  }, [swap]);
 
   // --- drawings --------------------------------------------------------------
   const normBenches = useMemo(() => benches.map((b) => normBench(b, cfg, cat)), [benches, cfg, cat]);
@@ -821,6 +851,45 @@ export default function SchluterConfigurator({
     if (!cfg.curbed) out.push("• Curbless needs the floor recessed or the ramp — KERDI-SHOWER-FRS recess system lands Fall 2026");
     return out;
   }, [build, pickCand, cfg, diag, cornerCuts, normBenches]);
+
+  // choice lists narrow to stocked rows under Stock only unless none are —
+  // then the full list stays so a menu is never empty and a pick lands flagged
+  const pool = (list) => (source === "stock" && list.some((i) => i.stock) ? list.filter((i) => i.stock) : list);
+  const byShelf = (a, b2) => (b2.stock ? 1 : 0) - (a.stock ? 1 : 0) || tierPrice(a, "retail", {}) - tierPrice(b2, "retail", {});
+
+  // The wedi ⇄ swap popovers (round 9): a line whose role has real
+  // alternatives takes a hand pick — the grate finish, the curb, the
+  // One-size wall board (under Fit the PLAN chooses the sheets, so the
+  // board line doesn't swap — the wedi rule).
+  const swapChoices = (l) => {
+    const e = l.item;
+    if (l.noteOnly) return null;
+    if (e.part === "grate") return {
+      title: "Drain grate — finish",
+      list: pool(cat.filter((i) => i.part === "grate")).sort(byShelf),
+      set: (sku) => setSwaps((o) => ({ ...o, grate: sku })),
+    };
+    if (l.g === "Curb" && e.g === "curb" && e.len) return {
+      title: "Curb",
+      list: pool(cat.filter((i) => i.g === "curb" && i.len)).slice().sort((a, b2) => a.len - b2.len),
+      set: (sku) => setSwaps((o) => ({ ...o, curb: sku })),
+    };
+    if (l.g === "Walls" && e.g === "board" && !e.fastener && !panelFit) return {
+      title: "Wall board — one size",
+      list: pool(halfBoardPool(cat, "all")).sort(byShelf),
+      set: (sku) => setSwaps((o) => ({ ...o, board: sku })),
+    };
+    return null;
+  };
+
+  // A kit click over customized work asks before wiping it (the wedi
+  // overwrite rule) — an untouched kit-to-kit hop stays one click.
+  const kitDirty = manual.length > 0 || benches.length > 0 || liveXwalls.length > 0
+    || (cfg.corners || []).length > 0 || !!cfg.maxIn || !!cfg.ramp || !!cfg.drainX || !!cfg.drainY
+    || Object.keys(qtyOv).length > 0 || Object.keys(swaps).length > 0
+    || walls.some((x) => x.len !== "" || x.h !== "" || !x.on || !!x.faces)
+    || tileNum > 0 || (!kitPick && pick != null);
+  const tryKit = (t) => { if (kitDirty) setConfirmKit(t); else pickKit(t); };
 
   // "Copy for order entry" (round 8, the wedi rule): stocked lines as
   // SKU ⇥ qty for the ERP, special order by description.
@@ -919,7 +988,7 @@ export default function SchluterConfigurator({
     setCorners({}); setMaxIn(false); setTileT("");
     setDrainX(""); setDrainY(""); setDrainRef("left");
     setBenches([]); setBenchMenu(null); setWallMenu(null); setPicker(null);
-    setMortarName(""); setRamp(false); setManual([]); setQtyOv({});
+    setMortarName(""); setRamp(false); setSwaps({}); setSwap(null); setManual([]); setQtyOv({});
     setPick(null); setKitPick(false);
   };
 
@@ -961,7 +1030,7 @@ export default function SchluterConfigurator({
               const dis = source === "stock" && !t.stock;
               const on = kitPick && pickCand?.tray?.sku === t.sku;
               return (
-                <button key={t.sku} className={"kitrow" + (dis ? " dis" : "") + (on ? " on" : "")} disabled={dis} onClick={() => pickKit(t)} data-schluter-tray={t.sku}>
+                <button key={t.sku} className={"kitrow" + (dis ? " dis" : "") + (on ? " on" : "")} disabled={dis} onClick={() => tryKit(t)} data-schluter-tray={t.sku}>
                   <span className="sz">{rowSz(t)}</span>
                   {usual != null && t.stock !== usual && (
                     <span className={"tag" + (t.stock ? "" : " so")}>{t.stock ? "stock" : "special order"}</span>
@@ -995,6 +1064,7 @@ export default function SchluterConfigurator({
           + (c.pinned ? (c.centered
             ? (c.miss > 0.5 ? ` Drain lands ${Math.round(c.miss)}″ off the clear-space centre.` : " Drain centred in the clear space.")
             : (c.miss > 0.5 ? ` Drain lands ${Math.round(c.miss)}″ off the pin.` : " Cut split lands the drain on the pin.")) : "")}</div>
+        <div className="thumb"><TopDown o={schluterDiag(cfg, c, [])} w={120} h={86} mini wallOn={wallOn} /></div>
         <div className="foot">
           <span className={"stockdot" + (c.tray.stock ? "" : " so")}>{c.tray.stock ? "stock" : "special order"}</span>
           <span className="pr" style={{ color: tierColor }}>{fm(tierOf(c.tray))}</span>
@@ -1202,6 +1272,7 @@ export default function SchluterConfigurator({
     const toks = q.toLowerCase().split(/\s+/).filter(Boolean);
     return cat
       .filter((i) => source === "all" || i.stock)
+      .filter((i) => sec !== "starred" || starred.has(i.sku))
       .filter((i) => !secObj || (subObj ? subObj.hit(i) : sectionHit(secObj, i)))
       .filter((i) => {
         if (!toks.length) return true;
@@ -1209,7 +1280,7 @@ export default function SchluterConfigurator({
         return toks.every((t) => hay.indexOf(t) >= 0);
       })
       .sort((a, b) => ((b.stock ? 1 : 0) - (a.stock ? 1 : 0)) || (a.g > b.g ? 1 : a.g < b.g ? -1 : 0) || (+a.price || 0) - (+b.price || 0));
-  }, [cat, q, secObj, subObj, source]);
+  }, [cat, q, sec, secObj, subObj, source, starred]);
 
   const wallSfNow = cfg.walls.filter((x) => x.on).reduce((s, x) => s + (x.len * x.h) / 144, 0);
   const floorSfNow = (cfg.w * cfg.d) / 144;
@@ -1247,6 +1318,9 @@ export default function SchluterConfigurator({
               {s.label}<small>{cat.filter((i) => sectionHit(s, i)).length}</small></button>
           ))}
           <button className={"fbopt" + (!sec ? " on" : "")} onClick={() => { setSec(""); setSub(""); }}>All<small>{cat.length}</small></button>
+          <button className={"fbopt" + (sec === "starred" ? " on" : "")} title="items pinned with the row star" data-schluter-starfilter
+            onClick={() => { const same = sec === "starred"; setSec(same ? "" : "starred"); setSub(""); }}>
+            ★ Starred<small>{starred.size}</small></button>
         </div>
       </div>
       {figOpen && (
@@ -1288,6 +1362,9 @@ export default function SchluterConfigurator({
             <div className="bmeta">
               <div className="s">{i.g}{i.stock ? " · on the shelf" : " · special order" + (i.lead ? " · " + i.lead : "")}</div>
               <div className="sku">{i.sku}</div>
+              <button className={"starb" + (starred.has(i.sku) ? " on" : "")} data-schluter-star={i.sku}
+                title={starred.has(i.sku) ? "unpin from Starred" : "pin to Starred"}
+                onClick={() => toggleStar(i.sku)}>{starred.has(i.sku) ? "★" : "☆"}</button>
               <div className="pr" style={{ color: tierColor }}>{fm(tierOf(i))}</div>
               <div className="stepper">
                 <button onClick={() => setQty(i.sku, Math.max(0, n - 1))}>−</button>
@@ -1299,7 +1376,9 @@ export default function SchluterConfigurator({
         );
       })}
       {browseList.length > 48 && <div className="more">{browseList.length - 48} more — narrow the search or a filter</div>}
-      {!browseList.length && <div className="loading">Nothing matches.</div>}
+      {sec === "starred" && !starred.size
+        ? <div className="loading">Nothing starred yet — the ☆ on any row pins it here.</div>
+        : !browseList.length && <div className="loading">Nothing matches.</div>}
     </>
   );
 
@@ -1354,6 +1433,10 @@ export default function SchluterConfigurator({
                           {!l.noteOnly && !e.stock && <span className="sotag">special order</span>}</div>
                         <div className="m" title={meta.join(" · ") || undefined}>{meta.map((s2, k) => (k ? " · " + s2 : <b key="k">{s2}</b>))}</div>
                       </div>
+                      {swapChoices(l) && (
+                        <button className="swapb" title="swap" data-schluter-swapb={e.sku}
+                          onClick={(ev) => setSwap({ key: e.sku || e.name, rect: ev.currentTarget.getBoundingClientRect() })}>⇄</button>
+                      )}
                       {!l.noteOnly && (
                         <div className="stepper">
                           <button onClick={() => stepLine(l, -1)} title="one less — at 0 the line leaves the bill">−</button>
@@ -1560,11 +1643,6 @@ export default function SchluterConfigurator({
       </div>
     </div>
   );
-
-  // choice lists narrow to stocked rows under Stock only unless none are —
-  // then the full list stays so a menu is never empty and a pick lands flagged
-  const pool = (list) => (source === "stock" && list.some((i) => i.stock) ? list.filter((i) => i.stock) : list);
-  const byShelf = (a, b2) => (b2.stock ? 1 : 0) - (a.stock ? 1 : 0) || tierPrice(a, "retail", {}) - tierPrice(b2, "retail", {});
 
   // The right-click wall menu (the wedi idiom): size edits write straight into
   // the walls / xwalls rows the build already reads. No faces seg — the
@@ -1895,6 +1973,51 @@ export default function SchluterConfigurator({
       </div>, document.body);
   })();
 
+  // The ⇄ swap popover — the wedi anchored panel: the line's alternatives,
+  // stock tinted, the standing pick highlighted.
+  const swapPanel = (() => {
+    if (!swap || !build) return null;
+    const line = build.lines.find((l) => !l.noteOnly && (l.item.sku || l.item.name) === swap.key);
+    if (!line) return null;
+    const ch = swapChoices(line);
+    if (!ch) return null;
+    const r = swap.rect;
+    const style = { top: Math.min(window.innerHeight - 356, r.bottom + 6), left: Math.max(12, r.right - 300) };
+    return createPortal(
+      <div className="sch-swap sch-swappanel" style={style} onClick={(e) => e.stopPropagation()}>
+        <div className="ph">{ch.title}</div>
+        {ch.list.map((e) => (
+          <button key={e.sku} className={"srow" + (e.sku === line.item.sku ? " on" : "") + (e.stock ? " stk" : "")}
+            onClick={() => { ch.set(e.sku); setSwap(null); }} data-schluter-swaprow={e.sku}>
+            <span className={"sdot" + (e.stock ? "" : " so")} />
+            <span className="n">{e.name}<small>{[e.size, e.sku, e.stock ? "stock" : "special order"].filter(Boolean).join(" · ")}</small></span>
+            <span className="p">{fm(tierOf(e))}</span>
+          </button>
+        ))}
+      </div>, document.body);
+  })();
+
+  // Kit row over customized work: confirm before wiping it (the wedi
+  // overwrite modal).
+  const confirmModal = confirmKit && (
+    <div className="print:hidden fixed inset-0 z-[80] flex items-center justify-center p-8" style={{ background: "rgba(20,15,10,.5)" }}
+      onClick={(e) => { e.stopPropagation(); setConfirmKit(null); }}>
+      <div className="sch-pop w-full max-w-[460px] rounded-xl overflow-hidden shadow-2xl" style={{ background: "var(--ft-cream)" }}
+        onClick={(e) => e.stopPropagation()} data-schluter-overwrite>
+        <div className="px-5 pt-4 pb-1 text-[14px] font-extrabold">Overwrite the custom shower?</div>
+        <div className="px-5 pb-4 text-[12px] leading-relaxed" style={{ color: "var(--ft-muted)" }}>
+          This build has been customized — walls, cuts, or parts differ from a shelf kit. Starting the{" "}
+          <b style={{ color: "var(--ft-text)" }}>{rowSz(confirmKit)}</b> kit resets all of it.
+        </div>
+        <div className="flex gap-2 px-5 py-3 border-t" style={{ borderColor: "var(--ft-border-strong)", background: "var(--ft-sand)" }}>
+          <button className="wbtn" onClick={() => setConfirmKit(null)}>Keep the custom shower</button>
+          <button className="wbtn primary" data-schluter-overwrite-yes
+            onClick={() => { const t = confirmKit; setConfirmKit(null); pickKit(t); }}>Overwrite — start the kit</button>
+        </div>
+      </div>
+    </div>
+  );
+
   // The print layout (round 8, the wedi sheet): both drawings, the cut list
   // and by-others notes, and the materials table through the tier lens —
   // portalled to body so PRINT_CSS can make it the only thing that prints.
@@ -2008,6 +2131,8 @@ export default function SchluterConfigurator({
       {wallMenuPanel}
       {benchMenuPanel}
       {pickerPanel}
+      {swapPanel}
+      {confirmModal}
       {payloadModal}
       {printSheet}
       {toast && createPortal(<div className="sch-toast" onClick={(e) => e.stopPropagation()}>{toast}</div>, document.body)}

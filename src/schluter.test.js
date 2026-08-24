@@ -795,3 +795,26 @@ test("orderCopyLines: stocked lines key SKU ⇥ qty, special order by descriptio
   // a stocked live row with no separate erp field keys its own sku
   assert.deepEqual(orderCopyLines([{ item: { stock: true, sku: "1509749", name: "x" }, qty: 3 }]), ["1509749\t3"]);
 });
+
+// --- cfg.swaps: hand-picked parts win their role (round 9) ------------------
+
+test("cfg.swaps overrides the grate, curb and One-size board picks", () => {
+  const base = buildKit(cfg({}), CAT, { source: "all" });
+  const grate0 = base.lines.find((l) => l.item.part === "grate").item.sku;
+  const alt = CAT.find((i) => i.part === "grate" && i.sku !== grate0);
+  const b = buildKit(cfg({ swaps: { grate: alt.sku } }), CAT, { source: "all" });
+  assert.equal(b.lines.find((l) => l.item.part === "grate").item.sku, alt.sku);
+  // curb: pick the 48" — the 60" entry needs 2 cut end-to-end
+  const c = buildKit(cfg({ swaps: { curb: "KBSC1151501220" } }), CAT, { source: "all" });
+  const cl = c.lines.find((l) => l.g === "Curb");
+  assert.equal(cl.item.len, 48);
+  assert.equal(cl.qty, 2);
+  // board: the smaller 48×64 sheet re-figures the One-size area count
+  const w2 = buildKit(cfg({ wallSys: "board", swaps: { board: "KB1212201625" } }), CAT, { source: "all" });
+  const wl = w2.lines.find((l) => l.g === "Walls" && l.item.g === "board" && !l.item.fastener);
+  assert.equal(wl.item.sku, "KB1212201625");
+  assert.equal(wl.qty, Math.ceil((base.lines ? 79.33 : 0) * 1.05 / 21.3)); // 4
+  // a stale sku falls back to the recipe pick, never lands the wrong part
+  const stale = buildKit(cfg({ swaps: { grate: "NOPE" } }), CAT, { source: "all" });
+  assert.equal(stale.lines.find((l) => l.item.part === "grate").item.sku, grate0);
+});
