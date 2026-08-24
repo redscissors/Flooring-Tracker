@@ -7,12 +7,14 @@
 
 import { fitDescription, textParts } from "./descfit.js";
 import { descParts } from "./sheoga.js";
+import { skuKeys } from "./orderbook.js";
 
-// Which section a product row belongs to. Three things make a line a special
+// Which section a product row belongs to. Four things make a line a special
 // order: it came from a price-book "order" book (bookId); it came from the
 // Sheoga configurator (sheoga — the floor line and its at-cost fee lines, which
-// carry the marker without a cfg); or it came from the wedi configurator
-// (wedi) WITHOUT a SKU. None of those is a stock SKU the shop holds.
+// carry the marker without a cfg); it came from the wedi configurator
+// (wedi) WITHOUT a SKU; or it is a bookless row whose SKU the stock cache
+// doesn't know (below). None of those is a stock SKU the shop holds.
 // `stockBookIds` (a Set of stock-kind book ids) carves out the ERP stock
 // books' rows — they carry a bookId for provenance/drift but their SKUs are
 // the shop's own, so they file as stock lines (SKU ⇥ qty).
@@ -22,7 +24,18 @@ import { descParts } from "./sheoga.js";
 // stocked wedi line carries the shop's ERP sku and keys as stock like any
 // other; a special-order one has no shop code, so it goes by description —
 // which already leads with wedi's US-SKU (issue 066).
-export const isSpecialOrder = (p, stockBookIds) => (!!p.bookId && !stockBookIds?.has(p.bookId)) || !!p.sheoga || (!!p.wedi && !p.sku);
+//
+// `stockSkus` (every stock-cache SKU in every skuKeys spelling, null until the
+// cache is up) closes the hand-entered gap (Marcus 2026-08-21): a row typed
+// straight onto the sheet has no bookId, but if its SKU isn't one the shop
+// stocks, pasting it as a stock SKU ⇥ qty line keys a code the ERP's stock
+// side doesn't hold — it's a special order that never went through a book.
+// Matching runs over skuKeys spellings both ways so a hand-typed manufacturer
+// form of a stocked code ("KST965/810BF" vs the shop's re-lettered twin) still
+// files as stock. Without the set (cache not ready) behavior is unchanged.
+export const isSpecialOrder = (p, stockBookIds, stockSkus) =>
+  (!!p.bookId && !stockBookIds?.has(p.bookId)) || !!p.sheoga || (!!p.wedi && !p.sku)
+  || (!p.bookId && !!p.sku && !!stockSkus && !skuKeys(p.sku).some((k) => stockSkus.has(k)));
 
 // What an order line with no quantity is keyed as. A zero is unusable at the
 // desk twice over: the ERP won't take a zero-quantity line at all, and the
@@ -33,11 +46,6 @@ export const isSpecialOrder = (p, stockBookIds) => (!!p.bookId && !stockBookIds?
 // a silently invented quantity is worse than a zero.
 export const ORDER_MIN_QTY = 1;
 export const orderQty = (qty) => (Number(qty) > 0 ? { qty: Number(qty), qtyAssumed: false } : { qty: ORDER_MIN_QTY, qtyAssumed: true });
-
-// The vendor prefix the configurator writes into the row name. It's worth ~9 of
-// a 30-character field and the PO already says who it's going to, so it stays on
-// screen but out of the fitted description.
-const VENDOR_PREFIX = /^Sheoga\s*—\s*/;
 
 // A dimension is one token to whoever reads the order — `2"x18"`, not
 // `2" × 18"`. The spaces cost three characters of a 30-character field that the
@@ -50,6 +58,12 @@ export const tightSize = (s) => String(s || "").trim().replace(/(\d["”']?)\s*[
 // ladder. A Sheoga row abbreviates losslessly because its description is built
 // from known enums (descParts); everything else is arbitrary vendor text with no
 // short form, so it either fits or splits.
+//
+// Sheoga is the one vendor whose name stays IN the description and never drops
+// (Marcus 2026-08-21) — a Sheoga order is keyed by description, no SKU, so the
+// brand is part of the identity, unlike a book brand (rank 3 below). The
+// structured path prepends it at rank 0; the fallback path (vents, dampers,
+// fees) keeps the "Sheoga — " lead the configurator wrote into the row name.
 //
 // A line always flows unit · size · product/color · SKU · coverage. The SKU and
 // coverage trail because neither is part of the description proper — they're
@@ -72,7 +86,7 @@ export const tightSize = (s) => String(s || "").trim().replace(/(\d["”']?)\s*[
 // the screen. A name that doesn't lead with the brand (the salesperson deleted
 // it, or it never landed) passes through untouched.
 export function orderDescription(r, limit) {
-  const named = String(r.name || "").replace(VENDOR_PREFIX, "").trim();
+  const named = String(r.name || "").trim();
   const brand = !r.sheoga ? String(r.brand || "").trim() : "";
   const branded = brand && (named.toLowerCase() + " ").startsWith(brand.toLowerCase() + " ");
   const body = branded ? named.slice(brand.length).trim() : named;
@@ -80,9 +94,10 @@ export function orderDescription(r, limit) {
   // Structured parts win over the row's name text: they're the same description
   // (descfit.test.js asserts the join matches across every configuration) but
   // carry the per-category short forms that make the abbreviated rung possible.
+  const sheogaParts = r.sheoga && descParts(r.sheoga);
   const parts = [
     ...(r.tag ? [{ full: String(r.tag), rank: 0 }] : []),
-    ...((r.sheoga && descParts(r.sheoga))
+    ...((sheogaParts && [{ full: "Sheoga", rank: 0 }, ...sheogaParts])
       || (branded ? [...textParts(tightSize(r.sizePlain)), { full: brand, rank: 3 }, ...textParts(body)] : textParts(spec))),
   ];
   const tail = [];

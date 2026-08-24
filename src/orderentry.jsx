@@ -2,8 +2,9 @@
 // formats its lines for pasting into the vendor order-entry program.
 //
 // Special-order lines come first: each is a two-line item (size + color / SKU +
-// coverage) with the buy/sell unit tagged at the front (CT/SH, nothing for
-// pieces), the ordered qty, and per-unit cost & sell priced in that same unit.
+// coverage) with CT tagged at the front for carton lines (the one unit start
+// kept — Marcus 2026-08-20), the ordered qty, and per-unit cost & sell priced
+// in the sell unit.
 // Special covers both price-book order items and Sheoga-configurator lines
 // (floors and their at-cost fee lines). Sheoga sells by description, not SKU,
 // so those rows say so where the SKU would sit and copy the qty inline — the

@@ -5,7 +5,7 @@ import { listSelect, lightRow, loadProjects, loadPeople, loadBuilders, loadTodos
 import { bootTrace, traceRows } from "./boottrace.js";
 import { num, wasteFor, withProjWaste, normalizeSettings, serializeSettings, groutExact, mortarExact, getGrout, getMortar, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, offeredAttached, offeredCategories, getAttached, qtyDrift } from "./catalog.js";
 import { findStock, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant, groutFamilies, groutSnapshotPatch } from "./stock.js";
-import { pricedItem, orderPatch, orderDrift, rowCostSqft } from "./orderbook.js";
+import { pricedItem, orderPatch, orderDrift, rowCostSqft, skuKeys } from "./orderbook.js";
 import { OrderEntryPanel } from "./orderentry.jsx";
 import { isSpecialOrder, nameBudget, orderQty } from "./orderentry.js";
 import { tierView, tierUnitPrice, employeeNoCost, normPricing } from "./pricing.js";
@@ -622,6 +622,15 @@ export default function App({ user, onSignOut }) {
   // Stock-kind book ids, so order entry can file their rows as stock lines
   // (their SKUs are the shop's own) despite the bookId provenance.
   const stockBookIds = useMemo(() => new Set(books.filter((b) => b.kind === "stock").map((b) => b.id)), [books]);
+  // Every stock-cache SKU in every skuKeys spelling, so order entry can file a
+  // hand-entered row whose SKU the shop doesn't stock as a special order
+  // (isSpecialOrder). Null until the cache is up — behavior unchanged then.
+  const stockSkus = useMemo(() => {
+    if (!bookStockReady) return null;
+    const set = new Set();
+    for (const it of stockItems) for (const k of skuKeys(it.sku)) set.add(k);
+    return set;
+  }, [bookStockReady, stockItems]);
   // Book brand labels (book.data.brandLabel), so order entry can drop a row's
   // leading brand first when the ERP description field runs tight.
   const bookBrands = useMemo(() => new Map(books.filter((b) => b.data?.brandLabel).map((b) => [b.id, b.data.brandLabel])), [books]);
@@ -1924,7 +1933,7 @@ export default function App({ user, onSignOut }) {
                               </div>
                               <div style={gridCell}>
                                 <GridProductBox value={p.brandColor} stock={stockItems} onChange={(v) => updProduct(a.id, p.id, { brandColor: v })} onPick={(it) => { addStockProducts(a.id, p.id, [it]); setFocusQty(p.id); }} searchOrder={searchOrder} bookName={bookName} placeholder={p.type === "misc" ? "Description…" : "Product / color…"} inputRef={(el) => { if (el) prodRefs.current[p.id] = el; }}
-                                  budget={descLimit > 0 && isSpecialOrder(p, stockBookIds) ? nameBudget(orderEntryRow(p, wSet, "", descLimit, stockBookIds, bookBrands), descLimit) : Infinity} descLimit={descLimit} strictness={searchStrictness} fallback={searchFallback} />
+                                  budget={descLimit > 0 && isSpecialOrder(p, stockBookIds, stockSkus) ? nameBudget(orderEntryRow(p, wSet, "", descLimit, stockBookIds, bookBrands, stockSkus), descLimit) : Infinity} descLimit={descLimit} strictness={searchStrictness} fallback={searchFallback} />
                               </div>
                               <div style={{ ...gridCell, fontSize: 9.5 }} className="ft-mono">
                                 {/* Plain field by request (2026-07-22): the SKU is typed or
@@ -2757,7 +2766,7 @@ export default function App({ user, onSignOut }) {
         const oeCats = scopedCats(oeProj.categories, scope);
         const oeT = scope === "all" ? T : jobTotals({ ...tv.proj, categories: scopedCats(tv.proj.categories, scope) }, { ...sel, categories: scopedCats(sel.categories, scope) }, tSet, wSet, settings, books);
         const rows = [];
-        (oeCats || []).forEach((a, ai) => a.products.forEach((p) => { if (!rowBlank(p)) rows.push(orderEntryRow(p, wSet, areaLabel(a, ai), descLimit, stockBookIds, bookBrands)); }));
+        (oeCats || []).forEach((a, ai) => a.products.forEach((p) => { if (!rowBlank(p)) rows.push(orderEntryRow(p, wSet, areaLabel(a, ai), descLimit, stockBookIds, bookBrands, stockSkus)); }));
         const mats = oeT.matAll.map((m, i) => {
           const { qty, qtyAssumed } = orderQty(m.order);
           return { id: "mat" + i, sku: m.sku || "", qty, qtyAssumed, qtyText: `${qty} ${u1(qty, m.unit)}`, name: m.product, kind: m.kind };

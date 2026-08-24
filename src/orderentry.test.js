@@ -18,6 +18,24 @@ test("isSpecialOrder: a stock-kind book's row files as stock despite its bookId"
   assert.equal(isSpecialOrder({ bookId: "bkDOIT", sku: "", sheoga: { mode: "floor" } }, stockBookIds), true);
 });
 
+test("isSpecialOrder: a bookless row with an unstocked SKU files as a special order", () => {
+  // Marcus 2026-08-21 (Uptown Pebbles): a hand-entered line has no bookId, but
+  // its SKU isn't one the shop stocks — pasting it as a stock SKU ⇥ qty line
+  // keys a code the ERP's stock side doesn't hold.
+  const stockSkus = new Set(["05153", "SLRKST965810BF", "KST965810BF"]);
+  assert.equal(isSpecialOrder({ bookId: "", sku: "STIPEHW1212PEBF" }, new Set(), stockSkus), true);
+  assert.equal(isSpecialOrder({ bookId: "", sku: "05153" }, new Set(), stockSkus), false);
+  // skuKeys spellings bridge a hand-typed manufacturer form to the stocked twin
+  assert.equal(isSpecialOrder({ bookId: "", sku: "KST965/810BF" }, new Set(), stockSkus), false);
+  // no SKU at all stays a stock line (the panel's red "no SKU" case)
+  assert.equal(isSpecialOrder({ bookId: "", sku: "" }, new Set(), stockSkus), false);
+  // stock cache not up yet (no set) — behavior unchanged
+  assert.equal(isSpecialOrder({ bookId: "", sku: "STIPEHW1212PEBF" }, new Set()), false);
+  // a stock-kind book's row never takes the SKU check — its codes are the shop's own
+  const stockBookIds = new Set(["bkDOIT"]);
+  assert.equal(isSpecialOrder({ bookId: "bkDOIT", sku: "9999X" }, stockBookIds, stockSkus), false);
+});
+
 test("isSpecialOrder: a wedi line splits on its SKU — stocked keys as stock, the rest by description", () => {
   const stockBookIds = new Set(["bkWEDI"]);
   // special order: wedi's pricelist item, no shop code — the description leads
@@ -96,14 +114,27 @@ test("orderDescription: the copy button carries the description field, nothing e
   assert.ok(!copied.includes("20 CT"), "quantity is its own ERP field");
 });
 
-test("orderDescription: a Sheoga row abbreviates from its configuration, dropping the vendor prefix", () => {
-  const d = orderDescription(sheogaRow(floorCfg), 30);
+test("orderDescription: a Sheoga row abbreviates from its configuration, the vendor name leading", () => {
+  const d = orderDescription(sheogaRow(floorCfg), 36);
   assert.equal(d.tier, "short");
   // 3 spare chars after abbreviating: species and grade overrun, Solid fits.
-  assert.equal(d.main, 'CT 5¼" WO Char Solid T-1 30sh');
-  assert.ok(!d.main.includes("Sheoga"), "the PO already names the vendor");
+  assert.equal(d.main, 'CT Sheoga 5¼" WO Char Solid T-1 30sh');
   assert.ok(!d.main.includes("ignored"), "structured parts beat the row's name text");
   assert.equal(d.ext, null);
+});
+
+test("orderDescription: Sheoga is never dropped, however tight the field runs", () => {
+  // Marcus 2026-08-21: Sheoga is the one brand that keeps its name in the
+  // description — a Sheoga order is keyed by description, so the brand is
+  // identity, not a droppable book label.
+  for (const limit of [0, 40, 30, 24]) {
+    assert.ok(orderDescription(sheogaRow(floorCfg), limit).main.includes("Sheoga"), `lost Sheoga at ${limit}`);
+  }
+  // On the split rung the identity floor keeps the brand and the rest goes to Ext.
+  const d = orderDescription(sheogaRow(floorCfg), 30);
+  assert.equal(d.tier, "split");
+  assert.equal(d.main, 'CT Sheoga 5¼" WO Char Sol +');
+  assert.ok(d.ext.startsWith("CT Sheoga "), "the extended text keeps the lead too");
 });
 
 test("orderDescription: a long Sheoga build splits, and ext holds every category", () => {
@@ -142,9 +173,10 @@ test("nameBudget: what the limit leaves the product text after the tag, size, SK
 
 test("orderDescription: a fee line has no structured parts and falls back to its text", () => {
   const fee = { tag: "", sizePlain: "", name: "Sheoga — Small-order fee — prefinished job under 250 sf", sku: "", sheoga: { fee: true } };
-  assert.equal(orderDescription(fee, 0).main, "Small-order fee — prefinished job under 250 sf");
+  assert.equal(orderDescription(fee, 0).main, "Sheoga — Small-order fee — prefinished job under 250 sf");
   const d = orderDescription(fee, 30);
   assert.equal(d.tier, "split");
+  assert.ok(d.main.startsWith("Sheoga"), "the vendor lead the configurator wrote stays");
   assert.ok(d.main.endsWith("+"));
 });
 

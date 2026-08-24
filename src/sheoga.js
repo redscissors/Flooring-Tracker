@@ -498,7 +498,11 @@ export function calcStocked(k) {
   fees.forEach((x) => rows.push([`${x.label} → imports as its own line`, `+${fm(x.amt)} flat`]));
   const size = WIDTH_LABEL[k.w];
   const color = it.color.replace(/ · /g, " ");
-  const rest = `${it.sp} ${color} ${k.grade === "clear" ? "Clear" : "Character"} Stocked prefinished ${sheen} sheen`;
+  // "Prefinished", not the program name "Stocked prefinished" — the vendor
+  // fills the order from the color + grade + sheen, and "Stocked" is shop-side
+  // stock status that only pads the description (Marcus 2026-08-21). The green
+  // warn line below still tells the salesperson it ships from stock.
+  const rest = `${it.sp} ${color} ${k.grade === "clear" ? "Clear" : "Character"} Prefinished ${sheen} sheen`;
   const warn = changed ? ["Non-standard sheen — made to order, not a stock item"] : ["Stocked item — ships from Sheoga stock"];
   return { desc: `${size} ${rest}`, size, rest, cartonSf: CARTON_SF[k.w] || null, name: `Sheoga ${size} ${it.sp} ${it.color}`, rows, cost: p, per: "sf", warn, fees };
 }
@@ -884,7 +888,7 @@ function stockedParts(k) {
     // texture, so fall back to shortening each word it knows.
     { full: color, short: STAIN_SHORT[color] || color.split(" ").map((w) => STAIN_SHORT[w] || w).join(" "), rank: 0 },
     { full: grade, short: GRADE_SHORT[grade], rank: 0 },
-    { full: "Stocked prefinished", short: "Stk", rank: 2 },
+    { full: "Prefinished", short: "Prefin", rank: 2 },
     { full: `${sheen} sheen`, short: `${sheen}sh`, rank: 1 },
   ];
 }
