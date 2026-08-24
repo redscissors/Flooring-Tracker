@@ -430,3 +430,18 @@ export function SourceSwitch({ source, onChange, title }) {
     </div>
   );
 }
+
+// A number field that commits on blur/Enter rather than per keystroke — both
+// vendor configurators re-solve whole builds off these, and a half-typed "4"
+// of "48" is not a room (the wedi doctrine, shared here in round 6 so the
+// popups can't drift on input behavior).
+export function NumIn({ value, onCommit, ...rest }) {
+  const [draft, setDraft] = useState(value == null ? "" : String(value));
+  const live = useRef(false);
+  useEffect(() => { if (!live.current) setDraft(value == null ? "" : String(value)); }, [value]);
+  return <input {...rest} value={draft}
+    onFocus={() => { live.current = true; }}
+    onChange={(e) => setDraft(e.target.value)}
+    onBlur={() => { live.current = false; onCommit(draft); }}
+    onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} />;
+}

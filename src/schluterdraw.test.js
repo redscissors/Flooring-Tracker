@@ -233,3 +233,30 @@ test("the curb butts a framed left bench that reaches the entry; a build-up leav
   const shortB = normBench({ kind: "wall", side: "left", build: "framed", len: 20 }, dims, CAT);
   assert.equal(schluterCurb(c, [shortB]).segs[0].len, 60);
 });
+
+// --- round 6: curb on every open edge + faces passthrough -------------------
+
+test("a wall turned off hands its edge to the curb band", () => {
+  const c = cfg({});
+  c.walls = c.walls.map((w, i) => (i === 1 ? { ...w, on: false } : w));
+  const cut = schluterCurb(c, []);
+  assert.deepEqual(cut.segs.map((s) => [s.side, s.from, s.len]), [["left", 0, 38], ["entry", 0, 60]]);
+});
+
+test("a cut corner between two open edges draws one diagonal, runs give up the legs", () => {
+  const c = cfg({ corners: ["fl"] });
+  c.walls = c.walls.map((w, i) => (i === 1 ? { ...w, on: false } : w));
+  const cut = schluterCurb(c, []);
+  assert.deepEqual(cut.segs.map((s) => [s.side, s.from, s.len]), [["left", 0, 26], ["entry", 12, 48]]);
+  assert.equal(cut.diags.length, 1);
+  assert.equal(cut.diags[0].corner, "fl");
+});
+
+test("schluterWalls passes per-wall faces through to the drawings", () => {
+  const c = cfg({ xwalls: [{ id: 1, edge: "entry", at: "lo", len: 24, h: 84, faces: "in-end" }] });
+  c.walls = c.walls.map((w, i) => (i === 1 ? { ...w, faces: "both" } : w));
+  const dw = schluterWalls(c);
+  assert.equal(dw.find((w) => w.side === "left").faces, "both");
+  assert.equal(dw.find((w) => w.extra).faces, "in-end");
+  assert.equal(dw.find((w) => w.side === "back").faces, "in");
+});

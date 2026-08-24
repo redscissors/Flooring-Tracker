@@ -4,11 +4,12 @@
 // hands them its own.
 
 import { benchFootprint } from "./showerdraw.js";
-import { benchTrayRoom } from "./schluter.js";
+import { benchTrayRoom, openRuns, CURB_W } from "./schluter.js";
 
-// KERDI-BOARD-SC curb profile: 4½" wide on the plan, 6" tall in the
-// isometric — the prototype's massing, from the "6\"×4½\"×len" size text.
-export const SCHLUTER_CURB_W = 4.5;
+// KERDI-BOARD-SC curb profile: 4½" wide on the plan (CURB_W lives engine-side
+// now — billing figures diagonals off it too), 6" tall in the isometric —
+// the prototype's massing, from the "6\"×4½\"×len" size text.
+export const SCHLUTER_CURB_W = CURB_W;
 export const SCHLUTER_CURB_H = 6;
 
 // KERDI-BOARD panels hang in 48"-wide sheets; a board wall's butt joints tick
@@ -36,20 +37,20 @@ const EDGES = ["back", "left", "right", "entry"];
  * at whichever end their `at` says, exactly the wedi extra-wall shape.
  */
 export function schluterWalls(cfg) {
-  const wall = (side, len, h, at, wid, extra) => ({
-    side, len, h, at, faces: "in", wid, extra,
+  const wall = (side, len, h, at, wid, extra, faces) => ({
+    side, len, h, at, faces: faces === "both" || faces === "in-end" ? faces : "in", wid, extra,
     // one floor-to-top course: the plan ticks the 48" butt joints off lens,
     // the isometric draws the same joints y0→y0+ch up the face
     courses: cfg.wallSys === "board" ? [{ lens: courseLens(len), y0: 0, ch: h }] : [],
   });
   const out = (cfg.walls || []).map((w, i) => ({ w, side: SIDE[i] })).filter(({ w }) => w.on)
-    .map(({ w, side }) => wall(side, +w.len || 0, +w.h || 84, "lo", side, false));
+    .map(({ w, side }) => wall(side, +w.len || 0, +w.h || 84, "lo", side, false, w.faces));
   (cfg.xwalls || []).forEach((x, i) => {
     const len = +x.len || 0;
     // wid off the row's own id when it has one (the popup's wall menu keys on
     // it); the index stays the fallback for id-less cfgs
     if (len > 0) out.push(wall(EDGES.includes(x.edge) ? x.edge : "entry", len, +x.h || 84,
-      x.at === "hi" ? "hi" : "lo", "x" + (x.id != null ? x.id : i), true));
+      x.at === "hi" ? "hi" : "lo", "x" + (x.id != null ? x.id : i), true, x.faces));
   });
   return out;
 }
@@ -109,54 +110,47 @@ export function schluterCuts(cfg) {
 }
 
 /**
- * Curb geometry: one run across the entry OPENING — the KBSC profile, butting
- * any entry walls (cfg.xwalls) instead of running under them. A cut FRONT
- * corner the run reaches turns the curb diagonally across it (the wedi diag
- * shape); the run gives up the leg. Curbless builds carry no curb band —
- * the ramp/recess is a build line, not plan geometry.
+ * Curb geometry: the engine's openRuns — every open edge carries curb (round
+ * 6, the wedi rule), butting walls instead of running under them, cut corners
+ * turned diagonally at the piece's longest point. Billing reads the SAME
+ * openRuns, so the plan and the bill can't drift. Curbless builds carry no
+ * curb band — the ramp/recess is a build line, not plan geometry.
  */
 export function schluterCurb(cfg, benches) {
   if (!cfg.curbed) return { segs: [], diags: [], h: 0, w: SCHLUTER_CURB_W };
   const w = +cfg.w || 0, d = +cfg.d || 0;
-  let lo = 0, hi = 0;
-  (cfg.xwalls || []).filter((x) => x.edge === "entry").forEach((x) => {
-    const len = Math.min(+x.len || 0, w);
-    if (x.at === "hi") hi = Math.max(hi, len); else lo = Math.max(lo, len);
-  });
-  let from = lo, len = Math.max(0, w - lo - hi);
-  if (len <= 0) return { segs: [], diags: [], h: 0, w: SCHLUTER_CURB_W };
-  const cutSet = schluterCuts(cfg);
-  const diags = [];
-  const diagOf = (c) => ({
-    corner: c.corner, h: c.h, v: c.v, len: round2(Math.hypot(c.h, c.v)),
-    cut: round2(Math.hypot(c.h + SCHLUTER_CURB_W, c.v + SCHLUTER_CURB_W)),
-  });
-  const fl = cutSet.find((c) => c.corner === "fl"), fr = cutSet.find((c) => c.corner === "fr");
-  if (fl && from <= 0.5) { const t = Math.min(fl.h, len); from += t; len -= t; diags.push(diagOf(fl)); }
-  if (fr && from + len >= w - 0.5) { len -= Math.min(fr.h, len); diags.push(diagOf(fr)); }
-  // a FRAMED bench whose footprint reaches the entry edge claims its span —
+  const runs = openRuns(cfg);
+  if (!runs.segs.length && !runs.diags.length) return { segs: [], diags: [], h: 0, w: SCHLUTER_CURB_W };
+  // a FRAMED bench whose footprint reaches an open edge claims its span —
   // the curb butts the bench face instead of running under it (the wedi rule:
   // only framed interrupts the envelope; build-ups and premades sit on the
   // finished tray with the curb running beneath)
-  let parts = [[from, from + len]];
+  const claims = { back: [], left: [], right: [], entry: [] };
   (benches || []).forEach((b) => {
     if (b.kind !== "wall" || b.build !== "framed") return;
     const f = benchFootprint(b, { w, d });
-    if (f.kind !== "rect" || f.y + f.d < d - 0.5) return;
-    const a = f.x, z = f.x + f.w;
-    parts = parts.flatMap(([p, q]) => {
-      if (z <= p + 0.5 || a >= q - 0.5) return [[p, q]];
-      const keep = [];
-      if (a > p + 0.5) keep.push([p, a]);
-      if (z < q - 0.5) keep.push([z, q]);
-      return keep;
-    });
+    if (f.kind !== "rect") return;
+    if (f.y <= 0.5) claims.back.push([f.x, f.x + f.w]);
+    if (f.y + f.d >= d - 0.5) claims.entry.push([f.x, f.x + f.w]);
+    if (f.x <= 0.5) claims.left.push([f.y, f.y + f.d]);
+    if (f.x + f.w >= w - 0.5) claims.right.push([f.y, f.y + f.d]);
   });
-  return {
-    segs: parts.filter(([p, q]) => q - p > 0.5)
-      .map(([p, q]) => ({ side: "entry", from: round2(p), len: round2(q - p), ext0: 0, ext1: 0 })),
-    diags, h: SCHLUTER_CURB_H, w: SCHLUTER_CURB_W,
-  };
+  const segs = [];
+  runs.segs.forEach((s) => {
+    let parts = [[s.from, s.from + s.len]];
+    claims[s.side].forEach(([a, z]) => {
+      parts = parts.flatMap(([p, q]) => {
+        if (z <= p + 0.5 || a >= q - 0.5) return [[p, q]];
+        const keep = [];
+        if (a > p + 0.5) keep.push([p, a]);
+        if (z < q - 0.5) keep.push([z, q]);
+        return keep;
+      });
+    });
+    parts.filter(([p, q]) => q - p > 0.5)
+      .forEach(([p, q]) => segs.push({ side: s.side, from: round2(p), len: round2(q - p), ext0: 0, ext1: 0 }));
+  });
+  return { segs, diags: runs.diags, h: SCHLUTER_CURB_H, w: SCHLUTER_CURB_W };
 }
 
 /**

@@ -1,6 +1,20 @@
 Status: open
 Labels: ready-for-human
 
+> **Round 6 (owner verdicts, 2026-08-24 — .scratch/106):** landed A4 (toasts),
+> A5 (Esc cancels placing), B3 (rows price the FULL kit + a Kits-tab wall-
+> system seg reprices Membrane vs Board in place), B7 (exception-only tags),
+> C1 (shared NumIn — blur commit), C13 (per-wall faces seg — the owner
+> overrode the recorded N/A), C14 (retuneWalls on room commits), C15
+> (geometry edits bump Kits → Custom with a toast), D3 (figurer Add to
+> build), E5 (ramp is an opt-in chip), F5 ("Turn into a curb" — the curb now
+> runs EVERY open edge, billed and drawn from one openRuns). New owner
+> decision the same day: KERDI-FIX left the standing recipe (tub-kit goods,
+> now a chip; approved-bill pins re-pinned 11 lines / $734.09).
+> Still open: E12/F4 (board panel plan — the big one), E10 (print), E11
+> (order-entry copy), E3 (line swaps), B4 (overwrite confirm), C17
+> (thumbnails), D4 (starred).
+
 # Schluter ⇄ wedi feature inventory — the fine-toothed comb, done once
 
 Owner ask (2026-08-24): parity gaps keep surfacing one owner-review at a

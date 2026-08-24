@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
-import { classify, catalogOf, trayCandidates, pickRolls, pickFrom, buildKit, linesTotal, tierPrice, lineItems, entryOpening, normBench, benchTrayRoom } from "./schluter.js";
+import { classify, catalogOf, trayCandidates, pickRolls, pickFrom, buildKit, linesTotal, tierPrice, lineItems, entryOpening, openRuns, normBench, benchTrayRoom } from "./schluter.js";
 
 const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -167,9 +167,12 @@ test("curbless thin-priority order pinned in trayCandidates", () => {
 const retail = (it) => it.stock ? it.price : it.cost * 1.5;
 
 test("60x38 curbed point membrane — the approved bill", () => {
+  // re-pinned 2026-08-24 (was 12 lines / $759.75): KERDI-FIX left the
+  // standing recipe by owner ask — it rides the tub kit, not every shower
   const b = buildKit(cfg({}), CAT, { source: "all" });
-  assert.equal(b.lines.filter((l) => !l.noteOnly).length, 12);
-  assert.equal(Math.round(linesTotal(b.lines, retail) * 100), 75975); // $759.75
+  assert.equal(b.lines.filter((l) => !l.noteOnly).length, 11);
+  assert.equal(b.lines.some((l) => l.item.adhesive), false);
+  assert.equal(Math.round(linesTotal(b.lines, retail) * 100), 73409); // $734.09
   assert.equal(b.lines.filter((l) => l.so).length, 0);
 });
 test("linear build: Vario kit carries the seals", () => {
@@ -420,9 +423,10 @@ test("stock-only linear channel: a covering SO channel beats a short stocked one
 });
 
 test("the pinned 60×38 truth-table total is untouched by the pickFrom refactor", () => {
+  // re-pinned 2026-08-24 with the KERDI-FIX removal ($759.75 − 25.66)
   const retail = (e) => tierPrice(e, "retail", {});
   const b = buildKit(cfg({}), CAT, { source: "all" });
-  assert.equal(Math.round(linesTotal(b.lines, retail) * 100), 75975);
+  assert.equal(Math.round(linesTotal(b.lines, retail) * 100), 73409);
 });
 
 test("lineItems: wedi-shaped (build, opts) with build.mode and the vendor lead", () => {
@@ -468,8 +472,11 @@ test("an entry wall shortens the curb to the opening", () => {
 test("a fully walled entry carries no curb line at all", () => {
   const b = buildKit(cfg({ xwalls: [{ edge: "entry", at: "lo", len: 60, h: 84 }] }), CAT, { source: "all" });
   assert.equal(b.lines.some((l) => l.g === "Curb"), false);
-  // and a curbless room still takes the ramp, walls or not
-  const r = buildKit(cfg({ curbed: false, xwalls: [{ edge: "entry", at: "lo", len: 24, h: 84 }] }), CAT, { source: "all" });
+  // the ramp is an OPT-IN (round 6 — owner 2026-08-24): a curbless room
+  // bills it only when cfg.ramp asks, never automatically
+  const bare = buildKit(cfg({ curbed: false }), CAT, { source: "all" });
+  assert.equal(bare.lines.some((l) => l.g === "Curb"), false);
+  const r = buildKit(cfg({ curbed: false, ramp: true, xwalls: [{ edge: "entry", at: "lo", len: 24, h: 84 }] }), CAT, { source: "all" });
   assert.equal(r.lines.some((l) => l.g === "Curb" && l.item.ramp), true);
 });
 
@@ -551,10 +558,53 @@ test("a cut FRONT corner adds the curb's diagonal; a back corner never does", ()
   const bl = buildKit(cfg({ corners: ["bl"] }), CAT, { source: "all" });
   const curbOf = (b) => b.lines.find((l) => l.g === "Curb");
   assert.equal(curbOf(base).qty, 1);
-  // 60 + ~4.97 diagonal extra outruns the 60" curb — a second is cut on
+  // the run gives up the 12" leg but the diagonal is figured at its longest
+  // point (48 + 23.33 = 71.33) — outruns the 60" curb, a second is cut on
   assert.equal(curbOf(fl).qty, 2);
   assert.match(curbOf(fl).note, /turns a cut corner diagonally/);
   assert.equal(curbOf(bl).qty, 1);
+});
+
+// --- open edges carry curb + per-wall faces (round 6) ----------------------
+
+test("a wall turned off hands its edge to the curb", () => {
+  const noLeft = cfg({});
+  noLeft.walls = noLeft.walls.map((w, i) => (i === 1 ? { ...w, on: false } : w));
+  const r = openRuns(noLeft);
+  assert.deepEqual(r.segs.map((s) => [s.side, s.from, s.len]), [["left", 0, 38], ["entry", 0, 60]]);
+  assert.equal(r.need, 98);
+  // the bill covers the whole open run, not just the entry
+  const b = buildKit(noLeft, CAT, { source: "all" });
+  const c = b.lines.find((l) => l.g === "Curb");
+  assert.equal(c.qty, 2); // 98" over 60" curbs, cut end-to-end
+  assert.match(c.note, /end-to-end/);
+});
+
+test("a cut corner between two open edges takes one diagonal and both legs", () => {
+  const noLeft = cfg({ corners: ["fl"] });
+  noLeft.walls = noLeft.walls.map((w, i) => (i === 1 ? { ...w, on: false } : w));
+  const r = openRuns(noLeft);
+  // fl touches the left run's hi end and the entry run's lo end — 12" off each
+  assert.deepEqual(r.segs.map((s) => [s.side, s.from, s.len]), [["left", 0, 26], ["entry", 12, 48]]);
+  assert.equal(r.diags.length, 1);
+  assert.equal(r.diags[0].cut, 23.33); // hypot(12+4.5, 12+4.5) — the longest point
+});
+
+test("openRuns matches the old entry-only contract on a default room", () => {
+  assert.deepEqual(openRuns(cfg({})).segs, [{ side: "entry", from: 0, len: 60, ext0: 0, ext1: 0 }]);
+  assert.equal(openRuns(cfg({})).need, 60);
+});
+
+test("wall faces feed the area: both doubles, in-end adds the end strip", () => {
+  const both = cfg({});
+  both.walls = both.walls.map((w, i) => (i === 1 ? { ...w, faces: "both" } : w));
+  const b = buildKit(both, CAT, { source: "all" });
+  // base 79.3 sf + the left wall's second face (38×84/144 ≈ 22.2 sf) = 101.5
+  assert.match(b.lines.find((l) => l.g === "Walls").note, /^10[12] sf of wall/);
+  const end = cfg({ xwalls: [{ edge: "entry", at: "lo", len: 24, h: 84, faces: "in-end" }] });
+  const be = buildKit(end, CAT, { source: "all" });
+  // 79 + 24×84/144 = 93, + the exposed 4" end strip (4×84/144 ≈ 2.3) → 96
+  assert.match(be.lines.find((l) => l.g === "Walls").note, /^96 sf of wall/);
 });
 
 // --- benches (wedi parity round 3): normBench / benchTrayRoom / cfg.benches -

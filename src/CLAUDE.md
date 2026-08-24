@@ -97,7 +97,11 @@ src/
                     # seg both vendor configurators mount in their pop-head
                     # (phase 4), so the two popups can't drift on the control;
                     # it carries no engine knowledge, each popup owns what the
-                    # source constrains and styles `.srcseg` in its own CSS
+                    # source constrains and styles `.srcseg` in its own CSS.
+                    # `NumIn` (round 6) — the commit-on-blur/Enter number field
+                    # both vendor configurators mount (moved out of
+                    # WediConfigurator.jsx): whole builds re-solve off these,
+                    # and a half-typed "4" of "48" is not a room
   search.jsx        # price-book search suite: `SkuPicker`, `StockSearch`,
                     # `FamilySearch`, hit rows, merged-results hooks
   grid.jsx          # selection-grid cells: `TypeSelect`, `GridPriceCell`,
@@ -677,10 +681,25 @@ src/
                     # rank by miss before cut size — so a bigger tray whose
                     # cut reaches the pin outranks an exact tray that can't.
                     # Added walls (cfg.xwalls — entry returns, jogs, issue
-                    # 100) feed wallArea like any wall, and `entryOpening`
-                    # is what the entry walls leave open: the curb is picked
-                    # and cut to the OPENING, and a fully walled entry
-                    # carries no curb line at all (curbless still ramps).
+                    # 100) feed wallArea like any wall — per-wall `faces`
+                    # (round 6, the wedi rule: "both" doubles the plane,
+                    # "in-end" adds the WALL_THICK end strip) rides each
+                    # walls/xwalls row. `openRuns` (round 6, the wedi
+                    # curbRuns rule) is where the curb actually runs: EVERY
+                    # open span of the perimeter, not just the entry — a wall
+                    # turned off hands its edge to the curb, cut corners
+                    # adjacent to open runs turn ONE diagonal figured at its
+                    # longest point (leg + CURB_W each way, the exported
+                    # 4.5" KBSC width schluterdraw imports), each touching
+                    # run gives up the leg; billing and the drawings read
+                    # the SAME openRuns so they can't drift. `entryOpening`
+                    # stays for the note text; a fully walled room carries
+                    # no curb line at all. A curbless build bills the ramp
+                    # ONLY on cfg.ramp (opt-in chip, owner 2026-08-24 —
+                    # never auto), and KERDI-FIX left the standing recipe
+                    # the same day (it rides the tub kit, not every shower —
+                    # the popup offers a chip; the approved-bill pins moved
+                    # to 11 lines / $734.09 deliberately).
                     # cfg.drain "any" (round 2) pools every tray and the
                     # PICKED tray decides what gets billed and drawn — the
                     # channel vs flange/grate/corner-pack branches key on
@@ -843,6 +862,13 @@ src/
                     # a framed bench footprint that reaches the entry edge —
                     # both via schluter.js benchTrayRoom / showerdraw
                     # benchFootprint so the bill and the drawing can't drift),
+                    # Round 6: `schluterCurb` reads the ENGINE's openRuns —
+                    # every open edge carries a band (a wall turned off
+                    # draws curb along its edge in both views), framed-bench
+                    # spans subtract per edge, and `schluterWalls` passes
+                    # each row's `faces` through so the drawings show the
+                    # covered faces. `SCHLUTER_CURB_W` re-exports the
+                    # engine's CURB_W (billing figures diagonals off it).
                     # `schluterWallOn`, and the round-2 corner pair:
                     # `schluterOpenCorners` (the wedi openCorners rule — a
                     # corner boxed by two walls can't be cut; the curb
@@ -998,7 +1024,32 @@ src/
                     # contract as the wedi popup; Add lands lineItems() via
                     # addSchluterLines, anchor row schluter:{mode,cfg} (the
                     # cfg also carries manual + source so Reconfigure
-                    # restores add-ons and the source switch)
+                    # restores add-ons and the source switch).
+                    # Round 6 (owner verdicts on the issue-105 inventory,
+                    # 2026-08-24): Kits-tab rows price the FULL kit through
+                    # the tier lens (kitTotals — the wedi owner rule; the
+                    # one number matches the build column) under a Kits-tab
+                    # wall-system seg (same wallSys state as the Custom
+                    # form; pickKit preserves it, a separate tab was
+                    # rejected — two lists drift), with exception-only
+                    # stock/SO tags (the wedi majority idiom); every number
+                    # field is the shared NumIn (commit on blur/Enter — the
+                    # wall/bench menus therefore dismiss on outside CLICK,
+                    # not mousedown, so a blur commit lands first); toasts
+                    # (`say`, .sch-toast) narrate wall adds, refused corner
+                    # cuts, kit→custom moves — wall/corner/drawing edits off
+                    # the Kits tab bump to Custom like a bench add
+                    # (leaveKit); room-size commits clear wall lengths that
+                    # only tracked the kit (the wedi retuneWalls rule); the
+                    # wall menu grew the faces seg (Inside / Both sides /
+                    # In + end → engine wallArea + drawings) and the base-
+                    # wall action reads "Turn into a curb" on curbed builds
+                    # (openRuns hands the edge to the curb); the curbless
+                    # ramp is an opt-in "+ Ramp" chip (cfg.ramp — never
+                    # auto-billed), "+ KERDI-FIX" is a chip since the recipe
+                    # dropped it, and the Browse figurer gained "Add to
+                    # build" (top-up over what the build already carries);
+                    # Esc cancels placing mode before closing.
   schluterpreview.jsx  # dev-only harness (schluter-preview.html): the REAL
                     # SchluterConfigurator over the fixture pushed BACKWARDS
                     # through normOrderItem into live registry shape (shop

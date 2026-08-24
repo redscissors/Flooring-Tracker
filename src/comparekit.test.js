@@ -206,13 +206,14 @@ test("compareTotals skips the noteOnly rows and counts the bill", () => {
   assert.equal(t.soCount, 0);
 });
 
-test("compareTotals counts the special-order lines — a curbless build takes the SO ramp", () => {
+test("a curbless compare column carries no auto ramp — the entry treatment is a popup pick (round 6)", () => {
+  // re-pinned 2026-08-24: the ramp left the standing recipe (owner ask), so
+  // the derived house kit matches wedi's own no-entry-part treatment
   const { build } = schluterBuildFor({ ...room60x38(), curbed: false }, CAT);
   const rows = schluterCompareRows(build);
+  assert.equal(rows.some((r) => r.cat === "Curb"), false);
   const t = compareTotals(rows);
-  assert.equal(t.soCount, 1);
   assert.equal(t.stocked + t.soCount, t.lines);
-  assert.equal(rows.find((r) => r.cat === "Curb").stock, false);
 });
 
 test("compareTotals on an empty bill is all zeros", () => {

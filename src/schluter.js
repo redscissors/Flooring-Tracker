@@ -13,7 +13,7 @@
 // four recognizer functions for a caller that already pays for the rest.
 
 import { queryHit, parseQuery, querySummary, seedFromQuery } from "./schluterquery.js";
-import { BENCH_DEPTH } from "./showerdraw.js";
+import { BENCH_DEPTH, WALL_THICK } from "./showerdraw.js";
 
 export { queryHit, parseQuery, querySummary, seedFromQuery };
 
@@ -563,11 +563,20 @@ function inches(n) {
 // not worth a cross-module reach.
 const CORNER_CUT = 12;
 
+// KERDI-BOARD-SC curb profile width on the plan — billing reads it too now
+// (a corner diagonal is figured at its longest point, leg + width each way),
+// so the number lives engine-side and schluterdraw imports it.
+export const CURB_W = 4.5;
+
 // Base walls plus any added runs (cfg.xwalls — entry returns, jogs): a wall
-// is wall sf to the material bill whichever edge it sits on.
+// is wall sf to the material bill whichever edge it sits on. `faces` is the
+// wedi rule (round 6): "both" panels/membranes both sides of the run, and
+// "in-end" adds the exposed end's strip a wall's own thickness wide.
 function wallArea(cfg) {
-  return cfg.walls.filter((w) => w.on).reduce((s, w) => s + (w.len * w.h) / 144, 0)
-    + (cfg.xwalls || []).reduce((s, x) => s + ((+x.len || 0) * (+x.h || 84)) / 144, 0);
+  const faceSf = (len, h, faces) =>
+    (len * h * (faces === "both" ? 2 : 1) + (faces === "in-end" ? WALL_THICK * h : 0)) / 144;
+  return cfg.walls.filter((w) => w.on).reduce((s, w) => s + faceSf(+w.len || 0, +w.h || 84, w.faces), 0)
+    + (cfg.xwalls || []).reduce((s, x) => s + faceSf(+x.len || 0, +x.h || 84, x.faces), 0);
 }
 
 // What the entry walls leave open — the run the curb actually spans. Walls
@@ -577,6 +586,98 @@ export function entryOpening(cfg) {
   const walled = (cfg.xwalls || []).filter((x) => x.edge === "entry")
     .reduce((s, x) => s + Math.min(+x.len || 0, w), 0);
   return Math.max(0, w - walled);
+}
+
+// ---------------------------------------------------------------------------
+// Open edges — where the curb actually runs (round 6, the wedi curbRuns
+// rule): every span of the room's perimeter no wall covers carries curb, not
+// just the entry. Base walls anchor at their low end (back at the left,
+// sides at the back); xwalls at whichever end their `at` says. A cut corner
+// adjacent to open runs re-routes the curb as ONE diagonal: each touching
+// run gives up the 12" leg and the diagonal piece is figured at its longest
+// point (leg + curb width each way). Billing and the drawings both read this
+// so they can't drift.
+const EDGE_DEFS = [["back", "w"], ["left", "d"], ["right", "d"], ["entry", "w"]];
+
+function edgeSpans(cfg) {
+  const w = +cfg.w || 0, d = +cfg.d || 0;
+  const spans = { back: [], left: [], right: [], entry: [] };
+  const put = (edge, at, len, max) => {
+    const l = Math.min(+len || 0, max);
+    if (l > 0.01) spans[edge].push(at === "hi" ? [round2(max - l), max] : [0, round2(l)]);
+  };
+  const SIDE = ["back", "left", "right"];
+  (cfg.walls || []).forEach((bw, i) => {
+    if (bw && bw.on) put(SIDE[i], "lo", bw.len, i === 0 ? w : d);
+  });
+  (cfg.xwalls || []).forEach((x) => {
+    const edge = ["back", "left", "right", "entry"].includes(x.edge) ? x.edge : "entry";
+    put(edge, x.at === "hi" ? "hi" : "lo", x.len, edge === "back" || edge === "entry" ? w : d);
+  });
+  Object.keys(spans).forEach((k) => {
+    const merged = [];
+    spans[k].sort((a, b) => a[0] - b[0]).forEach(([a, b]) => {
+      const last = merged[merged.length - 1];
+      if (last && a <= last[1] + 0.01) last[1] = Math.max(last[1], b);
+      else merged.push([a, b]);
+    });
+    spans[k] = merged;
+  });
+  return spans;
+}
+
+export function openRuns(cfg) {
+  const w = +cfg.w || 0, d = +cfg.d || 0;
+  const spans = edgeSpans(cfg);
+  const edges = [];
+  EDGE_DEFS.forEach(([side, dim]) => {
+    const max = dim === "w" ? w : d;
+    if (!(max > 0)) return;
+    let at = 0;
+    const runs = [];
+    spans[side].forEach(([a, b]) => { if (a - at > 0.5) runs.push([at, a]); at = Math.max(at, b); });
+    if (max - at > 0.5) runs.push([at, max]);
+    runs.forEach(([a, b]) => edges.push({ side, from: round2(a), len: round2(b - a) }));
+  });
+  // which end of which edges each corner sits on, and whether a wall claims it
+  const atLo = (side) => !!(spans[side][0] && spans[side][0][0] <= 0.5);
+  const atHi = (side, max) => spans[side].some((sp) => sp[1] >= max - 0.5);
+  const CORNERS = {
+    bl: { h: ["back", "lo"], v: ["left", "lo"], walled: () => atLo("back") && atLo("left") },
+    br: { h: ["back", "hi"], v: ["right", "lo"], walled: () => atHi("back", w) && atLo("right") },
+    fl: { h: ["entry", "lo"], v: ["left", "hi"], walled: () => atLo("entry") && atHi("left", d) },
+    fr: { h: ["entry", "hi"], v: ["right", "hi"], walled: () => atHi("entry", w) && atHi("right", d) },
+  };
+  const runAt = (side, end) => {
+    const max = side === "left" || side === "right" ? d : w;
+    return edges.find((e) => e.side === side && (end === "lo" ? e.from <= 0.5 : e.from + e.len >= max - 0.5)) || null;
+  };
+  // which end of its edge each corner sits on — trims come off that end
+  const LO_CORNER = { back: "bl", left: "bl", right: "br", entry: "fl" };
+  const diags = [];
+  (cfg.corners || []).filter((k) => CORNERS[k] && !CORNERS[k].walled()).sort().forEach((k) => {
+    const c = CORNERS[k];
+    const rh = runAt(...c.h), rv = runAt(...c.v);
+    if (!rh && !rv) return;
+    const h = Math.min(CORNER_CUT, w), v = Math.min(CORNER_CUT, d);
+    diags.push({ corner: k, h: round2(h), v: round2(v), len: round2(Math.hypot(h, v)), cut: round2(Math.hypot(h + CURB_W, v + CURB_W)) });
+    // each touching run gives up the leg so nothing is stranded behind the cut
+    [[rh, h], [rv, v]].forEach(([r, leg]) => {
+      if (!r) return;
+      const t = Math.min(leg, r.len);
+      r._trim = r._trim || [0, 0];
+      if (LO_CORNER[r.side] === k) r._trim[0] = Math.max(r._trim[0], t);
+      else r._trim[1] = Math.max(r._trim[1], t);
+    });
+  });
+  const segs = edges
+    .map((e) => {
+      const [t0, t1] = e._trim || [0, 0];
+      return { side: e.side, from: round2(e.from + t0), len: round2(e.len - t0 - t1), ext0: 0, ext1: 0 };
+    })
+    .filter((e) => e.len > 0.5);
+  const need = round2(segs.reduce((s, e) => s + e.len, 0) + diags.reduce((s, x) => s + x.cut, 0));
+  return { segs, diags, need };
 }
 
 /**
@@ -695,22 +796,27 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
     add("Seams", pickFrom(cat, (i) => i.seal === "valve", { source }), 1);
   }
 
+  // the curb runs every open edge, not just the entry (round 6, the wedi
+  // rule): a wall turned off hands its edge to the curb, and a cut corner
+  // adjacent to curb turns it diagonally at the piece's longest point
+  const runs = openRuns(cfg);
   const opening = entryOpening(cfg);
-  // a cut FRONT corner turns the curb diagonally across it: the run gives up
-  // the 12" leg but the diagonal piece is longer, ~5" extra per cut corner
-  const frontCuts = (cfg.corners || []).filter((k) => k === "fl" || k === "fr").length;
-  const curbNeed = round2(opening + frontCuts * (Math.hypot(CORNER_CUT, CORNER_CUT) - CORNER_CUT));
-  if (cfg.curbed && opening > 0) {
+  const cuts = runs.diags.length;
+  if (cfg.curbed && runs.need > 0) {
     // stock-only prefers stocked multiples cut end-to-end over a covering
     // special-order curb (the P2 example: a SO 60" loses to 2× stocked 48")
     const curbs = stockPool(cat.filter((i) => i.g === "curb" && i.len).sort((a, b) => a.len - b.len), source);
-    const c = curbs.find((x) => x.len >= curbNeed) || curbs[curbs.length - 1];
-    add("Curb", c, c ? Math.max(1, Math.ceil(curbNeed / c.len)) : 0,
-      c ? (c.len < curbNeed ? "cut to length end-to-end"
-        : opening < cfg.w ? `cut to the ${inches(opening)} entry opening` : "cut to entry width")
-        + (frontCuts ? ` — turns ${frontCuts === 1 ? "a cut corner" : "2 cut corners"} diagonally` : "")
+    const c = curbs.find((x) => x.len >= runs.need) || curbs[curbs.length - 1];
+    const sideOpen = runs.segs.some((s) => s.side !== "entry");
+    add("Curb", c, c ? Math.max(1, Math.ceil(runs.need / c.len)) : 0,
+      c ? (c.len < runs.need ? "cut to length end-to-end"
+        : sideOpen ? `runs the ${inches(runs.need)} of open edges`
+          : opening < cfg.w ? `cut to the ${inches(opening)} entry opening` : "cut to entry width")
+        + (cuts ? ` — turns ${cuts === 1 ? "a cut corner" : cuts + " cut corners"} diagonally` : "")
         + " — incl. 2+2 Kereck corners" : undefined);
-  } else if (!cfg.curbed) {
+  } else if (!cfg.curbed && cfg.ramp) {
+    // opt-in (round 6): the ramp is an add-on chip's pick, never auto-billed —
+    // recessing the subfloor needs no part
     add("Curb", pickFrom(cat, (i) => i.ramp, { source }), 1, '12" run, 1-1/4"→1/4" — ADA slope');
   }
 
@@ -732,7 +838,8 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
   const floorSf = (cfg.w * cfg.d) / 144;
   const allset = pickFrom(cat, (i) => i.sfPerBag, { source });
   add("Setting", allset, allset ? Math.max(1, Math.ceil((sf + floorSf) / allset.sfPerBag)) : 0, "sets membrane/board");
-  add("Setting", pickFrom(cat, (i) => i.adhesive, { source }), 1);
+  // KERDI-FIX left the standing recipe (owner 2026-08-24): it rides the tub
+  // kit, not every shower — the popup offers it as an add-on chip instead
 
   return { lines: L, cand };
 }
