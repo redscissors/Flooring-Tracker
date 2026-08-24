@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
 import { classify, catalogOf, trayCandidates, normBench } from "./schluter.js";
 import { schluterDiag, schluterWalls, schluterCurb, schluterWallOn, schluterOpenCorners, schluterCuts } from "./schluterdraw.js";
+import { boardPlan, expandBoardFaces } from "./schluter.js";
 
 const CAT = catalogOf(FIXTURE_ITEMS);
 const cfg = (o) => ({
@@ -232,4 +233,53 @@ test("the curb butts a framed left bench that reaches the entry; a build-up leav
   // a framed bench short of the entry never touches the curb
   const shortB = normBench({ kind: "wall", side: "left", build: "framed", len: 20 }, dims, CAT);
   assert.equal(schluterCurb(c, [shortB]).segs[0].len, 60);
+});
+
+// --- round 6: curb on every open edge + faces passthrough -------------------
+
+test("a wall turned off hands its edge to the curb band", () => {
+  const c = cfg({});
+  c.walls = c.walls.map((w, i) => (i === 1 ? { ...w, on: false } : w));
+  const cut = schluterCurb(c, []);
+  assert.deepEqual(cut.segs.map((s) => [s.side, s.from, s.len]), [["left", 0, 38], ["entry", 0, 60]]);
+});
+
+test("a cut corner between two open edges draws one diagonal, runs give up the legs", () => {
+  const c = cfg({ corners: ["fl"] });
+  c.walls = c.walls.map((w, i) => (i === 1 ? { ...w, on: false } : w));
+  const cut = schluterCurb(c, []);
+  assert.deepEqual(cut.segs.map((s) => [s.side, s.from, s.len]), [["left", 0, 26], ["entry", 12, 48]]);
+  assert.equal(cut.diags.length, 1);
+  assert.equal(cut.diags[0].corner, "fl");
+});
+
+test("schluterWalls passes per-wall faces through to the drawings", () => {
+  const c = cfg({ xwalls: [{ id: 1, edge: "entry", at: "lo", len: 24, h: 84, faces: "in-end" }] });
+  c.walls = c.walls.map((w, i) => (i === 1 ? { ...w, faces: "both" } : w));
+  const dw = schluterWalls(c);
+  assert.equal(dw.find((w) => w.side === "left").faces, "both");
+  assert.equal(dw.find((w) => w.extra).faces, "in-end");
+  assert.equal(dw.find((w) => w.side === "back").faces, "in");
+});
+
+// --- round 7: the Fit plan's courses reach the drawings ---------------------
+
+test("schluterWalls takes the plan's per-wall courses; without a plan the 48\" ticks stand in", () => {
+  const c = cfg({ wallSys: "board" });
+  const plan = boardPlan(expandBoardFaces(c), CAT, { source: "all" });
+  const dw = schluterWalls(c, plan);
+  // back 60x84: two stacked courses off the plan (not one floor-to-top)
+  const back = dw.find((w) => w.side === "back");
+  assert.equal(back.courses.length, 2);
+  assert.equal(back.courses[1].y0, 48);
+  // left 38x84 stood vertical: one seamless course
+  const left = dw.find((w) => w.side === "left");
+  assert.equal(left.courses.length, 1);
+  assert.equal(left.courses[0].vertical, true);
+  // no plan → the old one-course tick pattern
+  const bare = schluterWalls(c);
+  assert.equal(bare.find((w) => w.side === "back").courses.length, 1);
+  // membrane walls never carry courses, plan or not
+  const mem = cfg({});
+  assert.deepEqual(schluterWalls(mem, plan).find((w) => w.side === "back").courses, []);
 });

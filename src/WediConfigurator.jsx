@@ -13,7 +13,7 @@
 import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Plus, Printer, Copy, Eye } from "lucide-react";
-import { useEscClose, SourceSwitch } from "./widgets.jsx";
+import { useEscClose, SourceSwitch, NumIn } from "./widgets.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
   catalog, item, group, pans, curbs, kitFor, solve, figureConsumables, panelPlan,
@@ -493,18 +493,8 @@ const ADDON_CHIPS = [["niche", "Niche"], ["seat", "Seat"], ["bench", "Bench"], [
 const CORNER_LBL = [["bl", "back-left"], ["br", "back-right"], ["fl", "entry-left"], ["fr", "entry-right"]];
 const EDGE_LBL = { back: "Back +", left: "Left +", right: "Right +", entry: "Entry" };
 
-// A field that commits on blur/Enter rather than per keystroke — the solver and
-// the whole build re-run off these, and a half-typed "4" of "48" is not a room.
-function NumIn({ value, onCommit, ...rest }) {
-  const [draft, setDraft] = useState(value == null ? "" : String(value));
-  const live = useRef(false);
-  useEffect(() => { if (!live.current) setDraft(value == null ? "" : String(value)); }, [value]);
-  return <input {...rest} value={draft}
-    onFocus={() => { live.current = true; }}
-    onChange={(e) => setDraft(e.target.value)}
-    onBlur={() => { live.current = false; onCommit(draft); }}
-    onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} />;
-}
+// NumIn (commit on blur/Enter) moved to widgets.jsx in round 6 — both vendor
+// configurators mount the same field so they can't drift on input behavior.
 
 // ============================================================================
 // the popup

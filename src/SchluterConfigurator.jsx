@@ -10,16 +10,17 @@
 // control for now; phase 4 lifts it into the shared shell so wedi inherits it.
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, Plus, Eye } from "lucide-react";
-import { useEscClose, SourceSwitch } from "./widgets.jsx";
+import { X, Plus, Eye, Printer, Copy } from "lucide-react";
+import { useEscClose, SourceSwitch, NumIn } from "./widgets.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
-  trayCandidates, pickRolls, buildKit, tierPrice, lineItems, normBench, benchTrayRoom,
+  trayCandidates, pickRolls, buildKit, tierPrice, lineItems, orderCopyLines, normBench, benchTrayRoom,
+  boardPlan, expandBoardFaces, wallArea, halfBoardPool,
 } from "./schluter.js";
 import { mortarItemFrom, MORTAR_BED_SF_PER_BAG } from "./schluteradapter.js";
 import { useSchluterCatalog } from "./useschlutercatalog.js";
 import { schluterDiag, schluterWalls, schluterWallOn, schluterCurb, schluterOpenCorners, schluterCuts } from "./schluterdraw.js";
-import { TopDown, Iso, railSplit, RAIL_DESIGN_W, round2 } from "./showerdraw.jsx";
+import { TopDown, Iso, railSplit, RAIL_DESIGN_W, round2, WALL_THICK } from "./showerdraw.jsx";
 
 // The Compare tab drags in comparekit → BOTH engines' tables, so it stays its
 // own chunk behind this popup's own lazy boundary (ADR 0026).
@@ -177,6 +178,12 @@ const CSS = `
 .sch-pop .optcard .rank.warn{color:var(--s-rust)}
 .sch-pop .optcard .big{font-size:15px;font-weight:800;margin:2px 0 1px;letter-spacing:-.01em}
 .sch-pop .optcard .sub{font-size:10.5px;color:var(--ft-muted);line-height:1.45;min-height:29px}
+.sch-pop .optcard .thumb{margin-top:6px}
+.sch-pop .optcard .thumb svg{display:block;width:100%;height:auto;background:var(--s-paper);border:1px solid var(--ft-border);border-radius:6px}
+.sch-pop .swapb{flex:none;border:1px solid var(--ft-border);background:var(--ft-card);border-radius:5px;color:var(--ft-muted);font-size:11px;font-weight:800;width:22px;height:20px;cursor:pointer;line-height:1}
+.sch-pop .swapb:hover{border-color:var(--ft-brand);color:var(--ft-brand-deep)}
+.sch-pop .starb{flex:none;border:none;background:none;color:var(--ft-faint);font-size:13px;cursor:pointer;padding:0 2px;line-height:1}
+.sch-pop .starb.on{color:var(--ft-brand-deep)}
 .sch-pop .optcard .foot{display:flex;align-items:center;gap:6px;margin-top:6px}
 .sch-pop .optcard .foot .pr{font-weight:800;font-size:12.5px;margin-left:auto;font-variant-numeric:tabular-nums}
 .sch-pop .stockdot{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;font-weight:700;color:var(--ft-brand-deep);background:var(--ft-brand-soft);border-radius:4px;padding:1px 6px}
@@ -236,6 +243,11 @@ const CSS = `
 .sch-pop .bc-empty{font-size:12px;color:var(--ft-faint);line-height:1.6;padding:22px 6px}
 .sch-pop .bgroup{margin-top:8px}
 .sch-pop .bg-h{display:flex;align-items:center;gap:7px;font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:var(--ft-muted);padding-bottom:4px;border-bottom:1px solid var(--ft-border-strong)}
+.sch-pop .bg-h .wallctl{margin-left:auto;display:flex;align-items:center;gap:4px;text-transform:none;letter-spacing:0}
+.sch-pop .pfseg{display:inline-flex;border:1px solid var(--ft-border-strong);border-radius:5px;overflow:hidden}
+.sch-pop .pfseg button{border:none;background:var(--ft-card);color:var(--ft-faint);font-size:9px;font-weight:800;padding:3px 7px;cursor:pointer}
+.sch-pop .pfseg button + button{border-left:1px solid var(--ft-border-strong)}
+.sch-pop .pfseg button.on{background:var(--ft-seg-on-bg);color:var(--ft-brand-deep);font-weight:800;box-shadow:inset 0 0 0 1.5px var(--ft-brand)}
 .sch-pop .bline{display:flex;align-items:center;gap:7px;padding:3px 0;border-bottom:1px solid var(--ft-row-line)}
 .sch-pop .bline .bn{flex:1;min-width:0}
 .sch-pop .bline .bn .n{font-size:11.5px;font-weight:700;line-height:1.25;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
@@ -304,12 +316,37 @@ const CSS = `
 .sch-benchmenu .bm-opt small{display:block;font-size:9px;color:var(--ft-faint);font-weight:600;line-height:1.35;margin-top:1px}
 .sch-benchmenu .bm-opt:disabled{opacity:.4;cursor:not-allowed}
 .sch-swap .srow:disabled{opacity:.4;cursor:not-allowed}
+.sch-toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--ft-text);color:var(--ft-cream);border:1px solid var(--ft-border-strong);font-size:12.5px;font-weight:700;border-radius:8px;padding:10px 18px;z-index:95;box-shadow:0 12px 40px rgba(0,0,0,.4);font-family:var(--ft-ui)}
+`;
+
+// The print layout sheet (round 8, the wedi PRINT_CSS port): hidden on
+// screen, the ONLY thing that prints.
+const PRINT_CSS = `
+.sch-printsheet{display:none}
+@media print{
+  body > *:not(.sch-printsheet){display:none !important}
+  .sch-printsheet{display:block;color:#111;background:#fff;font-family:var(--ft-ui)}
+  .sch-printsheet .ps-head{display:flex;align-items:baseline;gap:12px;border-bottom:2px solid #111;padding-bottom:8px;margin-bottom:14px}
+  .sch-printsheet .ps-head .t{font-size:20px;font-weight:800}
+  .sch-printsheet .ps-head .sub{font-size:12px;color:#333;font-weight:700}
+  .sch-printsheet .ps-head .dt{margin-left:auto;font-size:11px;color:#555}
+  .sch-printsheet .ps-diags{display:flex;gap:18px;align-items:flex-start;margin-bottom:6px}
+  .sch-printsheet .ps-diags .d{flex:1}
+  .sch-printsheet .ps-diags svg{width:100%;height:auto;border:1px solid #ddd;border-radius:6px;background:#fff}
+  .sch-printsheet .ps-sec{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.11em;color:#555;margin:14px 0 4px}
+  .sch-printsheet .ps-warn{font-size:11px;color:#333;padding:2px 0}
+  .sch-printsheet .ps-table{width:100%;border-collapse:collapse;font-size:11px}
+  .sch-printsheet .ps-table th{text-align:left;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.09em;color:#555;border-bottom:1.5px solid #111;padding:3px 6px}
+  .sch-printsheet .ps-table td{border-bottom:1px solid #ddd;padding:4px 6px;vertical-align:top}
+  .sch-printsheet .ps-table .num{text-align:right;font-variant-numeric:tabular-nums}
+  .sch-printsheet .ps-tot{display:flex;justify-content:flex-end;gap:26px;font-size:12px;font-weight:800;margin-top:8px}
+}
 `;
 
 const DEF_WALLS = [
-  { name: "Back", on: true, len: "", h: "" },
-  { name: "Left", on: true, len: "", h: "" },
-  { name: "Right", on: true, len: "", h: "" },
+  { name: "Back", on: true, len: "", h: "", faces: "" },
+  { name: "Left", on: true, len: "", h: "", faces: "" },
+  { name: "Right", on: true, len: "", h: "", faces: "" },
 ];
 const DEF_WALL_H = 84;
 
@@ -328,9 +365,9 @@ function seedState(seed) {
   const s = {
     tab: "kits", w: "60", d: "38", curbed: true, drain: "point", wallSys: "membrane",
     walls: DEF_WALLS.map((x) => ({ ...x })), xwalls: [], wallH: String(DEF_WALL_H),
-    corners: {}, maxIn: false, tileT: "", benches: [], mortarName: "",
+    corners: {}, maxIn: false, tileT: "", benches: [], mortarName: "", ramp: false,
     drainX: "", drainY: "", drainRef: "left",
-    manual: [], q: "", source: "all", kitPick: false, pick: null,
+    manual: [], q: "", source: "all", kitPick: false, pick: null, swaps: {},
   };
   if (!seed) return s;
   const cfg = seed.cfg;
@@ -354,15 +391,18 @@ function seedState(seed) {
           ...w, on: cw.on !== false,
           len: +cw.len > 0 && Math.abs(+cw.len - auto) >= 0.01 ? String(cw.len) : "",
           h: +cw.h > 0 && +cw.h !== DEF_WALL_H ? String(cw.h) : "",
+          faces: cw.faces === "both" || cw.faces === "in-end" ? cw.faces : "",
         };
       });
     }
+    s.ramp = !!cfg.ramp;
     if (Array.isArray(cfg.corners)) cfg.corners.forEach((k) => {
       if (["bl", "br", "fl", "fr"].includes(k)) s.corners[k] = true;
     });
     s.xwalls = Array.isArray(cfg.xwalls) ? cfg.xwalls.map((x, i) => ({
       id: i + 1, edge: ["back", "left", "right", "entry"].includes(x.edge) ? x.edge : "entry",
       at: x.at === "hi" ? "hi" : "lo", len: String(+x.len || ""), h: String(+x.h || ""),
+      faces: x.faces === "both" || x.faces === "in-end" ? x.faces : "",
     })) : [];
     // the marker's drainX is canonical from-left; a right-referenced build
     // reopens showing the number the builder actually gave
@@ -379,6 +419,7 @@ function seedState(seed) {
       : cfg.bench === "framed" ? [{ id: 1, kind: "wall", side: "back", build: "framed" }]
         : cfg.bench === "buildup" ? [{ id: 1, kind: "wall", side: "back", build: "site" }] : [];
     s.mortarName = cfg.mortarItem?.name || "";
+    s.swaps = cfg.swaps && typeof cfg.swaps === "object" ? { ...cfg.swaps } : {};
     s.manual = Array.isArray(cfg.manual) ? cfg.manual.map((m) => ({ ...m })) : [];
     s.source = cfg.source === "stock" ? "stock" : "all";
     s.pick = typeof cfg.pick === "string" ? cfg.pick : null;
@@ -430,23 +471,72 @@ export default function SchluterConfigurator({
   const [benchMenu, setBenchMenu] = useState(null); // { kind, side|corner, x, y } — tray zone clicked
   const [picker, setPicker] = useState(null);       // { key: "niche", x, y } — an add-on chip's choice list
   const [mortarName, setMortarName] = useState(s0.mortarName);
+  const [ramp, setRamp] = useState(!!s0.ramp);
+  const [swaps, setSwaps] = useState(s0.swaps);
+  const [swap, setSwap] = useState(null);           // { key, rect } — a line's ⇄ popover
+  const [confirmKit, setConfirmKit] = useState(null); // tray clicked over a customized build
   const [manual, setManual] = useState(s0.manual);
   const [qtyOv, setQtyOv] = useState({}); // hand-stepped line quantities (the wedi idiom) — session only, never in the marker
   const [pick, setPick] = useState(s0.pick);    // chosen tray candidate's sku
   const [kitPick, setKitPick] = useState(s0.kitPick);
+  // Fit | One size (round 7, the wedi panelFit): session-only, never in the
+  // marker — the Fit plan is the default presentation, not a customization
+  const [panelFit, setPanelFit] = useState(true);
   const [q, setQ] = useState(s0.q);
   const [sec, setSec] = useState("");
   const [sub, setSub] = useState("");
+  // Starred items (the wedi owner sketch 2026-07-30): a per-device pin list,
+  // the ★ filter shows just them — localStorage, never the shared record.
+  const [starred, setStarred] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem("ft-schluter-starred") || "[]")); } catch (x) { return new Set(); }
+  });
+  const toggleStar = (sku) => setStarred((s) => {
+    const n = new Set(s);
+    if (n.has(sku)) n.delete(sku); else n.add(sku);
+    try { localStorage.setItem("ft-schluter-starred", JSON.stringify([...n])); } catch (x) { }
+    return n;
+  });
   const [figOpen, setFigOpen] = useState(false);
   const [figSf, setFigSf] = useState("");
   const [payload, setPayload] = useState(null);
+  const [printing, setPrinting] = useState(false);
   const [showMargin, setShowMargin] = useState(false);
+  const [toast, setToast] = useState("");
 
+  const toastT = useRef(null);
+  const say = (msg) => {
+    setToast(msg);
+    clearTimeout(toastT.current);
+    toastT.current = setTimeout(() => setToast(""), 2600);
+  };
+  useEffect(() => () => clearTimeout(toastT.current), []);
+
+  // The layout sheet unmounts on afterprint, not right after window.print()
+  // returns — Safari (and Chrome sometimes) return with the dialog still up,
+  // and an unmounted sheet prints blank. The timer is the belt-and-braces
+  // fallback for anything that never fires the event (the wedi rig).
+  useEffect(() => {
+    if (!printing) return;
+    const done = () => setPrinting(false);
+    window.addEventListener("afterprint", done);
+    window.print();
+    const t = setTimeout(done, 2500);
+    return () => { clearTimeout(t); window.removeEventListener("afterprint", done); };
+  }, [printing]);
+
+  // Modifying a kit's geometry makes it a custom shower and moves the main
+  // pane there (the wedi owner rule 2026-07-30) — the build column keeps it.
+  const leaveKit = () => {
+    if (kitPick && tab === "kits") {
+      setTab("custom");
+      say("Modified kit — it's a custom shower now.");
+    }
+  };
   // any edit to the room makes the build a custom shower, not the kit
-  const custom = (fn) => (...a) => { setKitPick(false); setPick(null); fn(...a); };
+  const custom = (fn) => (...a) => { leaveKit(); setKitPick(false); setPick(null); fn(...a); };
   // wall/corner edits are geometry too, but they never change which tray
   // fits — the picked option card stays picked
-  const geom = (fn) => (...a) => { setKitPick(false); fn(...a); };
+  const geom = (fn) => (...a) => { leaveKit(); setKitPick(false); fn(...a); };
 
   // --- the catalog: live registry rows through the adapter -------------------
   // Stock side: the boot cache's stock-kind rows (bookStockReady gates it).
@@ -477,9 +567,12 @@ export default function SchluterConfigurator({
 
   useEscClose(true, () => {
     if (payload) setPayload(null);
+    else if (confirmKit) setConfirmKit(null);
+    else if (swap) setSwap(null);
     else if (picker) setPicker(null);
     else if (benchMenu) setBenchMenu(null);
     else if (wallMenu) setWallMenu(null);
+    else if (placing) setPlacing(false);
     else onClose();
   });
 
@@ -529,7 +622,10 @@ export default function SchluterConfigurator({
   const wallHNum = +wallH || DEF_WALL_H;
   const tileNum = parseIn(tileT);
   const liveXwalls = useMemo(
-    () => xwalls.filter((x) => +x.len > 0).map((x) => ({ id: x.id, edge: x.edge, at: x.at, len: +x.len, h: +x.h || wallHNum })),
+    () => xwalls.filter((x) => +x.len > 0).map((x) => ({
+      id: x.id, edge: x.edge, at: x.at, len: +x.len, h: +x.h || wallHNum,
+      ...(x.faces === "both" || x.faces === "in-end" ? { faces: x.faces } : {}),
+    })),
     [xwalls, wallHNum]);
   // the raw bench rows less their local ids — what the cfg (and so the saved
   // marker) carries; normBench fills the rest at read time
@@ -550,8 +646,10 @@ export default function SchluterConfigurator({
         name: x.name, on: x.on,
         len: +x.len > 0 ? +x.len : i === 0 ? effW : effD,
         h: +x.h > 0 ? +x.h : wallHNum,
+        ...(x.faces === "both" || x.faces === "in-end" ? { faces: x.faces } : {}),
       })),
       ...(liveXwalls.length ? { xwalls: liveXwalls } : {}),
+      ...(!curbed && ramp ? { ramp: true } : {}),
       ...(inset > 0 ? { maxIn: true, ...(tileNum > 0 ? { tileT: tileNum } : {}) } : {}),
       // the engine's drainX is canonical FROM THE LEFT; a right-referenced
       // measurement (the builder called it off the right wall) converts here
@@ -562,23 +660,60 @@ export default function SchluterConfigurator({
         : {}),
       ...(drain !== "linear" && +drainY > 0 ? { drainY: +drainY } : {}),
       ...(mortarItem ? { mortarItem } : {}),
+      ...(Object.keys(swaps).length ? { swaps } : {}),
     };
     // only OPEN corners carry a cut — a corner re-boxed by a wall drops its
     // stale cut everywhere (bill, drawings, marker) at once
     const open = schluterOpenCorners(base);
     const cut = Object.keys(corners).filter((k) => corners[k] && open[k]).sort();
     return cut.length ? { ...base, corners: cut } : base;
-  }, [w, d, curbed, drain, wallSys, cfgBenchRows, walls, liveXwalls, drainX, drainY, drainRef, mortarItem, maxIn, tileNum, wallHNum, corners]);
+  }, [w, d, curbed, drain, wallSys, cfgBenchRows, walls, liveXwalls, drainX, drainY, drainRef, mortarItem, maxIn, tileNum, wallHNum, corners, ramp, swaps]);
 
   // a blanked size input mid-edit means "no room yet" — no candidates, no
   // build, no drawings (topGeom would divide by the room dims)
   const roomOk = cfg.w > 0 && cfg.d > 0;
   const cands = useMemo(() => (catReady && cat.length && roomOk ? trayCandidates(cfg, cat, { source }) : []), [catReady, cat, cfg, source, roomOk]);
   const pickCand = (pick && cands.find((c) => c.tray && c.tray.sku === pick)) || cands[0] || null;
+
+  // The board Fit plan (round 7): the engine's boardPlan over the same
+  // wall order the drawings use. One helper both the build column and
+  // kitTotals run through, so the Kits-tab row price can never disagree
+  // with what a click builds.
+  const planFor = (c) => (panelFit && c.wallSys === "board" && catReady && cat.length
+    ? boardPlan(expandBoardFaces(c), cat, { source }) : null);
+  const plan = useMemo(() => planFor(cfg),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [cfg, cat, catReady, source, panelFit]);
+  // Swap the recipe's by-area panel line for the plan's per-sheet lines, in
+  // place (the fastener line stays — its count is pure area either way).
+  // The first plan line carries the wedi note: sf, seam count, stood-vertical
+  // count; the rest read "panel plan".
+  const applyBoardPlan = (lines, c, p) => {
+    if (!p || !p.lines.length) return lines;
+    const vWalls = p.detail.filter((d2) => d2.vertical).length;
+    const sf = wallArea(c);
+    const planLines = p.lines.map((pl, i) => {
+      const e = cat.find((x) => x.sku === pl.sku);
+      return e && {
+        g: "Walls", item: e, qty: pl.qty, so: !e.stock,
+        note: i === 0
+          ? sf.toFixed(0) + " sf — " + p.vSeams + " vertical seam" + (p.vSeams === 1 ? "" : "s")
+            + (vWalls ? " · " + vWalls + " wall" + (vWalls === 1 ? "" : "s") + " stood vertical" : "")
+          : "panel plan",
+      };
+    }).filter(Boolean);
+    if (!planLines.length) return lines;
+    const idx = lines.findIndex((l) => l.g === "Walls" && l.item.g === "board" && !l.item.fastener);
+    const out = lines.filter((l) => !(l.g === "Walls" && l.item.g === "board" && !l.item.fastener));
+    out.splice(idx >= 0 ? idx : out.length, 0, ...planLines);
+    return out;
+  };
+
   const ovKey = (l) => l.g + "|" + (l.item.sku || l.item.name);
   const build = useMemo(() => {
     if (!pickCand) return null;
     const b = buildKit(cfg, cat, { source, pick: pickCand });
+    b.lines = applyBoardPlan(b.lines, cfg, plan);
     // a stepped quantity keeps winning over the recipe's figure while the
     // line survives; stepped to 0 the line leaves the bill (the wedi rule)
     b.lines = b.lines.map((l) => {
@@ -591,9 +726,9 @@ export default function SchluterConfigurator({
     });
     return b;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cfg, cat, source, pickCand, manual, qtyOv]);
+  }, [cfg, cat, source, pickCand, manual, qtyOv, plan]);
   const mode = kitPick && !manual.length && !benches.length && !liveXwalls.length && !cfg.drainX && !cfg.drainY
-    && !(cfg.corners || []).length && !cfg.maxIn ? "kit" : "custom";
+    && !(cfg.corners || []).length && !cfg.maxIn && !cfg.ramp && !cfg.swaps ? "kit" : "custom";
   // the saved marker records the PICKED tray too — Reconfigure must reopen on
   // the candidate that was quoted, not whatever ranks first that day
   const markCfg = useMemo(() => ({ ...cfg, manual, source, pick: pickCand?.tray?.sku || null }), [cfg, manual, source, pickCand]);
@@ -640,18 +775,20 @@ export default function SchluterConfigurator({
     setQtyOv((o) => ({ ...o, [ovKey(l)]: Math.max(0, l.qty + delta) }));
   };
 
-  // the wedi click-away rule: the portalled menus close on any press outside
+  // the wedi click-away rule: the wall/bench menus dismiss on an outside
+  // CLICK — click, not mousedown, so a blur-committed NumIn value lands
+  // before the menu unmounts
   useEffect(() => {
     if (!wallMenu) return;
     const away = (e) => { if (!e.target.closest?.(".sch-wallmenu")) setWallMenu(null); };
-    document.addEventListener("mousedown", away);
-    return () => document.removeEventListener("mousedown", away);
+    document.addEventListener("click", away, true);
+    return () => document.removeEventListener("click", away, true);
   }, [wallMenu]);
   useEffect(() => {
     if (!benchMenu) return;
     const away = (e) => { if (!e.target.closest?.(".sch-benchmenu")) setBenchMenu(null); };
-    document.addEventListener("mousedown", away);
-    return () => document.removeEventListener("mousedown", away);
+    document.addEventListener("click", away, true);
+    return () => document.removeEventListener("click", away, true);
   }, [benchMenu]);
   useEffect(() => {
     if (!picker) return;
@@ -659,12 +796,18 @@ export default function SchluterConfigurator({
     document.addEventListener("mousedown", away);
     return () => document.removeEventListener("mousedown", away);
   }, [picker]);
+  useEffect(() => {
+    if (!swap) return;
+    const away = (e) => { if (!e.target.closest?.(".sch-swappanel")) setSwap(null); };
+    document.addEventListener("mousedown", away, true);
+    return () => document.removeEventListener("mousedown", away, true);
+  }, [swap]);
 
   // --- drawings --------------------------------------------------------------
   const normBenches = useMemo(() => benches.map((b) => normBench(b, cfg, cat)), [benches, cfg, cat]);
   const itemBySku = (sku) => cat.find((i) => i.sku === sku);
   const diag = useMemo(() => (pickCand ? schluterDiag(cfg, pickCand, normBenches) : null), [cfg, pickCand, normBenches]);
-  const dWalls = useMemo(() => schluterWalls(cfg), [cfg]);
+  const dWalls = useMemo(() => schluterWalls(cfg, plan), [cfg, plan]);
   const wallOn = useMemo(() => schluterWallOn(cfg), [cfg]);
   const curb = useMemo(() => schluterCurb(cfg, normBenches), [cfg, normBenches]);
   const cornerCuts = useMemo(() => schluterCuts(cfg), [cfg]);
@@ -709,6 +852,54 @@ export default function SchluterConfigurator({
     return out;
   }, [build, pickCand, cfg, diag, cornerCuts, normBenches]);
 
+  // choice lists narrow to stocked rows under Stock only unless none are —
+  // then the full list stays so a menu is never empty and a pick lands flagged
+  const pool = (list) => (source === "stock" && list.some((i) => i.stock) ? list.filter((i) => i.stock) : list);
+  const byShelf = (a, b2) => (b2.stock ? 1 : 0) - (a.stock ? 1 : 0) || tierPrice(a, "retail", {}) - tierPrice(b2, "retail", {});
+
+  // The wedi ⇄ swap popovers (round 9): a line whose role has real
+  // alternatives takes a hand pick — the grate finish, the curb, the
+  // One-size wall board (under Fit the PLAN chooses the sheets, so the
+  // board line doesn't swap — the wedi rule).
+  const swapChoices = (l) => {
+    const e = l.item;
+    if (l.noteOnly) return null;
+    if (e.part === "grate") return {
+      title: "Drain grate — finish",
+      list: pool(cat.filter((i) => i.part === "grate")).sort(byShelf),
+      set: (sku) => setSwaps((o) => ({ ...o, grate: sku })),
+    };
+    if (l.g === "Curb" && e.g === "curb" && e.len) return {
+      title: "Curb",
+      list: pool(cat.filter((i) => i.g === "curb" && i.len)).slice().sort((a, b2) => a.len - b2.len),
+      set: (sku) => setSwaps((o) => ({ ...o, curb: sku })),
+    };
+    if (l.g === "Walls" && e.g === "board" && !e.fastener && !panelFit) return {
+      title: "Wall board — one size",
+      list: pool(halfBoardPool(cat, "all")).sort(byShelf),
+      set: (sku) => setSwaps((o) => ({ ...o, board: sku })),
+    };
+    return null;
+  };
+
+  // A kit click over customized work asks before wiping it (the wedi
+  // overwrite rule) — an untouched kit-to-kit hop stays one click.
+  const kitDirty = manual.length > 0 || benches.length > 0 || liveXwalls.length > 0
+    || (cfg.corners || []).length > 0 || !!cfg.maxIn || !!cfg.ramp || !!cfg.drainX || !!cfg.drainY
+    || Object.keys(qtyOv).length > 0 || Object.keys(swaps).length > 0
+    || walls.some((x) => x.len !== "" || x.h !== "" || !x.on || !!x.faces)
+    || tileNum > 0 || (!kitPick && pick != null);
+  const tryKit = (t) => { if (kitDirty) setConfirmKit(t); else pickKit(t); };
+
+  // "Copy for order entry" (round 8, the wedi rule): stocked lines as
+  // SKU ⇥ qty for the ERP, special order by description.
+  const copyList = () => {
+    const txt = orderCopyLines(build.lines).join("\n");
+    (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(
+      () => say("Copied — stocked lines as SKU ⇥ qty, special order by description"),
+      () => say("Clipboard blocked — copy the list from the print sheet"));
+  };
+
   // ==========================================================================
   // renders
   // ==========================================================================
@@ -746,6 +937,34 @@ export default function SchluterConfigurator({
 
   const trays = useMemo(() => cat.filter((i) => i.g === "tray"), [cat]);
 
+  // The wedi kit-row rule (owner ask 2026-07-31, ported round 6): the row's
+  // ONE price is the FULL shelf kit through the tier lens — the number the
+  // build column lands on a click — not the tray's own price. Rows re-price
+  // under the Kits tab's wall-system seg, so Membrane vs Board compares in
+  // one flip.
+  const kitTotals = useMemo(() => {
+    if (!catReady || !cat.length) return {};
+    const out = {};
+    trays.forEach((t) => {
+      const kcfg = {
+        w: t.w, d: t.d, curbed: !t.thin, drain: t.drain, wallSys,
+        walls: [
+          { name: "Back", on: true, len: t.w, h: wallHNum },
+          { name: "Left", on: true, len: t.d, h: wallHNum },
+          { name: "Right", on: true, len: t.d, h: wallHNum },
+        ],
+      };
+      const kc = trayCandidates(kcfg, cat, { source });
+      const own = kc.find((c) => c.tray && c.tray.sku === t.sku) || kc[0];
+      if (!own || !own.tray) return;
+      const b = buildKit(kcfg, cat, { source, pick: own });
+      const lines = applyBoardPlan(b.lines, kcfg, planFor(kcfg));
+      out[t.sku] = round2(lines.filter((l) => !l.noteOnly).reduce((s, l) => s + tierOf(l.item) * l.qty, 0));
+    });
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catReady, cat, trays, wallSys, wallHNum, source, tierId, customPct, salePct, bPct, panelFit]);
+
   // The wedi Kits idiom (issue 075): families by TYPE, each sorted smallest
   // side then longest so every 3-footer sits together. w is the longer dim
   // (classify), so d leads the sort.
@@ -769,7 +988,7 @@ export default function SchluterConfigurator({
     setCorners({}); setMaxIn(false); setTileT("");
     setDrainX(""); setDrainY(""); setDrainRef("left");
     setBenches([]); setBenchMenu(null); setWallMenu(null); setPicker(null);
-    setMortarName(""); setManual([]); setQtyOv({});
+    setMortarName(""); setRamp(false); setSwaps({}); setSwap(null); setManual([]); setQtyOv({});
     setPick(null); setKitPick(false);
   };
 
@@ -778,16 +997,30 @@ export default function SchluterConfigurator({
   // click takes). It hard-resets to the shelf kit: room = tray, add-ons and
   // added walls cleared, curb following the tray's line (TT = curbless).
   const pickKit = (t) => {
+    const sys = wallSys;   // the Kits tab's wall-system seg survives the reset
     clearDesign();
+    setWallSys(sys);
     setW(String(t.w)); setD(String(t.d)); setDrain(t.drain); setCurbed(!t.thin);
     setPick(t.sku); setKitPick(true);
   };
 
   const kitsTab = !catReady || !cat.length ? loadingPane : (
     <>
+      <div className="fam-h" style={{ alignItems: "center", gap: 10 }}>
+        <div className="t">Wall system</div>
+        <div className="rseg">
+          <button className={wallSys === "membrane" ? "on" : ""} onClick={() => setWallSys("membrane")} data-schluter-kits-membrane>KERDI over backer</button>
+          <button className={wallSys === "board" ? "on" : ""} onClick={() => setWallSys("board")} data-schluter-kits-board>KERDI-BOARD</button>
+        </div>
+        <div className="hint">every price below is the FULL kit under this wall system — flip to compare</div>
+      </div>
       {TRAY_FAMS.map(([key, label, hit]) => {
         const list = trays.filter(hit).sort(bySize);
         if (!list.length) return null;
+        // the wedi issue-075 idiom: a row is tagged only where it breaks its
+        // family's pattern — two rows must agree before anything is "usual"
+        const st = list.filter((x) => x.stock).length;
+        const usual = Math.max(st, list.length - st) >= 2 ? st >= list.length - st : null;
         return (
           <div key={key} style={{ marginBottom: 9 }}>
             <div className="fam-h"><div className="t">{label}</div>
@@ -797,11 +1030,13 @@ export default function SchluterConfigurator({
               const dis = source === "stock" && !t.stock;
               const on = kitPick && pickCand?.tray?.sku === t.sku;
               return (
-                <button key={t.sku} className={"kitrow" + (dis ? " dis" : "") + (on ? " on" : "")} disabled={dis} onClick={() => pickKit(t)} data-schluter-tray={t.sku}>
+                <button key={t.sku} className={"kitrow" + (dis ? " dis" : "") + (on ? " on" : "")} disabled={dis} onClick={() => tryKit(t)} data-schluter-tray={t.sku}>
                   <span className="sz">{rowSz(t)}</span>
-                  <span className={"tag" + (t.stock ? "" : " so")}>{t.stock ? "stock" : "special order"}</span>
+                  {usual != null && t.stock !== usual && (
+                    <span className={"tag" + (t.stock ? "" : " so")}>{t.stock ? "stock" : "special order"}</span>
+                  )}
                   <span className="sku">{t.sku} — {t.name}</span>
-                  <span className="pr" style={{ color: tierColor }}>{fm(tierOf(t))}</span>
+                  <span className="pr" style={{ color: tierColor }} title="the full shelf kit at this size">{fm(kitTotals[t.sku] != null ? kitTotals[t.sku] : tierOf(t))}</span>
                 </button>
               );
             })}
@@ -829,6 +1064,7 @@ export default function SchluterConfigurator({
           + (c.pinned ? (c.centered
             ? (c.miss > 0.5 ? ` Drain lands ${Math.round(c.miss)}″ off the clear-space centre.` : " Drain centred in the clear space.")
             : (c.miss > 0.5 ? ` Drain lands ${Math.round(c.miss)}″ off the pin.` : " Cut split lands the drain on the pin.")) : "")}</div>
+        <div className="thumb"><TopDown o={schluterDiag(cfg, c, [])} w={120} h={86} mini wallOn={wallOn} /></div>
         <div className="foot">
           <span className={"stockdot" + (c.tray.stock ? "" : " so")}>{c.tray.stock ? "stock" : "special order"}</span>
           <span className="pr" style={{ color: tierColor }}>{fm(tierOf(c.tray))}</span>
@@ -849,6 +1085,22 @@ export default function SchluterConfigurator({
     </div>
   );
 
+  // A wall's sf with its faces counted — "both" doubles the plane, an
+  // exposed end adds the 4"-wide strip (the wedi sfOfWall rule).
+  const sfOfWall = (len, hh, faces) =>
+    round2((len * hh * (faces === "both" ? 2 : 1) + (faces === "in-end" ? WALL_THICK * hh : 0)) / 144);
+  const facesTag = (faces) => (faces === "both" ? " · 2-side" : faces === "in-end" ? " · +end" : "");
+
+  // The wedi retuneWalls rule: a typed wall length that only tracked the
+  // outgoing room was following the kit, so it clears back to auto and
+  // follows the new size.
+  const setRoom = (patch) => {
+    const auto = [cfg.w, cfg.d, cfg.d];
+    setWalls((ws) => ws.map((x, i) => (x.len !== "" && Math.abs(+x.len - auto[i]) < 0.01 ? { ...x, len: "" } : x)));
+    if (patch.w != null) setW(patch.w);
+    if (patch.d != null) setD(patch.d);
+  };
+
   const customTab = !catReady || !cat.length ? loadingPane : (
     <>
       <div className="roomform">
@@ -858,9 +1110,9 @@ export default function SchluterConfigurator({
             <div className="rfflow">
               <div className="rf"><label>Size</label>
                 <div className="dims">
-                  <input className="rinp" type="number" value={w} onChange={custom((e) => setW(e.target.value))} data-schluter-w />
+                  <NumIn className="rinp" value={w} onCommit={custom((v) => setRoom({ w: v }))} data-schluter-w />
                   <span>×</span>
-                  <input className="rinp" type="number" value={d} onChange={custom((e) => setD(e.target.value))} data-schluter-d />
+                  <NumIn className="rinp" value={d} onCommit={custom((v) => setRoom({ d: v }))} data-schluter-d />
                   <span>in</span>
                 </div>
               </div>
@@ -879,8 +1131,8 @@ export default function SchluterConfigurator({
                       : 'only matters on "Max — curb inside": with the numbers read as the tray, the curb and its tile land outside them anyway'}>
                     <label>Tile thickness</label>
                     <div className="dims">
-                      <input className="rinp" disabled={!tileEats} placeholder={tileEats ? "0 or 3/8" : "—"} value={tileT}
-                        onChange={custom((e) => setTileT(e.target.value))} data-schluter-tile />
+                      <NumIn className="rinp" disabled={!tileEats} placeholder={tileEats ? "0 or 3/8" : "—"} value={tileT}
+                        onCommit={custom((v) => setTileT(v))} data-schluter-tile />
                       <span>in</span>
                     </div>
                   </div>
@@ -909,11 +1161,11 @@ export default function SchluterConfigurator({
                   : "pin an existing waste line — the tray's drain is moulded, so the cut is split between the sides to land it as close as the tray allows"}>
                 <label>Drain — from {drainRef} × back</label>
                 <div className="dims">
-                  <input className="rinp" type="number" placeholder="auto" disabled={drain === "linear"} value={drainX}
-                    onChange={(e) => { setKitPick(false); setDrainX(e.target.value); }} data-schluter-dx />
+                  <NumIn className="rinp" placeholder="auto" disabled={drain === "linear"} value={drainX}
+                    onCommit={(v) => { setKitPick(false); setDrainX(v); }} data-schluter-dx />
                   <span>×</span>
-                  <input className="rinp" type="number" placeholder="auto" disabled={drain === "linear"} value={drainY}
-                    onChange={(e) => { setKitPick(false); setDrainY(e.target.value); }} data-schluter-dy />
+                  <NumIn className="rinp" placeholder="auto" disabled={drain === "linear"} value={drainY}
+                    onCommit={(v) => { setKitPick(false); setDrainY(v); }} data-schluter-dy />
                   <span>in</span>
                   {/* the measurement DATUM — a builder calling the drain off
                       the right wall types the number as given, no subtraction */}
@@ -957,12 +1209,12 @@ export default function SchluterConfigurator({
               return (
                 <div className={"wallrow"} key={x.name}>
                   <button className={"wname" + (x.on ? " on" : "")} onClick={geom(() => setWalls((ws) => ws.map((y, j) => (j === i ? { ...y, on: !y.on } : y))))}>{x.name}</button>
-                  <input className="win" type="number" value={x.len} placeholder={String(auto)} disabled={!x.on} title="length, in — blank follows the room"
-                    onChange={geom((e) => { const v = e.target.value; setWalls((ws) => ws.map((y, j) => (j === i ? { ...y, len: v } : y))); })} />
+                  <NumIn className="win" value={x.len} placeholder={String(auto)} disabled={!x.on} title="length, in — blank follows the room"
+                    onCommit={geom((v) => setWalls((ws) => ws.map((y, j) => (j === i ? { ...y, len: v } : y))))} />
                   <span>×</span>
-                  <input className="win" type="number" value={x.h} placeholder={String(wallHNum)} disabled={!x.on} title="height, in — 40 for a half wall"
-                    onChange={geom((e) => { const v = e.target.value; setWalls((ws) => ws.map((y, j) => (j === i ? { ...y, h: v } : y))); })} />
-                  <span className="wu">{x.on ? (len * hh / 144).toFixed(1) + " sf" : "off"}</span>
+                  <NumIn className="win" value={x.h} placeholder={String(wallHNum)} disabled={!x.on} title="height, in — 40 for a half wall"
+                    onCommit={geom((v) => setWalls((ws) => ws.map((y, j) => (j === i ? { ...y, h: v } : y))))} />
+                  <span className="wu">{x.on ? sfOfWall(len, hh, x.faces).toFixed(1) + " sf" + facesTag(x.faces) : "off"}</span>
                 </div>
               );
             })}
@@ -971,12 +1223,12 @@ export default function SchluterConfigurator({
                 <button className="wname x on" title={"which end it returns from — click to move it (" + endLabel(x) + "). The × on the right removes it"}
                   onClick={geom(() => setXwalls((xs) => xs.map((y) => (y.id === x.id ? { ...y, at: y.at === "hi" ? "lo" : "hi" } : y))))}>
                   {EDGE_LBL[x.edge]} <small>{endLabel(x)}</small></button>
-                <input className="win" type="number" value={x.len} placeholder="len"
-                  onChange={geom((e) => { const v = e.target.value; setXwalls((xs) => xs.map((y) => (y.id === x.id ? { ...y, len: v } : y))); })} />
+                <NumIn className="win" value={x.len} placeholder="len"
+                  onCommit={geom((v) => setXwalls((xs) => xs.map((y) => (y.id === x.id ? { ...y, len: v } : y))))} />
                 <span>×</span>
-                <input className="win" type="number" value={x.h} placeholder={String(wallHNum)}
-                  onChange={geom((e) => { const v = e.target.value; setXwalls((xs) => xs.map((y) => (y.id === x.id ? { ...y, h: v } : y))); })} />
-                <span className="wu">{(((+x.len || 0) * (+x.h || wallHNum)) / 144).toFixed(1)} sf ·{" "}
+                <NumIn className="win" value={x.h} placeholder={String(wallHNum)}
+                  onCommit={geom((v) => setXwalls((xs) => xs.map((y) => (y.id === x.id ? { ...y, h: v } : y))))} />
+                <span className="wu">{sfOfWall(+x.len || 0, +x.h || wallHNum, x.faces).toFixed(1)} sf{facesTag(x.faces)} ·{" "}
                   <b className="xdel" onClick={() => setXwalls((xs) => xs.filter((y) => y.id !== x.id))}>×</b></span>
               </div>
             ))}
@@ -999,8 +1251,8 @@ export default function SchluterConfigurator({
                     <span className="wu" style={{ fontSize: "9.5px", alignSelf: "center" }}>corner cuts: {cutOn.map((c) => c[1]).join(", ")}</span>
                   )}
                   <span className="wdefh">Default height
-                    <input className="win" type="number" value={wallH} title="the height every wall starts at, in"
-                      onChange={geom((e) => setWallH(e.target.value))} />in
+                    <NumIn className="win" value={wallH} title="the height every wall starts at, in"
+                      onCommit={geom((v) => setWallH(v))} />in
                   </span>
                 </div>
               );
@@ -1020,6 +1272,7 @@ export default function SchluterConfigurator({
     const toks = q.toLowerCase().split(/\s+/).filter(Boolean);
     return cat
       .filter((i) => source === "all" || i.stock)
+      .filter((i) => sec !== "starred" || starred.has(i.sku))
       .filter((i) => !secObj || (subObj ? subObj.hit(i) : sectionHit(secObj, i)))
       .filter((i) => {
         if (!toks.length) return true;
@@ -1027,7 +1280,7 @@ export default function SchluterConfigurator({
         return toks.every((t) => hay.indexOf(t) >= 0);
       })
       .sort((a, b) => ((b.stock ? 1 : 0) - (a.stock ? 1 : 0)) || (a.g > b.g ? 1 : a.g < b.g ? -1 : 0) || (+a.price || 0) - (+b.price || 0));
-  }, [cat, q, secObj, subObj, source]);
+  }, [cat, q, sec, secObj, subObj, source, starred]);
 
   const wallSfNow = cfg.walls.filter((x) => x.on).reduce((s, x) => s + (x.len * x.h) / 144, 0);
   const floorSfNow = (cfg.w * cfg.d) / 144;
@@ -1065,13 +1318,36 @@ export default function SchluterConfigurator({
               {s.label}<small>{cat.filter((i) => sectionHit(s, i)).length}</small></button>
           ))}
           <button className={"fbopt" + (!sec ? " on" : "")} onClick={() => { setSec(""); setSub(""); }}>All<small>{cat.length}</small></button>
+          <button className={"fbopt" + (sec === "starred" ? " on" : "")} title="items pinned with the row star" data-schluter-starfilter
+            onClick={() => { const same = sec === "starred"; setSec(same ? "" : "starred"); setSub(""); }}>
+            ★ Starred<small>{starred.size}</small></button>
         </div>
       </div>
       {figOpen && (
         <div className="figcard">
-          Wall area <input className="inp" type="number" value={figSfVal} onChange={(e) => setFigSf(e.target.value)} /> sf
+          Wall area <NumIn className="inp" value={figSfVal} onCommit={(v) => setFigSf(v)} /> sf
           {" → "}<b>{figRolls.map((p) => p.qty + "× " + ((p.item.size || "").split("=")[1] || p.item.sf + " sf").trim()).join(" + ") || "—"}</b> KERDI
           {allset ? <> · <b>{figBags}</b> bag{figBags > 1 ? "s" : ""} ALL-SET (walls + {floorSfNow.toFixed(0)} sf floor)</> : null}
+          {(figRolls.length > 0 || allset) && (
+            <button className="gchip" style={{ marginLeft: 8 }} data-schluter-figadd onClick={() => {
+              // the wedi top-up rule: what the build already carries counts,
+              // only the shortfall lands as Extras
+              const inBuild = (sku) => (build ? build.lines.reduce((t, l) => t + (!l.noteOnly && l.item.sku === sku ? l.qty : 0), 0) : 0);
+              const want = figRolls.map((p) => [p.item.sku, p.qty]);
+              if (allset) want.push([allset.sku, figBags]);
+              setManual((mm) => {
+                let next = mm.slice();
+                want.forEach(([sku, qty]) => {
+                  const need = qty - inBuild(sku);
+                  if (need <= 0) return;
+                  const m = next.find((x) => x.sku === sku);
+                  next = m ? next.map((x) => (x === m ? { ...x, qty: Math.max(x.qty, need) } : x)) : [...next, { sku, qty: need }];
+                });
+                return next;
+              });
+              say("KERDI + ALL-SET added for " + figSfVal + " sf of wall");
+            }}>Add to build</button>
+          )}
           <div className="figfoot">ALL-SET at ≈{allset ? allset.sfPerBag : 55} sf/bag (1/4″×1/4″ est.) · KERDI +10% for laps · band, corners and seals ride the build's Seams group</div>
         </div>
       )}
@@ -1086,6 +1362,9 @@ export default function SchluterConfigurator({
             <div className="bmeta">
               <div className="s">{i.g}{i.stock ? " · on the shelf" : " · special order" + (i.lead ? " · " + i.lead : "")}</div>
               <div className="sku">{i.sku}</div>
+              <button className={"starb" + (starred.has(i.sku) ? " on" : "")} data-schluter-star={i.sku}
+                title={starred.has(i.sku) ? "unpin from Starred" : "pin to Starred"}
+                onClick={() => toggleStar(i.sku)}>{starred.has(i.sku) ? "★" : "☆"}</button>
               <div className="pr" style={{ color: tierColor }}>{fm(tierOf(i))}</div>
               <div className="stepper">
                 <button onClick={() => setQty(i.sku, Math.max(0, n - 1))}>−</button>
@@ -1097,7 +1376,9 @@ export default function SchluterConfigurator({
         );
       })}
       {browseList.length > 48 && <div className="more">{browseList.length - 48} more — narrow the search or a filter</div>}
-      {!browseList.length && <div className="loading">Nothing matches.</div>}
+      {sec === "starred" && !starred.size
+        ? <div className="loading">Nothing starred yet — the ☆ on any row pins it here.</div>
+        : !browseList.length && <div className="loading">Nothing matches.</div>}
     </>
   );
 
@@ -1110,7 +1391,13 @@ export default function SchluterConfigurator({
             ? "The registry has no Schluter shower rows yet — import the stock export or the EFT in the Price book library."
             : "Pick a kit, a tray, or solve a room."}</div>
         </div>
-        <div className="bc-foot"><div className="btnrow"><button className="wbtn primary" disabled>Add to product lines</button></div></div>
+        <div className="bc-foot">
+          <div className="btnrow">
+            <button className="wbtn primary" disabled>Add to product lines</button>
+            <button className="wbtn" disabled>Print</button>
+            <button className="wbtn" disabled>Order entry</button>
+          </div>
+        </div>
       </>
     );
     return (
@@ -1125,7 +1412,16 @@ export default function SchluterConfigurator({
             if (!gl.length) return null;
             return (
               <div className="bgroup" key={g}>
-                <div className="bg-h">{g}</div>
+                <div className="bg-h">{g}
+                  {g === "Walls" && cfg.wallSys === "board" && (
+                    <span className="wallctl">
+                      <span className="pfseg">
+                        <button className={panelFit ? "on" : ""} title="mixed sheet sizes, level courses, minimal vertical seams" onClick={() => setPanelFit(true)} data-schluter-fit>Fit</button>
+                        <button className={!panelFit ? "on" : ""} title="one sheet size, by area" onClick={() => setPanelFit(false)} data-schluter-onesize>One size</button>
+                      </span>
+                    </span>
+                  )}
+                </div>
                 {gl.map((l, li) => {
                   const e = l.item;
                   const price = tierOf(e);
@@ -1137,6 +1433,10 @@ export default function SchluterConfigurator({
                           {!l.noteOnly && !e.stock && <span className="sotag">special order</span>}</div>
                         <div className="m" title={meta.join(" · ") || undefined}>{meta.map((s2, k) => (k ? " · " + s2 : <b key="k">{s2}</b>))}</div>
                       </div>
+                      {swapChoices(l) && (
+                        <button className="swapb" title="swap" data-schluter-swapb={e.sku}
+                          onClick={(ev) => setSwap({ key: e.sku || e.name, rect: ev.currentTarget.getBoundingClientRect() })}>⇄</button>
+                      )}
                       {!l.noteOnly && (
                         <div className="stepper">
                           <button onClick={() => stepLine(l, -1)} title="one less — at 0 the line leaves the bill">−</button>
@@ -1189,6 +1489,25 @@ export default function SchluterConfigurator({
                         onClick={() => setQty(x.sku, on ? 0 : 1)} data-schluter-extra={x.sku}>{(on ? "✓ " : "+ ") + extraLbl(x.name)}</button>
                     );
                   })}
+                  {!cfg.curbed && (
+                    // the ramp is an opt-in, never auto-billed (owner 2026-08-24):
+                    // recessing the subfloor needs no part at all
+                    <button className={"addchip" + (ramp ? " on" : "")} data-schluter-rampchip
+                      title={'curbless entry ramp — 12" run, ADA slope. Recessing the subfloor instead needs no part'}
+                      onClick={() => { setKitPick(false); setRamp((v) => !v); }}>{(ramp ? "✓ " : "+ ") + "Ramp"}</button>
+                  )}
+                  {(() => {
+                    // KERDI-FIX left the standing recipe (owner 2026-08-24) —
+                    // one click brings it back when a job really wants it
+                    const kfix = cat.find((i) => i.adhesive);
+                    if (!kfix) return null;
+                    const on = qtyIn(kfix.sku) > 0;
+                    return (
+                      <button className={"addchip" + (on ? " on" : "")} disabled={source === "stock" && !kfix.stock}
+                        title={kfix.name + " — sealing adhesive; rides the tub kit, not every shower"}
+                        onClick={() => setQty(kfix.sku, on ? 0 : 1)} data-schluter-kfix>{(on ? "✓ " : "+ ") + "KERDI-FIX"}</button>
+                    );
+                  })()}
                 </>);
               })()}
             </div>
@@ -1219,6 +1538,8 @@ export default function SchluterConfigurator({
           </button>
           <div className="btnrow">
             <button className="wbtn primary" onClick={() => setPayload(rows)} data-schluter-add><Plus size={13} /> Add to product lines</button>
+            <button className="wbtn" disabled={!diag} onClick={() => setPrinting(true)} data-schluter-print><Printer size={13} /> Print layout</button>
+            <button className="wbtn" onClick={copyList} data-schluter-copy><Copy size={13} /> Order entry</button>
           </div>
         </div>
       </>
@@ -1238,7 +1559,8 @@ export default function SchluterConfigurator({
           onBenchMenu={(z, x, y) => setBenchMenu({ ...z, x, y })}
           onWallMenu={(ref, x, y) => setWallMenu({ ...ref, x, y })}
           onCorner={(c) => {
-            if (!openMap[c]) return;
+            if (!openMap[c]) { say("That corner sits between two walls — shorten or turn one off to cut it"); return; }
+            leaveKit();
             setKitPick(false);
             setCorners((o) => ({ ...o, [c]: !o[c] }));
             setPlacing(false);
@@ -1252,7 +1574,11 @@ export default function SchluterConfigurator({
               h: "",
             }]);
             setPlacing(false);
+            leaveKit();
             setKitPick(false);
+            say("Wall added on the " + edge + " side, returning from the "
+              + ((edge === "back" || edge === "entry") ? (at === "hi" ? "right" : "left") : (at === "hi" ? "entry" : "back"))
+              + " — set its length and height in the Walls group, or right-click it for both ends");
           }} />
         <Iso o={diag} w={railFit.w} h={railFit.iso} dWalls={dWalls} benches={normBenches}
           itemFn={itemBySku} normBenchFn={(z, room) => normBench(z, room, cat)}
@@ -1318,11 +1644,6 @@ export default function SchluterConfigurator({
     </div>
   );
 
-  // choice lists narrow to stocked rows under Stock only unless none are —
-  // then the full list stays so a menu is never empty and a pick lands flagged
-  const pool = (list) => (source === "stock" && list.some((i) => i.stock) ? list.filter((i) => i.stock) : list);
-  const byShelf = (a, b2) => (b2.stock ? 1 : 0) - (a.stock ? 1 : 0) || tierPrice(a, "retail", {}) - tierPrice(b2, "retail", {});
-
   // The right-click wall menu (the wedi idiom): size edits write straight into
   // the walls / xwalls rows the build already reads. No faces seg — the
   // wall-system fork (membrane vs board) is whole-shower, not per wall.
@@ -1335,6 +1656,7 @@ export default function SchluterConfigurator({
     const auto = wallMenu.extra ? 0 : wi === 0 ? cfg.w : cfg.d;
     const len = +row.len || auto || 0;
     const hh = +row.h || wallHNum;
+    const faces = row.faces === "both" || row.faces === "in-end" ? row.faces : "in";
     const label = wallMenu.extra ? (EDGE_LBL[row.edge] || "Added") + " wall (added · from the " + endLabel(row) + ")" : row.name + " wall";
     const upd = geom((patch) => (wallMenu.extra
       ? setXwalls((xs) => xs.map((x) => (x.id === xid ? { ...x, ...patch } : x)))
@@ -1346,14 +1668,14 @@ export default function SchluterConfigurator({
     return createPortal(
       <div className="sch-swap sch-wallmenu" style={style} data-schluter-wallmenu
         onClick={(e) => e.stopPropagation()} onContextMenu={(e) => e.preventDefault()}>
-        <div className="ph">{label} — {(len * hh / 144).toFixed(1)} sf</div>
+        <div className="ph">{label} — {sfOfWall(len, hh, faces).toFixed(1)} sf{facesTag(faces)}</div>
         <div className="wm-row">
           <label>Size</label>
-          <input className="win" type="number" value={row.len} placeholder={auto ? String(auto) : "len"} title="length, in — blank follows the room"
-            onChange={(e) => upd({ len: e.target.value })} />
+          <NumIn className="win" value={row.len} placeholder={auto ? String(auto) : "len"} title="length, in — blank follows the room"
+            onCommit={(v) => upd({ len: v })} />
           <span>×</span>
-          <input className="win" type="number" value={row.h} placeholder={String(wallHNum)} title="height, in — 40 for a half wall"
-            onChange={(e) => upd({ h: e.target.value })} />
+          <NumIn className="win" value={row.h} placeholder={String(wallHNum)} title="height, in — 40 for a half wall"
+            onCommit={(v) => upd({ h: v })} />
           <span>in</span>
         </div>
         {wallMenu.extra && (() => {
@@ -1380,13 +1702,34 @@ export default function SchluterConfigurator({
             </div>
           );
         })()}
-        <div className="wm-note">{wallSys === "board"
-          ? "KERDI-BOARD panels this face — the sf feeds the wall pick"
-          : "KERDI membrane over backer (by others) on this face"}</div>
+        {/* which faces get covered — the wedi seg (owner ask 2026-08-24); the
+            area feeds the board/membrane pick through the engine's faces rule */}
+        <div className="wm-row">
+          <label>{wallSys === "board" ? "Board" : "KERDI"}</label>
+          <span className="pfseg">
+            <button className={faces === "in" ? "on" : ""} title="cover the shower side only" onClick={() => upd({ faces: "" })} data-schluter-faces-in>Inside</button>
+            <button className={faces === "both" ? "on" : ""} title="cover both sides — this wall's sf doubles" onClick={() => upd({ faces: "both" })} data-schluter-faces-both>Both sides</button>
+            <button className={faces === "in-end" ? "on" : ""} title={'inside plus the exposed 4" end of the run'} onClick={() => upd({ faces: "in-end" })} data-schluter-faces-end>In + end</button>
+          </span>
+        </div>
+        <div className="wm-note">
+          {faces === "both" ? (wallSys === "board" ? "board on both faces — this wall's sf doubles" : "membrane on both faces — this wall's sf doubles")
+            : faces === "in-end" ? 'the exposed 4" end takes a strip too'
+              : wallSys === "board"
+                ? "KERDI-BOARD panels the shower side — the sf feeds the wall pick"
+                : "KERDI membrane over backer (by others) on the shower side"}
+        </div>
         <div className="wm-row" style={{ paddingTop: 7, gap: 8 }}>
           {!wallMenu.extra && (
-            <button className="wm-act" title="turn the wall off — its area leaves the bill; its name button in the Walls group brings it back"
-              onClick={geom(() => { setWalls((ws) => ws.map((x, j) => (j === wi ? { ...x, on: false } : x))); setWallMenu(null); })}>Turn off</button>
+            <button className="wm-act" data-schluter-wall-off
+              title={cfg.curbed
+                ? "remove the wall — the curb runs this edge instead, butted square to the standing walls"
+                : "turn the wall off — its area leaves the bill; its name button in the Walls group brings it back"}
+              onClick={geom(() => {
+                setWalls((ws) => ws.map((x, j) => (j === wi ? { ...x, on: false } : x)));
+                setWallMenu(null);
+                if (cfg.curbed) say("Wall turned into a curb — the run butts the standing walls square");
+              })}>{cfg.curbed ? "Turn into a curb" : "Turn off"}</button>
           )}
           {wallMenu.extra && (
             <button className="wm-del" onClick={geom(() => { setXwalls((xs) => xs.filter((x) => x.id !== xid)); setWallMenu(null); })}>Remove</button>
@@ -1458,25 +1801,25 @@ export default function SchluterConfigurator({
           {norm.build !== "premade" && norm.kind === "corner" && (
             <div className="wm-row">
               <label>Legs</label>
-              <input className="win" type="number" value={row.size ?? ""} placeholder={String(norm.size)} title="from the corner out along each wall, in"
-                onChange={(e) => upd({ size: e.target.value })} />
+              <NumIn className="win" value={row.size ?? ""} placeholder={String(norm.size)} title="from the corner out along each wall, in"
+                onCommit={(v) => upd({ size: v })} />
               <span>× h</span>
-              <input className="win" type="number" value={row.h ?? ""} placeholder={String(norm.h)} title="to the top, in"
-                onChange={(e) => upd({ h: e.target.value })} />
+              <NumIn className="win" value={row.h ?? ""} placeholder={String(norm.h)} title="to the top, in"
+                onCommit={(v) => upd({ h: v })} />
               <span>in</span>
             </div>
           )}
           {norm.build !== "premade" && norm.kind !== "corner" && (
             <div className="wm-row">
               <label>Size</label>
-              <input className="win" type="number" value={row.len ?? ""} placeholder={String(norm.len)} title="length along the wall, in"
-                onChange={(e) => upd({ len: e.target.value })} />
+              <NumIn className="win" value={row.len ?? ""} placeholder={String(norm.len)} title="length along the wall, in"
+                onCommit={(v) => upd({ len: v })} />
               <span>×</span>
-              <input className="win" type="number" value={row.depth ?? ""} placeholder={String(norm.depth)} title="seat depth, in"
-                onChange={(e) => upd({ depth: e.target.value })} />
+              <NumIn className="win" value={row.depth ?? ""} placeholder={String(norm.depth)} title="seat depth, in"
+                onCommit={(v) => upd({ depth: v })} />
               <span>×</span>
-              <input className="win" type="number" value={row.h ?? ""} placeholder={String(norm.h)} title="to the top, in"
-                onChange={(e) => upd({ h: e.target.value })} />
+              <NumIn className="win" value={row.h ?? ""} placeholder={String(norm.h)} title="to the top, in"
+                onCommit={(v) => upd({ h: v })} />
               <span>in</span>
             </div>
           )}
@@ -1630,6 +1973,98 @@ export default function SchluterConfigurator({
       </div>, document.body);
   })();
 
+  // The ⇄ swap popover — the wedi anchored panel: the line's alternatives,
+  // stock tinted, the standing pick highlighted.
+  const swapPanel = (() => {
+    if (!swap || !build) return null;
+    const line = build.lines.find((l) => !l.noteOnly && (l.item.sku || l.item.name) === swap.key);
+    if (!line) return null;
+    const ch = swapChoices(line);
+    if (!ch) return null;
+    const r = swap.rect;
+    const style = { top: Math.min(window.innerHeight - 356, r.bottom + 6), left: Math.max(12, r.right - 300) };
+    return createPortal(
+      <div className="sch-swap sch-swappanel" style={style} onClick={(e) => e.stopPropagation()}>
+        <div className="ph">{ch.title}</div>
+        {ch.list.map((e) => (
+          <button key={e.sku} className={"srow" + (e.sku === line.item.sku ? " on" : "") + (e.stock ? " stk" : "")}
+            onClick={() => { ch.set(e.sku); setSwap(null); }} data-schluter-swaprow={e.sku}>
+            <span className={"sdot" + (e.stock ? "" : " so")} />
+            <span className="n">{e.name}<small>{[e.size, e.sku, e.stock ? "stock" : "special order"].filter(Boolean).join(" · ")}</small></span>
+            <span className="p">{fm(tierOf(e))}</span>
+          </button>
+        ))}
+      </div>, document.body);
+  })();
+
+  // Kit row over customized work: confirm before wiping it (the wedi
+  // overwrite modal).
+  const confirmModal = confirmKit && (
+    <div className="print:hidden fixed inset-0 z-[80] flex items-center justify-center p-8" style={{ background: "rgba(20,15,10,.5)" }}
+      onClick={(e) => { e.stopPropagation(); setConfirmKit(null); }}>
+      <div className="sch-pop w-full max-w-[460px] rounded-xl overflow-hidden shadow-2xl" style={{ background: "var(--ft-cream)" }}
+        onClick={(e) => e.stopPropagation()} data-schluter-overwrite>
+        <div className="px-5 pt-4 pb-1 text-[14px] font-extrabold">Overwrite the custom shower?</div>
+        <div className="px-5 pb-4 text-[12px] leading-relaxed" style={{ color: "var(--ft-muted)" }}>
+          This build has been customized — walls, cuts, or parts differ from a shelf kit. Starting the{" "}
+          <b style={{ color: "var(--ft-text)" }}>{rowSz(confirmKit)}</b> kit resets all of it.
+        </div>
+        <div className="flex gap-2 px-5 py-3 border-t" style={{ borderColor: "var(--ft-border-strong)", background: "var(--ft-sand)" }}>
+          <button className="wbtn" onClick={() => setConfirmKit(null)}>Keep the custom shower</button>
+          <button className="wbtn primary" data-schluter-overwrite-yes
+            onClick={() => { const t = confirmKit; setConfirmKit(null); pickKit(t); }}>Overwrite — start the kit</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // The print layout (round 8, the wedi sheet): both drawings, the cut list
+  // and by-others notes, and the materials table through the tier lens —
+  // portalled to body so PRINT_CSS can make it the only thing that prints.
+  const printSheet = printing && diag && build && createPortal(
+    <div className="sch-printsheet">
+      <style>{PRINT_CSS}</style>
+      <div className="ps-head">
+        <div className="t">Schluter Shower Layout</div>
+        {projectName ? <div className="sub">{projectName}</div> : null}
+        <div className="dt">{new Date().toLocaleDateString()}</div>
+      </div>
+      <div className="ps-diags">
+        <div className="d">
+          <TopDown o={diag} w={460} h={360} wallOn={wallOn} dWalls={dWalls} benches={normBenches}
+            itemFn={itemBySku} normBenchFn={(z, room) => normBench(z, room, cat)}
+            cuts={cornerCuts} curbs={curb.segs} curbDiags={curb.diags} curbW={curb.w} /></div>
+        <div className="d">
+          <Iso o={diag} w={460} h={360} dWalls={dWalls} benches={normBenches}
+            itemFn={itemBySku} normBenchFn={(z, room) => normBench(z, room, cat)}
+            cuts={cornerCuts} curbs={curb.segs} curbDiags={curb.diags} curbH={curb.h} curbW={curb.w} /></div>
+      </div>
+      {(cutList.length > 0 || build.lines.some((l) => l.noteOnly)) && (<>
+        <div className="ps-sec">Cuts &amp; install notes</div>
+        {cutList.map((r, i) => <div className="ps-warn" key={i}>{r}</div>)}
+        {build.lines.filter((l) => l.noteOnly).map((l, i) => (
+          <div className="ps-warn" key={"n" + i}>• {l.item.name}{l.note ? " — " + l.note : ""}</div>
+        ))}
+      </>)}
+      <div className="ps-sec">Materials</div>
+      <table className="ps-table">
+        <thead><tr><th>SKU</th><th>Description</th><th>Size</th><th className="num">Qty</th><th className="num">{tierId}</th><th className="num">Total</th></tr></thead>
+        <tbody>
+          {GROUPS.flatMap((g) => build.lines.filter((l) => l.g === g && !l.noteOnly).map((l, li) => {
+            const p = tierOf(l.item);
+            return (
+              <tr key={g + (l.item.sku || l.item.name) + li}>
+                <td>{l.item.stock ? l.item.erp || l.item.sku : l.item.sku ? "Schluter " + l.item.sku : "—"}</td>
+                <td>{l.item.name}</td><td>{l.item.size || ""}</td>
+                <td className="num">{l.qty}</td><td className="num">{fm(p)}</td><td className="num">{fm(round2(p * l.qty))}</td>
+              </tr>
+            );
+          }))}
+        </tbody>
+      </table>
+      <div className="ps-tot"><span>{build.lines.filter((l) => !l.noteOnly).length} lines</span><span>{tierId} total {fm(totals.sell)}</span></div>
+    </div>, document.body);
+
   const nStock = cat.filter((e) => e.stock).length;
   const TAB_DEFS = [
     ["kits", "Kits", trays.length + " trays"],
@@ -1696,7 +2131,11 @@ export default function SchluterConfigurator({
       {wallMenuPanel}
       {benchMenuPanel}
       {pickerPanel}
+      {swapPanel}
+      {confirmModal}
       {payloadModal}
+      {printSheet}
+      {toast && createPortal(<div className="sch-toast" onClick={(e) => e.stopPropagation()}>{toast}</div>, document.body)}
     </div>
   );
 }

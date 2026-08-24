@@ -13,7 +13,7 @@
 // four recognizer functions for a caller that already pays for the rest.
 
 import { queryHit, parseQuery, querySummary, seedFromQuery } from "./schluterquery.js";
-import { BENCH_DEPTH } from "./showerdraw.js";
+import { BENCH_DEPTH, WALL_THICK } from "./showerdraw.js";
 
 export { queryHit, parseQuery, querySummary, seedFromQuery };
 
@@ -117,23 +117,31 @@ function bandLf(code) {
 function boardDims(item) {
   const text = item.size || "";
   const out = {};
+  // the sheet's sides ride along as bw (short) × bl (long) wherever a real
+  // pair shows — the course planner (round 7) needs dimensions, not just area
+  const pair = (a, b2) => { out.bw = Math.min(a, b2); out.bl = Math.max(a, b2); };
   const explicit = /=\s*([\d.]+)\s*sf/i.exec(text);
   if (explicit) out.sf = parseFloat(explicit[1]);
   const nums = [...text.matchAll(/([\d.]+)\s*"/g)].map((m) => parseFloat(m[1]));
   if (nums.length === 3) {
     if (nums[0] === 2) out.thick2 = true;
+    pair(nums[1], nums[2]);
     // dims-derived sf (no sheet annotation on the 2" board); informational — bench build-up counts pieces, never area
     if (out.sf === undefined) out.sf = (nums[1] * nums[2]) / 144;
-  } else if (nums.length === 2 && out.sf === undefined) {
-    if (Math.min(...nums) >= 1.5) out.sf = (nums[0] * nums[1]) / 144;
-  } else if (!nums.length && out.sf === undefined) {
+  } else if (nums.length === 2) {
+    if (Math.min(...nums) >= 1.5) {
+      pair(nums[0], nums[1]);
+      if (out.sf === undefined) out.sf = (nums[0] * nums[1]) / 144;
+    }
+  } else if (!nums.length) {
     const bare = /^\s*(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*$/i.exec(text);
     // A pair with a sub-1.5" side is a thickness×width fragment (the live ERP
     // export's "0.5 X 48 X 64" board once landed as size "0.5x48" and the
     // wall pick billed 618 panels), never a panel — leaving sf empty lets the
     // KB code's own dims fill it in classify.
     if (bare && Math.min(parseFloat(bare[1]), parseFloat(bare[2])) >= 1.5) {
-      out.sf = (parseFloat(bare[1]) * parseFloat(bare[2])) / 144;
+      pair(parseFloat(bare[1]), parseFloat(bare[2]));
+      if (out.sf === undefined) out.sf = (parseFloat(bare[1]) * parseFloat(bare[2])) / 144;
     }
   }
   return out;
@@ -279,13 +287,15 @@ function classifyCode(item, rawSku) {
     if (m) {
       entry.thickMm = Number(m[1]);
       if (entry.thickMm >= 40) entry.thick2 = true;
-      if (entry.sf === undefined) {
-        // The code's own dims run (KB<thick><w><l>, the same mm table trays
-        // parse) stands in when the sheet text failed — a garbled import must
-        // never leave a panel sf-less (it drops out of the wall pick) or
-        // fractional (618-panel bills).
-        const dims = mmExactTokens(m[2]);
-        if (dims.length === 2) {
+      // The code's own dims run (KB<thick><w><l>, the same mm table trays
+      // parse) stands in when the sheet text failed — a garbled import must
+      // never leave a panel sf-less (it drops out of the wall pick) or
+      // fractional (618-panel bills), and the course planner (round 7)
+      // needs bw/bl even when the text carried only "= N sf".
+      const dims = mmExactTokens(m[2]);
+      if (dims.length === 2) {
+        if (entry.bw === undefined) { entry.bw = Math.min(...dims); entry.bl = Math.max(...dims); }
+        if (entry.sf === undefined) {
           entry.sf = (dims[0] * dims[1]) / 144;
           entry.size = `${Math.min(...dims)}"x${Math.max(...dims)}"${THICK_IN[entry.thickMm] ? "x" + THICK_IN[entry.thickMm] : ""}`;
         }
@@ -563,11 +573,20 @@ function inches(n) {
 // not worth a cross-module reach.
 const CORNER_CUT = 12;
 
+// KERDI-BOARD-SC curb profile width on the plan — billing reads it too now
+// (a corner diagonal is figured at its longest point, leg + width each way),
+// so the number lives engine-side and schluterdraw imports it.
+export const CURB_W = 4.5;
+
 // Base walls plus any added runs (cfg.xwalls — entry returns, jogs): a wall
-// is wall sf to the material bill whichever edge it sits on.
-function wallArea(cfg) {
-  return cfg.walls.filter((w) => w.on).reduce((s, w) => s + (w.len * w.h) / 144, 0)
-    + (cfg.xwalls || []).reduce((s, x) => s + ((+x.len || 0) * (+x.h || 84)) / 144, 0);
+// is wall sf to the material bill whichever edge it sits on. `faces` is the
+// wedi rule (round 6): "both" panels/membranes both sides of the run, and
+// "in-end" adds the exposed end's strip a wall's own thickness wide.
+export function wallArea(cfg) {
+  const faceSf = (len, h, faces) =>
+    (len * h * (faces === "both" ? 2 : 1) + (faces === "in-end" ? WALL_THICK * h : 0)) / 144;
+  return cfg.walls.filter((w) => w.on).reduce((s, w) => s + faceSf(+w.len || 0, +w.h || 84, w.faces), 0)
+    + (cfg.xwalls || []).reduce((s, x) => s + faceSf(+x.len || 0, +x.h || 84, x.faces), 0);
 }
 
 // What the entry walls leave open — the run the curb actually spans. Walls
@@ -577,6 +596,263 @@ export function entryOpening(cfg) {
   const walled = (cfg.xwalls || []).filter((x) => x.edge === "entry")
     .reduce((s, x) => s + Math.min(+x.len || 0, w), 0);
   return Math.max(0, w - walled);
+}
+
+// ---------------------------------------------------------------------------
+// Open edges — where the curb actually runs (round 6, the wedi curbRuns
+// rule): every span of the room's perimeter no wall covers carries curb, not
+// just the entry. Base walls anchor at their low end (back at the left,
+// sides at the back); xwalls at whichever end their `at` says. A cut corner
+// adjacent to open runs re-routes the curb as ONE diagonal: each touching
+// run gives up the 12" leg and the diagonal piece is figured at its longest
+// point (leg + curb width each way). Billing and the drawings both read this
+// so they can't drift.
+const EDGE_DEFS = [["back", "w"], ["left", "d"], ["right", "d"], ["entry", "w"]];
+
+function edgeSpans(cfg) {
+  const w = +cfg.w || 0, d = +cfg.d || 0;
+  const spans = { back: [], left: [], right: [], entry: [] };
+  const put = (edge, at, len, max) => {
+    const l = Math.min(+len || 0, max);
+    if (l > 0.01) spans[edge].push(at === "hi" ? [round2(max - l), max] : [0, round2(l)]);
+  };
+  const SIDE = ["back", "left", "right"];
+  (cfg.walls || []).forEach((bw, i) => {
+    if (bw && bw.on) put(SIDE[i], "lo", bw.len, i === 0 ? w : d);
+  });
+  (cfg.xwalls || []).forEach((x) => {
+    const edge = ["back", "left", "right", "entry"].includes(x.edge) ? x.edge : "entry";
+    put(edge, x.at === "hi" ? "hi" : "lo", x.len, edge === "back" || edge === "entry" ? w : d);
+  });
+  Object.keys(spans).forEach((k) => {
+    const merged = [];
+    spans[k].sort((a, b) => a[0] - b[0]).forEach(([a, b]) => {
+      const last = merged[merged.length - 1];
+      if (last && a <= last[1] + 0.01) last[1] = Math.max(last[1], b);
+      else merged.push([a, b]);
+    });
+    spans[k] = merged;
+  });
+  return spans;
+}
+
+export function openRuns(cfg) {
+  const w = +cfg.w || 0, d = +cfg.d || 0;
+  const spans = edgeSpans(cfg);
+  const edges = [];
+  EDGE_DEFS.forEach(([side, dim]) => {
+    const max = dim === "w" ? w : d;
+    if (!(max > 0)) return;
+    let at = 0;
+    const runs = [];
+    spans[side].forEach(([a, b]) => { if (a - at > 0.5) runs.push([at, a]); at = Math.max(at, b); });
+    if (max - at > 0.5) runs.push([at, max]);
+    runs.forEach(([a, b]) => edges.push({ side, from: round2(a), len: round2(b - a) }));
+  });
+  // which end of which edges each corner sits on, and whether a wall claims it
+  const atLo = (side) => !!(spans[side][0] && spans[side][0][0] <= 0.5);
+  const atHi = (side, max) => spans[side].some((sp) => sp[1] >= max - 0.5);
+  const CORNERS = {
+    bl: { h: ["back", "lo"], v: ["left", "lo"], walled: () => atLo("back") && atLo("left") },
+    br: { h: ["back", "hi"], v: ["right", "lo"], walled: () => atHi("back", w) && atLo("right") },
+    fl: { h: ["entry", "lo"], v: ["left", "hi"], walled: () => atLo("entry") && atHi("left", d) },
+    fr: { h: ["entry", "hi"], v: ["right", "hi"], walled: () => atHi("entry", w) && atHi("right", d) },
+  };
+  const runAt = (side, end) => {
+    const max = side === "left" || side === "right" ? d : w;
+    return edges.find((e) => e.side === side && (end === "lo" ? e.from <= 0.5 : e.from + e.len >= max - 0.5)) || null;
+  };
+  // which end of its edge each corner sits on — trims come off that end
+  const LO_CORNER = { back: "bl", left: "bl", right: "br", entry: "fl" };
+  const diags = [];
+  (cfg.corners || []).filter((k) => CORNERS[k] && !CORNERS[k].walled()).sort().forEach((k) => {
+    const c = CORNERS[k];
+    const rh = runAt(...c.h), rv = runAt(...c.v);
+    if (!rh && !rv) return;
+    const h = Math.min(CORNER_CUT, w), v = Math.min(CORNER_CUT, d);
+    diags.push({ corner: k, h: round2(h), v: round2(v), len: round2(Math.hypot(h, v)), cut: round2(Math.hypot(h + CURB_W, v + CURB_W)) });
+    // each touching run gives up the leg so nothing is stranded behind the cut
+    [[rh, h], [rv, v]].forEach(([r, leg]) => {
+      if (!r) return;
+      const t = Math.min(leg, r.len);
+      r._trim = r._trim || [0, 0];
+      if (LO_CORNER[r.side] === k) r._trim[0] = Math.max(r._trim[0], t);
+      else r._trim[1] = Math.max(r._trim[1], t);
+    });
+  });
+  const segs = edges
+    .map((e) => {
+      const [t0, t1] = e._trim || [0, 0];
+      return { side: e.side, from: round2(e.from + t0), len: round2(e.len - t0 - t1), ext0: 0, ext1: 0 };
+    })
+    .filter((e) => e.len > 0.5);
+  const need = round2(segs.reduce((s, e) => s + e.len, 0) + diags.reduce((s, x) => s + x.cut, 0));
+  return { segs, diags, need };
+}
+
+// ---------------------------------------------------------------------------
+// KERDI-BOARD wall panel planner (round 7) — the wedi panelPlan doctrine over
+// the LIVE registry board range (ADR 0032: no transcribed sheet table).
+// Sheets laid HORIZONTAL, stacked in level courses, mixing the ½" sizes the
+// books actually carry, so the joints run level and vertical seams stay rare;
+// a wall goes VERTICAL only when one sheet stood on end covers it whole —
+// zero seams — and the horizontal plan would have used more than one sheet
+// (the wedi owner rules 2026-07-29/30, ported verbatim in spirit).
+
+// The one wall-panel pool Fit and One-size both pick from: ½" boards only
+// (thickMm keys it so a fatter live board can't sneak in), never the
+// fastener boxes or the 2" bench stock.
+export const halfBoardPool = (cat, source) =>
+  stockPool(cat.filter((i) => i.g === "board" && !i.thick2 && !i.fastener && i.sf
+    && (i.thickMm == null || i.thickMm <= 13)), source);
+
+// The sheet ladder the planner works from — one entry per distinct size,
+// stocked-then-cheapest winning a size carried twice. w is the course height
+// (the side that stacks), len the run length.
+export function boardSheets(cat, { source } = {}) {
+  const seen = {};
+  return halfBoardPool(cat, source)
+    .filter((i) => i.bw > 0 && i.bl > 0)
+    .slice().sort((a, b) => (b.stock ? 1 : 0) - (a.stock ? 1 : 0) || (+a.price || 0) - (+b.price || 0))
+    .filter((i) => { const k = i.bw + "x" + i.bl; if (seen[k]) return false; seen[k] = true; return true; })
+    .map((i) => ({ sku: i.sku, w: i.bw, len: i.bl }))
+    .sort((a, b) => b.w - a.w || b.len - a.len);
+}
+
+// The planner sees each covered FACE as its own wall (the wedi
+// expandWallFaces rule): base walls then xwalls in schluterWalls' own order —
+// the extra faces append AFTER, so a caller indexing detail[i] by drawn wall
+// still lines up — "both" adds the outside plane, "in-end" the WALL_THICK
+// end strip.
+export function expandBoardFaces(cfg) {
+  const SIDE = ["back", "left", "right"];
+  const faces = [];
+  (cfg.walls || []).forEach((w, i) => {
+    if (w && w.on) faces.push({ len: +w.len || 0, h: +w.h || 84, side: SIDE[i], faces: w.faces });
+  });
+  (cfg.xwalls || []).forEach((x) => {
+    if (+x.len > 0) faces.push({ len: +x.len, h: +x.h || 84, side: x.edge, faces: x.faces });
+  });
+  const n = faces.length;
+  for (let i = 0; i < n; i++) {
+    const w = faces[i];
+    if (w.faces === "both") faces.push({ len: w.len, h: w.h, side: w.side, face: "out" });
+    else if (w.faces === "in-end") faces.push({ len: WALL_THICK, h: w.h, side: w.side, face: "end" });
+  }
+  return faces;
+}
+
+// Level course stack for a wall height: cover or overshoot, fewest courses,
+// then least overshoot — taller courses at the bottom.
+function boardCourses(h, heights) {
+  let best = null;
+  const search = (idx, stack, tot) => {
+    if (tot >= h - 0.01 && stack.length) {
+      if (!best || stack.length < best.stack.length
+        || (stack.length === best.stack.length && round2(tot - h) < best.over)) {
+        best = { stack: stack.slice(), over: round2(tot - h) };
+      }
+      return;
+    }
+    if (stack.length >= 6 || (best && stack.length >= best.stack.length)) return;
+    for (let i = idx; i < heights.length; i++) {
+      stack.push(heights[i]);
+      search(i, stack, tot + heights[i]);
+      stack.pop();
+    }
+  };
+  search(0, [], 0);
+  return best ? best.stack.sort((a, b) => b - a) : [];
+}
+
+// Fill one course along the run with the sheets of that course height:
+// fewest pieces, then least linear waste; longest sheets lead and the last
+// piece is the cut-down one, so the butt joints are the running lens sums.
+function boardCourseFill(ch, L, sheets) {
+  const opts = sheets.filter((s) => s.w === ch).sort((a, b) => b.len - a.len);
+  if (!opts.length) return null;
+  const maxPieces = Math.ceil(L / opts[opts.length - 1].len) + 1;
+  let best = null;
+  const search = (idx, picks, run) => {
+    if (run >= L - 0.01 && picks.length) {
+      if (!best || picks.length < best.picks.length
+        || (picks.length === best.picks.length && round2(run - L) < best.waste)) {
+        best = { picks: picks.slice(), waste: round2(run - L) };
+      }
+      return;
+    }
+    if (picks.length >= maxPieces || (best && picks.length >= best.picks.length)) return;
+    for (let i = idx; i < opts.length; i++) {
+      picks.push(opts[i]);
+      search(i, picks, run + opts[i].len);
+      picks.pop();
+    }
+  };
+  search(0, [], 0);
+  if (!best) return null;
+  const lens = [];
+  let left = L;
+  best.picks.forEach((p) => { const t = Math.min(p.len, left); lens.push(round2(t)); left = round2(left - t); });
+  return { sheets: best.picks.map((p) => p.sku), lens, vSeams: best.picks.length - 1 };
+}
+
+// One sheet stood on end covering the whole wall — allowed only when it
+// leaves NO vertical seam; smallest-waste sheet wins.
+function boardVertical(L, H, sheets) {
+  let best = null;
+  sheets.forEach((s) => {
+    if (s.w < L - 0.01 || s.len < H - 0.01) return;
+    const waste = round2(s.w * s.len - L * H);
+    if (!best || waste < best.waste) best = { sku: s.sku, waste };
+  });
+  return best;
+}
+
+/**
+ * The Fit plan: expanded wall faces in, { lines: [{sku, qty}], vSeams,
+ * courses, detail } out — detail index-aligned with the input, each entry
+ * carrying the drawing-ready courses ({y0, ch, lens}; a vertical wall is one
+ * {y0:0, ch:H, lens:[L], vertical:true} course). y0 steps by the NOMINAL
+ * course height while the stored ch clamps to what the wall has left, so the
+ * isometric's top course never overshoots. Every piece bills a whole sheet —
+ * no off-cut reuse.
+ */
+export function boardPlan(faces, cat, { source } = {}) {
+  const sheets = boardSheets(cat, { source });
+  const heights = [...new Set(sheets.map((s) => s.w))].sort((a, b) => b - a);
+  const byKey = {}, order = [], detail = [];
+  let vSeams = 0, courses = 0;
+  const take = (k) => { if (!byKey[k]) { byKey[k] = 0; order.push(k); } byKey[k]++; };
+  (faces || []).forEach((wall) => {
+    const L = +wall.len || 0, H = +wall.h || 0;
+    const d = { len: L, h: H, side: wall.side || "", courses: [], vertical: false };
+    detail.push(d);
+    if (!(L > 0) || !(H > 0) || !sheets.length) return;
+    const horiz = [];
+    let y0 = 0, hSheets = 0;
+    boardCourses(H, heights).forEach((ch) => {
+      const c = boardCourseFill(ch, L, sheets);
+      if (!c) return;
+      horiz.push({ y0, ch: Math.min(ch, round2(H - y0)), lens: c.lens, sheets: c.sheets });
+      y0 = round2(y0 + ch);
+      hSheets += c.sheets.length;
+    });
+    const vert = boardVertical(L, H, sheets);
+    if (vert && hSheets > 1) {
+      d.vertical = true;
+      d.courses.push({ y0: 0, ch: H, lens: [L], vertical: true });
+      courses++;
+      take(vert.sku);
+    } else {
+      horiz.forEach((c) => {
+        courses++;
+        vSeams += c.lens.length - 1;
+        d.courses.push({ y0: c.y0, ch: c.ch, lens: c.lens });
+        c.sheets.forEach(take);
+      });
+    }
+  });
+  return { lines: order.map((k) => ({ sku: k, qty: byKey[k] })), vSeams, courses, detail };
 }
 
 /**
@@ -600,6 +876,12 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
   const add = (g, item, qty, note) => {
     if (item) L.push({ g, item, qty, note, so: !item.stock });
   };
+  // cfg.swaps (round 9, the wedi swap-popover rule): a hand-picked part wins
+  // its role over the recipe's own pick — grate finish, curb, the One-size
+  // wall board — looked up by sku within the role so a stale sku falls back
+  // to the recipe rather than landing the wrong kind of part.
+  const swaps = cfg.swaps || {};
+  const swapped = (sku, pred) => (sku ? cat.find((i) => i.sku === sku && pred(i)) : null);
   const benches = cfgBenches(cfg, cat);
   const cand = pick || trayCandidates(cfg, cat, { source })[0];
 
@@ -655,18 +937,17 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
   } else {
     add("Drain", pickFrom(cat, (i) => i.g === "drain" && i.part === "flange" && i.drain === "point", { source }), 1,
       'bonded flange, 2" PVC');
-    add("Drain", pickFrom(cat, (i) => i.g === "drain" && i.part === "grate", { source }), 1,
+    add("Drain", swapped(swaps.grate, (i) => i.part === "grate")
+      || pickFrom(cat, (i) => i.g === "drain" && i.part === "grate", { source }), 1,
       "finish pick — tileable & floral stocked too");
   }
 
   const sf = wallArea(cfg);
   if (cfg.wallSys === "board") {
-    // largest ½" panel wins the wall pick (48×96 = 32 sf in today's range)
-    // largest ½" panel wins — thickMm keys the thickness so a fatter live
-    // board with more sf can't take the wall pick
-    const b = stockPool(cat.filter((i) => i.g === "board" && !i.thick2 && !i.fastener && i.sf
-      && (i.thickMm == null || i.thickMm <= 13))
-      .sort((x, y) => y.sf - x.sf), source)[0];
+    // largest ½" panel wins the "One size" wall pick — same pool the Fit
+    // planner draws from (halfBoardPool), so the two modes can't diverge
+    const b = swapped(swaps.board, (i) => i.g === "board" && !i.thick2 && !i.fastener && i.sf)
+      || halfBoardPool(cat, source).slice().sort((x, y) => y.sf - x.sf)[0];
     add("Walls", b, b ? Math.ceil((sf * 1.05) / b.sf) : 0, `${sf.toFixed(0)} sf of wall`);
     // recipe density: one 100-ct box per 60 sf — scaled to the box actually
     // in the catalog so a 40-ct pack doesn't silently under-order
@@ -695,22 +976,28 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
     add("Seams", pickFrom(cat, (i) => i.seal === "valve", { source }), 1);
   }
 
+  // the curb runs every open edge, not just the entry (round 6, the wedi
+  // rule): a wall turned off hands its edge to the curb, and a cut corner
+  // adjacent to curb turns it diagonally at the piece's longest point
+  const runs = openRuns(cfg);
   const opening = entryOpening(cfg);
-  // a cut FRONT corner turns the curb diagonally across it: the run gives up
-  // the 12" leg but the diagonal piece is longer, ~5" extra per cut corner
-  const frontCuts = (cfg.corners || []).filter((k) => k === "fl" || k === "fr").length;
-  const curbNeed = round2(opening + frontCuts * (Math.hypot(CORNER_CUT, CORNER_CUT) - CORNER_CUT));
-  if (cfg.curbed && opening > 0) {
+  const cuts = runs.diags.length;
+  if (cfg.curbed && runs.need > 0) {
     // stock-only prefers stocked multiples cut end-to-end over a covering
     // special-order curb (the P2 example: a SO 60" loses to 2× stocked 48")
     const curbs = stockPool(cat.filter((i) => i.g === "curb" && i.len).sort((a, b) => a.len - b.len), source);
-    const c = curbs.find((x) => x.len >= curbNeed) || curbs[curbs.length - 1];
-    add("Curb", c, c ? Math.max(1, Math.ceil(curbNeed / c.len)) : 0,
-      c ? (c.len < curbNeed ? "cut to length end-to-end"
-        : opening < cfg.w ? `cut to the ${inches(opening)} entry opening` : "cut to entry width")
-        + (frontCuts ? ` — turns ${frontCuts === 1 ? "a cut corner" : "2 cut corners"} diagonally` : "")
+    const c = swapped(swaps.curb, (i) => i.g === "curb" && i.len)
+      || curbs.find((x) => x.len >= runs.need) || curbs[curbs.length - 1];
+    const sideOpen = runs.segs.some((s) => s.side !== "entry");
+    add("Curb", c, c ? Math.max(1, Math.ceil(runs.need / c.len)) : 0,
+      c ? (c.len < runs.need ? "cut to length end-to-end"
+        : sideOpen ? `runs the ${inches(runs.need)} of open edges`
+          : opening < cfg.w ? `cut to the ${inches(opening)} entry opening` : "cut to entry width")
+        + (cuts ? ` — turns ${cuts === 1 ? "a cut corner" : cuts + " cut corners"} diagonally` : "")
         + " — incl. 2+2 Kereck corners" : undefined);
-  } else if (!cfg.curbed) {
+  } else if (!cfg.curbed && cfg.ramp) {
+    // opt-in (round 6): the ramp is an add-on chip's pick, never auto-billed —
+    // recessing the subfloor needs no part
     add("Curb", pickFrom(cat, (i) => i.ramp, { source }), 1, '12" run, 1-1/4"→1/4" — ADA slope');
   }
 
@@ -732,7 +1019,8 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
   const floorSf = (cfg.w * cfg.d) / 144;
   const allset = pickFrom(cat, (i) => i.sfPerBag, { source });
   add("Setting", allset, allset ? Math.max(1, Math.ceil((sf + floorSf) / allset.sfPerBag)) : 0, "sets membrane/board");
-  add("Setting", pickFrom(cat, (i) => i.adhesive, { source }), 1);
+  // KERDI-FIX left the standing recipe (owner 2026-08-24): it rides the tub
+  // kit, not every shower — the popup offers it as an add-on chip instead
 
   return { lines: L, cand };
 }
@@ -779,6 +1067,19 @@ export function tierPrice(entry, tier, { builderPct } = {}) {
 // Settings mortar pick) is not necessarily Schluter goods, so it never leads.
 const SCHLUTER_LEAD = /^\s*(schluter|kerdi|kereck|kers|all.?set)/i;
 const brandName = (e) => (e.g && !SCHLUTER_LEAD.test(e.name || "") ? "Schluter — " : "") + (e.name || "");
+
+/**
+ * "Copy for order entry" (round 8, the wedi rule): stocked lines key as the
+ * shop's SKU ⇥ qty — the ERP's fastest entry — and special-order lines go by
+ * description, since they have no shop code to key. noteOnly lines (by-others
+ * placeholders) never reach the clipboard.
+ */
+export function orderCopyLines(lines) {
+  return (lines || []).filter((l) => !l.noteOnly).map((l) =>
+    l.item.stock
+      ? (l.item.erp || l.item.sku || "") + "\t" + l.qty
+      : (l.item.sku ? l.item.sku + " — " : "") + brandName(l.item) + " × " + l.qty);
+}
 
 /**
  * Turn a build into product-row payloads ready for the job sheet, the

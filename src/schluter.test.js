@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
-import { classify, catalogOf, trayCandidates, pickRolls, pickFrom, buildKit, linesTotal, tierPrice, lineItems, entryOpening, normBench, benchTrayRoom } from "./schluter.js";
+import { classify, catalogOf, trayCandidates, pickRolls, pickFrom, buildKit, linesTotal, tierPrice, lineItems, orderCopyLines, entryOpening, openRuns, boardPlan, boardSheets, expandBoardFaces, normBench, benchTrayRoom } from "./schluter.js";
 
 const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -167,9 +167,12 @@ test("curbless thin-priority order pinned in trayCandidates", () => {
 const retail = (it) => it.stock ? it.price : it.cost * 1.5;
 
 test("60x38 curbed point membrane — the approved bill", () => {
+  // re-pinned 2026-08-24 (was 12 lines / $759.75): KERDI-FIX left the
+  // standing recipe by owner ask — it rides the tub kit, not every shower
   const b = buildKit(cfg({}), CAT, { source: "all" });
-  assert.equal(b.lines.filter((l) => !l.noteOnly).length, 12);
-  assert.equal(Math.round(linesTotal(b.lines, retail) * 100), 75975); // $759.75
+  assert.equal(b.lines.filter((l) => !l.noteOnly).length, 11);
+  assert.equal(b.lines.some((l) => l.item.adhesive), false);
+  assert.equal(Math.round(linesTotal(b.lines, retail) * 100), 73409); // $734.09
   assert.equal(b.lines.filter((l) => l.so).length, 0);
 });
 test("linear build: Vario kit carries the seals", () => {
@@ -420,9 +423,10 @@ test("stock-only linear channel: a covering SO channel beats a short stocked one
 });
 
 test("the pinned 60×38 truth-table total is untouched by the pickFrom refactor", () => {
+  // re-pinned 2026-08-24 with the KERDI-FIX removal ($759.75 − 25.66)
   const retail = (e) => tierPrice(e, "retail", {});
   const b = buildKit(cfg({}), CAT, { source: "all" });
-  assert.equal(Math.round(linesTotal(b.lines, retail) * 100), 75975);
+  assert.equal(Math.round(linesTotal(b.lines, retail) * 100), 73409);
 });
 
 test("lineItems: wedi-shaped (build, opts) with build.mode and the vendor lead", () => {
@@ -468,8 +472,11 @@ test("an entry wall shortens the curb to the opening", () => {
 test("a fully walled entry carries no curb line at all", () => {
   const b = buildKit(cfg({ xwalls: [{ edge: "entry", at: "lo", len: 60, h: 84 }] }), CAT, { source: "all" });
   assert.equal(b.lines.some((l) => l.g === "Curb"), false);
-  // and a curbless room still takes the ramp, walls or not
-  const r = buildKit(cfg({ curbed: false, xwalls: [{ edge: "entry", at: "lo", len: 24, h: 84 }] }), CAT, { source: "all" });
+  // the ramp is an OPT-IN (round 6 — owner 2026-08-24): a curbless room
+  // bills it only when cfg.ramp asks, never automatically
+  const bare = buildKit(cfg({ curbed: false }), CAT, { source: "all" });
+  assert.equal(bare.lines.some((l) => l.g === "Curb"), false);
+  const r = buildKit(cfg({ curbed: false, ramp: true, xwalls: [{ edge: "entry", at: "lo", len: 24, h: 84 }] }), CAT, { source: "all" });
   assert.equal(r.lines.some((l) => l.g === "Curb" && l.item.ramp), true);
 });
 
@@ -551,10 +558,53 @@ test("a cut FRONT corner adds the curb's diagonal; a back corner never does", ()
   const bl = buildKit(cfg({ corners: ["bl"] }), CAT, { source: "all" });
   const curbOf = (b) => b.lines.find((l) => l.g === "Curb");
   assert.equal(curbOf(base).qty, 1);
-  // 60 + ~4.97 diagonal extra outruns the 60" curb — a second is cut on
+  // the run gives up the 12" leg but the diagonal is figured at its longest
+  // point (48 + 23.33 = 71.33) — outruns the 60" curb, a second is cut on
   assert.equal(curbOf(fl).qty, 2);
   assert.match(curbOf(fl).note, /turns a cut corner diagonally/);
   assert.equal(curbOf(bl).qty, 1);
+});
+
+// --- open edges carry curb + per-wall faces (round 6) ----------------------
+
+test("a wall turned off hands its edge to the curb", () => {
+  const noLeft = cfg({});
+  noLeft.walls = noLeft.walls.map((w, i) => (i === 1 ? { ...w, on: false } : w));
+  const r = openRuns(noLeft);
+  assert.deepEqual(r.segs.map((s) => [s.side, s.from, s.len]), [["left", 0, 38], ["entry", 0, 60]]);
+  assert.equal(r.need, 98);
+  // the bill covers the whole open run, not just the entry
+  const b = buildKit(noLeft, CAT, { source: "all" });
+  const c = b.lines.find((l) => l.g === "Curb");
+  assert.equal(c.qty, 2); // 98" over 60" curbs, cut end-to-end
+  assert.match(c.note, /end-to-end/);
+});
+
+test("a cut corner between two open edges takes one diagonal and both legs", () => {
+  const noLeft = cfg({ corners: ["fl"] });
+  noLeft.walls = noLeft.walls.map((w, i) => (i === 1 ? { ...w, on: false } : w));
+  const r = openRuns(noLeft);
+  // fl touches the left run's hi end and the entry run's lo end — 12" off each
+  assert.deepEqual(r.segs.map((s) => [s.side, s.from, s.len]), [["left", 0, 26], ["entry", 12, 48]]);
+  assert.equal(r.diags.length, 1);
+  assert.equal(r.diags[0].cut, 23.33); // hypot(12+4.5, 12+4.5) — the longest point
+});
+
+test("openRuns matches the old entry-only contract on a default room", () => {
+  assert.deepEqual(openRuns(cfg({})).segs, [{ side: "entry", from: 0, len: 60, ext0: 0, ext1: 0 }]);
+  assert.equal(openRuns(cfg({})).need, 60);
+});
+
+test("wall faces feed the area: both doubles, in-end adds the end strip", () => {
+  const both = cfg({});
+  both.walls = both.walls.map((w, i) => (i === 1 ? { ...w, faces: "both" } : w));
+  const b = buildKit(both, CAT, { source: "all" });
+  // base 79.3 sf + the left wall's second face (38×84/144 ≈ 22.2 sf) = 101.5
+  assert.match(b.lines.find((l) => l.g === "Walls").note, /^10[12] sf of wall/);
+  const end = cfg({ xwalls: [{ edge: "entry", at: "lo", len: 24, h: 84, faces: "in-end" }] });
+  const be = buildKit(end, CAT, { source: "all" });
+  // 79 + 24×84/144 = 93, + the exposed 4" end strip (4×84/144 ≈ 2.3) → 96
+  assert.match(be.lines.find((l) => l.g === "Walls").note, /^96 sf of wall/);
 });
 
 // --- benches (wedi parity round 3): normBench / benchTrayRoom / cfg.benches -
@@ -667,4 +717,104 @@ test("a pinned drain follows a smaller-tray bench's shifted tray room", () => {
   assert.equal(c.x0, 14);
   assert.ok(c.dx >= 14, "drain lands inside the tray region");
   assert.equal(round2(c.miss), round2(Math.hypot(c.dx - 30, c.dy - 19)));
+});
+
+// --- the KERDI-BOARD panel planner (round 7) --------------------------------
+
+test("classified boards carry their sheet sides (bw/bl) from text or code", () => {
+  const by = (sku) => CAT.find((i) => i.sku === sku);
+  assert.equal(by("KB1212202440").bw, 48);
+  assert.equal(by("KB1212202440").bl, 96);
+  assert.equal(by("KB1212201625").bw, 48);
+  assert.equal(by("KB1212201625").bl, 64);
+  // the code fills dims in when the sheet text carries none
+  const bare = classify({ sku: "KB1212202440", name: "KERDI-BOARD 1/2\" panel", size: "", stock: true, price: 1 });
+  assert.equal(bare.bw, 48);
+  assert.equal(bare.bl, 96);
+});
+
+test("boardSheets: the live ladder, one entry per size", () => {
+  const sheets = boardSheets(CAT, { source: "all" });
+  assert.deepEqual(sheets.map((s) => [s.w, s.len]), [[48, 96], [48, 64]]);
+  assert.equal(sheets[0].sku, "KB1212202440");
+});
+
+test("boardPlan on the default 60x38x84 room: back in courses, sides stood vertical, zero seams", () => {
+  const faces = expandBoardFaces(cfg({ wallSys: "board" }));
+  const p = boardPlan(faces, CAT, { source: "all" });
+  // back 60x84: two 48" courses, each one 48x64 cut to 60... the 64 wins on waste
+  assert.equal(p.detail[0].vertical, false);
+  assert.equal(p.detail[0].courses.length, 2);
+  assert.deepEqual(p.detail[0].courses[0].lens, [60]);
+  assert.equal(p.detail[0].courses[1].y0, 48);
+  assert.equal(p.detail[0].courses[1].ch, 36); // clamped to the 84" wall
+  // sides 38x84: one 48x96 stood on end each — no seam at all
+  assert.equal(p.detail[1].vertical, true);
+  assert.deepEqual(p.detail[1].courses, [{ y0: 0, ch: 84, lens: [38], vertical: true }]);
+  assert.equal(p.vSeams, 0);
+  assert.deepEqual(p.lines, [{ sku: "KB1212201625", qty: 2 }, { sku: "KB1212202440", qty: 2 }]);
+});
+
+test("a long wall mixes sheets: 130\" course = one 96 + one 64 cut to 34, one seam per course", () => {
+  const c = cfg({ w: 130, d: 38, wallSys: "board" });
+  c.walls = [{ on: true, len: 130, h: 84 }, { on: true, len: 38, h: 84 }, { on: true, len: 38, h: 84 }];
+  const p = boardPlan(expandBoardFaces(c), CAT, { source: "all" });
+  assert.deepEqual(p.detail[0].courses[0].lens, [96, 34]);
+  assert.equal(p.detail[0].courses[0].y0, 0);
+  assert.equal(p.vSeams, 2); // one per course on the back wall
+});
+
+test("vertical is refused when the horizontal plan is already one sheet", () => {
+  const p = boardPlan([{ len: 24, h: 40, side: "back" }], CAT, { source: "all" });
+  assert.equal(p.detail[0].vertical, false);
+  assert.equal(p.courses, 1);
+  assert.equal(p.lines.reduce((t, l) => t + l.qty, 0), 1);
+});
+
+test("expandBoardFaces appends extra faces AFTER the drawn walls, in schluterWalls order", () => {
+  const c = cfg({ xwalls: [{ id: 1, edge: "entry", at: "lo", len: 24, h: 84, faces: "in-end" }] });
+  c.walls = c.walls.map((w, i) => (i === 1 ? { ...w, faces: "both" } : w));
+  const faces = expandBoardFaces(c);
+  assert.deepEqual(faces.map((f) => [f.side, f.len, f.face || ""]),
+    [["back", 60, ""], ["left", 38, ""], ["right", 38, ""], ["entry", 24, ""],
+     ["left", 38, "out"], ["entry", 4, "end"]]);
+});
+
+// --- Copy for order entry (round 8) -----------------------------------------
+
+test("orderCopyLines: stocked lines key SKU ⇥ qty, special order by description, noteOnly dropped", () => {
+  const lines = [
+    { item: { stock: true, erp: "1509704", sku: "KST965/1525", name: "KERDI-SHOWER-T Tray" }, qty: 1 },
+    { item: { g: "curb", stock: false, sku: "SLRKSR3051220", name: "Kerdi-Shower-R Curbless Ramp" }, qty: 2 },
+    { item: { name: "Cement board / drywall substrate", stock: true }, qty: 1, noteOnly: true },
+  ];
+  assert.deepEqual(orderCopyLines(lines), [
+    "1509704\t1",
+    "SLRKSR3051220 — Kerdi-Shower-R Curbless Ramp × 2", // name already leads Kerdi — no brand prepend
+  ]);
+  // a stocked live row with no separate erp field keys its own sku
+  assert.deepEqual(orderCopyLines([{ item: { stock: true, sku: "1509749", name: "x" }, qty: 3 }]), ["1509749\t3"]);
+});
+
+// --- cfg.swaps: hand-picked parts win their role (round 9) ------------------
+
+test("cfg.swaps overrides the grate, curb and One-size board picks", () => {
+  const base = buildKit(cfg({}), CAT, { source: "all" });
+  const grate0 = base.lines.find((l) => l.item.part === "grate").item.sku;
+  const alt = CAT.find((i) => i.part === "grate" && i.sku !== grate0);
+  const b = buildKit(cfg({ swaps: { grate: alt.sku } }), CAT, { source: "all" });
+  assert.equal(b.lines.find((l) => l.item.part === "grate").item.sku, alt.sku);
+  // curb: pick the 48" — the 60" entry needs 2 cut end-to-end
+  const c = buildKit(cfg({ swaps: { curb: "KBSC1151501220" } }), CAT, { source: "all" });
+  const cl = c.lines.find((l) => l.g === "Curb");
+  assert.equal(cl.item.len, 48);
+  assert.equal(cl.qty, 2);
+  // board: the smaller 48×64 sheet re-figures the One-size area count
+  const w2 = buildKit(cfg({ wallSys: "board", swaps: { board: "KB1212201625" } }), CAT, { source: "all" });
+  const wl = w2.lines.find((l) => l.g === "Walls" && l.item.g === "board" && !l.item.fastener);
+  assert.equal(wl.item.sku, "KB1212201625");
+  assert.equal(wl.qty, Math.ceil((base.lines ? 79.33 : 0) * 1.05 / 21.3)); // 4
+  // a stale sku falls back to the recipe pick, never lands the wrong part
+  const stale = buildKit(cfg({ swaps: { grate: "NOPE" } }), CAT, { source: "all" });
+  assert.equal(stale.lines.find((l) => l.item.part === "grate").item.sku, grate0);
 });
