@@ -1348,7 +1348,7 @@ export default function SchluterConfigurator({
               say("KERDI + ALL-SET added for " + figSfVal + " sf of wall");
             }}>Add to build</button>
           )}
-          <div className="figfoot">ALL-SET at ≈{allset ? allset.sfPerBag : 55} sf/bag (1/4″×1/4″ est.) · KERDI +10% for laps · band, corners and seals ride the build's Seams group</div>
+          <div className="figfoot">ALL-SET at ≈{allset ? allset.sfPerBag : 55} sf/bag (1/4″×1/4″ est.) · KERDI +10% for laps · band rides the build's Seams group — corners + seals come boxed in the drain flange kit</div>
         </div>
       )}
       {browseList.slice(0, 48).map((i) => {

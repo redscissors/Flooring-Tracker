@@ -698,8 +698,12 @@ src/
                     # ONLY on cfg.ramp (opt-in chip, owner 2026-08-24 —
                     # never auto), and KERDI-FIX left the standing recipe
                     # the same day (it rides the tub kit, not every shower —
-                    # the popup offers a chip; the approved-bill pins moved
-                    # to 11 lines / $734.09 deliberately).
+                    # the popup offers a chip); the standalone KERECK
+                    # corner + KERDI-SEAL lines left too (owner flag
+                    # 2026-08-24: the KD flange kit boxes 4+2 corners and
+                    # both seals — separate packs double-billed, and a live
+                    # book's 10-pack rows made it 2×10; the approved-bill
+                    # pins moved deliberately, now 7 lines / $671.87).
                     # Round 7 — the KERDI-BOARD panel planner, the wedi
                     # panelPlan doctrine over the LIVE board range (never a
                     # transcribed sheet table, ADR 0032): classified boards
@@ -745,9 +749,12 @@ src/
                     # for whole multiples, smallest single roll for the
                     # remainder), reused for both floor and wall membrane.
                     # `buildKit` is the ported prototype recipe (decisions
-                    # 2/4/6 pinned in the header comment): factory-kit corner
-                    # counts on point/offset (4 inside + 2 outside), the Vario
-                    # flange kit self-contained on linear builds, curb
+                    # 2/4/6 pinned in the header comment): BOTH drain flange
+                    # kits self-contained (the KD point/offset box carries
+                    # the same 4+2 KERECK corners + pipe/valve seals the
+                    # Vario kit does — verified against retail listings
+                    # 2026-08-24 — so no build lands standalone corner/seal
+                    # lines), curb
                     # multiples cut end-to-end with their own corners,
                     # membrane walls +10% for laps with a by-others backer
                     # note line, board walls at 1.05x coverage + fasteners,

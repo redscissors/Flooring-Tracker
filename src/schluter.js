@@ -858,10 +858,12 @@ export function boardPlan(faces, cat, { source } = {}) {
 /**
  * Build a Schluter shelf-kit bill of materials for one shower config.
  * Ported from the prototype's buildSchluter (pricelist-notes.md, owner
- * decisions 2026-08-20): factory-kit corner counts on point/offset builds
- * (2× inside packs + 1× outside pack = 4 inside + 2 outside corners); the
- * Vario flange kit is self-contained (a linear build carries no separate
- * corner/seal lines); the Vario channel note enforces the 10" min cut;
+ * decisions 2026-08-20): both drain flange kits are self-contained — the KD
+ * point/offset flange kit boxes the same 4 inside + 2 outside KERECK
+ * corners and pipe/valve seals the Vario kit does (verified against the
+ * retail listings 2026-08-24; the prototype's separate corner/seal lines
+ * double-billed them) — so no build carries standalone corner/seal lines;
+ * the Vario channel note enforces the 10" min cut;
  * curb multiples are cut end-to-end and note their own 2+2 corners;
  * membrane walls add 10% for laps plus a by-others backer note line;
  * board walls use 1.05× coverage plus 100-count fasteners per 60 sf;
@@ -936,7 +938,7 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
       "incl. 4+2 corners, pipe + valve seals, couplings");
   } else {
     add("Drain", pickFrom(cat, (i) => i.g === "drain" && i.part === "flange" && i.drain === "point", { source }), 1,
-      'bonded flange, 2" PVC');
+      'bonded flange, 2" PVC — incl. 4+2 corners, pipe + valve seals');
     add("Drain", swapped(swaps.grate, (i) => i.part === "grate")
       || pickFrom(cat, (i) => i.g === "drain" && i.part === "grate", { source }), 1,
       "finish pick — tileable & floral stocked too");
@@ -969,12 +971,9 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
   // stock-narrowed pool must never quietly land one short roll
   const band = bands.find((b) => b.lf >= lfNeed) || bands[bands.length - 1];
   add("Seams", band, band ? Math.max(1, Math.ceil(lfNeed / band.lf)) : 0, "seams + tray perimeter");
-  if (drain !== "linear") {
-    add("Seams", pickFrom(cat, (i) => i.corner === "inside", { source }), 2, "4 inside — factory kit recipe");
-    add("Seams", pickFrom(cat, (i) => i.corner === "outside", { source }), 1, "2 outside — factory kit recipe");
-    add("Seams", pickFrom(cat, (i) => i.seal === "pipe", { source }), 1);
-    add("Seams", pickFrom(cat, (i) => i.seal === "valve", { source }), 1);
-  }
+  // KERECK corners + pipe/valve seals never land as their own lines: both
+  // drain flange kits box them (KD point/offset like the Vario — their notes
+  // say so), so separate packs would double-bill the shower
 
   // the curb runs every open edge, not just the entry (round 6, the wedi
   // rule): a wall turned off hands its edge to the curb, and a cut corner
