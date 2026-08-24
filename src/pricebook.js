@@ -170,6 +170,12 @@ const ROLL_THICK_RE = new RegExp(`^\\s*[x×]\\s*(\\d+/\\d+|\\d+(?:-\\d+/\\d+)?(?
 // notch). The sub-inch odd one out is the thickness; the remaining two are
 // the panel. Every dim must carry its mark — three bare numbers are a code.
 const THREE_IN_RE = new RegExp(`(${DIM})\\s*(?:${IN_WORD})\\s*[x×]\\s*(${DIM})\\s*(?:${IN_WORD})\\s*[x×]\\s*(${DIM})\\s*(?:${IN_WORD})`, "i");
+// The ERP stock export also prints boards MARKLESS ("0.5 X 48 X 64
+// KERDI-BOARD PANEL"). A bare ×-triple counts as a board only when exactly
+// one dim is sub-1.5" (the thickness odd-one-out) — any other bare triple
+// stays a code and SIZE_RE's read stands. Without this the first two numbers
+// landed as size "0.5x48" and the orphaned "X64" stayed in the name.
+const THREE_BARE_RE = new RegExp(`(${DIM})\\s*[x×]\\s*(${DIM})\\s*[x×]\\s*(${DIM})`, "i");
 // One roll-size side, normalized for display: word marks to symbols, spaces
 // out, the dotted feet-inches spelling read as feet-inches ("3'.3\"" → "3'3\"",
 // "3 FT 3 IN" → "3'3\""), a quote-less inches tail closed ("41'1" → "41'1\"").
@@ -281,8 +287,13 @@ export function splitSizeFromDescription(desc, opts) {
     }
     s = `${s.slice(0, roll.index)} ${s.slice(roll.index + cut)}`;
   }
-  const t3 = !size ? s.match(THREE_IN_RE) : null;
-  const t3vals = t3 ? [t3[1], t3[2], t3[3]].map(dimVal) : null;
+  let t3 = !size ? s.match(THREE_IN_RE) : null;
+  let t3vals = t3 ? [t3[1], t3[2], t3[3]].map(dimVal) : null;
+  if (!size && !(t3 && Math.min(...t3vals) < 1.5)) {
+    const bare = s.match(THREE_BARE_RE);
+    const bv = bare ? [bare[1], bare[2], bare[3]].map(dimVal) : null;
+    if (bare && bv.filter((v) => v < 1.5).length === 1) { t3 = bare; t3vals = bv; }
+  }
   if (t3 && Math.min(...t3vals) < 1.5) {
     const ti = t3vals.indexOf(Math.min(...t3vals));
     const spelled = [t3[1], t3[2], t3[3]][ti];

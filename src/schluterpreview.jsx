@@ -22,6 +22,16 @@ const eftRows = FIXTURE_ITEMS.filter((i) => !i.stock).map((i) => normOrderItem({
   sku: i.sku, bookId: "bk_eft", description: i.name, size: i.size || "", unit: i.unit,
   cost: i.cost, price: i.price, leadTime: i.lead || "",
 }));
+// The live stock book's garbled ½" board (a markless "0.5 X 48 X 96"
+// description the pre-fix import stored as size "0.5x48" with "X96" left in
+// the name) — carried in that stored shape, on the LARGEST panel so it owns
+// the wall pick, keeping the engine's KB-code dims fallback visibly
+// exercised: a wall line reading "0.5x48" or a fractional-sf panel count
+// (the 618-panel bill) is a regression. The 64" board beside it stays clean,
+// pinning the sheet-text-preferred path.
+const badBoard = stockRows.findIndex((r) => (r.vendorSkus || [])[0] === "KB1212202440");
+stockRows[badBoard] = normOrderItem({ ...stockRows[badBoard], description: "X96 KERDI-BOARD PANEL", size: "0.5x48" });
+
 // The live EFT book's re-lettered twin of a stocked tray (the dealer sheet
 // writes SLRKST965810BF for the stocked KST965/810BF) — carried here so the
 // catalog's stock-wins dedup stays visibly exercised: a second 38"×32" row on

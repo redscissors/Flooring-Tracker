@@ -237,6 +237,17 @@ test("splitSizeFromDescription: pulls size + thickness, leaves the rest as a cle
   assert.deepEqual(splitSizeFromDescription("Ovo 3x12 Glossy 3x12 Ceramic Glossy Tile"), { size: "3x12", thickness: "", name: "Ovo Glossy Ceramic Glossy Tile", sheetSize: "" });
 });
 
+test("splitSizeFromDescription: a bare T×W×L triple is a board — thickness split out, no dim litter in the name", () => {
+  // the ERP stock export prints KERDI-BOARD panels markless; the old read
+  // took "0.5x48" as the size and left "X64" in the name
+  assert.deepEqual(splitSizeFromDescription("0.5 X 48 X 64 KERDI-BOARD PANEL"),
+    { size: "48x64", thickness: '0.5"', name: "Kerdi-Board Panel", sheetSize: "" });
+  assert.deepEqual(splitSizeFromDescription("KERDI BOARD 1/2 X 48 X 64"),
+    { size: "48x64", thickness: '1/2"', name: "Kerdi Board", sheetSize: "" });
+  // no sub-1.5" dim → not a board: the plain first-two read stands
+  assert.equal(splitSizeFromDescription("MOSAIC BLEND 12 X 24 X 36").size, "12x24");
+});
+
 test("splitSizeFromDescription: a single-dimension hex size becomes the size string, not the name (ticket 009)", () => {
   const r = splitSizeFromDescription('Colonial Collection 2" Hex Presidential Grey');
   assert.equal(r.size, '2" Hex');

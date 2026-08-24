@@ -18,10 +18,16 @@ import { BENCH_DEPTH } from "./showerdraw.js";
 export { queryHit, parseQuery, querySummary, seedFromQuery };
 
 // Marketing-rounded metric pair Schluter encodes into tray/board/kit SKUs.
+// 625/1625/2440 are KERDI-BOARD panel sides (the KB<thick><w><l> dims run);
+// no tray/kit code contains them, so the greedy scan stays unambiguous.
 const MM_IN = {
   810: 32, 915: 36, 965: 38, 1000: 39, 1220: 48,
   1395: 55, 1525: 60, 1830: 72, 1930: 76,
+  625: 24.5, 1625: 64, 2440: 96,
 };
+
+// KB thickness code (mm) → the inch fraction the sheets print.
+const THICK_IN = { 3: '1/8"', 5: '3/16"', 9: '3/8"', 12: '1/2"', 19: '3/4"', 25: '1"', 38: '1-1/2"', 50: '2"' };
 
 // Roll-size fallback table (used only when the sheet's "= N sf" text is
 // missing) — 5M/7M/10M/12M/20M rolls, "plain" = the unsuffixed full roll.
@@ -119,10 +125,16 @@ function boardDims(item) {
     // dims-derived sf (no sheet annotation on the 2" board); informational — bench build-up counts pieces, never area
     if (out.sf === undefined) out.sf = (nums[1] * nums[2]) / 144;
   } else if (nums.length === 2 && out.sf === undefined) {
-    out.sf = (nums[0] * nums[1]) / 144;
+    if (Math.min(...nums) >= 1.5) out.sf = (nums[0] * nums[1]) / 144;
   } else if (!nums.length && out.sf === undefined) {
     const bare = /^\s*(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*$/i.exec(text);
-    if (bare) out.sf = (parseFloat(bare[1]) * parseFloat(bare[2])) / 144;
+    // A pair with a sub-1.5" side is a thickness×width fragment (the live ERP
+    // export's "0.5 X 48 X 64" board once landed as size "0.5x48" and the
+    // wall pick billed 618 panels), never a panel — leaving sf empty lets the
+    // KB code's own dims fill it in classify.
+    if (bare && Math.min(parseFloat(bare[1]), parseFloat(bare[2])) >= 1.5) {
+      out.sf = (parseFloat(bare[1]) * parseFloat(bare[2])) / 144;
+    }
   }
   return out;
 }
@@ -263,10 +275,21 @@ function classifyCode(item, rawSku) {
   // keys ½" panels off thickMm rather than trusting the sheet's text.
   if (/^KB/.test(code)) {
     const entry = { ...item, g: "board", ...boardDims(item) };
-    const m = /^KB(\d{2})/.exec(code);
+    const m = /^KB(\d{2})(\d*)/.exec(code);
     if (m) {
       entry.thickMm = Number(m[1]);
       if (entry.thickMm >= 40) entry.thick2 = true;
+      if (entry.sf === undefined) {
+        // The code's own dims run (KB<thick><w><l>, the same mm table trays
+        // parse) stands in when the sheet text failed — a garbled import must
+        // never leave a panel sf-less (it drops out of the wall pick) or
+        // fractional (618-panel bills).
+        const dims = mmExactTokens(m[2]);
+        if (dims.length === 2) {
+          entry.sf = (dims[0] * dims[1]) / 144;
+          entry.size = `${Math.min(...dims)}"x${Math.max(...dims)}"${THICK_IN[entry.thickMm] ? "x" + THICK_IN[entry.thickMm] : ""}`;
+        }
+      }
     }
     return entry;
   }
