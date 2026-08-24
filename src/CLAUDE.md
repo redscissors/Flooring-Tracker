@@ -700,6 +700,24 @@ src/
                     # the same day (it rides the tub kit, not every shower —
                     # the popup offers a chip; the approved-bill pins moved
                     # to 11 lines / $734.09 deliberately).
+                    # Round 7 — the KERDI-BOARD panel planner, the wedi
+                    # panelPlan doctrine over the LIVE board range (never a
+                    # transcribed sheet table, ADR 0032): classified boards
+                    # now carry bw/bl (sheet sides, from text or the KB
+                    # code's own dims); `boardSheets` derives the ladder
+                    # (one entry per size, stocked-then-cheapest);
+                    # `expandBoardFaces` turns cfg walls+xwalls into planner
+                    # faces in schluterWalls' exact order, extra faces
+                    # appended AFTER so detail[i] indexes the drawn walls;
+                    # `boardPlan` levels courses (cover-or-overshoot,
+                    # fewest then least overshoot), fills each along the
+                    # run (fewest pieces then least waste, longest sheets
+                    # lead, last piece cut), and stands a wall VERTICAL
+                    # only when one sheet covers it whole — zero seams —
+                    # and horizontal would have used more than one sheet.
+                    # halfBoardPool is the ONE wall-panel pool Fit and the
+                    # One-size area pick both draw from. wallArea is
+                    # exported (the popup's plan note reads it).
                     # cfg.drain "any" (round 2) pools every tray and the
                     # PICKED tray decides what gets billed and drawn — the
                     # channel vs flange/grate/corner-pack branches key on
@@ -862,6 +880,11 @@ src/
                     # a framed bench footprint that reaches the entry edge —
                     # both via schluter.js benchTrayRoom / showerdraw
                     # benchFootprint so the bill and the drawing can't drift),
+                    # Round 7: `schluterWalls(cfg, plan)` — with a Fit plan
+                    # each drawn wall takes its detail's courses (stacked,
+                    # mixed lens, vertical walls seamless); without one the
+                    # one-course 48" tick pattern stands in; membrane walls
+                    # never carry courses either way.
                     # Round 6: `schluterCurb` reads the ENGINE's openRuns —
                     # every open edge carries a band (a wall turned off
                     # draws curb along its edge in both views), framed-bench
@@ -1050,6 +1073,20 @@ src/
                     # dropped it, and the Browse figurer gained "Add to
                     # build" (top-up over what the build already carries);
                     # Esc cancels placing mode before closing.
+                    # Round 7 — Fit | One size on the build column's Walls
+                    # header (board walls only, the wedi seg): `panelFit`
+                    # is session-only (never in markCfg or the mode test —
+                    # the plan is the default presentation of a kit, not a
+                    # customization, default ON); `applyBoardPlan` swaps
+                    # the recipe's by-area panel line for the plan's
+                    # per-sheet lines IN PLACE (fastener line stays — its
+                    # count is pure area), first line wearing the wedi note
+                    # ("N sf — M vertical seams · K walls stood vertical",
+                    # the rest "panel plan"), and runs in BOTH the build
+                    # memo (before qtyOv) and kitTotals so a Kits row can
+                    # never disagree with the click; dWalls passes the plan
+                    # to schluterWalls so the drawings show the real
+                    # courses.
   schluterpreview.jsx  # dev-only harness (schluter-preview.html): the REAL
                     # SchluterConfigurator over the fixture pushed BACKWARDS
                     # through normOrderItem into live registry shape (shop

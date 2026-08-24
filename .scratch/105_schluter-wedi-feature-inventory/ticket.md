@@ -11,9 +11,11 @@ Labels: ready-for-human
 > runs EVERY open edge, billed and drawn from one openRuns). New owner
 > decision the same day: KERDI-FIX left the standing recipe (tub-kit goods,
 > now a chip; approved-bill pins re-pinned 11 lines / $734.09).
-> Still open: E12/F4 (board panel plan — the big one), E10 (print), E11
-> (order-entry copy), E3 (line swaps), B4 (overwrite confirm), C17
-> (thumbnails), D4 (starred).
+> **Round 7 (.scratch/107):** landed E12 + F4 — the KERDI-BOARD panel plan
+> (boardPlan over the live board range, Fit | One size on the Walls group,
+> the plan's courses drawn in both views, kit rows priced through the same
+> plan). Still open: E10 (print), E11 (order-entry copy), E3 (line swaps),
+> B4 (overwrite confirm), C17 (thumbnails), D4 (starred).
 
 # Schluter ⇄ wedi feature inventory — the fine-toothed comb, done once
 

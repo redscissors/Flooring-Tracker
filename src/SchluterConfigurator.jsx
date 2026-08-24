@@ -15,6 +15,7 @@ import { useEscClose, SourceSwitch, NumIn } from "./widgets.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
   trayCandidates, pickRolls, buildKit, tierPrice, lineItems, normBench, benchTrayRoom,
+  boardPlan, expandBoardFaces, wallArea,
 } from "./schluter.js";
 import { mortarItemFrom, MORTAR_BED_SF_PER_BAG } from "./schluteradapter.js";
 import { useSchluterCatalog } from "./useschlutercatalog.js";
@@ -236,6 +237,11 @@ const CSS = `
 .sch-pop .bc-empty{font-size:12px;color:var(--ft-faint);line-height:1.6;padding:22px 6px}
 .sch-pop .bgroup{margin-top:8px}
 .sch-pop .bg-h{display:flex;align-items:center;gap:7px;font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:var(--ft-muted);padding-bottom:4px;border-bottom:1px solid var(--ft-border-strong)}
+.sch-pop .bg-h .wallctl{margin-left:auto;display:flex;align-items:center;gap:4px;text-transform:none;letter-spacing:0}
+.sch-pop .pfseg{display:inline-flex;border:1px solid var(--ft-border-strong);border-radius:5px;overflow:hidden}
+.sch-pop .pfseg button{border:none;background:var(--ft-card);color:var(--ft-faint);font-size:9px;font-weight:800;padding:3px 7px;cursor:pointer}
+.sch-pop .pfseg button + button{border-left:1px solid var(--ft-border-strong)}
+.sch-pop .pfseg button.on{background:var(--ft-seg-on-bg);color:var(--ft-brand-deep);font-weight:800;box-shadow:inset 0 0 0 1.5px var(--ft-brand)}
 .sch-pop .bline{display:flex;align-items:center;gap:7px;padding:3px 0;border-bottom:1px solid var(--ft-row-line)}
 .sch-pop .bline .bn{flex:1;min-width:0}
 .sch-pop .bline .bn .n{font-size:11.5px;font-weight:700;line-height:1.25;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
@@ -439,6 +445,9 @@ export default function SchluterConfigurator({
   const [qtyOv, setQtyOv] = useState({}); // hand-stepped line quantities (the wedi idiom) — session only, never in the marker
   const [pick, setPick] = useState(s0.pick);    // chosen tray candidate's sku
   const [kitPick, setKitPick] = useState(s0.kitPick);
+  // Fit | One size (round 7, the wedi panelFit): session-only, never in the
+  // marker — the Fit plan is the default presentation, not a customization
+  const [panelFit, setPanelFit] = useState(true);
   const [q, setQ] = useState(s0.q);
   const [sec, setSec] = useState("");
   const [sub, setSub] = useState("");
@@ -603,10 +612,46 @@ export default function SchluterConfigurator({
   const roomOk = cfg.w > 0 && cfg.d > 0;
   const cands = useMemo(() => (catReady && cat.length && roomOk ? trayCandidates(cfg, cat, { source }) : []), [catReady, cat, cfg, source, roomOk]);
   const pickCand = (pick && cands.find((c) => c.tray && c.tray.sku === pick)) || cands[0] || null;
+
+  // The board Fit plan (round 7): the engine's boardPlan over the same
+  // wall order the drawings use. One helper both the build column and
+  // kitTotals run through, so the Kits-tab row price can never disagree
+  // with what a click builds.
+  const planFor = (c) => (panelFit && c.wallSys === "board" && catReady && cat.length
+    ? boardPlan(expandBoardFaces(c), cat, { source }) : null);
+  const plan = useMemo(() => planFor(cfg),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [cfg, cat, catReady, source, panelFit]);
+  // Swap the recipe's by-area panel line for the plan's per-sheet lines, in
+  // place (the fastener line stays — its count is pure area either way).
+  // The first plan line carries the wedi note: sf, seam count, stood-vertical
+  // count; the rest read "panel plan".
+  const applyBoardPlan = (lines, c, p) => {
+    if (!p || !p.lines.length) return lines;
+    const vWalls = p.detail.filter((d2) => d2.vertical).length;
+    const sf = wallArea(c);
+    const planLines = p.lines.map((pl, i) => {
+      const e = cat.find((x) => x.sku === pl.sku);
+      return e && {
+        g: "Walls", item: e, qty: pl.qty, so: !e.stock,
+        note: i === 0
+          ? sf.toFixed(0) + " sf — " + p.vSeams + " vertical seam" + (p.vSeams === 1 ? "" : "s")
+            + (vWalls ? " · " + vWalls + " wall" + (vWalls === 1 ? "" : "s") + " stood vertical" : "")
+          : "panel plan",
+      };
+    }).filter(Boolean);
+    if (!planLines.length) return lines;
+    const idx = lines.findIndex((l) => l.g === "Walls" && l.item.g === "board" && !l.item.fastener);
+    const out = lines.filter((l) => !(l.g === "Walls" && l.item.g === "board" && !l.item.fastener));
+    out.splice(idx >= 0 ? idx : out.length, 0, ...planLines);
+    return out;
+  };
+
   const ovKey = (l) => l.g + "|" + (l.item.sku || l.item.name);
   const build = useMemo(() => {
     if (!pickCand) return null;
     const b = buildKit(cfg, cat, { source, pick: pickCand });
+    b.lines = applyBoardPlan(b.lines, cfg, plan);
     // a stepped quantity keeps winning over the recipe's figure while the
     // line survives; stepped to 0 the line leaves the bill (the wedi rule)
     b.lines = b.lines.map((l) => {
@@ -619,7 +664,7 @@ export default function SchluterConfigurator({
     });
     return b;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cfg, cat, source, pickCand, manual, qtyOv]);
+  }, [cfg, cat, source, pickCand, manual, qtyOv, plan]);
   const mode = kitPick && !manual.length && !benches.length && !liveXwalls.length && !cfg.drainX && !cfg.drainY
     && !(cfg.corners || []).length && !cfg.maxIn && !cfg.ramp ? "kit" : "custom";
   // the saved marker records the PICKED tray too — Reconfigure must reopen on
@@ -694,7 +739,7 @@ export default function SchluterConfigurator({
   const normBenches = useMemo(() => benches.map((b) => normBench(b, cfg, cat)), [benches, cfg, cat]);
   const itemBySku = (sku) => cat.find((i) => i.sku === sku);
   const diag = useMemo(() => (pickCand ? schluterDiag(cfg, pickCand, normBenches) : null), [cfg, pickCand, normBenches]);
-  const dWalls = useMemo(() => schluterWalls(cfg), [cfg]);
+  const dWalls = useMemo(() => schluterWalls(cfg, plan), [cfg, plan]);
   const wallOn = useMemo(() => schluterWallOn(cfg), [cfg]);
   const curb = useMemo(() => schluterCurb(cfg, normBenches), [cfg, normBenches]);
   const cornerCuts = useMemo(() => schluterCuts(cfg), [cfg]);
@@ -797,11 +842,12 @@ export default function SchluterConfigurator({
       const own = kc.find((c) => c.tray && c.tray.sku === t.sku) || kc[0];
       if (!own || !own.tray) return;
       const b = buildKit(kcfg, cat, { source, pick: own });
-      out[t.sku] = round2(b.lines.filter((l) => !l.noteOnly).reduce((s, l) => s + tierOf(l.item) * l.qty, 0));
+      const lines = applyBoardPlan(b.lines, kcfg, planFor(kcfg));
+      out[t.sku] = round2(lines.filter((l) => !l.noteOnly).reduce((s, l) => s + tierOf(l.item) * l.qty, 0));
     });
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [catReady, cat, trays, wallSys, wallHNum, source, tierId, customPct, salePct, bPct]);
+  }, [catReady, cat, trays, wallSys, wallHNum, source, tierId, customPct, salePct, bPct, panelFit]);
 
   // The wedi Kits idiom (issue 075): families by TYPE, each sorted smallest
   // side then longest so every 3-footer sits together. w is the longer dim
@@ -1234,7 +1280,16 @@ export default function SchluterConfigurator({
             if (!gl.length) return null;
             return (
               <div className="bgroup" key={g}>
-                <div className="bg-h">{g}</div>
+                <div className="bg-h">{g}
+                  {g === "Walls" && cfg.wallSys === "board" && (
+                    <span className="wallctl">
+                      <span className="pfseg">
+                        <button className={panelFit ? "on" : ""} title="mixed sheet sizes, level courses, minimal vertical seams" onClick={() => setPanelFit(true)} data-schluter-fit>Fit</button>
+                        <button className={!panelFit ? "on" : ""} title="one sheet size, by area" onClick={() => setPanelFit(false)} data-schluter-onesize>One size</button>
+                      </span>
+                    </span>
+                  )}
+                </div>
                 {gl.map((l, li) => {
                   const e = l.item;
                   const price = tierOf(e);

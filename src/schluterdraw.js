@@ -36,13 +36,24 @@ const EDGES = ["back", "left", "right", "entry"];
  * Added runs (cfg.xwalls — entry returns, jogs) follow behind them, anchored
  * at whichever end their `at` says, exactly the wedi extra-wall shape.
  */
-export function schluterWalls(cfg) {
-  const wall = (side, len, h, at, wid, extra, faces) => ({
-    side, len, h, at, faces: faces === "both" || faces === "in-end" ? faces : "in", wid, extra,
-    // one floor-to-top course: the plan ticks the 48" butt joints off lens,
-    // the isometric draws the same joints y0→y0+ch up the face
-    courses: cfg.wallSys === "board" ? [{ lens: courseLens(len), y0: 0, ch: h }] : [],
-  });
+export function schluterWalls(cfg, plan) {
+  // With a Fit plan (round 7 — the engine's boardPlan over the same
+  // on-walls-then-xwalls order), each drawn wall takes its plan detail's
+  // courses — real stacked courses, mixed sheet lengths, vertical walls
+  // seamless. Without one, the one-course 48" tick pattern stands in.
+  let wi = -1;
+  const wall = (side, len, h, at, wid, extra, faces) => {
+    wi += 1;
+    const det = plan && plan.detail && plan.detail[wi];
+    return {
+      side, len, h, at, faces: faces === "both" || faces === "in-end" ? faces : "in", wid, extra,
+      // the plan ticks butt joints off lens; the isometric draws the same
+      // joints y0→y0+ch up the face
+      courses: cfg.wallSys !== "board" ? []
+        : det ? det.courses
+          : [{ lens: courseLens(len), y0: 0, ch: h }],
+    };
+  };
   const out = (cfg.walls || []).map((w, i) => ({ w, side: SIDE[i] })).filter(({ w }) => w.on)
     .map(({ w, side }) => wall(side, +w.len || 0, +w.h || 84, "lo", side, false, w.faces));
   (cfg.xwalls || []).forEach((x, i) => {

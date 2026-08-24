@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
-import { classify, catalogOf, trayCandidates, pickRolls, pickFrom, buildKit, linesTotal, tierPrice, lineItems, entryOpening, openRuns, normBench, benchTrayRoom } from "./schluter.js";
+import { classify, catalogOf, trayCandidates, pickRolls, pickFrom, buildKit, linesTotal, tierPrice, lineItems, entryOpening, openRuns, boardPlan, boardSheets, expandBoardFaces, normBench, benchTrayRoom } from "./schluter.js";
 
 const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -717,4 +717,65 @@ test("a pinned drain follows a smaller-tray bench's shifted tray room", () => {
   assert.equal(c.x0, 14);
   assert.ok(c.dx >= 14, "drain lands inside the tray region");
   assert.equal(round2(c.miss), round2(Math.hypot(c.dx - 30, c.dy - 19)));
+});
+
+// --- the KERDI-BOARD panel planner (round 7) --------------------------------
+
+test("classified boards carry their sheet sides (bw/bl) from text or code", () => {
+  const by = (sku) => CAT.find((i) => i.sku === sku);
+  assert.equal(by("KB1212202440").bw, 48);
+  assert.equal(by("KB1212202440").bl, 96);
+  assert.equal(by("KB1212201625").bw, 48);
+  assert.equal(by("KB1212201625").bl, 64);
+  // the code fills dims in when the sheet text carries none
+  const bare = classify({ sku: "KB1212202440", name: "KERDI-BOARD 1/2\" panel", size: "", stock: true, price: 1 });
+  assert.equal(bare.bw, 48);
+  assert.equal(bare.bl, 96);
+});
+
+test("boardSheets: the live ladder, one entry per size", () => {
+  const sheets = boardSheets(CAT, { source: "all" });
+  assert.deepEqual(sheets.map((s) => [s.w, s.len]), [[48, 96], [48, 64]]);
+  assert.equal(sheets[0].sku, "KB1212202440");
+});
+
+test("boardPlan on the default 60x38x84 room: back in courses, sides stood vertical, zero seams", () => {
+  const faces = expandBoardFaces(cfg({ wallSys: "board" }));
+  const p = boardPlan(faces, CAT, { source: "all" });
+  // back 60x84: two 48" courses, each one 48x64 cut to 60... the 64 wins on waste
+  assert.equal(p.detail[0].vertical, false);
+  assert.equal(p.detail[0].courses.length, 2);
+  assert.deepEqual(p.detail[0].courses[0].lens, [60]);
+  assert.equal(p.detail[0].courses[1].y0, 48);
+  assert.equal(p.detail[0].courses[1].ch, 36); // clamped to the 84" wall
+  // sides 38x84: one 48x96 stood on end each — no seam at all
+  assert.equal(p.detail[1].vertical, true);
+  assert.deepEqual(p.detail[1].courses, [{ y0: 0, ch: 84, lens: [38], vertical: true }]);
+  assert.equal(p.vSeams, 0);
+  assert.deepEqual(p.lines, [{ sku: "KB1212201625", qty: 2 }, { sku: "KB1212202440", qty: 2 }]);
+});
+
+test("a long wall mixes sheets: 130\" course = one 96 + one 64 cut to 34, one seam per course", () => {
+  const c = cfg({ w: 130, d: 38, wallSys: "board" });
+  c.walls = [{ on: true, len: 130, h: 84 }, { on: true, len: 38, h: 84 }, { on: true, len: 38, h: 84 }];
+  const p = boardPlan(expandBoardFaces(c), CAT, { source: "all" });
+  assert.deepEqual(p.detail[0].courses[0].lens, [96, 34]);
+  assert.equal(p.detail[0].courses[0].y0, 0);
+  assert.equal(p.vSeams, 2); // one per course on the back wall
+});
+
+test("vertical is refused when the horizontal plan is already one sheet", () => {
+  const p = boardPlan([{ len: 24, h: 40, side: "back" }], CAT, { source: "all" });
+  assert.equal(p.detail[0].vertical, false);
+  assert.equal(p.courses, 1);
+  assert.equal(p.lines.reduce((t, l) => t + l.qty, 0), 1);
+});
+
+test("expandBoardFaces appends extra faces AFTER the drawn walls, in schluterWalls order", () => {
+  const c = cfg({ xwalls: [{ id: 1, edge: "entry", at: "lo", len: 24, h: 84, faces: "in-end" }] });
+  c.walls = c.walls.map((w, i) => (i === 1 ? { ...w, faces: "both" } : w));
+  const faces = expandBoardFaces(c);
+  assert.deepEqual(faces.map((f) => [f.side, f.len, f.face || ""]),
+    [["back", 60, ""], ["left", 38, ""], ["right", 38, ""], ["entry", 24, ""],
+     ["left", 38, "out"], ["entry", 4, "end"]]);
 });
