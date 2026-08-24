@@ -897,7 +897,15 @@ src/
                     # premade SB benches read live off the registry (corner
                     # zones list the TA triangles, wall zones the RA
                     # rectangles), with size fields, a build seg and Remove on
-                    # an existing bench's zone. Benches ride the marker as
+                    # an existing bench's zone; round 4 (owner ask 2026-08-24)
+                    # added ONE "+ Bench" chip back in the build column's
+                    # Add-ons whose picker holds every form — 2″ build-up
+                    # (wall or corner), framed, the premade SB list, and the
+                    # KERS-B seal kits as accessory toggles — a placement
+                    # pick landing on the next open wall/corner zone, existing
+                    # benches listed with click-to-remove; the drawing's zones
+                    # stay where a bench moves, resizes or changes build.
+                    # Benches ride the marker as
                     # cfg.benches (ids stay local; a legacy cfg.bench flag
                     # reopens as one back-wall bench) and any bench flips
                     # mode to "custom" like the other geometry. Wall bands
@@ -935,7 +943,13 @@ src/
                     # Browse (filter board over the classified groups,
                     # factory kits ONLY here — decision 5 — the thin-set/
                     # KERDI figurer, stock-tinted stepper rows), over the
-                    # shared build column (grouped lines, from-stock meter,
+                    # shared build column (grouped lines — every line carries
+                    # wedi's qty stepper (round 4): a recipe line takes a
+                    # session-only qtyOv override (never in the marker, the
+                    # wedi precedent), hand-set qty reads rust with the
+                    # recipe's figure in the title, stepped to 0 the line
+                    # leaves the bill, and a hand-added Extras line steps its
+                    # own manual row — from-stock meter,
                     # cost & margin behind a click, payload preview modal)
                     # and the showerdraw rail (TopDown/Iso via
                     # schluterdraw.js + the cut list) — plus a FOURTH tab,

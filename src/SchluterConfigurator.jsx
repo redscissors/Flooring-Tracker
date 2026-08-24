@@ -213,6 +213,9 @@ const CSS = `
 .sch-pop .stepper button{border:none;background:var(--ft-card);width:24px;height:24px;font-size:13px;font-weight:800;color:var(--ft-muted);cursor:pointer;line-height:1}
 .sch-pop .stepper .q{width:28px;text-align:center;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums}
 .sch-pop .stepper .q.zero{color:var(--ft-faint);font-weight:600}
+.sch-pop .bline .stepper button{width:20px;height:20px;font-size:12px}
+.sch-pop .bline .stepper .q{width:24px;font-size:11px}
+.sch-pop .bline .stepper .q.ov{color:var(--s-rust)}
 .sch-pop .more{font-size:11px;color:var(--ft-faint);padding:8px 4px}
 .sch-pop .loading{font-size:12.5px;color:var(--ft-faint);padding:26px 10px;line-height:1.6}
 .sch-pop .diagcol{flex:1 1 0;min-width:0;border-left:1px solid var(--ft-border-strong);background:var(--ft-tint);overflow-y:auto;scrollbar-gutter:stable;padding:10px 12px 14px;order:3}
@@ -297,6 +300,8 @@ const CSS = `
 .sch-benchmenu .bm-opt:hover{border-color:var(--ft-brand)}
 .sch-benchmenu .bm-opt b{display:block;font-size:11px;font-weight:800}
 .sch-benchmenu .bm-opt small{display:block;font-size:9px;color:var(--ft-faint);font-weight:600;line-height:1.35;margin-top:1px}
+.sch-benchmenu .bm-opt:disabled{opacity:.4;cursor:not-allowed}
+.sch-swap .srow:disabled{opacity:.4;cursor:not-allowed}
 `;
 
 const DEF_WALLS = [
@@ -424,6 +429,7 @@ export default function SchluterConfigurator({
   const [picker, setPicker] = useState(null);       // { key: "niche", x, y } — an add-on chip's choice list
   const [mortarName, setMortarName] = useState(s0.mortarName);
   const [manual, setManual] = useState(s0.manual);
+  const [qtyOv, setQtyOv] = useState({}); // hand-stepped line quantities (the wedi idiom) — session only, never in the marker
   const [pick, setPick] = useState(s0.pick);    // chosen tray candidate's sku
   const [kitPick, setKitPick] = useState(s0.kitPick);
   const [q, setQ] = useState(s0.q);
@@ -567,16 +573,23 @@ export default function SchluterConfigurator({
   const roomOk = cfg.w > 0 && cfg.d > 0;
   const cands = useMemo(() => (catReady && cat.length && roomOk ? trayCandidates(cfg, cat, { source }) : []), [catReady, cat, cfg, source, roomOk]);
   const pickCand = (pick && cands.find((c) => c.tray && c.tray.sku === pick)) || cands[0] || null;
+  const ovKey = (l) => l.g + "|" + (l.item.sku || l.item.name);
   const build = useMemo(() => {
     if (!pickCand) return null;
     const b = buildKit(cfg, cat, { source, pick: pickCand });
+    // a stepped quantity keeps winning over the recipe's figure while the
+    // line survives; stepped to 0 the line leaves the bill (the wedi rule)
+    b.lines = b.lines.map((l) => {
+      const ov = l.noteOnly ? null : qtyOv[ovKey(l)];
+      return ov == null ? l : { ...l, autoQty: l.qty, qty: ov, ov: true };
+    }).filter((l) => l.noteOnly || l.qty > 0);
     manual.forEach((m) => {
       const e = cat.find((i) => i.sku === m.sku);
-      if (e) b.lines.push({ g: "Extras", item: e, qty: m.qty, so: !e.stock });
+      if (e) b.lines.push({ g: "Extras", item: e, qty: m.qty, so: !e.stock, manual: true });
     });
     return b;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cfg, cat, source, pickCand, manual]);
+  }, [cfg, cat, source, pickCand, manual, qtyOv]);
   const mode = kitPick && !manual.length && !benches.length && !liveXwalls.length && !cfg.drainX && !cfg.drainY
     && !(cfg.corners || []).length && !cfg.maxIn ? "kit" : "custom";
   // the saved marker records the PICKED tray too — Reconfigure must reopen on
@@ -618,6 +631,12 @@ export default function SchluterConfigurator({
     const rest = mm.filter((m) => m.sku !== sku);
     return n > 0 ? [...rest, { sku, qty: n }] : rest;
   });
+  // a build-column stepper: a hand-added Extras line adjusts its manual row,
+  // a recipe line takes a qtyOv override
+  const stepLine = (l, delta) => {
+    if (l.manual) { setQty(l.item.sku, Math.max(0, l.qty + delta)); return; }
+    setQtyOv((o) => ({ ...o, [ovKey(l)]: Math.max(0, l.qty + delta) }));
+  };
 
   // the wedi click-away rule: the portalled menus close on any press outside
   useEffect(() => {
@@ -746,7 +765,7 @@ export default function SchluterConfigurator({
   const pickKit = (t) => {
     setW(String(t.w)); setD(String(t.d)); setDrain(t.drain); setCurbed(!t.thin);
     setBenches([]); setBenchMenu(null); setWallMenu(null); setPicker(null);
-    setManual([]); setXwalls([]); setDrainX(""); setDrainY(""); setDrainRef("left");
+    setManual([]); setQtyOv({}); setXwalls([]); setDrainX(""); setDrainY(""); setDrainRef("left");
     setCorners({}); setMaxIn(false); setTileT("");
     setWalls(DEF_WALLS.map((x) => ({ ...x })));
     setPick(t.sku); setKitPick(true); setPlacing(false);
@@ -976,7 +995,7 @@ export default function SchluterConfigurator({
         </div>
       </div>
       {mortarCard}
-      <div className="fam-h"><div className="t">Options</div><div className="hint">ranked — click one to build from it. Add-ons live on the build column; benches and wall sizes on the drawing (the wedi idiom)</div></div>
+      <div className="fam-h"><div className="t">Options</div><div className="hint">ranked — click one to build from it. Add-ons and benches live on the build column; bench zones and wall sizes edit on the drawing (the wedi idiom)</div></div>
       <div className="optrow">{optCards}</div>
     </>
   );
@@ -1100,10 +1119,17 @@ export default function SchluterConfigurator({
                   return (
                     <div className={"bline" + (l.noteOnly ? " note" : "")} key={g + (e.sku || e.name) + li}>
                       <div className="bn">
-                        <div className="n">{l.noteOnly ? "" : l.qty + "× "}{e.name}
+                        <div className="n">{e.name}
                           {!l.noteOnly && !e.stock && <span className="sotag">special order</span>}</div>
                         <div className="m" title={meta.join(" · ") || undefined}>{meta.map((s2, k) => (k ? " · " + s2 : <b key="k">{s2}</b>))}</div>
                       </div>
+                      {!l.noteOnly && (
+                        <div className="stepper">
+                          <button onClick={() => stepLine(l, -1)} title="one less — at 0 the line leaves the bill">−</button>
+                          <span className={"q" + (l.ov ? " ov" : "")} title={l.ov ? "hand-set — the recipe figures " + l.autoQty : undefined}>{l.qty}</span>
+                          <button onClick={() => stepLine(l, 1)} title="one more">+</button>
+                        </div>
+                      )}
                       {!l.noteOnly && (
                         <div className="lp" style={{ color: tierColor }}>{price ? fm(round2(price * l.qty)) : ""}
                           {price ? <small>{fm(price)}{e.unit && e.unit !== "EA" ? "/" + e.unit.toLowerCase() : " ea"}</small> : null}</div>
@@ -1117,17 +1143,23 @@ export default function SchluterConfigurator({
           {/* The wedi add-on idiom, round 3: the chips live on the build
               column so a shelf-kit pick reaches them on every tab, and a chip
               with several possible parts opens a PICKER instead of dumping
-              every catalog variant as its own chip. Benches moved onto the
-              DRAWING entirely — hover the tray for a zone, the wedi way. */}
+              every catalog variant as its own chip. Benches get ONE chip
+              whose picker holds every form (build-up / framed / premades) —
+              a pick lands on the next open zone; the drawing's zones stay
+              the place a bench moves, resizes or changes build. */}
           <div className="bgroup">
             <div className="bg-h">Add-ons</div>
             <div className="addchips">
               {(() => {
                 const extras = cat.filter((i) => i.g === "extra");
                 const niches = extras.filter((x) => x.extra === "niche");
-                const rest = extras.filter((x) => x.extra !== "niche" && x.extra !== "bench");
+                const rest = extras.filter((x) => x.extra !== "niche" && x.extra !== "bench" && x.extra !== "benchkit");
                 const nicheOn = niches.reduce((n2, x) => n2 + qtyIn(x.sku), 0);
                 return (<>
+                  <button className={"addchip" + (benches.length ? " on" : "")} data-schluter-benchchip
+                    title="benches — 2″ build-up, installer-framed, or the premade SB pieces; a pick lands on the next open wall or corner"
+                    onClick={(e) => setPicker((p) => (p ? null : { key: "bench", x: e.clientX, y: e.clientY }))}>
+                    {(benches.length ? "✓ " : "+ ") + "Bench" + (benches.length > 1 ? " ×" + benches.length : "")}</button>
                   {niches.length > 0 && (
                     <button className={"addchip" + (nicheOn ? " on" : "")} data-schluter-nichechip
                       title="wall niches — the chip opens the size picker"
@@ -1146,7 +1178,7 @@ export default function SchluterConfigurator({
                 </>);
               })()}
             </div>
-            <div className="bg-hint">Benches live on the drawing — hover the tray along a wall or into a corner and click the zone (premades, 2″ build-up, framed). Right-click a wall band for its size.</div>
+            <div className="bg-hint">Benches: the Bench chip, or hover the tray on the drawing along a wall or into a corner and click the zone — a bench's own zone edits its size and build. Right-click a wall band for its size.</div>
           </div>
           {stockStat && (
             <div className="bc-meter">
@@ -1458,15 +1490,94 @@ export default function SchluterConfigurator({
       </div>, document.body);
   })();
 
-  // The Niche chip's picker: every SN/SNLT variant in one list — the wedi
+  // The Niche and Bench chips' pickers: every choice in one list — the wedi
   // "a chip with several possible parts opens a picker" rule.
   const pickerPanel = (() => {
     if (!picker) return null;
-    const list = pool(cat.filter((i) => i.g === "extra" && i.extra === "niche")).sort(byShelf);
     const style = {
       top: Math.min(window.innerHeight - 320, picker.y + 8),
       left: Math.min(window.innerWidth - 312, Math.max(12, picker.x - 150)),
     };
+    if (picker.key === "bench") {
+      const pres = pool(cat.filter((i) => i.g === "extra" && i.extra === "bench")).sort(byShelf);
+      const wallPres = pres.filter((i) => !(i.bench && i.bench.corner));
+      const cornerPres = pres.filter((i) => i.bench && i.bench.corner);
+      // a chip pick has no clicked zone — it lands on the next open one; the
+      // drawing's zone menu is where a bench moves after that
+      const freeSide = ["back", "left", "right"].find((z) => !benches.some((b) => b.kind !== "corner" && (b.side || "back") === z));
+      const freeCorner = ["bl", "br", "fl", "fr"].find((z) => !benches.some((b) => b.kind === "corner" && (b.corner || "bl") === z));
+      const add = (kind, spec) => geom(() => {
+        const zone = kind === "corner" ? freeCorner : freeSide;
+        if (!zone) return;
+        benchSeq.current += 1;
+        setBenches((xs) => [...xs, { id: benchSeq.current, kind, ...(kind === "corner" ? { corner: zone } : { side: zone }), ...spec }]);
+      });
+      return createPortal(
+        <div className="sch-swap sch-picker sch-benchmenu" style={style} data-schluter-picker onClick={(e) => e.stopPropagation()}>
+          <div className="ph">Benches — a pick lands on the next open wall or corner; its zone on the drawing edits size, build and placement</div>
+          {benches.map((b2) => {
+            const nb = normBench(b2, cfg, cat);
+            const it = nb.part ? itemBySku(nb.part) : null;
+            const zone = nb.kind === "corner" ? (CORNER_ZONE_LBL[nb.corner] || nb.corner) + " corner" : nb.side + " wall";
+            const lbl = it ? extraLbl(it.name) : nb.build === "framed" ? "Framed + ½″ wrap" : "2″ KERDI-BOARD build-up";
+            return (
+              <button key={"b" + b2.id} className="srow on" title="remove this bench" data-schluter-bench-row={b2.id}
+                onClick={geom(() => setBenches((xs) => xs.filter((y) => y.id !== b2.id)))}>
+                <span className="sdot" />
+                <span className="n">✓ {lbl}<small>{zone} · click to remove</small></span>
+                <span className="p">{it ? fm(tierOf(it)) : ""}</span>
+              </button>
+            );
+          })}
+          <button className="bm-opt" disabled={!freeSide} onClick={add("wall", { build: "site" })} data-schluter-benchpick-site>
+            <b>2″ KERDI-BOARD build-up</b><small>on the finished tray, along a wall — 2″ top &amp; face + supports; the tray and curb run underneath</small>
+          </button>
+          <button className="bm-opt" disabled={!freeCorner} onClick={add("corner", { build: "site" })} data-schluter-benchpick-corner>
+            <b>2″ corner build-up</b><small>triangle in a corner on the finished tray — 2″ top, face &amp; supports</small>
+          </button>
+          <button className="bm-opt" disabled={!freeSide} onClick={add("wall", { build: "framed" })} data-schluter-benchpick-framed>
+            <b>Framed by the installer</b><small>wrapped with ½″ KERDI-BOARD — the tray stops at the bench face and the options re-rank for what is left</small>
+          </button>
+          {(wallPres.length > 0 || cornerPres.length > 0) && <div className="ph">Premade KERDI-BOARD benches</div>}
+          {wallPres.map((e) => (
+            <button key={e.sku} className={"srow" + (e.stock ? " stk" : "")} disabled={!freeSide}
+              onClick={add("wall", { part: e.sku })} data-schluter-benchpick={e.sku}>
+              <span className={"sdot" + (e.stock ? "" : " so")} />
+              <span className="n">{e.name}<small>{[e.size, e.sku, e.stock ? "stock" : "special order"].filter(Boolean).join(" · ")}</small></span>
+              <span className="p">{fm(tierOf(e))}</span>
+            </button>
+          ))}
+          {cornerPres.map((e) => (
+            <button key={e.sku} className={"srow" + (e.stock ? " stk" : "")} disabled={!freeCorner}
+              onClick={add("corner", { part: e.sku })} data-schluter-benchpick={e.sku}>
+              <span className={"sdot" + (e.stock ? "" : " so")} />
+              <span className="n">{e.name}<small>{[e.size, e.sku, e.stock ? "stock" : "special order", "corner"].filter(Boolean).join(" · ")}</small></span>
+              <span className="p">{fm(tierOf(e))}</span>
+            </button>
+          ))}
+          {(() => {
+            // the KERS-B seal kits ride the same dropdown — they're bench
+            // goods, but an accessory line, not a placed bench
+            const kits = pool(cat.filter((i) => i.g === "extra" && i.extra === "benchkit")).sort(byShelf);
+            if (!kits.length) return null;
+            return (<>
+              <div className="ph">Bench accessories</div>
+              {kits.map((e) => {
+                const n = qtyIn(e.sku);
+                return (
+                  <button key={e.sku} className={"srow" + (n ? " on" : e.stock ? " stk" : "")}
+                    onClick={() => setQty(e.sku, n ? 0 : 1)} data-schluter-benchkit={e.sku}>
+                    <span className={"sdot" + (e.stock ? "" : " so")} />
+                    <span className="n">{(n ? "✓ " : "") + e.name}<small>{[e.size, e.sku, e.stock ? "stock" : "special order"].filter(Boolean).join(" · ")}</small></span>
+                    <span className="p">{fm(tierOf(e))}</span>
+                  </button>
+                );
+              })}
+            </>);
+          })()}
+        </div>, document.body);
+    }
+    const list = pool(cat.filter((i) => i.g === "extra" && i.extra === "niche")).sort(byShelf);
     return createPortal(
       <div className="sch-swap sch-picker" style={style} data-schluter-picker onClick={(e) => e.stopPropagation()}>
         <div className="ph">Niches — self-contained: band frame + screws in the box</div>
