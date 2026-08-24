@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
-import { classify, catalogOf, trayCandidates, pickRolls, pickFrom, buildKit, linesTotal, tierPrice, lineItems, entryOpening, openRuns, boardPlan, boardSheets, expandBoardFaces, normBench, benchTrayRoom } from "./schluter.js";
+import { classify, catalogOf, trayCandidates, pickRolls, pickFrom, buildKit, linesTotal, tierPrice, lineItems, orderCopyLines, entryOpening, openRuns, boardPlan, boardSheets, expandBoardFaces, normBench, benchTrayRoom } from "./schluter.js";
 
 const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -778,4 +778,20 @@ test("expandBoardFaces appends extra faces AFTER the drawn walls, in schluterWal
   assert.deepEqual(faces.map((f) => [f.side, f.len, f.face || ""]),
     [["back", 60, ""], ["left", 38, ""], ["right", 38, ""], ["entry", 24, ""],
      ["left", 38, "out"], ["entry", 4, "end"]]);
+});
+
+// --- Copy for order entry (round 8) -----------------------------------------
+
+test("orderCopyLines: stocked lines key SKU ⇥ qty, special order by description, noteOnly dropped", () => {
+  const lines = [
+    { item: { stock: true, erp: "1509704", sku: "KST965/1525", name: "KERDI-SHOWER-T Tray" }, qty: 1 },
+    { item: { g: "curb", stock: false, sku: "SLRKSR3051220", name: "Kerdi-Shower-R Curbless Ramp" }, qty: 2 },
+    { item: { name: "Cement board / drywall substrate", stock: true }, qty: 1, noteOnly: true },
+  ];
+  assert.deepEqual(orderCopyLines(lines), [
+    "1509704\t1",
+    "SLRKSR3051220 — Kerdi-Shower-R Curbless Ramp × 2", // name already leads Kerdi — no brand prepend
+  ]);
+  // a stocked live row with no separate erp field keys its own sku
+  assert.deepEqual(orderCopyLines([{ item: { stock: true, sku: "1509749", name: "x" }, qty: 3 }]), ["1509749\t3"]);
 });

@@ -10,11 +10,11 @@
 // control for now; phase 4 lifts it into the shared shell so wedi inherits it.
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, Plus, Eye } from "lucide-react";
+import { X, Plus, Eye, Printer, Copy } from "lucide-react";
 import { useEscClose, SourceSwitch, NumIn } from "./widgets.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
-  trayCandidates, pickRolls, buildKit, tierPrice, lineItems, normBench, benchTrayRoom,
+  trayCandidates, pickRolls, buildKit, tierPrice, lineItems, orderCopyLines, normBench, benchTrayRoom,
   boardPlan, expandBoardFaces, wallArea,
 } from "./schluter.js";
 import { mortarItemFrom, MORTAR_BED_SF_PER_BAG } from "./schluteradapter.js";
@@ -313,6 +313,30 @@ const CSS = `
 .sch-toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--ft-text);color:var(--ft-cream);border:1px solid var(--ft-border-strong);font-size:12.5px;font-weight:700;border-radius:8px;padding:10px 18px;z-index:95;box-shadow:0 12px 40px rgba(0,0,0,.4);font-family:var(--ft-ui)}
 `;
 
+// The print layout sheet (round 8, the wedi PRINT_CSS port): hidden on
+// screen, the ONLY thing that prints.
+const PRINT_CSS = `
+.sch-printsheet{display:none}
+@media print{
+  body > *:not(.sch-printsheet){display:none !important}
+  .sch-printsheet{display:block;color:#111;background:#fff;font-family:var(--ft-ui)}
+  .sch-printsheet .ps-head{display:flex;align-items:baseline;gap:12px;border-bottom:2px solid #111;padding-bottom:8px;margin-bottom:14px}
+  .sch-printsheet .ps-head .t{font-size:20px;font-weight:800}
+  .sch-printsheet .ps-head .sub{font-size:12px;color:#333;font-weight:700}
+  .sch-printsheet .ps-head .dt{margin-left:auto;font-size:11px;color:#555}
+  .sch-printsheet .ps-diags{display:flex;gap:18px;align-items:flex-start;margin-bottom:6px}
+  .sch-printsheet .ps-diags .d{flex:1}
+  .sch-printsheet .ps-diags svg{width:100%;height:auto;border:1px solid #ddd;border-radius:6px;background:#fff}
+  .sch-printsheet .ps-sec{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.11em;color:#555;margin:14px 0 4px}
+  .sch-printsheet .ps-warn{font-size:11px;color:#333;padding:2px 0}
+  .sch-printsheet .ps-table{width:100%;border-collapse:collapse;font-size:11px}
+  .sch-printsheet .ps-table th{text-align:left;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.09em;color:#555;border-bottom:1.5px solid #111;padding:3px 6px}
+  .sch-printsheet .ps-table td{border-bottom:1px solid #ddd;padding:4px 6px;vertical-align:top}
+  .sch-printsheet .ps-table .num{text-align:right;font-variant-numeric:tabular-nums}
+  .sch-printsheet .ps-tot{display:flex;justify-content:flex-end;gap:26px;font-size:12px;font-weight:800;margin-top:8px}
+}
+`;
+
 const DEF_WALLS = [
   { name: "Back", on: true, len: "", h: "", faces: "" },
   { name: "Left", on: true, len: "", h: "", faces: "" },
@@ -454,6 +478,7 @@ export default function SchluterConfigurator({
   const [figOpen, setFigOpen] = useState(false);
   const [figSf, setFigSf] = useState("");
   const [payload, setPayload] = useState(null);
+  const [printing, setPrinting] = useState(false);
   const [showMargin, setShowMargin] = useState(false);
   const [toast, setToast] = useState("");
 
@@ -464,6 +489,19 @@ export default function SchluterConfigurator({
     toastT.current = setTimeout(() => setToast(""), 2600);
   };
   useEffect(() => () => clearTimeout(toastT.current), []);
+
+  // The layout sheet unmounts on afterprint, not right after window.print()
+  // returns — Safari (and Chrome sometimes) return with the dialog still up,
+  // and an unmounted sheet prints blank. The timer is the belt-and-braces
+  // fallback for anything that never fires the event (the wedi rig).
+  useEffect(() => {
+    if (!printing) return;
+    const done = () => setPrinting(false);
+    window.addEventListener("afterprint", done);
+    window.print();
+    const t = setTimeout(done, 2500);
+    return () => { clearTimeout(t); window.removeEventListener("afterprint", done); };
+  }, [printing]);
 
   // Modifying a kit's geometry makes it a custom shower and moves the main
   // pane there (the wedi owner rule 2026-07-30) — the build column keeps it.
@@ -783,6 +821,15 @@ export default function SchluterConfigurator({
     if (!cfg.curbed) out.push("• Curbless needs the floor recessed or the ramp — KERDI-SHOWER-FRS recess system lands Fall 2026");
     return out;
   }, [build, pickCand, cfg, diag, cornerCuts, normBenches]);
+
+  // "Copy for order entry" (round 8, the wedi rule): stocked lines as
+  // SKU ⇥ qty for the ERP, special order by description.
+  const copyList = () => {
+    const txt = orderCopyLines(build.lines).join("\n");
+    (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(
+      () => say("Copied — stocked lines as SKU ⇥ qty, special order by description"),
+      () => say("Clipboard blocked — copy the list from the print sheet"));
+  };
 
   // ==========================================================================
   // renders
@@ -1265,7 +1312,13 @@ export default function SchluterConfigurator({
             ? "The registry has no Schluter shower rows yet — import the stock export or the EFT in the Price book library."
             : "Pick a kit, a tray, or solve a room."}</div>
         </div>
-        <div className="bc-foot"><div className="btnrow"><button className="wbtn primary" disabled>Add to product lines</button></div></div>
+        <div className="bc-foot">
+          <div className="btnrow">
+            <button className="wbtn primary" disabled>Add to product lines</button>
+            <button className="wbtn" disabled>Print</button>
+            <button className="wbtn" disabled>Order entry</button>
+          </div>
+        </div>
       </>
     );
     return (
@@ -1402,6 +1455,8 @@ export default function SchluterConfigurator({
           </button>
           <div className="btnrow">
             <button className="wbtn primary" onClick={() => setPayload(rows)} data-schluter-add><Plus size={13} /> Add to product lines</button>
+            <button className="wbtn" disabled={!diag} onClick={() => setPrinting(true)} data-schluter-print><Printer size={13} /> Print layout</button>
+            <button className="wbtn" onClick={copyList} data-schluter-copy><Copy size={13} /> Order entry</button>
           </div>
         </div>
       </>
@@ -1840,6 +1895,53 @@ export default function SchluterConfigurator({
       </div>, document.body);
   })();
 
+  // The print layout (round 8, the wedi sheet): both drawings, the cut list
+  // and by-others notes, and the materials table through the tier lens —
+  // portalled to body so PRINT_CSS can make it the only thing that prints.
+  const printSheet = printing && diag && build && createPortal(
+    <div className="sch-printsheet">
+      <style>{PRINT_CSS}</style>
+      <div className="ps-head">
+        <div className="t">Schluter Shower Layout</div>
+        {projectName ? <div className="sub">{projectName}</div> : null}
+        <div className="dt">{new Date().toLocaleDateString()}</div>
+      </div>
+      <div className="ps-diags">
+        <div className="d">
+          <TopDown o={diag} w={460} h={360} wallOn={wallOn} dWalls={dWalls} benches={normBenches}
+            itemFn={itemBySku} normBenchFn={(z, room) => normBench(z, room, cat)}
+            cuts={cornerCuts} curbs={curb.segs} curbDiags={curb.diags} curbW={curb.w} /></div>
+        <div className="d">
+          <Iso o={diag} w={460} h={360} dWalls={dWalls} benches={normBenches}
+            itemFn={itemBySku} normBenchFn={(z, room) => normBench(z, room, cat)}
+            cuts={cornerCuts} curbs={curb.segs} curbDiags={curb.diags} curbH={curb.h} curbW={curb.w} /></div>
+      </div>
+      {(cutList.length > 0 || build.lines.some((l) => l.noteOnly)) && (<>
+        <div className="ps-sec">Cuts &amp; install notes</div>
+        {cutList.map((r, i) => <div className="ps-warn" key={i}>{r}</div>)}
+        {build.lines.filter((l) => l.noteOnly).map((l, i) => (
+          <div className="ps-warn" key={"n" + i}>• {l.item.name}{l.note ? " — " + l.note : ""}</div>
+        ))}
+      </>)}
+      <div className="ps-sec">Materials</div>
+      <table className="ps-table">
+        <thead><tr><th>SKU</th><th>Description</th><th>Size</th><th className="num">Qty</th><th className="num">{tierId}</th><th className="num">Total</th></tr></thead>
+        <tbody>
+          {GROUPS.flatMap((g) => build.lines.filter((l) => l.g === g && !l.noteOnly).map((l, li) => {
+            const p = tierOf(l.item);
+            return (
+              <tr key={g + (l.item.sku || l.item.name) + li}>
+                <td>{l.item.stock ? l.item.erp || l.item.sku : l.item.sku ? "Schluter " + l.item.sku : "—"}</td>
+                <td>{l.item.name}</td><td>{l.item.size || ""}</td>
+                <td className="num">{l.qty}</td><td className="num">{fm(p)}</td><td className="num">{fm(round2(p * l.qty))}</td>
+              </tr>
+            );
+          }))}
+        </tbody>
+      </table>
+      <div className="ps-tot"><span>{build.lines.filter((l) => !l.noteOnly).length} lines</span><span>{tierId} total {fm(totals.sell)}</span></div>
+    </div>, document.body);
+
   const nStock = cat.filter((e) => e.stock).length;
   const TAB_DEFS = [
     ["kits", "Kits", trays.length + " trays"],
@@ -1907,6 +2009,7 @@ export default function SchluterConfigurator({
       {benchMenuPanel}
       {pickerPanel}
       {payloadModal}
+      {printSheet}
       {toast && createPortal(<div className="sch-toast" onClick={(e) => e.stopPropagation()}>{toast}</div>, document.body)}
     </div>
   );

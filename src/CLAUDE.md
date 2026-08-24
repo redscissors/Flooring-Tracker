@@ -1087,6 +1087,14 @@ src/
                     # never disagree with the click; dWalls passes the plan
                     # to schluterWalls so the drawings show the real
                     # courses.
+                    # Round 8 — Print layout (the wedi sheet, ported as
+                    # .sch-printsheet: both drawings re-rendered at print
+                    # size, cut list + noteOnly by-others notes, materials
+                    # table through the tier lens; PRINT_CSS makes it the
+                    # only thing that prints, afterprint + 2.5s fallback
+                    # unmounts) and Copy for order entry (engine
+                    # orderCopyLines: stocked SKU ⇥ qty, SO by description,
+                    # noteOnly dropped; the toast reports the copy result).
   schluterpreview.jsx  # dev-only harness (schluter-preview.html): the REAL
                     # SchluterConfigurator over the fixture pushed BACKWARDS
                     # through normOrderItem into live registry shape (shop

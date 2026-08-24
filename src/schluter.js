@@ -1060,6 +1060,19 @@ const SCHLUTER_LEAD = /^\s*(schluter|kerdi|kereck|kers|all.?set)/i;
 const brandName = (e) => (e.g && !SCHLUTER_LEAD.test(e.name || "") ? "Schluter — " : "") + (e.name || "");
 
 /**
+ * "Copy for order entry" (round 8, the wedi rule): stocked lines key as the
+ * shop's SKU ⇥ qty — the ERP's fastest entry — and special-order lines go by
+ * description, since they have no shop code to key. noteOnly lines (by-others
+ * placeholders) never reach the clipboard.
+ */
+export function orderCopyLines(lines) {
+  return (lines || []).filter((l) => !l.noteOnly).map((l) =>
+    l.item.stock
+      ? (l.item.erp || l.item.sku || "") + "\t" + l.qty
+      : (l.item.sku ? l.item.sku + " — " : "") + brandName(l.item) + " × " + l.qty);
+}
+
+/**
  * Turn a build into product-row payloads ready for the job sheet, the
  * wedi-shaped signature (wedi.js lineItems, requirement 12): the popup
  * composes { ...buildKit(...), mode, cfg } and passes it whole. noteOnly
