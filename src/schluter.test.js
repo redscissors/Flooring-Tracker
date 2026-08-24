@@ -61,6 +61,35 @@ test("an EFT-imported board's bare size (thickness split out by the import) stil
   assert.ok(Math.abs(half.sf - 16.33) < 0.01);
 });
 
+test("a garbled import's thickness×width size never prices a panel — the KB code's own dims stand in", () => {
+  // the live ERP export's stored shape for KB1212201625 (issue: markless
+  // "0.5 X 48 X 64" description read as size "0.5x48" with "X64" left in the
+  // name) — the wall pick billed 618 panels off the 0.17-sf fragment
+  const b = classify({ sku: "KB1212201625", name: "X64 Kerdi-Board Panel", size: "0.5x48" });
+  assert.ok(Math.abs(b.sf - 21.33) < 0.01);
+  assert.equal(b.size, '48"x64"x1/2"');
+  assert.equal(b.thickMm, 12);
+  assert.ok(!b.thick2);
+  // same rule on an inch-marked fragment
+  assert.ok(Math.abs(classify({ sku: "KB1212201625", name: "Kerdi-Board Panel", size: '0.5"x48"' }).sf - 21.33) < 0.01);
+  // the 2" board's code-derived dims agree with its sheet text
+  const fat = classify({ sku: "KB506252440", name: "Kerdi-Board 2in Panel", size: "" });
+  assert.ok(Math.abs(fat.sf - 16.33) < 0.01);
+  assert.ok(fat.thick2);
+});
+
+test("the garbled board row prices the wall in whole panels, not fragments (the 618-panel bill)", () => {
+  const rows = [
+    { sku: "1509748", vendorSkus: ["KB1212201625"], name: "X64 Kerdi-Board Panel", size: "0.5x48", price: 74.38, cost: 49.58, stock: true },
+  ];
+  // the screenshot room: 72×48, three walls at 84" = 98 sf
+  const c = { w: 72, d: 48, curbed: true, drain: "point", wallSys: "board",
+    walls: [{ on: true, len: 72, h: 84 }, { on: true, len: 48, h: 84 }, { on: true, len: 48, h: 84 }] };
+  const b = buildKit(c, catalogOf(rows), { source: "all" });
+  const wall = b.lines.find((l) => l.g === "Walls" && l.item.g === "board" && !l.item.fastener);
+  assert.equal(wall.qty, 5); // ceil(98 × 1.05 / 21.33)
+});
+
 test("full-catalog wall pick lands the EFT ½\" panel, never a Z-profile", () => {
   const rows = [
     { sku: "KBZFP176E", name: "Kerdi-Board-Zfp Flat Plastic Profile", size: `5/16"x8'2-1/2"`, price: 0, cost: 24.5, stock: false },
