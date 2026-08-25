@@ -72,7 +72,13 @@ price_books (
   active      boolean default true,      -- retired books hide from search/UI
   data        jsonb,                     -- { vendor, note, mapping, markups,
                                          --   freight, skuPattern, brandLabel,
-                                         --   lastImport{at,by,count} }
+                                         --   lastImport{at,by,count},
+                                         --   confirmed{at,by} }
+                                         -- confirmed (2026-08-25): the
+                                         -- "still good" stamp — restarts
+                                         -- the stale clock without an
+                                         -- import (§8.3); lastImport
+                                         -- stays import-only
                                          -- brandLabel (issue 092): the book
                                          -- page's brand box — worn by future
                                          -- picks as item.brand when the sheet
@@ -466,7 +472,13 @@ throwaway-prototype method before building it for real.
    header. A never-imported book has no age and is not flagged. Vendors re-issue
    quarterly; a 200-day-old cost list quietly mispricing jobs is the most likely
    real-world failure of this whole system. Pure predicate `bookStaleness`
-   (orderbook.js) is unit-tested.
+   (orderbook.js) is unit-tested. *(Amended 2026-08-25.)* The clock can also be
+   restarted without a re-import: "Confirm prices current" on the book page's
+   Source drawer stamps `data.confirmed {at,by}` (`confirmBook` in usebooks.js),
+   and staleness measures from the newer of `lastImport.at` and `confirmed.at`
+   (`bookFreshAt`). `lastImport` stays pure import provenance — the team
+   checked the vendor's list and nothing moved, so no import-history version
+   lands and a later real import supersedes the confirmation.
 4. **Deferred, deliberately:** per-user cost visibility (breaks ADR 0004 —
    needs its own ADR), fuzzy cross-book product matching (guessing wrong
    prices jobs wrong), and

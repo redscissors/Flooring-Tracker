@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   normOrderItem, normBookItem, bookItemData, costSqft, resolveMarkup, sellPrice,
   pricedItem, orderPatch, orderDrift, bookRowPreview, mergeSearch, markupGroups, diffBookItems, forceDiff, editedInDiff,
-  bookStaleness, bookNoMarkup, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, unitComboWarnings,
+  bookStaleness, bookFreshAt, bookNoMarkup, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, unitComboWarnings,
   itemProblems, supersedePairs, rowAdvisories, importSanityWarnings, classifyTrim, itemFlags,
   flagReviewed, flagReviewBySku, trimsForFloor, sameProduct, collapseCopies, rankMerged, skuKeys,
   BOOK_FIELDS, BOOK_FIELD_LABELS, changedFieldBits,
@@ -779,6 +779,32 @@ test("bookStaleness: an out-of-range threshold falls back to the default", () =>
     assert.equal(bookStaleness(now - 130 * DAY, bad, now).threshold, DEFAULT_STALE_DAYS);
     assert.equal(bookStaleness(now - 130 * DAY, bad, now).stale, true);   // 130 ≥ 120 default
   }
+});
+
+test("bookFreshAt: the newer of last import and still-good confirmation wins", () => {
+  const now = 1_000 * DAY;
+  const imp = now - 200 * DAY, conf = now - 5 * DAY;
+  assert.equal(bookFreshAt({ lastImport: { at: imp } }), imp);
+  assert.equal(bookFreshAt({ lastImport: { at: imp }, confirmed: { at: conf, by: "Sam" } }), conf);
+  // a later re-import supersedes an older confirmation
+  assert.equal(bookFreshAt({ lastImport: { at: conf }, confirmed: { at: imp } }), conf);
+});
+
+test("bookFreshAt: no import and no confirmation is null — never-imported stays unflagged", () => {
+  for (const data of [undefined, null, {}, { lastImport: null }, { lastImport: { at: 0 }, confirmed: { at: "x" } }]) {
+    assert.equal(bookFreshAt(data), null);
+    assert.equal(bookStaleness(bookFreshAt(data), 120, 1_000 * DAY).stale, false);
+  }
+});
+
+test("bookFreshAt: confirming a stale book clears its stale flag through bookStaleness", () => {
+  const now = 1_000 * DAY;
+  const data = { lastImport: { at: now - 150 * DAY } };
+  assert.equal(bookStaleness(bookFreshAt(data), 120, now).stale, true);
+  data.confirmed = { at: now - 1 * DAY, by: "Sam" };
+  const r = bookStaleness(bookFreshAt(data), 120, now);
+  assert.equal(r.stale, false);
+  assert.equal(r.days, 1);
 });
 
 // --- a book with no markup ---------------------------------------------------

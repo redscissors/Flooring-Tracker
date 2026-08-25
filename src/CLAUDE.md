@@ -181,7 +181,9 @@ src/
                     # and their write paths (`updateProject`/`addProject`/`setSettings`/`saveProfile`…);
                     # `migrateLegacyCustomers` (ADR 0004)
   usebooks.js       # `useBooks` — price book registry state + write paths (ADR 0009): addBook/
-                    # updateBook/delBook/applyBookImport/reviewBookItemFlags/setBookItemsDisabled/
+                    # updateBook/confirmBook (the "still good" stamp — restarts the §8.3 stale
+                    # clock via data.confirmed, never lastImport)/delBook/
+                    # applyBookImport/reviewBookItemFlags/setBookItemsDisabled/
                     # setBookItemIssue (the Claude issue bucket — flagReview's contract:
                     # data jsonb, no edited stamp, carried across re-imports)
   usebookstock.js   # `useBookStock` — stock-kind registry books' items, a bounded cache

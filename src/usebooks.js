@@ -56,6 +56,13 @@ export function useBooks({ user, profile, ping, flashSaved }) {
     catch (x) { ping("Save failed"); }
   };
 
+  // "Still good" confirmation: the team checked the vendor's prices and
+  // nothing moved, so the staleness clock restarts (orderbook.js bookFreshAt)
+  // without an import. Its own stamp, never lastImport — that field is import
+  // provenance only (see applyBookImport) — and no import-history version:
+  // no vendor data landed.
+  const confirmBook = (id) => updateBook(id, { dataPatch: { confirmed: { at: Date.now(), by: profile.name || user.email || "" } } });
+
   // Permanently remove a registry book: its items, its import history, then the
   // book row (in that order — price_book_items has a FK to price_books). Unlike
   // every other price-book write this is a hard delete (ADR 0009 delete amendment). Saved
@@ -233,7 +240,7 @@ export function useBooks({ user, profile, ping, flashSaved }) {
   return {
     books, hydrateBooks: setBooks,
     orderItems, setOrderItems,
-    loadBookItems, addBook, updateBook, delBook, applyBookImport,
+    loadBookItems, addBook, updateBook, confirmBook, delBook, applyBookImport,
     loadBookVersions, loadBookVersionSnapshot, pinBookVersion,
     updateBookItem, reviewBookItemFlags, setBookItemsDisabled, setBookItemIssue,
   };

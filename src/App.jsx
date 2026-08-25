@@ -171,7 +171,7 @@ export default function App({ user, onSignOut }) {
   const settings = data.settings;
   const {
     books, hydrateBooks, orderItems, setOrderItems,
-    loadBookItems, addBook, updateBook, delBook, applyBookImport,
+    loadBookItems, addBook, updateBook, confirmBook, delBook, applyBookImport,
     loadBookVersions, loadBookVersionSnapshot, pinBookVersion,
     updateBookItem, reviewBookItemFlags, setBookItemsDisabled, setBookItemIssue,
   } = useBooks({ user, profile, ping, flashSaved });
@@ -2538,7 +2538,7 @@ export default function App({ user, onSignOut }) {
           exportBackup={exportBackup} importBackup={importBackup} fileRef={fileRef}
           inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} theme={theme} setTheme={setTheme} headerLayout={headerLayout} setHeaderLayout={setHeaderLayout}
           profile={profile} saveProfile={saveProfile} user={user}
-          books={books} addBook={addBook} updateBook={updateBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImportSynced}
+          books={books} addBook={addBook} updateBook={updateBook} confirmBook={confirmBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImportSynced}
           bookStock={bookStock} bookStockReady={bookStockReady} refreshBookStock={refreshBookStock}
           loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} setBookItemIssue={setBookItemIssue} addClaudeIssue={addClaudeIssue} />
         </Suspense>

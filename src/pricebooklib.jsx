@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { AlertTriangle, ChevronRight, Eye, EyeOff, FileText, Flag, History, Lock, Pencil, Percent, Pin, Plus, RotateCcw, Trash2, Truck, Unlock, Upload, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronRight, Eye, EyeOff, FileText, Flag, History, Lock, Pencil, Percent, Pin, Plus, RotateCcw, Trash2, Truck, Unlock, Upload, X } from "lucide-react";
 import { num } from "./catalog.js";
 import { normFreight, freightBasis, freightParts, freightSummary, freightIsBlank, freightIsSeed, freightSeedFor, isSeedBook } from "./freight.js";
 import { MAX_QUICK_MARKUPS } from "./costentry.js";
@@ -13,7 +13,7 @@ import { isTrueTouch, parseTrueTouchPages } from "./truetouchbook.js";
 import { parseOvf } from "./ovfbook.js";
 import { parseEmser } from "./emserbook.js";
 import { parseMirage } from "./miragebook.js";
-import { normBookItem, bookItemData, bookRowPreview, diffBookItems, forceDiff, changedFieldBits, markupGroups, editedInDiff, bookStaleness, bookNoMarkup, DEFAULT_STALE_DAYS, itemProblems, supersedePairs, itemFlags, flagReviewBySku } from "./orderbook.js";
+import { normBookItem, bookItemData, bookRowPreview, diffBookItems, forceDiff, changedFieldBits, markupGroups, editedInDiff, bookStaleness, bookFreshAt, bookNoMarkup, DEFAULT_STALE_DAYS, itemProblems, supersedePairs, itemFlags, flagReviewBySku } from "./orderbook.js";
 import { normPricing } from "./pricing.js";
 import { BOOK_VERSION_KEEP } from "./uiconst.js";
 import { money } from "./model.js";
@@ -410,7 +410,7 @@ function ItemSearchCard({ pcts, setPct }) {
   );
 }
 
-export function PriceBookLibrary({ books, addBook, updateBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setBookItemIssue, addClaudeIssue, settings, setSettings, inp, lbl, types, typeLabels }) {
+export function PriceBookLibrary({ books, addBook, updateBook, confirmBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setBookItemIssue, addClaudeIssue, settings, setSettings, inp, lbl, types, typeLabels }) {
   const [vendorPending, setVendorPending] = useState(() => captureHandoff()); // bookmarklet hand-off (ADR 0019/0020)
   const [vendorSession, setVendorSession] = useState(() => captureHandoffSession()); // bare session grab (ADR 0019): unlock only
   const [sel, setSel] = useState("library"); // "library" | bookId
@@ -468,10 +468,11 @@ export function PriceBookLibrary({ books, addBook, updateBook, delBook, loadBook
 
   const selBook = books.find((b) => b.id === sel);
 
-  // Staleness (§8.3): flag a book whose last import predates the owner-set
-  // threshold (book.data.lastImport).
+  // Staleness (§8.3): flag a book whose last import — or "still good"
+  // confirmation, whichever is newer (bookFreshAt) — predates the owner-set
+  // threshold.
   const staleDays = settings.ops?.staleDays || DEFAULT_STALE_DAYS;
-  const bookStale = (b) => bookStaleness(b.data?.lastImport?.at, staleDays);
+  const bookStale = (b) => bookStaleness(bookFreshAt(b.data), staleDays);
   const setStaleDays = (v) => { const n = Math.round(Number(v)); setSettings({ ops: { ...(settings.ops || {}), staleDays: n > 0 ? n : null } }); };
 
   const create = async () => {
@@ -606,7 +607,7 @@ export function PriceBookLibrary({ books, addBook, updateBook, delBook, loadBook
       {sel === "library" ? (
         <VendorFetchPage vf={vf} books={books} pending={pendingReviews} onReview={reviewOne} onOpenBook={setSel} leadColumn={inHouseCol} inp={inp} />
       ) : selBook ? (
-        <>{backBtn}<BookDetail key={selBook.id} book={selBook} updateBook={updateBook} delBook={delBook} onDeleted={() => setSel("library")} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} setBookItemIssue={setBookItemIssue} addClaudeIssue={addClaudeIssue} hideCosts={hideCosts} staleDays={staleDays} source={sheetsForBook(vf.groups, selBook.id)} sourcePendingOf={sourcePendingOf} sourceLiveOf={sourceLiveOf} onRefreshSheet={(s) => vf.run(Array.isArray(s) ? s : [s])} onReviewSheet={reviewOne} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} /></>
+        <>{backBtn}<BookDetail key={selBook.id} book={selBook} updateBook={updateBook} confirmBook={confirmBook} delBook={delBook} onDeleted={() => setSel("library")} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} setBookItemIssue={setBookItemIssue} addClaudeIssue={addClaudeIssue} hideCosts={hideCosts} staleDays={staleDays} source={sheetsForBook(vf.groups, selBook.id)} sourcePendingOf={sourcePendingOf} sourceLiveOf={sourceLiveOf} onRefreshSheet={(s) => vf.run(Array.isArray(s) ? s : [s])} onReviewSheet={reviewOne} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} /></>
       ) : (
         <>{backBtn}<p className="text-xs text-slate-400 mt-3">This book is gone.</p></>
       )}
@@ -815,6 +816,28 @@ function SourceSheetStrip({ sources, pendingSources, stale: st, lastImportAt, pe
   );
 }
 
+// The "still good" card (Source drawer): someone checked the vendor's current
+// list against this book and nothing moved, so the stale clock restarts from
+// today — its own confirmed stamp, never lastImport (usebooks.js confirmBook),
+// so import provenance stays honest and no history version lands. Hidden on a
+// never-imported book: there are no prices to vouch for yet.
+function ConfirmCurrentCard({ book, stale: st, conf, onConfirm }) {
+  if (!onConfirm || (!book.data?.lastImport && !conf)) return null;
+  return (
+    <div className={`mt-3 w-72 shrink-0 rounded-lg border px-3 py-2.5 ${st.stale ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-slate-50/50"}`}>
+      <span className={`text-[9px] font-semibold uppercase tracking-widest ${st.stale ? "text-amber-700" : "text-slate-400"}`}>Still good?</span>
+      <p className={`mt-1 text-[11px] ${st.stale ? "text-amber-700" : "text-slate-400"}`}>
+        {conf
+          ? <>Confirmed current {new Date(conf.at).toLocaleDateString()}{conf.by ? ` by ${conf.by}` : ""} — the stale clock restarted there.</>
+          : <>Checked the vendor's list and nothing moved? Confirm it — the {st.threshold}-day stale clock restarts from today, no re-import needed.</>}
+      </p>
+      <button onClick={onConfirm} className={`mt-2 flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium ${st.stale ? "border-amber-300 bg-white text-amber-800 hover:bg-amber-100" : "border-slate-200 text-slate-600 hover:bg-white"}`}>
+        <Check size={12} /> {conf ? "Confirm again" : "Confirm prices current"}
+      </button>
+    </div>
+  );
+}
+
 // Every stored field that doesn't own a table column, as label·value pairs for
 // the row's muted detail line — the "nothing hidden" half of the table
 // contract. Blank fields stay out, so a sparse book renders one clean line.
@@ -841,7 +864,7 @@ function itemDetailBits(it) {
 }
 
 // Exported for the preview harness (like FreightCard).
-export function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setBookItemIssue, addClaudeIssue, hideCosts, staleDays, inp, lbl, types, typeLabels, source, sourcePendingOf, sourceLiveOf, onRefreshSheet, onReviewSheet }) {
+export function BookDetail({ book, updateBook, confirmBook, delBook, onDeleted, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setBookItemIssue, addClaudeIssue, hideCosts, staleDays, inp, lbl, types, typeLabels, source, sourcePendingOf, sourceLiveOf, onRefreshSheet, onReviewSheet }) {
   const [items, setItems] = useState(null); // null = loading
   const [q, setQ] = useState("");
   const [show, setShow] = useState("all"); // all | enabled | disabled
@@ -860,9 +883,11 @@ export function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems
   // Which config drawer is open under the folder tabs (owner sketch
   // 2026-08-07). Folded by default; a book that needs attention opens on it —
   // a fetched sheet awaiting review opens Source, a book selling at cost opens
-  // Markup. Initial only, so a fetch landing mid-visit never fights a fold.
+  // Markup, a stale book opens Source (where Refresh and Confirm-current both
+  // live). Initial only, so a fetch landing mid-visit never fights a fold.
   const [tab, setTab] = useState(() => (source || []).some(({ sheet }) => sourcePendingOf(sheet)) ? "source"
-    : bookNoMarkup(book) ? "markup" : null);
+    : bookNoMarkup(book) ? "markup"
+      : bookStaleness(bookFreshAt(book.data), staleDays).stale ? "source" : null);
 
   const reload = () => { setItems(null); loadBookItems(book.id).then(setItems).catch(() => setItems([])); };
   useEffect(() => { let ok = true; loadBookItems(book.id).then((x) => ok && setItems(x)).catch(() => ok && setItems([])); return () => { ok = false; }; }, [book.id]);
@@ -870,7 +895,11 @@ export function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems
   const markups = book.data?.markups || null;
   const brandLabel = (book.data?.brandLabel || "").trim();
   const li = book.data?.lastImport;
-  const st = bookStaleness(li?.at, staleDays);
+  // Confirmation counts only while it's the newer stamp — a later import
+  // supersedes it (bookFreshAt), so the meta line never shows a vouch for
+  // prices that have since been replaced.
+  const conf = book.data?.confirmed?.at > (li?.at || 0) ? book.data.confirmed : null;
+  const st = bookStaleness(bookFreshAt(book.data), staleDays);
   const noMarkup = bookNoMarkup(book);
   // A book may be fed by several sheets (flooring + trim + product chart…).
   const sources = source || [];
@@ -1019,7 +1048,8 @@ export function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems
   // The folder tabs' live summaries — each tab says its state without opening.
   const srcSummary = pendingSources.length ? `${pendingSources.length} to review`
     : st.stale ? `stale — ${st.days} days`
-      : li ? `imported ${new Date(li.at).toLocaleDateString()}` : "never imported";
+      : conf ? `confirmed ${new Date(conf.at).toLocaleDateString()}`
+        : li ? `imported ${new Date(li.at).toLocaleDateString()}` : "never imported";
   const srcTone = pendingSources.length ? "attn" : st.stale ? "warn" : "";
   const axisLabel = (f) => (GROUP_AXES.find(([k]) => k === f) || [])[1] || f;
   const overrides = Object.keys(markups?.byGroup || {}).length;
@@ -1037,6 +1067,7 @@ export function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems
         <span className="text-xs text-slate-400">
           {items == null ? "Loading items…" : `${activeItems.length} active item${activeItems.length === 1 ? "" : "s"}`}
           {li ? ` · imported ${new Date(li.at).toLocaleDateString()}${li.by ? ` by ${li.by}` : ""}` : " · never imported"}
+          {conf ? ` · confirmed current ${new Date(conf.at).toLocaleDateString()}${conf.by ? ` by ${conf.by}` : ""}` : ""}
         </span>
         <span className="ml-auto flex items-center gap-2">
           <label className="flex items-center gap-1 text-xs text-slate-500">
@@ -1074,6 +1105,7 @@ export function BookDetail({ book, updateBook, delBook, onDeleted, loadBookItems
             {tab === "source" && (
               <div className="flex flex-wrap gap-x-6 items-start">
                 <SourceSheetStrip sources={sources} pendingSources={pendingSources} stale={st} lastImportAt={li?.at} pendingOf={sourcePendingOf} liveOf={sourceLiveOf} onRefresh={onRefreshSheet} onReview={onReviewSheet} />
+                <ConfirmCurrentCard book={book} stale={st} conf={conf} onConfirm={confirmBook ? () => confirmBook(book.id) : null} />
                 <ManualSourcesCard
                   sources={book.data?.sources}
                   inp={inp}

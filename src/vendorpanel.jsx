@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Plus, Trash2, ClipboardList, Download, X, Check, ChevronRight, Hand, Pencil, BookOpen, Database, Link2, Link2Off, MoreHorizontal, RotateCcw, AlertTriangle } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { parseVendorLink, entryProblems, entryFileName, bookmarkletSource, clearHandoff, poolSession, sheetRecord, recordKey, applySesid, mergeEntries, newGroup, moveSheetInGroups, sheetMatchesGroup, rememberIntoGroups, setSheetBook, stripHandoffMark, decodeHandoff, decodeHandoffSession, pendingForSheet, sessionlessVendor, classifySheetBytes, sheetMagic, isSheetStream, parseSheetStreamFinal } from "./vendorfetch.js";
-import { bookStaleness, bookNoMarkup, DEFAULT_STALE_DAYS } from "./orderbook.js";
+import { bookStaleness, bookFreshAt, bookNoMarkup, DEFAULT_STALE_DAYS } from "./orderbook.js";
 import { DotMenu, HelpTip } from "./widgets.jsx";
 
 export const FLAG_SEMANTICS = [["", "— ignore —"], ["discontinued", "Discontinued"], ["freight", "Extra freight"], ["madeToOrder", "Made to order"], ["transitioning", "Transitioning"]];
@@ -579,7 +579,7 @@ export function useVendorFetch({ settings, setSettings, books, vendorPending, ve
   for (const b of books || []) bookById[b.id] = b;
   const sheetInfo = (s) => {
     const book = s.bookId ? bookById[s.bookId] : null;
-    return { book, stale: book ? bookStaleness(book.data?.lastImport?.at, staleDays) : null };
+    return { book, stale: book ? bookStaleness(bookFreshAt(book.data), staleDays) : null };
   };
 
   const parseLinks = (text) => (text || "").split(/\s+/).map(parseVendorLink).filter((e) => e && !entryProblems(e));
