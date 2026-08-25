@@ -971,6 +971,18 @@ export function bookStaleness(lastImportAt, thresholdDays = DEFAULT_STALE_DAYS, 
   return { days, threshold, stale: days != null && days >= threshold };
 }
 
+// When the book's prices were last known good: the newer of its last import
+// and its "confirmed still current" stamp (data.confirmed {at, by} — the team
+// checked the vendor's list and nothing moved, so the staleness clock restarts
+// without pretending an import happened; lastImport stays pure import
+// provenance, applyBookImport its only writer). Feed this to bookStaleness.
+export function bookFreshAt(data) {
+  const imp = numOr(data?.lastImport?.at) || 0;
+  const conf = numOr(data?.confirmed?.at) || 0;
+  const at = Math.max(imp, conf);
+  return at > 0 ? at : null;
+}
+
 // --- internal materials margin (§8.1) ----------------------------------------
 
 // Internal-only materials margin over special-order lines. A special-order

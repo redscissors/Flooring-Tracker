@@ -50,6 +50,9 @@ const BOOKS = [
   // column, a few real-shaped items, so the Brand tab and the table's landed
   // names can be exercised live.
   { id: "glz", kind: "order", name: "Glazzio Tile", active: true, data: { markups: { default: 50 }, lastImport: { at: Date.now() - 20 * DAY, by: "Sam", count: 4 } } },
+  // Past the 120-day default, so the stale flag + the Confirm-current card
+  // (Source drawer) can be exercised live.
+  { id: "old", kind: "order", name: "Emser — West", active: true, data: { markups: { default: 45 }, lastImport: { at: Date.now() - 140 * DAY, by: "Sam", count: 96 } } },
 ];
 
 const GLZ_ITEMS = [
@@ -74,6 +77,7 @@ function LibraryDemo() {
     <div className="flex" style={{ minHeight: 420 }}>
       <PriceBookLibrary
         books={books} addBook={async () => "new"} updateBook={updateBook} delBook={noop}
+        confirmBook={(id) => updateBook(id, { dataPatch: { confirmed: { at: Date.now(), by: "You" } } })}
         loadBookItems={async (id) => (id === "glz" ? GLZ_ITEMS : [])} applyBookImport={async () => {}} loadBookVersions={async () => []}
         loadBookVersionSnapshot={async () => null} pinBookVersion={noop} updateBookItem={noop}
         setBookItemsDisabled={noop} reviewBookItemFlags={noop} setBookItemIssue={noop} addClaudeIssue={noop}
