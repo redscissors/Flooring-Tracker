@@ -7,7 +7,11 @@
 // cache), a Glazzio book line, a PC-sold primer and an RL-sold roll (no unit
 // start — only CT leads), and a plain stocked SKU line. The 8/26 batch adds
 // the Glazzio CLNL289 sheet mosaic: SH unit, nominal size (true size on
-// hover), exact SF/SH coverage, and the pinned SKU + coverage tail.
+// hover), exact SF/SH coverage, and the pinned SKU + coverage tail. Open with
+// ?wide=1 for the soft-drop panel (owner 2026-08-26): the same lines at a
+// 68-char field, where CLNL289's only loss is "Collection" (soft) so it
+// pastes with NO "+", while the hand-entered Uptown line still cuts identity
+// and keeps the marker + the footer's amber note.
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import { OrderEntryPanel } from "./orderentry.jsx";
@@ -53,14 +57,19 @@ const rows = [
   { ...newProduct(), id: uid(), type: "tile", sku: "05153", brandColor: "Hanoi White Matte", L: "12", W: "24", qty: "140", priceSqft: "4.79", cartonSf: "15.5", cartonUnit: "CT" },
 ];
 
-const built = rows.map((p) => orderEntryRow(p, s, "Area 1", DESC_LIMIT, stockBookIds, bookBrands, stockSkus));
+const WIDE_LIMIT = 68;
+const wideView = new URLSearchParams(window.location.search).has("wide");
+const limit = wideView ? WIDE_LIMIT : DESC_LIMIT;
+const built = rows.map((p) => orderEntryRow(p, s, "Area 1", limit, stockBookIds, bookBrands, stockSkus));
 
 createRoot(document.getElementById("preview")).render(
   <OrderEntryPanel
-    name="Order entry preview — job-line flag batch"
+    name={wideView
+      ? 'Soft drops at a 68-char field — "Collection" alone lost pastes with no +'
+      : "Order entry preview — job-line flag batch"}
     special={built.filter((r) => r.special)}
     stock={built.filter((r) => !r.special)}
-    descLimit={DESC_LIMIT}
+    descLimit={limit}
     onClose={() => {}}
   />,
 );

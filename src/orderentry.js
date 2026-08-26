@@ -103,12 +103,14 @@ export function sheetNominal(sizeText) {
 // (Marcus 2026-08-26): every vendor's series can carry it, so it identifies
 // nothing at the order desk. It splits into its own part at rank 4 — the very
 // first thing dropped when the field runs tight, ahead of even the brand —
-// and stays in place while there's room.
+// and stays in place while there's room. Both it and the brand are SOFT
+// (owner 2026-08-26): a description whose only losses are these words is not
+// a partial spec, so it pastes without the "+" marker (descfit.js).
 const nameParts = (text) => {
   const s = String(text || "").trim();
   if (!s) return [];
   return s.split(/\b(Collection)\b/i)
-    .map((tok, i) => (i % 2 ? { full: tok, rank: 4 } : textParts(tok)))
+    .map((tok, i) => (i % 2 ? { full: tok, rank: 4, soft: true } : textParts(tok)))
     .flat();
 };
 export function orderDescription(r, limit) {
@@ -123,7 +125,7 @@ export function orderDescription(r, limit) {
   const parts = [
     ...(r.tag ? [{ full: String(r.tag), rank: 0 }] : []),
     ...((sheogaParts && [{ full: "Sheoga", rank: 0 }, ...sheogaParts])
-      || [...textParts(tightSize(r.sizePlain)), ...(branded ? [{ full: brand, rank: 3 }] : []), ...nameParts(body)]),
+      || [...textParts(tightSize(r.sizePlain)), ...(branded ? [{ full: brand, rank: 3, soft: true }] : []), ...nameParts(body)]),
   ];
   const tail = [];
   if (r.sku) tail.push({ full: String(r.sku), pin: true });

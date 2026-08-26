@@ -1220,8 +1220,12 @@ src/
                     # in the field with a trailing "+", the complete text going
                     # to the ERP's extended-text field as a second copy; kept
                     # categories fill back out the same way). Parts are
-                    # { full, short, rank }; rank is DROP priority, not print
-                    # order, and rank 0 is identity and never dropped
+                    # { full, short, rank, pin, soft }; rank is DROP priority,
+                    # not print order, and rank 0 is identity and never dropped;
+                    # a pin (SKU, coverage) never drops or clips; a soft part
+                    # (brand, "Collection" — owner 2026-08-26) can drop WITHOUT
+                    # the "+": the marker appears only when identity text was
+                    # actually cut, reported as `cut` for the panel's amber note
   orderentry.js     # "Copy for order entry" pure logic: `isSpecialOrder` (a row
                     # is a special order when it carries a price-book `bookId` OR
                     # a `sheoga` marker — Sheoga floors AND their at-cost fee
