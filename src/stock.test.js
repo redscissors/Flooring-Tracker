@@ -163,6 +163,8 @@ test("deriveSquareDim reads a mixed-fraction chip dimension (ticket 010)", () =>
   const tile = (over) => normStockItem({ sku: "x", data: { type: "tile", ...over } });
   assert.equal(deriveSquareDim(tile({ size: '1-1/2" Hex' })), 1.5);
   assert.equal(deriveSquareDim(tile({ size: '3/4" Penny' })), 0.75);
+  // The Glazzio space spelling parses whole, not stopping at the "2".
+  assert.equal(deriveSquareDim(tile({ size: '2 1/2" Hex' })), 2.5);
 });
 
 test("a fraction hex chip fills sizeText and the derived square L/W (ticket 010)", () => {

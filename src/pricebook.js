@@ -111,6 +111,13 @@ export function mmToFraction(mm) {
 // the dot claims the whole ".43" instead of stopping at the "43". Bare fraction
 // stays first so an unanchored match can't stop at the "3" of "3/4".
 const DIM = "\\d+/\\d+|\\.\\d+|\\d+(?:\\.\\d+)?(?:-\\d+/\\d+)?";
+// The SPACE-spelled mixed fraction ("2 1/2X1" — the Glazzio long-hex pages;
+// reading it mid-fraction made the chip 0.5x1 and left a stray "2" in the name,
+// the CLNL289 report 2026-08-26). Joined only where a following fraction can't
+// be anything else: the FIRST dim of an L×W, a shape size, a sheet token. The
+// second dim keeps hyphen-only DIM — there a trailing " 3/8\"" is the plank's
+// THICKNESS ('OAK PLANK 5X48 3/8"'), not part of the length.
+const DIMS = "\\d+/\\d+|\\.\\d+|\\d+(?:\\.\\d+)?(?:[-\\s]\\d+/\\d+)?";
 const dimVal = (s) => {
   const f = str(s).match(/^(\d+)\/(\d+)$/);
   if (f) {
@@ -126,7 +133,7 @@ const dimVal = (s) => {
     }
     return n / d;
   }
-  const m = str(s).match(/^(\d+(?:\.\d+)?|\.\d+)(?:-(\d+)\/(\d+))?$/);
+  const m = str(s).match(/^(\d+(?:\.\d+)?|\.\d+)(?:[-\s](\d+)\/(\d+))?$/);
   return m ? parseFloat(m[1]) + (m[2] ? +m[2] / +m[3] : 0) : NaN;
 };
 const SHAPE_WORDS = "hex|hexagon|penny|round|octagon";
@@ -140,7 +147,7 @@ const INCH_MARK = `["']|in(?:ch(?:es)?)?\\b`;
 // leading straight into the next number".
 const WORD_END = `(?=$|[^a-z]|[x×]\\s*\\d)`;
 const IN_WORD = `"|in(?:ch(?:es)?)?${WORD_END}`;
-const SIZE_RE = new RegExp(`(${DIM})\\s*(?:${IN_WORD}|')?\\s*[x×]\\s*(${DIM})\\s*(?:${IN_WORD}|')?`, "i");
+const SIZE_RE = new RegExp(`(${DIMS})\\s*(?:${IN_WORD}|')?\\s*[x×]\\s*(${DIM})\\s*(?:${IN_WORD}|')?`, "i");
 // A dimension in FEET — how the sheets spell roll goods and sheet vinyl
 // ("3'x167'", "5\" x 33'", "12' Prestige Sheet Vinyl") and how the ERP and the
 // Schluter EFT write a feet-and-inches width: inches after the foot mark,
@@ -190,12 +197,12 @@ const rollSide = (t) => str(t)
 // (the tile row shows it and derives a square L×W for grout/mortar) instead of
 // being shoved into the color name. A bare '6"' with no shape word is left in
 // the name on purpose — no shape word, no coverage.
-const SHAPE_SIZE_RE = new RegExp(`(${DIM})\\s*(?:${INCH_MARK})?\\s*(${SHAPE_WORDS})\\b`, "i");
+const SHAPE_SIZE_RE = new RegExp(`(${DIMS})\\s*(?:${INCH_MARK})?\\s*(${SHAPE_WORDS})\\b`, "i");
 // The MLS/ANA EFT sheets write the shape FIRST — 'HEXAGON 2 INCH', 'HEX 3 IN',
 // 'HEXAGON MOSAIC 2" MATTE'. Matched only when the number carries an inch mark,
 // so a trailing code ("HEXAGON 2022 PROD") can never read as a size. A
 // MOS/MOSAIC between shape and size is kept in the name — it says sheet goods.
-const SIZE_SHAPE_RE = new RegExp(`\\b(${SHAPE_WORDS})\\b\\s+((?:mos(?:aics?)?\\s+)?)(${DIM})\\s*(?:${INCH_MARK})`, "i");
+const SIZE_SHAPE_RE = new RegExp(`\\b(${SHAPE_WORDS})\\b\\s+((?:mos(?:aics?)?\\s+)?)(${DIMS})\\s*(?:${INCH_MARK})`, "i");
 // "(12X10/SH)"-style packaging tokens (sheet dims + a per-unit) are never the
 // item's size — dropped before matching so the chip size wins and the name
 // keeps no "( /Sh)" litter. A bare count before the slash ("(10/BOX)",
@@ -208,7 +215,7 @@ const PACKAGING_RE = /\(\s*([^)]*?)\s*\/\s*(sh|sht|ct|ctn|pc|pcs|ea|cs|bx|box|pk
 // L×W, which grout/mortar would then read as one giant tile. Returned as its
 // own `sheetSize` and only used when the description carries no chip size; the
 // chip size is entered by hand on the row (ADR 0014).
-const SHEET_TOKEN_RE = new RegExp(`\\(?\\s*(${DIM})\\s*["']?\\s*[x×]\\s*(${DIM})\\s*["']?\\s*(?:sheets?|shts?)\\b\\s*\\)?`, "i");
+const SHEET_TOKEN_RE = new RegExp(`\\(?\\s*(${DIMS})\\s*["']?\\s*[x×]\\s*(${DIMS})\\s*["']?\\s*(?:sheets?|shts?)\\b\\s*\\)?`, "i");
 const THICK_MM_RE = /(\d+(?:\.\d+)?)\s*mm\b/i;
 const THICK_FRAC_RE = /(\d+)\s*\/\s*(\d+)\s*"/; // fraction thickness must carry the inch mark
 // A penny round is one shape however the sheet spells it ("PENNY ROUND",

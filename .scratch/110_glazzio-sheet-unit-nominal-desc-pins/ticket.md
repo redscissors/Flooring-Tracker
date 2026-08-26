@@ -58,15 +58,37 @@ pasted description. The CT was our default, never Glazzio's data.
    never the one-decimal rounding that printed "1.1" — a 4% error the desk
    would multiply.
 
+## The trailing "2" WAS importer litter — fixed
+
+Marcus asked (8/26 follow-up) whether the "2" in "…Village Square 2" was
+litter. Confirmed against retail listings of the real product: CLNL289 is
+"Colonial Village Square **2 1/2 x 1** Long Hex" (chip 2½"×1", sheet
+12.375"×12.375" = 1.06 sf). The Glazzio page spells the chip as a
+SPACE-spelled mixed fraction ("2 1/2X1"); `splitSizeFromDescription`'s DIM
+only knew the hyphen spelling ("2-1/2"), so SIZE_RE matched "1/2X1" from the
+middle — stranding the "2" in the name AND storing a wrong chip size
+(0.5x1 instead of 2.5x1; invisible on the row today only because the sheet
+size outranks it at pick time).
+
+Fix: a `DIMS` variant joins the space-spelled fraction where a following
+fraction can't be anything else — the FIRST dim of an L×W, shape sizes,
+sheet tokens (`pricebook.js`), and `deriveSquareDim`'s chip read
+(`stock.js`). The second dim of an L×W keeps hyphen-only DIM: there a
+trailing " 3/8\"" is the plank's THICKNESS ('OAK PLANK 5X48 3/8"' — the
+golden that caught the naive widening). "LONG HEX VILLAGE SQUARE 2 1/2X1"
+now imports as name "Long Hex Village Square", size "2.5x1".
+
 ## Left as data / follow-ups for the team
 
-- The name's trailing "2" ("…Village Square 2") and any other wording is the
-  book item's own description — edit it on the Glazzio book page, or wait for
-  issue 086 (approved per-item short descriptions), which Marcus's "Collection
-  is redundant" reasoning further motivates. If the "2" turns out to be
-  importer litter, drop the raw PDF row into a session and the importer can be
-  fixed for the whole collection.
+- **Re-drop the Glazzio PDF** once this deploys: the wizard's changed-row
+  diff will retitle every space-fraction row (the "2" litter goes) and
+  correct their hidden chip sizes. Stored rows aren't rewritten on load —
+  a trailing digit can be a genuine name, so only the re-import can fix it.
 - Re-pick CLNL289 on the two flagged job lines once deployed (item 2 above).
+- Other wording ("Ovo Glossy", "Ice Wh") remains the vendor's own text —
+  edit on the book page, or wait for issue 086 (approved per-item short
+  descriptions), which Marcus's "Collection is redundant" reasoning further
+  motivates.
 - The AO Profiles (8/21) and Kessel Ovo (8/20) bucket entries were already
   verdicted in issue 104 (#4/#5: vendor's own text, no code change) — they can
   be checked off in Issues → Claude alongside the two 8/26 ones.

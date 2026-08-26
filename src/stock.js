@@ -294,9 +294,10 @@ export function deriveSquareDim(item) {
   // stick — the book prints SF/PC for sheets and N/A for sticks — so only a
   // coverage-less piece unit stays behind the firewall (ticket 010 amendment).
   if (!(item.sfPerUnit > 0) && (LINEAR_UNIT_RE.test(orderUnitOf(item)) || LINEAR_UNIT_RE.test(priceUnitOf(item)))) return null;
-  // The chip dimension can be a mixed fraction ('1-1/2" Hex') or a bare one
+  // The chip dimension can be a mixed fraction — hyphenated ('1-1/2" Hex') or
+  // space-spelled ('2 1/2" Hex', the Glazzio pages) — or a bare one
   // ('3/4" Penny') — bare tries first so the match can't stop at the "3" of "3/4".
-  const m = size.match(/(\d+)\/(\d+)|(\d+(?:\.\d+)?)(?:-(\d+)\/(\d+))?/);
+  const m = size.match(/(\d+)\/(\d+)|(\d+(?:\.\d+)?)(?:[-\s](\d+)\/(\d+))?/);
   if (!m) return null;
   const n = m[1] ? +m[1] / +m[2] : parseFloat(m[3]) + (m[4] ? +m[4] / +m[5] : 0);
   // A shape size is per-chip by construction (sheet sizes print as L×W), so a
