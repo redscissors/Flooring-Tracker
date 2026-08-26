@@ -1,5 +1,5 @@
 import { Fragment, lazy, Suspense, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
-import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, MoreHorizontal, AlertTriangle, Zap, Folder, LayoutGrid, ShowerHead, TreePine } from "lucide-react";
+import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, MoreHorizontal, AlignJustify, AlertTriangle, Zap, Folder, LayoutGrid, ShowerHead, TreePine } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { listSelect, lightRow, loadProjects, loadPeople, loadBuilders, loadTodos, loadClaudeIssues, loadBooks, loadSettingsRow, resolveSharedSettings } from "./bootload.js";
 import { bootTrace, traceRows } from "./boottrace.js";
@@ -288,6 +288,9 @@ export default function App({ user, onSignOut }) {
   // follows the pointer imperatively (no re-render per move); state only changes
   // when the drop target changes, to redraw the insertion bar / area highlight.
   const [drag, setDrag] = useState(null);
+  // Whole-area drag (owner ask 2026-08-26): the ≡ grip beside the area total.
+  // Same shape/discipline as `drag` — { aid, to: { index, y } | null }.
+  const [areaDrag, setAreaDrag] = useState(null);
   const [insOpen, setInsOpen] = useState({});
   // Which product's materials drawer is open — view state only, never
   // persisted, and only one at a time: it opens as a modal that floats over the
@@ -978,6 +981,87 @@ export default function App({ user, onSignOut }) {
     setDrag({ pid: p.id, fromAid: aid, to: null });
   };
 
+  // Whole-area drag off the header's ≡ grip (owner ask 2026-08-26) — the
+  // product-card hold-to-arm and pointer tracking, vertical only, over the one
+  // areas list. Data is written once, on drop.
+  const startAreaDrag = (e, aid, ai, holdMs = 220) => {
+    if (e.button != null && e.button !== 0) return;
+    const node = e.currentTarget.closest("[data-area-drop]");
+    const main = mainRef.current;
+    if (!node || !main) return;
+    e.preventDefault();
+    const start = { x: e.clientX, y: e.clientY };
+    const last = { ...start };
+    const abort = () => { clearTimeout(timer); window.removeEventListener("pointermove", onHoldMove); window.removeEventListener("pointerup", abort); window.removeEventListener("pointercancel", abort); };
+    const onHoldMove = (ev) => { last.x = ev.clientX; last.y = ev.clientY; if (Math.hypot(last.x - start.x, last.y - start.y) > 6) abort(); };
+    const timer = setTimeout(() => { abort(); beginAreaDrag(node, main, last.y, aid, ai); }, holdMs);
+    window.addEventListener("pointermove", onHoldMove);
+    window.addEventListener("pointerup", abort);
+    window.addEventListener("pointercancel", abort);
+  };
+  const beginAreaDrag = (node, main, startY, aid, ai) => {
+    const d = { startY, lastY: startY, startScroll: main.scrollTop, to: null, raf: 0 };
+    const list = node.parentElement;
+    node.dataset.dragging = "1";
+    Object.assign(node.style, { position: "relative", zIndex: 50, pointerEvents: "none", transition: "scale .18s ease, box-shadow .18s ease", scale: "1.01", boxShadow: "0 0 0 1px rgba(40,30,20,.10), 0 6px 14px rgba(40,30,20,.16), 0 18px 44px rgba(40,30,20,.28)", borderRadius: "8px", willChange: "translate" });
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "grabbing";
+    const applyPos = () => { node.style.translate = `0px ${d.lastY - d.startY + (main.scrollTop - d.startScroll)}px`; };
+    const setTo = (to) => {
+      if (!to && !d.to) return;
+      if (to && d.to && to.index === d.to.index) return;
+      d.to = to;
+      setAreaDrag((prev) => (prev ? { ...prev, to } : prev));
+    };
+    const hitTest = () => {
+      const others = [...list.querySelectorAll("[data-area-drop]")].filter((x) => x !== node);
+      let index = 0;
+      for (const el of others) { const r = el.getBoundingClientRect(); if (d.lastY > r.top + r.height / 2) index++; }
+      // In without-self coordinates, landing back at the source index is a
+      // no-op (just above and just below self collapse to the same slot).
+      if (index === ai) return setTo(null);
+      const lr = list.getBoundingClientRect();
+      const y = others.length === 0 ? 0 : index < others.length ? others[index].getBoundingClientRect().top - lr.top - 5 : others[others.length - 1].getBoundingClientRect().bottom - lr.top + 1;
+      setTo({ index, y });
+    };
+    const onMove = (ev) => { d.lastY = ev.clientY; applyPos(); hitTest(); };
+    const loop = () => {
+      const r = main.getBoundingClientRect(); const zone = 70; let dy = 0;
+      if (d.lastY < r.top + zone) dy = -Math.min(18, (r.top + zone - d.lastY) / 3);
+      else if (d.lastY > r.bottom - zone) dy = Math.min(18, (d.lastY - (r.bottom - zone)) / 3);
+      if (dy) { main.scrollTop += dy; applyPos(); hitTest(); }
+      d.raf = requestAnimationFrame(loop);
+    };
+    d.raf = requestAnimationFrame(loop);
+    const stopTouchScroll = (ev) => ev.preventDefault();
+    window.addEventListener("touchmove", stopTouchScroll, { passive: false });
+    const finish = (commit) => {
+      cancelAnimationFrame(d.raf);
+      window.removeEventListener("touchmove", stopTouchScroll);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onCancel);
+      popEsc();
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+      delete node.dataset.dragging;
+      Object.assign(node.style, { position: "", zIndex: "", pointerEvents: "", transition: "", scale: "", boxShadow: "", borderRadius: "", willChange: "", translate: "" });
+      if (commit && d.to) {
+        const a = sel.categories.find((c) => c.id === aid);
+        const rest = sel.categories.filter((c) => c.id !== aid);
+        if (a) updateProject(sel.id, { categories: [...rest.slice(0, d.to.index), a, ...rest.slice(d.to.index)] });
+      }
+      setAreaDrag(null);
+    };
+    const onUp = () => finish(true);
+    const onCancel = () => finish(false);
+    const popEsc = escPush(() => finish(false));
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onCancel);
+    setAreaDrag({ aid, to: null });
+  };
+
   const addAttachment = async (e) => { const f = e.target.files?.[0]; if (!f) return; const id = uid(); try { const { error } = await supabase.storage.from(ATT_BUCKET).upload(attPath(sel.id, id), f, { contentType: f.type, upsert: true }); if (error) throw error; updateProject(sel.id, { attachments: [...(sel.attachments || []), { id, name: f.name, type: f.type, size: f.size }] }); ping("Attachment added"); } catch (x) { ping("Upload failed — file may be too large"); } e.target.value = ""; };
   const openAttachment = async (m) => { try { const { data: blob, error } = await supabase.storage.from(ATT_BUCKET).download(attPath(sel.id, m.id)); if (error) throw error; const u = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = u; a.download = m.name; a.click(); URL.revokeObjectURL(u); } catch (x) { ping("Could not load attachment"); } };
   const delAttachment = async (m) => { try { await supabase.storage.from(ATT_BUCKET).remove([attPath(sel.id, m.id)]); } catch (x) { } updateProject(sel.id, { attachments: (sel.attachments || []).filter((x) => x.id !== m.id) }); };
@@ -1572,8 +1656,9 @@ export default function App({ user, onSignOut }) {
 
               {/* Areas butt up against each other (no gap) — each area still
                   rounds its own corners, so touching areas keep the soft "pill"
-                  notch at their seam that the flush product boxes don't. */}
-              <div>
+                  notch at their seam that the flush product boxes don't.
+                  `relative` anchors the area-drag insertion bar. */}
+              <div className="relative">
                 {sel.categories.map((a, ai) => {
                   const areaSf = a.products.reduce((t, p) => t + (p.qtyType === "sqft" ? num(p.qty) : 0), 0);
                   const areaTotal = printAreaFloor(tv.proj.categories[ai] || a, tSet);
@@ -1598,6 +1683,7 @@ export default function App({ user, onSignOut }) {
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
                         <span className="ft-mono" style={{ fontSize: 10.5 }}>{(isWide ? [areaSf > 0 ? `${sf1(areaSf)} SF` : "", areaTotal > 0 ? money(areaTotal) : ""] : [areaTotal > 0 ? money(areaTotal) : ""]).filter(Boolean).join(" · ")}</span>
+                        <button tabIndex={-1} onPointerDown={(e) => startAreaDrag(e, a.id, ai)} title="Drag to reorder areas" className="ft-noprint p-0.5 rounded touch-none cursor-grab text-slate-400 hover:text-slate-600"><AlignJustify size={14} /></button>
                         <button tabIndex={-1} onClick={() => setConfirmArea(a.id)} title="Delete this area" className="ft-noprint text-slate-400 hover:text-red-500"><Trash2 size={14} /></button>
                       </div>
                     </div>
@@ -2285,6 +2371,7 @@ export default function App({ user, onSignOut }) {
                   </div>
                   );
                 })}
+                {areaDrag?.to && <div className="absolute left-0 right-0 h-1.5 rounded-full bg-indigo-600 pointer-events-none z-10" style={{ top: areaDrag.to.y }} />}
               </div>
 
               {/* Mobile gets its + Area in the bottom add bar instead. */}

@@ -5,9 +5,11 @@ import { OPTION_SLOTS, OPTION_COLOR, optionsUsed, hasOptions, bucketCats, scoped
 
 const area = (option, id = "x") => ({ id, name: "n" + id, option, products: [{ id: "p" + id, sku: "S" + id }] });
 
-test("slots and colors are fixed", () => {
-  assert.deepEqual(OPTION_SLOTS, ["A", "B", "C", "D", "E", "F"]);
+test("slots are fixed A–L; every slot wears the one shared tint", () => {
+  assert.deepEqual(OPTION_SLOTS, ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"]);
   for (const s of OPTION_SLOTS) { assert.ok(OPTION_COLOR[s].main); assert.ok(OPTION_COLOR[s].soft); }
+  // Per-slot colors are retired (2026-08-26): one tint for all options.
+  for (const s of OPTION_SLOTS) assert.deepEqual(OPTION_COLOR[s], OPTION_COLOR.A);
 });
 
 test("optionsUsed lists slots present, in slot order", () => {
