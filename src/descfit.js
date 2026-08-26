@@ -28,6 +28,12 @@
 // room first and render after the "+" marker, so the cut body still announces
 // itself while the tail survives whatever the limit is. Pins past the limit
 // overrun and report `over` rather than losing the tail.
+//
+// A soft part (soft: true — the book brand, "Collection"; owner 2026-08-26) is
+// series typography rather than identity: a line whose ONLY losses are soft
+// parts is not a partial spec, so it renders WITHOUT the marker — the marker's
+// own room goes back into the body, and the ext copy still carries the full
+// text. The "+" appears only when identifying text was actually cut.
 
 export const DEFAULT_DESC_LIMIT = 30;
 const MARK = "+";
@@ -65,27 +71,46 @@ const clip = (s, n) => {
   return (sp > 0 ? s.slice(0, sp) : s.split(" ")[0]).trim();
 };
 
-// parts → { tier, main, ext, full, over }.
+// parts → { tier, main, ext, full, over, cut }.
 //   main  what goes in the description field
 //   ext   the extended-text field, or null when the description says everything
 //   full  the complete written-out description, always
 //   over  how many characters main is still over the limit — only non-zero when
 //         a single word is wider than the whole field
+//   cut   identifying text is missing from main (the marked split) — false when
+//         the line fits or its only losses are soft parts
 export function fitDescription(parts, limit) {
   const clean = (parts || []).filter((p) => p && (p.full || p.short));
   const full = join(clean, "full");
   const lim = Number(limit);
-  if (!(lim > 0) || full.length <= lim) return { tier: "full", main: full, ext: null, full, over: 0 };
+  if (!(lim > 0) || full.length <= lim) return { tier: "full", main: full, ext: null, full, over: 0, cut: false };
 
   const short = join(clean, "short");
-  if (short && short.length <= lim) return { tier: "short", main: promote(clean, lim), ext: null, full, over: 0 };
+  if (short && short.length <= lim) return { tier: "short", main: promote(clean, lim), ext: null, full, over: 0, cut: false };
 
   // Split rung. Pinned parts reserve their room first (plus " +" for the
   // marker); only the unpinned body drops and clips against what's left.
   const pins = clean.filter((p) => p.pin);
   const rest = clean.filter((p) => !p.pin);
   const pinText = join(pins, "full");
-  const budget = Math.max(0, lim - MARK.length - 1 - (pinText ? pinText.length + 1 : 0));
+  const pinRoom = pinText ? pinText.length + 1 : 0;
+  // Losing only soft parts leaves the identity whole — try that first, with the
+  // marker's own room back in the body's budget, and render unmarked when it
+  // lands. Softs drop least-important first, same order as the marked loop.
+  const softOrder = rest
+    .map((p, i) => ({ p, i }))
+    .filter(({ p }) => p.soft)
+    .sort((a, b) => rankOf(b.p) - rankOf(a.p) || b.i - a.i);
+  let whole = rest;
+  for (const { p } of softOrder) {
+    if (join(whole, "short").length <= lim - pinRoom) break;
+    whole = whole.filter((x) => x !== p);
+  }
+  if (join(whole, "short").length <= lim - pinRoom) {
+    const main = [promote(whole, lim - pinRoom), pinText].filter(Boolean).join(" ") || full;
+    return { tier: "split", main, ext: full, full, over: 0, cut: false };
+  }
+  const budget = Math.max(0, lim - MARK.length - 1 - pinRoom);
   // Drop ONE category at a time rather than a whole rank, so the field keeps as
   // much as it can hold — dropping by rank strands headroom (a 30-char field
   // ending up with 20 chars in it). Least important goes first: highest rank,
@@ -107,7 +132,7 @@ export function fitDescription(parts, limit) {
   // The split rung always marks its body — except a pin-only line (no body at
   // all), where a bare "+" would claim text the ext doesn't hold.
   const main = [body ? `${body} ${MARK}` : "", pinText].filter(Boolean).join(" ") || full;
-  return { tier: "split", main, ext: full, full, over: Math.max(0, main.length - lim) };
+  return { tier: "split", main, ext: full, full, over: Math.max(0, main.length - lim), cut: true };
 }
 
 // An unstructured description — a price-book special's vendor text, which isn't

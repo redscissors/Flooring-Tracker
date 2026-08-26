@@ -202,7 +202,9 @@ function CopySection({ title, rows, emptyText, hint }) {
 }
 
 export function OrderEntryPanel({ name, special = [], stock = [], descLimit = 0, onClose }) {
-  const splits = special.filter((r) => r.desc && r.desc.ext).length;
+  // Only MARKED splits count — a line whose sole losses are soft parts (brand,
+  // "Collection") pastes a whole spec and needs no amber warning.
+  const splits = special.filter((r) => r.desc && r.desc.cut).length;
   const assumed = special.filter((r) => r.qtyAssumed).length;
   return (
     <div className="print:hidden fixed inset-0 z-50 flex justify-end" style={{ background: "rgba(20,15,10,.4)" }} onClick={onClose}>

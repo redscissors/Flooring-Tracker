@@ -147,6 +147,52 @@ test("pins still take the ordinary rungs when the line fits", () => {
   assert.equal(r.main, "WO Char SKU-1234 15.5 SF/CT");
 });
 
+// --- soft parts (the brand, "Collection" — owner 2026-08-26) -------------------
+
+test("a line whose only losses are soft parts renders without the marker", () => {
+  const parts = [
+    { full: '12x12"', rank: 0 },
+    { full: "Glazzio", rank: 3, soft: true },
+    { full: "Colonial Hex", rank: 0 },
+    { full: "SKU-1", pin: true },
+  ];
+  // Full is 33 — over a 28 field; dropping the soft brand leaves the identity
+  // whole, so no "+", and the ext copy still holds the full line.
+  const r = fitDescription(parts, 28);
+  assert.equal(r.tier, "split");
+  assert.equal(r.main, '12x12" Colonial Hex SKU-1');
+  assert.ok(!r.main.includes("+"), "nothing identifying was lost — no announcement");
+  assert.equal(r.ext, '12x12" Glazzio Colonial Hex SKU-1');
+  assert.equal(r.over, 0);
+  assert.equal(r.cut, false, "soft-only losses don't count as a cut");
+});
+
+test("the marker stays when identity text is cut, even after softs drop", () => {
+  const parts = [
+    { full: '12x12"', rank: 0 },
+    { full: "Collection", rank: 4, soft: true },
+    { full: "Long Hex Village Square", rank: 0 },
+    { full: "SKU-1", pin: true },
+  ];
+  const r = fitDescription(parts, 20);
+  assert.equal(r.tier, "split");
+  assert.ok(r.main.includes(" + "), "identity was clipped — the cut announces itself");
+  assert.ok(r.main.endsWith("SKU-1"), "the pin still rides after the marker");
+  assert.equal(r.cut, true, "an identity cut is reported for the panel's warning");
+});
+
+test("softs drop least-important first, and only as many as the field requires", () => {
+  const parts = [
+    { full: "Body", rank: 0 },
+    { full: "Brand", rank: 3, soft: true },
+    { full: "Collection", rank: 4, soft: true },
+  ];
+  // Dropping Collection alone (rank 4 before rank 3) already fits — the brand stays.
+  const r = fitDescription(parts, 10);
+  assert.equal(r.main, "Body Brand");
+  assert.ok(!r.main.includes("+"));
+});
+
 // --- the vocabulary mirrors the real descriptions ------------------------------
 // descParts() restates what calcFloor/calcStocked put in the snapshotted
 // description. If either side changes without the other, the abbreviation would

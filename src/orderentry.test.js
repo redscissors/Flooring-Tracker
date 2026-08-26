@@ -224,16 +224,20 @@ test('orderDescription: "Collection" is the first word to go when the field runs
   // Room to spare — the word stays; it's nice, not needed.
   const full = orderDescription(colonial, 0);
   assert.ok(full.main.includes("Colonial Collection Long Hex"));
-  // Tight — Collection drops before the brand does.
+  // Tight — Collection drops before the brand does, and losing ONLY it is not
+  // a cut spec, so no "+" (owner 2026-08-26; the earlier marked form retired).
   const d = orderDescription(colonial, 68);
   assert.ok(!/\bCollection\b/.test(d.main), "Collection identifies nothing at the desk");
   assert.ok(d.main.includes("Glazzio"), "the brand outlives the series typography");
-  assert.equal(d.main, '12x12" Glazzio Colonial Long Hex Village Square + CLNL289 1.06 SF/SH');
+  assert.equal(d.main, '12x12" Glazzio Colonial Long Hex Village Square CLNL289 1.06 SF/SH');
+  assert.ok(!d.main.includes("+"), "soft-only losses paste clean");
   assert.ok(d.ext.includes("Collection"), "the extended text keeps the whole line");
   // Tighter still — the brand goes next, the tail never does.
   const tighter = orderDescription(colonial, 56);
   assert.ok(!tighter.main.includes("Glazzio"));
   assert.ok(tighter.main.endsWith("CLNL289 1.06 SF/SH"));
+  // At 56 the name itself is cut — a real loss, so the marker is back.
+  assert.ok(tighter.main.includes(" + "), "identity cut still announces itself");
 });
 
 test("sheetNominal: a landed sheet size reads nominal, anything else passes through", () => {
