@@ -77,9 +77,12 @@ Implementation notes for when this gets built:
   (tunable `PRICE_BOX_PAUSE`) before tabbing on into the price box — the
   owner's half-second plus margin, since typing into a not-yet-open dialog
   silently drops the keystrokes.
-- Open question for the owner: what exact text the Discounts field takes
-  (Builder / Sale / blank on retail?) — the panel knows the project's tier,
-  so it could fill this automatically once the vocabulary is confirmed.
+- The Discounts field takes the **% off** as a number (owner 2026-08-26) —
+  not a tier word. FloorTrack can derive it from the project's price tier:
+  the line's percent off retail ((retail − tierSell) / retail × 100), blank
+  (an empty slot, just a Tab) on the Retail tier. Confirm at build time
+  whether the desk keys it bare ("18") or with a sign ("18%"), and whole
+  numbers vs decimals.
 - The "Code" box is a stored-shape change (book `data`, maybe settings for
   Sheoga/wedi/Schluter) — load the `floortrack-data-model` skill before
   building it.
