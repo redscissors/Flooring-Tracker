@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Order Entry Paste Test</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap">
+<style>
+  :root{
+    --paper:#FAF9F5; --card:#FFFFFF; --ink:#20261F; --muted:#6E766B;
+    --line:#E3E5DD; --moss:#5A7358; --moss-deep:#3E523C; --moss-soft:#E9EFE6;
+    --chip:#F1F2EC; --good:#3E6B41; --good-soft:#E4EFE3;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#171A16; --card:#1F231E; --ink:#E8EAE3; --muted:#9AA295;
+      --line:#2E332C; --moss:#8FAE8C; --moss-deep:#A9C4A6; --moss-soft:#263024;
+      --chip:#272B25; --good:#9CC79A; --good-soft:#243426;
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#171A16; --card:#1F231E; --ink:#E8EAE3; --muted:#9AA295;
+    --line:#2E332C; --moss:#8FAE8C; --moss-deep:#A9C4A6; --moss-soft:#263024;
+    --chip:#272B25; --good:#9CC79A; --good-soft:#243426;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);
+    font-family:Manrope,system-ui,-apple-system,"Segoe UI",sans-serif;
+    font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+  .wrap{max-width:680px;margin:0 auto;padding:36px 20px 72px;display:flex;flex-direction:column;gap:22px}
+  header h1{margin:0;font-size:24px;font-weight:800;letter-spacing:-.01em;text-wrap:balance}
+  header p{margin:6px 0 0;color:var(--muted);max-width:60ch}
+  .eyebrow{font-size:10.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--moss)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .card>.head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+    padding:12px 16px;border-bottom:1px solid var(--line)}
+  .card>.head h2{margin:0;font-size:14px;font-weight:800}
+  .card>.head .sub{font-size:12px;color:var(--muted)}
+  .rows{display:flex;flex-direction:column}
+  .frow{display:grid;grid-template-columns:26px 132px minmax(0,1fr) 84px;gap:8px;align-items:center;
+    padding:8px 16px;border-top:1px solid var(--line)}
+  .frow:first-child{border-top:0}
+  .frow.off{opacity:.45}
+  .frow input[type=checkbox]{width:15px;height:15px;accent-color:var(--moss);cursor:pointer}
+  .frow input[type=text]{width:100%;border:1px solid transparent;border-radius:6px;background:transparent;
+    color:var(--ink);font:inherit;padding:5px 7px}
+  .frow input.lab{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  .frow input.val{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13.5px}
+  .frow input[type=text]:hover{border-color:var(--line)}
+  .frow input[type=text]:focus{outline:none;border-color:var(--moss);background:var(--paper)}
+  .rowbtns{display:flex;gap:4px;justify-content:flex-end}
+  .rowbtns button{width:24px;height:24px;border:1px solid var(--line);border-radius:6px;background:transparent;
+    color:var(--muted);font-size:12px;line-height:1;cursor:pointer;padding:0}
+  .rowbtns button:hover{border-color:var(--moss);color:var(--moss-deep)}
+  .rowbtns button:focus-visible,.frow input:focus-visible,.opts input:focus-visible{outline:2px solid var(--moss);outline-offset:1px}
+  .addrow{padding:10px 16px;border-top:1px solid var(--line)}
+  .addrow button{border:1px dashed var(--line);border-radius:7px;background:transparent;color:var(--muted);
+    font:inherit;font-size:12.5px;font-weight:700;padding:5px 12px;cursor:pointer}
+  .addrow button:hover{color:var(--moss-deep);border-color:var(--moss)}
+  .preview{padding:14px 16px;display:flex;flex-wrap:wrap;align-items:center;gap:6px;row-gap:8px;overflow-x:auto}
+  .pv{background:var(--chip);border:1px solid var(--line);border-radius:6px;padding:2px 8px;
+    font-size:13px;max-width:100%;overflow-wrap:anywhere}
+  .tab{color:var(--moss);font-weight:800;font-size:12px;letter-spacing:.02em}
+  .opts{display:flex;flex-wrap:wrap;gap:16px;padding:10px 16px;border-top:1px solid var(--line);
+    font-size:13px;color:var(--muted)}
+  .opts label{display:flex;align-items:center;gap:7px;cursor:pointer}
+  .opts input{accent-color:var(--moss);width:14px;height:14px}
+  .copybar{display:flex;align-items:center;gap:12px;padding:14px 16px;border-top:1px solid var(--line)}
+  #copy{border:0;border-radius:8px;background:var(--moss-deep);color:var(--paper);
+    font:inherit;font-weight:800;font-size:14px;padding:10px 22px;cursor:pointer}
+  #copy:hover{filter:brightness(1.1)}
+  #copy:focus-visible{outline:2px solid var(--moss);outline-offset:2px}
+  #copy.done{background:var(--good-soft);color:var(--good)}
+  #copymsg{font-size:12.5px;color:var(--muted)}
+  .outcomes{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media (max-width:560px){.outcomes{grid-template-columns:1fr}}
+  .outcome{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .outcome .tagline{font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--moss-deep);background:var(--moss-soft);border-radius:5px;padding:2px 8px;display:inline-block}
+  .outcome h3{margin:9px 0 5px;font-size:14.5px;font-weight:800}
+  .outcome p{margin:0;font-size:13px;color:var(--muted)}
+  .steps{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 18px}
+  .steps h2{margin:0 0 8px;font-size:14px;font-weight:800}
+  .steps ol{margin:0;padding-left:20px;font-size:13.5px;color:var(--muted);display:flex;flex-direction:column;gap:5px}
+  .steps li b{color:var(--ink)}
+  footer{font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">FloorTrack · one-time check</div>
+    <h1>Order Entry Paste Test</h1>
+    <p>One fake special-order line, with a real Tab character between each field.
+       Copy it, click into the <b>first field</b> of a special-order entry line in the ERP,
+       and paste. What happens decides how the macro gets built.</p>
+  </header>
+
+  <div class="card">
+    <div class="head">
+      <h2>The test line</h2>
+      <span class="sub">edit anything · ▲▼ reorders to match the ERP's field order</span>
+    </div>
+    <div class="rows" id="rows"></div>
+    <div class="addrow">
+      <button id="add" type="button">+ Add a field (leave the value empty to just tab past one)</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="head">
+      <h2>Exactly what gets copied</h2>
+      <span class="sub"><span class="tab">TAB ⇥</span> = one real Tab character</span>
+    </div>
+    <div class="preview" id="preview"></div>
+    <div class="opts">
+      <label><input type="checkbox" id="optEnter"> Finish with Enter (a new line at the end)</label>
+      <label><input type="checkbox" id="optTwo"> Copy the line twice (does a grid start row 2?)</label>
+      <button id="reset" type="button" style="margin-left:auto;border:0;background:none;color:var(--muted);font:inherit;font-size:12.5px;cursor:pointer;text-decoration:underline">Reset to defaults</button>
+    </div>
+    <div class="copybar">
+      <button id="copy" type="button">Copy test line</button>
+      <span id="copymsg">Then paste into the ERP with Ctrl+V.</span>
+    </div>
+  </div>
+
+  <div class="steps">
+    <h2>Run it like this</h2>
+    <ol>
+      <li>Open a <b>throwaway order</b> in the ERP — one you can delete, so nothing real gets keyed.</li>
+      <li>Reorder and rename the fields above until they match the entry screen left-to-right.</li>
+      <li>Hit <b>Copy test line</b>, click into the first field of an empty entry line, paste.</li>
+      <li>If nothing moves, also try pasting with the line <b>selected as a row</b> (some grids only take a paste on the row, not in a cell), and try right-click → Paste.</li>
+    </ol>
+  </div>
+
+  <div class="outcomes">
+    <div class="outcome">
+      <span class="tagline">Result A</span>
+      <h3>It jumped across the fields</h3>
+      <p>The SKU, description and qty each landed in their own field. The ERP takes tab-delimited
+         paste — FloorTrack alone can do this with a copy button on every special-order line.
+         No extra software needed.</p>
+    </div>
+    <div class="outcome">
+      <span class="tagline">Result B</span>
+      <h3>Everything landed in one field</h3>
+      <p>The ERP treats a paste as plain text, so the tabbing has to be real keystrokes.
+         Same copy button in FloorTrack, plus a tiny free helper (AutoHotkey) on the order-desk PC:
+         one hotkey types each field and presses Tab between them.</p>
+    </div>
+  </div>
+
+  <footer>Tell Claude which result you got — and the final field order you ended up with —
+    and that's the spec for the real feature.</footer>
+</div>
+
+<script>
+(function(){
+  var DEFAULTS = [
+    { on:true, label:"SKU",         value:"589571E" },
+    { on:true, label:"Description", value:"CT 12\"x24\" Chestnut Ridge Matte" },
+    { on:true, label:"Qty",         value:"44" },
+    { on:true, label:"Unit",        value:"EA" },
+    { on:true, label:"Cost",        value:"3.18" },
+    { on:true, label:"Sell",        value:"4.77" }
+  ];
+  var KEY = "ft-paste-test-fields";
+  var fields;
+  try { fields = JSON.parse(localStorage.getItem(KEY)) || null; } catch (e) { fields = null; }
+  if (!Array.isArray(fields) || !fields.length) fields = DEFAULTS.map(function(f){ return Object.assign({}, f); });
+
+  var rowsEl = document.getElementById("rows");
+  var prevEl = document.getElementById("preview");
+  var copyBtn = document.getElementById("copy");
+  var copyMsg = document.getElementById("copymsg");
+  var optEnter = document.getElementById("optEnter");
+  var optTwo = document.getElementById("optTwo");
+
+  function save(){ try { localStorage.setItem(KEY, JSON.stringify(fields)); } catch (e) {} }
+
+  function copyText(){
+    var line = fields.filter(function(f){ return f.on; }).map(function(f){ return f.value; }).join("\t");
+    var text = optTwo.checked ? line + "\n" + line : line;
+    if (optEnter.checked) text += "\n";
+    return text;
+  }
+
+  function renderPreview(){
+    prevEl.innerHTML = "";
+    var live = fields.filter(function(f){ return f.on; });
+    live.forEach(function(f, i){
+      if (i > 0){
+        var t = document.createElement("span");
+        t.className = "tab"; t.textContent = "TAB ⇥";
+        prevEl.appendChild(t);
+      }
+      var v = document.createElement("span");
+      v.className = "pv mono";
+      v.textContent = f.value === "" ? "(empty)" : f.value;
+      if (f.value === "") v.style.opacity = ".5";
+      prevEl.appendChild(v);
+    });
+    if (optTwo.checked || optEnter.checked){
+      var e = document.createElement("span");
+      e.className = "tab";
+      e.textContent = optTwo.checked ? "ENTER ↵ + same line again" : "ENTER ↵";
+      prevEl.appendChild(e);
+    }
+    copyBtn.classList.remove("done");
+    copyBtn.textContent = "Copy test line";
+    copyMsg.textContent = "Then paste into the ERP with Ctrl+V.";
+  }
+
+  function renderRows(){
+    rowsEl.innerHTML = "";
+    fields.forEach(function(f, i){
+      var row = document.createElement("div");
+      row.className = "frow" + (f.on ? "" : " off");
+
+      var chk = document.createElement("input");
+      chk.type = "checkbox"; chk.checked = f.on; chk.title = "Include this field";
+      chk.addEventListener("change", function(){ f.on = chk.checked; save(); renderRows(); renderPreview(); });
+
+      var lab = document.createElement("input");
+      lab.type = "text"; lab.className = "lab"; lab.value = f.label; lab.placeholder = "field name";
+      lab.addEventListener("input", function(){ f.label = lab.value; save(); });
+
+      var val = document.createElement("input");
+      val.type = "text"; val.className = "val"; val.value = f.value; val.placeholder = "(empty — tabs past)";
+      val.addEventListener("input", function(){ f.value = val.value; save(); renderPreview(); });
+
+      var btns = document.createElement("div");
+      btns.className = "rowbtns";
+      [["▲","Move up"],["▼","Move down"],["×","Remove"]].forEach(function(pair, b){
+        var btn = document.createElement("button");
+        btn.type = "button"; btn.textContent = pair[0]; btn.title = pair[1];
+        btn.addEventListener("click", function(){
+          if (b === 2) fields.splice(i, 1);
+          else {
+            var j = b === 0 ? i - 1 : i + 1;
+            if (j < 0 || j >= fields.length) return;
+            fields[i] = fields[j]; fields[j] = f;
+          }
+          save(); renderRows(); renderPreview();
+        });
+        btns.appendChild(btn);
+      });
+
+      row.appendChild(chk); row.appendChild(lab); row.appendChild(val); row.appendChild(btns);
+      rowsEl.appendChild(row);
+    });
+  }
+
+  document.getElementById("add").addEventListener("click", function(){
+    fields.push({ on:true, label:"Field " + (fields.length + 1), value:"" });
+    save(); renderRows(); renderPreview();
+    var vals = rowsEl.querySelectorAll("input.lab");
+    if (vals.length) vals[vals.length - 1].select();
+  });
+
+  document.getElementById("reset").addEventListener("click", function(){
+    fields = DEFAULTS.map(function(f){ return Object.assign({}, f); });
+    save(); renderRows(); renderPreview();
+  });
+
+  optEnter.addEventListener("change", renderPreview);
+  optTwo.addEventListener("change", renderPreview);
+
+  copyBtn.addEventListener("click", function(){
+    var text = copyText();
+    var done = function(){
+      copyBtn.classList.add("done");
+      copyBtn.textContent = "✓ Copied";
+      copyMsg.textContent = "On the clipboard — click into the ERP's first field and paste.";
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(done, function(){ fallback(text); done(); });
+    } else { fallback(text); done(); }
+  });
+
+  function fallback(text){
+    var ta = document.createElement("textarea");
+    ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); } catch (e) {}
+    document.body.removeChild(ta);
+  }
+
+  renderRows(); renderPreview();
+})();
+</script>
+</body>
+</html>
