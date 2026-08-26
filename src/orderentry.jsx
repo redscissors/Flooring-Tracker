@@ -9,9 +9,11 @@
 // (floors and their at-cost fee lines). Sheoga sells by description, not SKU,
 // so those rows say so where the SKU would sit and copy the qty inline — the
 // copied text is the whole order, since there's no SKU for the desk to key.
-// A per-line copy button grabs the description field (the unit tag leads it, as
-// on screen) and then stays a green check, so you can track which specials
-// you've already keyed. Freight rides this list too — one line per vendor, keyed
+// Each special line carries two copy buttons that latch to a green check so
+// you can track which specials you've already keyed: the entry-line button
+// (orderEntryLine — SKU ⇥ description ⇥ qty ⇥ cost ⇥ sell, for the desk's
+// AutoHotkey paste macro, issue 112) and the description-field copy (the unit
+// tag leads it, as on screen). Freight rides this list too — one line per vendor, keyed
 // as 1 EA at that vendor's whole charge (freightOrderRow). Stock
 // lines follow with per-line checkboxes plus "Copy all" / "Copy selected",
 // each line as SKU⇥quantity (the order desk's Cut & Order format). The
@@ -29,7 +31,8 @@
 // Docks as a right sidebar on wide screens, becomes a full-screen module below.
 
 import { useState } from "react";
-import { Copy, Check, X } from "lucide-react";
+import { Copy, Check, ClipboardList, X } from "lucide-react";
+import { orderEntryLine } from "./orderentry.js";
 
 const money = (n) => `$${(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 // "Copied / done" affordance — a filled moss chip matching the stock rows'
@@ -75,7 +78,7 @@ export function CopyBtn({ text, label = "Copy", disabled = false, className = ""
   );
 }
 
-const GRID = { display: "grid", gridTemplateColumns: "24px minmax(0,1fr) 42px 76px 76px", alignItems: "center", gap: "8px" };
+const GRID = { display: "grid", gridTemplateColumns: "54px minmax(0,1fr) 42px 76px 76px", alignItems: "center", gap: "8px" };
 
 // One special-order line. The copy button copies the whole item (with tag) and
 // latches to a green check so the salesperson can see what's already entered.
@@ -92,19 +95,29 @@ const writeClipboard = async (text) => {
 
 function SpecialRow({ r, alt, descLimit }) {
   const [copied, setCopied] = useState(false);
+  const [copiedLine, setCopiedLine] = useState(false);
   const [copiedExt, setCopiedExt] = useState(false);
   const copy = async () => { await writeClipboard(r.copy); setCopied(true); };
+  const copyLine = async () => { await writeClipboard(orderEntryLine(r)); setCopiedLine(true); };
   const copyExt = async () => { await writeClipboard(r.desc.ext); setCopiedExt(true); };
   const d = r.desc;
   return (
     <div style={{ ...GRID, padding: "9px 12px", background: alt ? "var(--ft-prod)" : "transparent", ...(r.qtyAssumed ? ASSUMED_ROW : null) }}
       title={r.qtyAssumed ? ASSUMED_TITLE : undefined}
       className="border-t border-slate-100 first:border-t-0">
-      <button onClick={copy} title="Copy the description field" style={copied ? DONE_MOSS : undefined}
-        className={"grid place-items-center w-[26px] h-[26px] rounded-md border transition-colors " +
-          (copied ? "" : "border-transparent text-slate-400 hover:border-slate-200 hover:bg-white")}>
-        {copied ? <Check size={15} /> : <Copy size={14} />}
-      </button>
+      <div className="flex items-center gap-0.5">
+        <button onClick={copyLine} style={copiedLine ? DONE_MOSS : undefined}
+          title={"Copy the whole entry line for the desk paste macro:\nSKU ⇥ description ⇥ qty ⇥ cost ⇥ sell (real tabs between fields)"}
+          className={"grid place-items-center w-[26px] h-[26px] rounded-md border transition-colors " +
+            (copiedLine ? "" : "border-transparent text-slate-400 hover:border-slate-200 hover:bg-white")}>
+          {copiedLine ? <Check size={15} /> : <ClipboardList size={15} />}
+        </button>
+        <button onClick={copy} title="Copy the description field only" style={copied ? DONE_MOSS : undefined}
+          className={"grid place-items-center w-[26px] h-[26px] rounded-md border transition-colors " +
+            (copied ? "" : "border-transparent text-slate-400 hover:border-slate-200 hover:bg-white")}>
+          {copied ? <Check size={15} /> : <Copy size={14} />}
+        </button>
+      </div>
 
       <div className="min-w-0">
         <div className="truncate text-[12.5px] leading-tight">
@@ -234,7 +247,7 @@ export function OrderEntryPanel({ name, special = [], stock = [], descLimit = 0,
                 </div>
                 {special.map((r, i) => <SpecialRow key={r.id} r={r} alt={i % 2 === 1} descLimit={descLimit} />)}
                 <div className="px-3 py-1.5 text-[11px] text-slate-400 border-t border-slate-100">
-                  A copied line stays a green check so you can track your place · Cost &amp; Sell are per the buy/sell unit.
+                  <ClipboardList size={11} className="inline align-[-1px]" /> copies the whole entry line (SKU ⇥ description ⇥ qty ⇥ cost ⇥ sell) for the desk paste macro · <Copy size={11} className="inline align-[-1px]" /> copies the description field alone · A copied line stays a green check so you can track your place · Cost &amp; Sell are per the buy/sell unit.
                   {descLimit > 0 && <> · Descriptions are fitted to {descLimit} characters.</>}
                   {assumed > 0 && (
                     <span className="text-amber-700">

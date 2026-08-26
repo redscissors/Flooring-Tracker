@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isSpecialOrder, orderCopyText, orderDescription, nameBudget, sheetNominal, tightSize } from "./orderentry.js";
+import { isSpecialOrder, orderCopyText, orderDescription, orderEntryLine, nameBudget, sheetNominal, tightSize } from "./orderentry.js";
+import { normalizeSettings } from "./catalog.js";
+import { newProduct } from "./model.js";
+import { orderEntryRow } from "./print.js";
 import { lineItems, multiWidthLineItems, defaultConfig } from "./sheoga.js";
 
 const floor = (over = {}) => ({ ...defaultConfig("floor"), sp: "White Oak", w: 5.25, ...over });
@@ -245,4 +248,26 @@ test("sheetNominal: a landed sheet size reads nominal, anything else passes thro
   assert.equal(sheetNominal("12x24"), "");
   assert.equal(sheetNominal('2" Hex'), "");
   assert.equal(sheetNominal(""), "");
+});
+
+test("orderEntryLine: every ERP field in keying order, joined by real tabs", () => {
+  const r = {
+    sku: "KES6301", qty: 35, perCost: 29.184, perSell: 43.776,
+    desc: { main: 'CT 3"x12" Kessel Ovo Glossy' },
+  };
+  assert.equal(orderEntryLine(r), 'KES6301\tCT 3"x12" Kessel Ovo Glossy\t35\t29.18\t43.78');
+});
+
+test("orderEntryLine: a Sheoga line through the real row path — empty SKU slot, the fitted description", () => {
+  const s = normalizeSettings();
+  const p = { ...newProduct(), ...lineItems({ mode: "floor", cfg: floor() }, { sf: 500 })[0] };
+  const r = orderEntryRow(p, s, "Area 1", 30, new Set());
+  const f = orderEntryLine(r).split("\t");
+  assert.equal(f.length, 5);
+  // no SKU to key — the macro sends nothing, then Tab, landing in the description field
+  assert.equal(f[0], "");
+  assert.equal(f[1], r.desc.main);
+  assert.equal(f[2], String(r.qty));
+  assert.match(f[3], /^\d+\.\d\d$/);
+  assert.match(f[4], /^\d+\.\d\d$/);
 });

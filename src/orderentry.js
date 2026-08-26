@@ -139,6 +139,20 @@ export function orderDescription(r, limit) {
 // (orderDescription) and copies with it.
 export const orderCopyText = (r) => (r.desc ? r.desc.main : "");
 
+// The whole entry line for the desk-side paste macro (issue 112): every field
+// of a special-order line in the ERP's keying order, joined by REAL tab
+// characters — SKU ⇥ description ⇥ qty ⇥ cost ⇥ sell. The ERP's own Paste
+// Special takes only product ⇥ qty validated against the product file, so a
+// special order can't ride it (ruled out 2026-08-26 off the K8 help page);
+// instead the AutoHotkey helper on the order-desk PC replays this line as
+// keystrokes, each tab a real Tab keypress. A line with no SKU (Sheoga / SO
+// wedi — keyed by description) leaves the first slot empty so the macro tabs
+// straight into the description field. Cost/sell are the panel's per-unit
+// numbers, bare with two decimals — ERP money fields take no "$". This array
+// IS the field order; the desk changes it here, nothing else moves.
+export const orderEntryLine = (r) =>
+  [r.sku || "", orderCopyText(r), String(r.qty), (r.perCost || 0).toFixed(2), (r.perSell || 0).toFixed(2)].join("\t");
+
 // How many characters of the product/color text still let the WHOLE flow —
 // size · product · SKU · coverage — land in the ERP field on the clean "full"
 // rung (no "+", no extended text). The grid paints anything past this budget
