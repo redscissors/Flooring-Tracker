@@ -54,6 +54,19 @@ export const orderQty = (qty) => (Number(qty) > 0 ? { qty: Number(qty), qtyAssum
 // its space.
 export const tightSize = (s) => String(s || "").trim().replace(/(\d["”']?)\s*[x×]\s*(?=\d)/gi, "$1x");
 
+// A mosaic's landed sheet size ("12.375x12.375 sheet", stockPatch's ADR 0014
+// shape) reads NOMINAL at order entry — 12x12" — the name the trade orders it
+// by (Marcus 2026-08-26); the exact dims stay on the row and show on hover
+// (orderEntryRow's sizeTrue). Every book's sheet rows, not a vendor special.
+// Only the exact landed shape converts — anything hand-edited passes through.
+const SHEET_SIZE_RE = /^(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?) sheet$/i;
+export function sheetNominal(sizeText) {
+  const m = String(sizeText || "").trim().match(SHEET_SIZE_RE);
+  if (!m) return "";
+  const L = Math.round(Number(m[1])), W = Math.round(Number(m[2]));
+  return L > 0 && W > 0 ? `${L}x${W}"` : "";
+}
+
 // A special line → what belongs in the ERP's description field, via the fit
 // ladder. A Sheoga row abbreviates losslessly because its description is built
 // from known enums (descParts); everything else is arbitrary vendor text with no
@@ -66,10 +79,10 @@ export const tightSize = (s) => String(s || "").trim().replace(/(\d["”']?)\s*[
 // fees) keeps the "Sheoga — " lead the configurator wrote into the row name.
 //
 // A line always flows unit · size · product/color · SKU · coverage. The SKU and
-// coverage trail because neither is part of the description proper — they're
-// handy in the same paste when there's room, and when the field is tight the
-// least identifying goes first: coverage (rank 2), then the SKU (rank 1). Both
-// always survive into the extended text.
+// coverage trail as PINNED parts (Marcus 2026-08-26, reversing the earlier
+// drop-order): they never leave an order-entry description, however tight the
+// field — the body is what abbreviates or splits around them, and the "+"
+// marker sits between the cut body and the surviving tail.
 //
 // The buy/sell unit leads and never drops (rank 0, two characters): the ERP
 // keys every line as "each", so a carton line that doesn't say CT in its own
@@ -85,12 +98,24 @@ export const tightSize = (s) => String(s || "").trim().replace(/(\d["”']?)\s*[
 // product text, exactly where the panel shows it — so the paste still matches
 // the screen. A name that doesn't lead with the brand (the salesperson deleted
 // it, or it never landed) passes through untouched.
+//
+// "Collection" inside a product name is series typography, not identity
+// (Marcus 2026-08-26): every vendor's series can carry it, so it identifies
+// nothing at the order desk. It splits into its own part at rank 4 — the very
+// first thing dropped when the field runs tight, ahead of even the brand —
+// and stays in place while there's room.
+const nameParts = (text) => {
+  const s = String(text || "").trim();
+  if (!s) return [];
+  return s.split(/\b(Collection)\b/i)
+    .map((tok, i) => (i % 2 ? { full: tok, rank: 4 } : textParts(tok)))
+    .flat();
+};
 export function orderDescription(r, limit) {
   const named = String(r.name || "").trim();
   const brand = !r.sheoga ? String(r.brand || "").trim() : "";
   const branded = brand && (named.toLowerCase() + " ").startsWith(brand.toLowerCase() + " ");
   const body = branded ? named.slice(brand.length).trim() : named;
-  const spec = [tightSize(r.sizePlain), body].map((x) => String(x || "").trim()).filter(Boolean).join(" ");
   // Structured parts win over the row's name text: they're the same description
   // (descfit.test.js asserts the join matches across every configuration) but
   // carry the per-category short forms that make the abbreviated rung possible.
@@ -98,11 +123,11 @@ export function orderDescription(r, limit) {
   const parts = [
     ...(r.tag ? [{ full: String(r.tag), rank: 0 }] : []),
     ...((sheogaParts && [{ full: "Sheoga", rank: 0 }, ...sheogaParts])
-      || (branded ? [...textParts(tightSize(r.sizePlain)), { full: brand, rank: 3 }, ...textParts(body)] : textParts(spec))),
+      || [...textParts(tightSize(r.sizePlain)), ...(branded ? [{ full: brand, rank: 3 }] : []), ...nameParts(body)]),
   ];
   const tail = [];
-  if (r.sku) tail.push({ full: String(r.sku), rank: 1 });
-  if (r.coverage) tail.push({ full: String(r.coverage), rank: 2 });
+  if (r.sku) tail.push({ full: String(r.sku), pin: true });
+  if (r.coverage) tail.push({ full: String(r.coverage), pin: true });
   return fitDescription([...parts, ...tail], limit);
 }
 

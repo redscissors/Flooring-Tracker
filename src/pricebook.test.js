@@ -275,6 +275,11 @@ test("splitSizeFromDescription: mixed-fraction dims parse whole, not from the mi
   assert.deepEqual(splitSizeFromDescription("ATTITUDE SIMPLY GREY HEX 8-1/2X10"), { size: "8.5x10", thickness: "", name: "Attitude Simply Grey Hex", sheetSize: "" });
   // Equal whole-number dims with a shape word read as a shape size too.
   assert.equal(splitSizeFromDescription("SUBURB GREY 2X2 HEX MATTE").size, '2" Hex');
+  // A SPACE-spelled mixed fraction parses whole too — the Glazzio long-hex
+  // pages print "2 1/2X1" (CLNL289 report, 2026-08-26); reading from the
+  // middle made the chip 0.5x1 and left a stray "2" in the name.
+  assert.deepEqual(splitSizeFromDescription("LONG HEX VILLAGE SQUARE 2 1/2X1"), { size: "2.5x1", thickness: "", name: "Long Hex Village Square", sheetSize: "" });
+  assert.deepEqual(splitSizeFromDescription('LONG HEX VILLAGE SQUARE 2 1/2" X 1"'), { size: "2.5x1", thickness: "", name: "Long Hex Village Square", sheetSize: "" });
   // An explicit SHEET/SHT token is the backing-sheet dimension, not the tile —
   // it lands in `sheetSize` (never the chip size), and coverage derives from it
   // at import (ADR 0014). "13X13 SHT" must not read as a 13" hex OR a 13x13 tile.

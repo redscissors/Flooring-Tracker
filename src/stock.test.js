@@ -163,6 +163,8 @@ test("deriveSquareDim reads a mixed-fraction chip dimension (ticket 010)", () =>
   const tile = (over) => normStockItem({ sku: "x", data: { type: "tile", ...over } });
   assert.equal(deriveSquareDim(tile({ size: '1-1/2" Hex' })), 1.5);
   assert.equal(deriveSquareDim(tile({ size: '3/4" Penny' })), 0.75);
+  // The Glazzio space spelling parses whole, not stopping at the "2".
+  assert.equal(deriveSquareDim(tile({ size: '2 1/2" Hex' })), 2.5);
 });
 
 test("a fraction hex chip fills sizeText and the derived square L/W (ticket 010)", () => {
@@ -197,6 +199,20 @@ test("a mosaic sheet whose No-Broken unit is spelled PC still orders whole sheet
   assert.equal(patch.cartonUnit, "PC");         // reflects this row's own No-Broken unit
   assert.equal(patch.sizeText, "9x11 sheet");
   assert.equal(patch.priceSqft, "47.33");       // 32.54 × 10 ÷ 6.875
+});
+
+test("a sheet mosaic with no stated unit defaults to SH, never CT (the CLNL289 flag)", () => {
+  // The Glazzio PDF states a sheet size and per-sheet coverage but no U/M
+  // column, so the old CT default keyed cartons at the desk for sheet goods
+  // (Marcus 2026-08-26). A vendor-stated unit still passes through untouched.
+  const it = { sku: "CLNL289", type: "tile", sheetSize: "12.375x12.375", sfPerUnit: 1.06, priceSqft: 28.72, description: "Colonial Collection Long Hex Village Square" };
+  const patch = stockPatch(it, {});
+  assert.equal(patch.cartonUnit, "SH");
+  assert.equal(patch.cartonSf, "1.06");
+  assert.equal(patch.sizeText, "12.375x12.375 sheet");
+  // No sheet size → the CT default stands (an ordinary carton-sold tile).
+  const tile = { sku: "KES6301", type: "tile", sfPerUnit: 12.16, priceSqft: 3.6, size: "3x12" };
+  assert.equal(stockPatch(tile, {}).cartonUnit, "CT");
 });
 
 test("a loose piece-sold tile with no sheet (a per-piece bullnose w/ coverage) still orders exact area", () => {

@@ -119,6 +119,23 @@ test("orderEntryRow: a carton line still leads with CT — the one keyed-in-bund
   assert.equal(orderEntryRow(sh, s, "Kitchen", 0, new Set()).tag, "");
 });
 
+// The 8/26 Glazzio sheet-mosaic flags: a sheet line keys in sheets, reads its
+// nominal size (exact dims on hover via sizeTrue), and its coverage is exact —
+// never rounded to one decimal.
+test("orderEntryRow: a sheet mosaic — nominal size, true size on hover, exact SF/SH", () => {
+  const p = { ...newProduct(), type: "tile", bookId: "bkGlz", sku: "CLNL289", brandColor: "Glazzio Colonial Collection Long Hex Village Square", sizeText: "12.375x12.375 sheet", qty: "35", priceSqft: "28.72", costSqft: "19.15", cartonSf: "1.06", cartonUnit: "SH" };
+  const r = orderEntryRow(p, s, "Area 1", 0, new Set(), new Map([["bkGlz", "Glazzio"]]));
+  assert.equal(r.tag, "", "SH wears no leading tag — only CT does");
+  assert.equal(r.unitCode, "SH");
+  assert.ok(r.qtyText.endsWith(" SH"), "the order column keys sheets, not cartons");
+  assert.equal(r.sizePlain, '12x12"');
+  assert.equal(r.sizeTrue, "12.375x12.375 sheet");
+  assert.equal(r.coverage, "1.06 SF/SH", "exact coverage — 1.1 would be a 4% lie");
+  // A non-sheet size stays as stored and carries no hover twin.
+  const plain = orderEntryRow({ ...p, sizeText: "", L: "3", W: "12" }, s, "Area 1", 0, new Set());
+  assert.equal(plain.sizeTrue, "");
+});
+
 // A plain each line is what the panel has always shown — no tag, no change.
 test("orderEntryRow: an each line still carries no unit tag", () => {
   const p = { ...newProduct(), type: "misc", qtyType: "count", qty: "2", priceSqft: "18", brandColor: "Trowel" };

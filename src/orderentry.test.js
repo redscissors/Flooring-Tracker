@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isSpecialOrder, orderCopyText, orderDescription, nameBudget, tightSize } from "./orderentry.js";
+import { isSpecialOrder, orderCopyText, orderDescription, nameBudget, sheetNominal, tightSize } from "./orderentry.js";
 import { lineItems, multiWidthLineItems, defaultConfig } from "./sheoga.js";
 
 const floor = (over = {}) => ({ ...defaultConfig("floor"), sp: "White Oak", w: 5.25, ...over });
@@ -148,17 +148,23 @@ test("orderDescription: a long Sheoga build splits, and ext holds every category
   }
 });
 
-test("orderDescription: SKU and coverage trail — coverage drops first, then the SKU", () => {
+test("orderDescription: SKU and coverage never drop — the body splits around them", () => {
+  // Marcus 2026-08-26, reversing the earlier drop order: at the desk the SKU
+  // and the coverage are what the order is keyed against, so the product text
+  // is what gives, however tight the field runs.
   assert.ok(orderDescription(book, 60).main.endsWith("ANA-CAR-1224 15.5 SF/CT"));
   const mid = orderDescription(book, 50);
   assert.equal(mid.tier, "split");
-  assert.ok(mid.main.includes("ANA-CAR-1224"), "the SKU survives while there's room");
-  assert.ok(!mid.main.includes("15.5 SF/CT"), "coverage is the least identifying, first to go");
-  const tight = orderDescription(book, 24);
-  assert.equal(tight.tier, "split");
-  assert.ok(!tight.main.includes("ANA-CAR-1224"), "a SKU is an item code, not a description");
-  assert.ok(tight.ext.includes("ANA-CAR-1224"), "but it is never lost");
-  assert.ok(tight.ext.includes("15.5 SF/CT"), "and neither is coverage");
+  assert.ok(mid.main.endsWith("+ ANA-CAR-1224 15.5 SF/CT"), "the tail rides after the marker");
+  assert.ok(mid.main.length <= 50);
+  const tight = orderDescription(book, 30);
+  assert.ok(tight.main.includes("ANA-CAR-1224"), "the SKU survives any limit");
+  assert.ok(tight.main.includes("15.5 SF/CT"), "so does coverage");
+  // A limit smaller than the tail itself overruns honestly rather than losing it.
+  const tiny = orderDescription(book, 24);
+  assert.ok(tiny.main.includes("ANA-CAR-1224 15.5 SF/CT"));
+  assert.ok(tiny.over > 0, "the overrun is reported so the panel can flag it");
+  assert.equal(tiny.ext, tiny.full);
 });
 
 test("nameBudget: what the limit leaves the product text after the tag, size, SKU and coverage", () => {
@@ -205,4 +211,38 @@ test("orderDescription: a name that doesn't lead with the brand passes through u
   const partial = { ...glazzio, name: "Glazzioish Crystal" }; // whole word only
   assert.ok(orderDescription(partial, 0).main.includes("Glazzioish Crystal"));
   assert.equal(orderDescription(partial, 30).ext, orderDescription(partial, 30).full);
+});
+
+// --- the 8/26 Glazzio sheet-mosaic flags (Marcus) ------------------------------
+
+const colonial = {
+  tag: "", sizePlain: '12x12"', name: "Glazzio Colonial Collection Long Hex Village Square",
+  brand: "Glazzio", sku: "CLNL289", coverage: "1.06 SF/SH",
+};
+
+test('orderDescription: "Collection" is the first word to go when the field runs tight', () => {
+  // Room to spare — the word stays; it's nice, not needed.
+  const full = orderDescription(colonial, 0);
+  assert.ok(full.main.includes("Colonial Collection Long Hex"));
+  // Tight — Collection drops before the brand does.
+  const d = orderDescription(colonial, 68);
+  assert.ok(!/\bCollection\b/.test(d.main), "Collection identifies nothing at the desk");
+  assert.ok(d.main.includes("Glazzio"), "the brand outlives the series typography");
+  assert.equal(d.main, '12x12" Glazzio Colonial Long Hex Village Square + CLNL289 1.06 SF/SH');
+  assert.ok(d.ext.includes("Collection"), "the extended text keeps the whole line");
+  // Tighter still — the brand goes next, the tail never does.
+  const tighter = orderDescription(colonial, 56);
+  assert.ok(!tighter.main.includes("Glazzio"));
+  assert.ok(tighter.main.endsWith("CLNL289 1.06 SF/SH"));
+});
+
+test("sheetNominal: a landed sheet size reads nominal, anything else passes through", () => {
+  assert.equal(sheetNominal("12.375x12.375 sheet"), '12x12"');
+  assert.equal(sheetNominal("11.75x11.813 sheet"), '12x12"');
+  assert.equal(sheetNominal("9x11 sheet"), '9x11"');
+  // Not the landed sheet shape → no nominal (tightSize shows it as stored).
+  assert.equal(sheetNominal("Penny sheet"), "");
+  assert.equal(sheetNominal("12x24"), "");
+  assert.equal(sheetNominal('2" Hex'), "");
+  assert.equal(sheetNominal(""), "");
 });

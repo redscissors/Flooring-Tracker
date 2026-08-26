@@ -117,6 +117,36 @@ test("textParts: unstructured text has no short rung — it fits or it splits", 
   assert.equal(fitDescription(textParts(""), 10).main, "");
 });
 
+// --- pinned parts (the order tail — SKU, coverage; Marcus 2026-08-26) ----------
+
+const PINNED = [
+  { full: "White Oak", short: "WO", rank: 0 },
+  { full: "Character", short: "Char", rank: 0 },
+  { full: "SKU-1234", pin: true },
+  { full: "15.5 SF/CT", pin: true },
+];
+
+test("pinned parts never drop — the body clips and the tail rides after the marker", () => {
+  const r = fitDescription(PINNED, 24);
+  assert.equal(r.tier, "split");
+  assert.equal(r.main, "WO + SKU-1234 15.5 SF/CT");
+  assert.ok(r.main.length <= 24);
+  assert.equal(r.ext, "White Oak Character SKU-1234 15.5 SF/CT");
+});
+
+test("pins wider than the field overrun honestly instead of being lost", () => {
+  const r = fitDescription(PINNED, 10);
+  assert.ok(r.main.includes("SKU-1234 15.5 SF/CT"), "the tail survives any limit");
+  assert.ok(r.over > 0, "the overrun is reported so the panel can flag it");
+});
+
+test("pins still take the ordinary rungs when the line fits", () => {
+  assert.equal(fitDescription(PINNED, 60).tier, "full");
+  const r = fitDescription(PINNED, 30);
+  assert.equal(r.tier, "short");
+  assert.equal(r.main, "WO Char SKU-1234 15.5 SF/CT");
+});
+
 // --- the vocabulary mirrors the real descriptions ------------------------------
 // descParts() restates what calcFloor/calcStocked put in the snapshotted
 // description. If either side changes without the other, the abbreviation would

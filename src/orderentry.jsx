@@ -110,7 +110,8 @@ function SpecialRow({ r, alt, descLimit }) {
         <div className="truncate text-[12.5px] leading-tight">
           {r.tag && <span className="ft-eyebrow text-[9px] font-extrabold tracking-[.06em] rounded px-1 py-px mr-1.5 align-[1px]"
             style={{ color: "var(--ft-brand-deep)", background: "var(--ft-brand-soft)" }}>{r.tag}</span>}
-          <span className="ft-mono text-slate-500">{r.sizePlain}</span>
+          {/* A nominal sheet size (12x12") keeps the vendor's exact dims on hover. */}
+          <span className="ft-mono text-slate-500" title={r.sizeTrue || undefined}>{r.sizePlain}</span>
           {r.name && <> <span className="font-bold">{r.name}</span></>}
         </div>
         <div className="truncate text-[11px] leading-tight text-slate-400 ft-mono">
