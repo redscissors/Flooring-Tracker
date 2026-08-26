@@ -63,9 +63,12 @@ src/
   print.js          # print/order math: `printProduct`, `orderLineCost`, `lineTotal`,
                     # `printAreaFloor`, `areaPrintLabel`, `orderEntryRow`,
                     # `ESTIMATE_PRINT_LAYOUT`… (print.test.js)
-  options.js        # quote options (ADR 0031): fixed slots A–F (letters live in
-                    # model.js, re-exported here; extended past A–C 2026-08-19) +
-                    # colors, shared/option scoping (bucketCats/scopedCats),
+  options.js        # quote options (ADR 0031): fixed slots A–L (letters live in
+                    # model.js, re-exported here; A–C → A–F 2026-08-19, → A–L
+                    # 2026-08-26) + the ONE shared option tint (per-slot colors
+                    # retired with the A–L extension — the letter is the
+                    # identity; OPTION_COLOR keeps its per-slot map shape),
+                    # shared/option scoping (bucketCats/scopedCats),
                     # titles, duplicateInto — an option is a TAG on an area,
                     # never a copy of the job. `compareOptionsPatch` (phase 5,
                     # ADR 0034) is the Compare tab's ONE-PATCH

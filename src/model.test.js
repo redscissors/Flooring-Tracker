@@ -109,6 +109,7 @@ test("money formats to two decimals", () => {
 test("normA: option keeps valid slots, drops junk, defaults shared; note is gone", () => {
   assert.equal(normA({ option: "B" }).option, "B");
   assert.equal(normA({ option: "F" }).option, "F");
+  assert.equal(normA({ option: "L" }).option, "L");
   assert.equal(normA({ option: "Z" }).option, "");
   assert.equal(normA({}).option, "");
   const a = normA({ note: "old note", name: "Bath" });

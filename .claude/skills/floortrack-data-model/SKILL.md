@@ -51,7 +51,7 @@ Customer { id, name, address, phone, email, notes, createdAt,
            salesperson: { name, phone, email } | null,
            priceTier: "retail|builder|employee|sale|custom", customPct,
            printPricing: "full|unit|none", freight: bool,
-           optionNames: {A?..F?} }   // optionNames = quote-option labels (ADR 0031; slots A–F since 2026-08-19)
+           optionNames: {A?..L?} }   // optionNames = quote-option labels (ADR 0031; slots A–L since 2026-08-26)
            // freight = the job's freight master switch (ADR 0030), default ON
            // (an absent field is a job quoted before it existed). Off means no
            // freight line anywhere, whatever the rows say.
@@ -63,7 +63,7 @@ Customer { id, name, address, phone, email, notes, createdAt,
            // salesperson = snapshot of the CREATOR's profile (ADR 0008); the
            // estimate prints it (falling back to the signed-in profile when
            // null, i.e. pre-0008 records); editable via the header popover.
-Area     { id, name, option: ""|"A"…"F", products: Product[] }   // option = quote-option slot (ADR 0031, A–F since 2026-08-19); "" = shared base
+Area     { id, name, option: ""|"A"…"L", products: Product[] }   // option = quote-option slot (ADR 0031, A–L since 2026-08-26); "" = shared base
 Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
            sku, L, W, thickness, sizeText, brandColor, priceSqft,
            qtyType:"sqft|count", qty,

@@ -101,10 +101,11 @@ export const normP = (p) => ({ id: p.id || uid(), type: TYPES.includes(p.type) ?
 // Add-on material selections, keyed by category id (ADR 0016). Old records have
 // no `attached` — they normalize to {} and stay valid.
 export const normAttachedJob = (a) => { const out = {}; if (a && typeof a === "object") for (const k of Object.keys(a)) { const v = a[k] || {}; out[k] = { checked: !!v.checked, product: v.product || "", manual: v.manual ?? "" }; } return out; };
-// Quote-option slot letters (ADR 0031; extended past A–C on the 2026-08-19
-// team ask). Defined here, not options.js, because normA/normC gate on them
-// and options.js imports from this file — it re-exports the list.
-export const OPTION_SLOTS = ["A", "B", "C", "D", "E", "F"];
+// Quote-option slot letters (ADR 0031; extended past A–C 2026-08-19, past A–F
+// on the 2026-08-26 owner ask). Defined here, not options.js, because
+// normA/normC gate on them and options.js imports from this file — it
+// re-exports the list.
+export const OPTION_SLOTS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
 const OPT_RE = new RegExp(`^[${OPTION_SLOTS.join("")}]$`);
 export const normA = (a) => ({ id: a.id || uid(), name: a.name || "", option: OPT_RE.test(a.option) ? a.option : "", products: (a.products || [{}]).map(normP) });
 // Projects written before waste moved off Settings have no `waste` — keep it

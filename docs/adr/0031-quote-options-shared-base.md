@@ -50,3 +50,16 @@ outside the moss palette). No migration: old records carry only A–C, which
 remain valid. One rollout caveat: a client running a pre-amendment build
 normalizes an area tagged D–F back to shared on its next save of that job, so
 stale tabs should refresh before teams lean on the new slots.
+
+## Amendment 2026-08-26 — slots extended to A–L; per-slot colors retired
+
+Six ran out too ("lets bump it to 12", owner 2026-08-26). `OPTION_SLOTS` is now
+`A–L` (twelve); slots stay fixed positional identities. Twelve tellable-apart
+hues don't exist, so the per-slot compare colors were retired in the same
+change: every option wears the one slate-blue tint and the LETTER is the
+identity. `OPTION_COLOR` keeps its per-slot map shape (every slot resolves to
+the same `{main, deep, soft}`) so badges, borders, dots, and the option print
+read unchanged. No migration: old records carry only A–F, which remain valid.
+Same rollout caveat as 2026-08-19: a client running a pre-amendment build
+normalizes an area tagged G–L back to shared on its next save of that job, so
+stale tabs should refresh before teams lean on the new slots.
