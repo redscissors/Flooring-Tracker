@@ -340,7 +340,12 @@ export function stockPatch(item, product) {
         ? round4(item.sfPerUnit / item.pcPerUnit)
         : item.sfPerUnit;
       patch.cartonSf = String(perSell);
-      patch.cartonUnit = orderUnit || "CT";
+      // A vendor-stated unit passes through (SH and the PC-spelled-sheet rows
+      // alike, ADR 0014); only the DEFAULT flips on sheet goods: a mosaic with
+      // a sheet size and no stated unit is sold by the sheet, and labeling it
+      // CT keys cartons at the desk for a thing that ships in sheets (the
+      // Glazzio CLNL289 flag, Marcus 2026-08-26).
+      patch.cartonUnit = orderUnit || (item.sheetSize ? "SH" : "CT");
     }
     if (item.type === "tile") {
       if (item.sheetSize) {

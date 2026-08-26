@@ -1,7 +1,7 @@
 import { num, ceilQty, getGrout, getMortar, groutBaseList, getCarton, getPieceCarton, getUnderlay, getUnderlayInstall, getAttached } from "./catalog.js";
 import { JOINTS, THICK, underlayLabel } from "./uiconst.js";
-import { money, miscQty, sf1 } from "./model.js";
-import { isSpecialOrder, orderCopyText, orderDescription, orderQty, tightSize, ORDER_MIN_QTY } from "./orderentry.js";
+import { money, miscQty } from "./model.js";
+import { isSpecialOrder, orderCopyText, orderDescription, orderQty, sheetNominal, tightSize, ORDER_MIN_QTY } from "./orderentry.js";
 import { unitCode } from "./units.js";
 
 // Extended line total at `unit` (the row's per-sf or per-each price): pieces
@@ -161,8 +161,14 @@ export function orderEntryRow(p, s, area, descLimit, stockBookIds, bookBrands, s
   // SF/RL") still names it when there's room, and qty/cost/sell keep reading in
   // the sell unit on the panel itself.
   const tag = code === "CT" ? code : "";
-  const sizePlain = tightSize(p.type === "tile" ? (p.sizeText || `${p.L}" × ${p.W}"`) : (p.sizeText || ""));
-  const coverage = num(p.cartonSf) > 0 ? `${sf1(num(p.cartonSf))} SF/${code}` : c.PC ? `${c.PC.per} PC/${code}` : "";
+  // A sheet-mosaic row reads its NOMINAL sheet size (12x12") with the exact
+  // dims kept on sizeTrue for the panel's hover (Marcus 2026-08-26).
+  const sizeRaw = p.type === "tile" ? (p.sizeText || `${p.L}" × ${p.W}"`) : (p.sizeText || "");
+  const nominal = sheetNominal(sizeRaw);
+  const sizePlain = nominal || tightSize(sizeRaw);
+  // Coverage is exact, never rounded (Marcus 2026-08-26): a 1.06 SF sheet
+  // shown as "1.1" is a 4% lie the desk multiplies.
+  const coverage = num(p.cartonSf) > 0 ? `${num(p.cartonSf)} SF/${code}` : c.PC ? `${c.PC.per} PC/${code}` : "";
   const extSell = c.line;
   const extCost = orderLineCost(row, s, extSell);
   // A Mannington trim's name carries a "· fits APX020 …" note (manningtonbook.js)
@@ -173,7 +179,7 @@ export function orderEntryRow(p, s, area, descLimit, stockBookIds, bookBrands, s
   const byDesc = !!p.sheoga && !p.sku;
   const r = {
     id: p.id, special: isSpecialOrder(p, stockBookIds, stockSkus), byDesc, area,
-    tag, sizePlain, name, brand: (p.bookId && bookBrands?.get(p.bookId)) || "", sku: p.sku, coverage, sheoga: p.sheoga,
+    tag, sizePlain, sizeTrue: nominal ? tightSize(sizeRaw) : "", name, brand: (p.bookId && bookBrands?.get(p.bookId)) || "", sku: p.sku, coverage, sheoga: p.sheoga,
     qty, qtyAssumed, unitCode: code, qtyText: qty > 0 ? `${qty} ${code}` : "—",
     perCost: qty > 0 ? extCost / qty : 0,
     perSell: qty > 0 ? extSell / qty : 0,

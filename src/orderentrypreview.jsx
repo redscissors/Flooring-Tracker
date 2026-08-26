@@ -5,7 +5,9 @@
 // floor (brand kept, "Stocked" dropped), a custom Sheoga floor, a hand-entered
 // vendor line with no book (files as special order against the mock stock
 // cache), a Glazzio book line, a PC-sold primer and an RL-sold roll (no unit
-// start — only CT leads), and a plain stocked SKU line.
+// start — only CT leads), and a plain stocked SKU line. The 8/26 batch adds
+// the Glazzio CLNL289 sheet mosaic: SH unit, nominal size (true size on
+// hover), exact SF/SH coverage, and the pinned SKU + coverage tail.
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import { OrderEntryPanel } from "./orderentry.jsx";
@@ -40,6 +42,9 @@ const rows = [
   ...sheogaFloor,
   // Glazzio book line — brand rides as its own droppable part (issue 092)
   { ...newProduct(), id: uid(), type: "tile", bookId: "bkGlz", sku: "KES6301", brandColor: "Glazzio Kessel Collection Ovo Glossy", L: "3", W: "12", qty: "35", priceSqft: "3.6", costSqft: "2.4", cartonSf: "12.16", cartonUnit: "CT" },
+  // Glazzio sheet mosaic as a pick now lands it (the 8/26 CLNL289 flags):
+  // SH unit (no CT tag), nominal 12x12" with the exact dims on hover, 1.06 SF/SH
+  { ...newProduct(), id: uid(), type: "tile", bookId: "bkGlz", sku: "CLNL289", brandColor: "Glazzio Colonial Collection Long Hex Village Square", sizeText: "12.375x12.375 sheet", L: "1", W: "2", qty: "35", priceSqft: "28.72", costSqft: "19.15", cartonSf: "1.06", cartonUnit: "SH" },
   // PC-sold primer off an order book — no unit start any more (only CT leads)
   { ...newProduct(), id: uid(), type: "misc", qtyType: "count", bookId: "bkSlr", sku: "SLRPRMU1", brandColor: "Primer-U Universal Primer 1 Gal (3.78 L)", qty: "2", priceSqft: "65.61", costSqft: "43.74", sellUnit: "PC" },
   // RL-sold membrane, stocked at the shop → keys as stock, in rolls, untagged

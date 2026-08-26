@@ -18,10 +18,16 @@
 // The "+" matters: a partial spec that doesn't announce itself reads as a whole
 // one, which is the failure this whole module exists to prevent.
 //
-// A part is { full, short, rank }. Rank is drop priority, not print order —
+// A part is { full, short, rank, pin }. Rank is drop priority, not print order —
 // parts print in array order, and on the split rung the highest ranks drop
 // first. Rank 0 is identity and is never dropped (it gets clipped only if the
 // identity categories alone overrun, which means the limit is unusable).
+//
+// A pinned part (pin: true — the order tail: SKU, coverage; Marcus 2026-08-26)
+// is never dropped AND never clipped: on the split rung the pins reserve their
+// room first and render after the "+" marker, so the cut body still announces
+// itself while the tail survives whatever the limit is. Pins past the limit
+// overrun and report `over` rather than losing the tail.
 
 export const DEFAULT_DESC_LIMIT = 30;
 const MARK = "+";
@@ -74,16 +80,20 @@ export function fitDescription(parts, limit) {
   const short = join(clean, "short");
   if (short && short.length <= lim) return { tier: "short", main: promote(clean, lim), ext: null, full, over: 0 };
 
-  // Split rung. Reserve room for " +" so the marker never pushes it back over.
-  const budget = lim - MARK.length - 1;
+  // Split rung. Pinned parts reserve their room first (plus " +" for the
+  // marker); only the unpinned body drops and clips against what's left.
+  const pins = clean.filter((p) => p.pin);
+  const rest = clean.filter((p) => !p.pin);
+  const pinText = join(pins, "full");
+  const budget = Math.max(0, lim - MARK.length - 1 - (pinText ? pinText.length + 1 : 0));
   // Drop ONE category at a time rather than a whole rank, so the field keeps as
   // much as it can hold — dropping by rank strands headroom (a 30-char field
   // ending up with 20 chars in it). Least important goes first: highest rank,
   // and within a rank the later-printed one.
-  const order = clean
+  const order = rest
     .map((p, i) => ({ p, i }))
     .sort((a, b) => rankOf(b.p) - rankOf(a.p) || b.i - a.i);
-  let kept = clean;
+  let kept = rest;
   for (const { p } of order) {
     if (join(kept, "short").length <= budget) break;
     if (rankOf(p) === 0) break; // identity is the floor — clip instead of dropping
@@ -94,7 +104,9 @@ export function fitDescription(parts, limit) {
   // When the drop loop stopped at the identity floor the all-short join still
   // overruns — promote finds nothing to accept and clip does the work as before.
   const body = clip(promote(kept, budget), budget).replace(/[\s–—·,;:-]+$/, "");
-  const main = `${body} ${MARK}`.trim();
+  // The split rung always marks its body — except a pin-only line (no body at
+  // all), where a bare "+" would claim text the ext doesn't hold.
+  const main = [body ? `${body} ${MARK}` : "", pinText].filter(Boolean).join(" ") || full;
   return { tier: "split", main, ext: full, full, over: Math.max(0, main.length - lim) };
 }
 
