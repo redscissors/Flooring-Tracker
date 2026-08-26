@@ -41,9 +41,54 @@ whose `SKU ⇥ qty` "Copy all" matches its expected format — don't touch that.
 Preview proof: `preview-order-entry.png` (+ clipboard contents echoed in
 `shoot.mjs` output) off the real harness `order-entry-preview.html`.
 
+## Desk spec (owner, 2026-08-26) — SAVED, not yet built
+
+Two corrections to the first-cut entry line, parked here on the owner's
+"just save this for now":
+
+1. **The first slot is the shop's ORDER CODE, not the manufacturer SKU.**
+   The desk keys specials under the shop's own special product codes that say
+   WHERE to order from — e.g. `29sheogaw` for Sheoga — not the vendor's SKU.
+   Owner's idea: a **"Code" box on each price book** (and something equivalent
+   for the configurator vendors, which have no book row — Sheoga's code is the
+   `29sheogaw` example) so `orderEntryLine` can lead with it. The manufacturer
+   SKU presumably still belongs in the description (it already rides there via
+   the descfit flow).
+
+2. **The real keying sequence**, as dictated:
+   `code ⇥ description ⇥ qty ⇥ cost ⇥⇥⇥⇥⇥ sell ⇥ Discounts(Builder, Sale,
+   Etc) ⇥⇥⇥⇥ Enter ⇥` — then the cursor sits on a new row. So: 5 tabs from
+   cost to sell (4 skipped fields), 1 tab from sell to the Discounts field,
+   4 tabs after Discounts, and the row transition is **Enter then Tab**, not
+   a bare Enter.
+
+3. **Timing** (owner, same day): after keying **qty**, wait about half a
+   second — the ERP takes a moment to open its **price box**, and the price
+   fields (cost onward) won't accept keystrokes until it's up. A flat
+   per-field delay doesn't cover it; the macro needs a longer pause at that
+   one spot.
+
+Implementation notes for when this gets built:
+- Skipped fields encode as EMPTY slots in the copied line — the macro already
+  sends a bare Tab for an empty field, so `orderEntryLine` just grows empty
+  entries; the `.ahk` needs one change: the line separator becomes
+  `{Enter}{Tab}` instead of `{Enter}`.
+- The `.ahk` grows a per-position pause: after field 3 (qty), Sleep ~600ms
+  (tunable `PRICE_BOX_PAUSE`) before tabbing on into the price box — the
+  owner's half-second plus margin, since typing into a not-yet-open dialog
+  silently drops the keystrokes.
+- Open question for the owner: what exact text the Discounts field takes
+  (Builder / Sale / blank on retail?) — the panel knows the project's tier,
+  so it could fill this automatically once the vocabulary is confirmed.
+- The "Code" box is a stored-shape change (book `data`, maybe settings for
+  Sheoga/wedi/Schluter) — load the `floortrack-data-model` skill before
+  building it.
+
 ## Next
 
-- Owner tests the button + macro at the desk on a throwaway order; field
-  order confirmed or adjusted in `orderEntryLine`.
+- Confirm the Discounts-field vocabulary and where each vendor's order code
+  lives (per-book Code box + per-configurator settings entry).
+- Rework `orderEntryLine` to the desk spec above (code lead, skip slots),
+  update the `.ahk` row transition to Enter+Tab, re-shoot preview proof.
 - If the desk wants the macro files somewhere less buried than `.scratch/`,
   promote the `.ahk` + README to `docs/order-desk/`.
