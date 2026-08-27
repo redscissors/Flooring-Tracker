@@ -285,6 +285,20 @@ test("orderDescription: the length goes next, the width never does", () => {
   }
 });
 
+test('orderDescription: "Collection" always disappears before a plank gives up a dimension', () => {
+  // Owner 2026-08-27: the series word is the first loss on every row — ahead
+  // of even the thickness, structurally (rank 5), not by print-order luck.
+  const row = {
+    tag: "CT", sizePlain: '5/8" x 7 1/2" x RL- 74 3/4"', name: "Monterey Collection Cambria",
+    type: "hardwood", sku: "AMZ75CAM", coverage: "27 SF/CT",
+  };
+  const d = orderDescription(row, DEFAULT_DESC_LIMIT);
+  assert.ok(!/\bCollection\b/.test(d.main), "Collection goes first");
+  assert.ok(d.main.includes('5/8"x'), "the thickness outlives the series word");
+  assert.ok(d.main.includes('xRL- 74 3/4"'), "so does the length");
+  assert.ok(!d.main.includes("+"), "a soft-only loss pastes clean");
+});
+
 test("orderDescription: a vinyl width × length size drops only the length", () => {
   const tarkett = {
     tag: "CT", sizePlain: '7"x60"', name: "ProGen Sagebrush", type: "vinyl",

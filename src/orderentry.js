@@ -75,9 +75,10 @@ export function sheetNominal(sizeText) {
 // the spec the desk needs, not a cut one, so losing them alone never wears the
 // "+" marker, and the extended text still carries the full dimensions. Each
 // dimension takes its own "x" with it when it goes, so what remains still
-// reads as a size: `7/16"x 6" xRL-74"` → `6" xRL-74"` → `6"`. Thickness drops
-// with the "Collection" tier (rank 4, ahead of the brand); length holds out
-// past the brand (rank 2). Plank goods only — hardwood, vinyl and laminate —
+// reads as a size: `7/16"x 6" xRL-74"` → `6" xRL-74"` → `6"`. "Collection"
+// always disappears first (rank 5, owner 2026-08-27); the thickness follows
+// (rank 4, ahead of the brand); length holds out past the brand (rank 2).
+// Plank goods only — hardwood, vinyl and laminate —
 // a tile's 12"x24" is one identity token, and every other type is unchanged.
 const DIM_WORDS = /\bRL\b|mm\b/gi; // no \b before mm — a digit-mm join ("5.5mm") has no boundary
 const dimish = (t) => /\d/.test(t) && !/[a-z]/i.test(t.replace(DIM_WORDS, ""));
@@ -144,8 +145,9 @@ const sizeParts = (r) => (PLANK_TYPES.has(r.type) ? plankSizeParts(r.sizePlain) 
 //
 // "Collection" inside a product name is series typography, not identity
 // (Marcus 2026-08-26): every vendor's series can carry it, so it identifies
-// nothing at the order desk. It splits into its own part at rank 4 — the very
-// first thing dropped when the field runs tight, ahead of even the brand —
+// nothing at the order desk. It splits into its own part at rank 5 — ALWAYS
+// the first thing dropped when the field runs tight, ahead of the brand and
+// of a plank's spare dimensions (owner 2026-08-27) —
 // and stays in place while there's room. Both it and the brand are SOFT
 // (owner 2026-08-26): a description whose only losses are these words is not
 // a partial spec, so it pastes without the "+" marker (descfit.js).
@@ -153,7 +155,7 @@ const nameParts = (text) => {
   const s = String(text || "").trim();
   if (!s) return [];
   return s.split(/\b(Collection)\b/i)
-    .map((tok, i) => (i % 2 ? { full: tok, rank: 4, soft: true } : textParts(tok)))
+    .map((tok, i) => (i % 2 ? { full: tok, rank: 5, soft: true } : textParts(tok)))
     .flat();
 };
 const brandLead = (r) => {
