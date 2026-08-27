@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { isInterfacePriceList, parseInterfacePages } from "./interfacebook.js";
+import { INTERFACE_COLORS, INTERFACE_COLORS_DATE } from "./interfacecolors.js";
 import { parseMapped } from "./pricebook.js";
 import { resolveMarkup, costSqft, pricedItem } from "./orderbook.js";
 import { stockPatch } from "./stock.js";
@@ -57,8 +58,10 @@ const lvtPage = [
   word(53, 270, "HEIRLOOM 3.0mm"), word(247, 270, "25cm"), word(276, 270, "x"), word(284, 270, "1m"), word(328, 270, "Lasting"), word(364, 270, "Impressions"), word(436, 270, "3.0"), word(453, 270, "mm"), word(517, 270, "$2.35"),
 ];
 
-const run = (...pages) => {
-  const { rows, mapping, meta, warnings } = parseInterfacePages(pages);
+// Style-level tests pass an empty color book so the sheet logic stays visible
+// one row per style; the join tests below feed their own mini book.
+const run = (pages, colorBook = {}) => {
+  const { rows, mapping, meta, warnings } = parseInterfacePages(pages, "t", colorBook);
   const parsed = parseMapped(rows, mapping);
   return { items: parsed.items, mapping, meta, warnings };
 };
@@ -69,7 +72,7 @@ test("recognizes the Interface price list layout", () => {
 });
 
 test("carpet rows: $/sy ÷ 9 cost, assumed carton, type carpet", () => {
-  const { items, meta } = run(carpetPage);
+  const { items, meta } = run([carpetPage]);
   assert.equal(meta.carpet, 10);
   const smt = items.find((i) => i.sku === "SHIVER ME TIMBERS");
   assert.ok(smt, "style name is the SKU");
@@ -87,7 +90,7 @@ test("carpet rows: $/sy ÷ 9 cost, assumed carton, type carpet", () => {
 });
 
 test("a pick lands carpet with carton ordering", () => {
-  const { items } = run(carpetPage);
+  const { items } = run([carpetPage]);
   const smt = pricedItem(items.find((i) => i.sku === "SHIVER ME TIMBERS"), { default: 50 });
   const patch = stockPatch(smt, {});
   assert.equal(patch.type, "carpet");
@@ -98,7 +101,7 @@ test("a pick lands carpet with carton ordering", () => {
 });
 
 test("code-named styles keep their capitals and front the collection", () => {
-  const { items } = run(carpetPage);
+  const { items } = run([carpetPage]);
   assert.equal(items.find((i) => i.sku === "WW860").description, "World Woven WW860");
   const ae = items.find((i) => i.sku === "AE310");
   assert.equal(ae.description, "Aerial AE310");
@@ -107,7 +110,7 @@ test("code-named styles keep their capitals and front the collection", () => {
 });
 
 test("a wrapped collection joins onto its data row", () => {
-  const { items } = run(carpetPage);
+  const { items } = run([carpetPage]);
   const bbt = items.find((i) => i.sku === "BOUND BY THREAD I");
   assert.equal(bbt.mfg, "Dressed Lines Coordinates");
   assert.equal(bbt.description, "Bound By Thread I"); // roman numeral survives the casing
@@ -116,13 +119,13 @@ test("a wrapped collection joins onto its data row", () => {
 });
 
 test("the i2 column's Y/N spelling reads as the i2 mark", () => {
-  const { items } = run(carpetPage);
+  const { items } = run([carpetPage]);
   assert.equal(items.find((i) => i.sku === "OPEN AIR 401").note, "i2 — non-directional install");
   assert.equal(items.find((i) => i.sku === "OPEN AIR 408").note, "");
 });
 
 test("large formats carry no assumed carton and order by exact square feet", () => {
-  const { items, warnings } = run(carpetPage);
+  const { items, warnings } = run([carpetPage]);
   const cap = items.find((i) => i.sku === "CAP ROCK");
   assert.equal(cap.size, "1m x 1m");
   assert.equal(cap.cost, 2.97);                 // $26.75/sy ÷ 9
@@ -134,7 +137,7 @@ test("large formats carry no assumed carton and order by exact square feet", () 
 });
 
 test("a style sold in two formats splits into per-format SKUs", () => {
-  const { items } = run(carpetPage);
+  const { items } = run([carpetPage]);
   const sq = items.find((i) => i.sku === "VIVA COLORES 50");
   const pl = items.find((i) => i.sku === "VIVA COLORES SP");
   assert.ok(sq && pl, "both formats import");
@@ -143,14 +146,14 @@ test("a style sold in two formats splits into per-format SKUs", () => {
 });
 
 test("the footnote asterisk drops from SKU and name", () => {
-  const { items } = run(carpetPage);
+  const { items } = run([carpetPage]);
   const oa = items.find((i) => i.sku === "OPEN AIR 442");
   assert.ok(oa, "starred style keyed clean");
   assert.equal(oa.description, "Open Air 442");
 });
 
 test("LVT rows: per-square-foot as printed, type vinyl, metric size + thickness", () => {
-  const { items, meta } = run(lvtPage);
+  const { items, meta } = run([lvtPage]);
   assert.equal(meta.lvt, 3);
   const bl = items.find((i) => i.sku === "BRUSHED LINES");
   assert.equal(bl.type, "vinyl");
@@ -166,7 +169,7 @@ test("LVT rows: per-square-foot as printed, type vinyl, metric size + thickness"
 });
 
 test("collection is the markup group", () => {
-  const { items, mapping } = run(carpetPage);
+  const { items, mapping } = run([carpetPage]);
   assert.equal(mapping.groupBy, "mfg");
   const markups = { default: 40, groupBy: "mfg", byGroup: { "Open Air": 60 } };
   assert.equal(resolveMarkup(markups, items.find((i) => i.sku === "OPEN AIR 401")), 60);
@@ -174,8 +177,95 @@ test("collection is the markup group", () => {
 });
 
 test("the square-yard conversion warning always rides a carpet import", () => {
-  const { warnings } = run(carpetPage);
+  const { warnings } = run([carpetPage]);
   assert.ok(warnings.some((w) => /square yard/.test(w) && /53\.82/.test(w)));
   const none = parseInterfacePages([[word(53, 40, "nothing here")]]);
   assert.ok(none.warnings.some((w) => /No Interface product rows/.test(w)));
+});
+
+// ---- the color book join ----
+
+const MINI_BOOK = {
+  "SHIVER ME TIMBERS": { no: "7396C", colors: [["105074", "Ash"], ["105085", "Cedar", 1]] },
+  "OPEN AIR 401": { no: "9628C", colors: [["107689", "Amber", 1]] },
+  "VIVA COLORES": { no: "1648C", colors: [["101130", "Aceitunado"]] },
+  "BRUSHED LINES": { no: "A016R", colors: [["A01602", "Alabaster"], ["A01618", "Celadon", 1]] },
+};
+
+test("a color-book style lands one row per colorway, keyed by the item pair", () => {
+  const { items, meta } = run([carpetPage], MINI_BOOK);
+  const ash = items.find((i) => i.sku === "7396C 105074");
+  const cedar = items.find((i) => i.sku === "7396C 105085");
+  assert.ok(ash && cedar, "one row per colorway");
+  assert.equal(ash.description, "Shiver Me Timbers, Ash");
+  assert.equal(items.find((i) => i.sku === "SHIVER ME TIMBERS"), undefined, "the style row is replaced");
+  // the style's own pricing and carton ride every colorway
+  assert.equal(ash.cost, 2.92);
+  assert.equal(ash.sfPerUnit, 53.82);
+  assert.equal(ash.orderUnit, "CT");
+  assert.equal(ash.mfg, "");
+  assert.equal(meta.colors, 5);                 // 2 SMT + 1 OA401 + 2×1 Viva
+  assert.equal(meta.carpet, 10, "meta still counts styles");
+});
+
+test("QuickShip joins the note beside the i2 mark", () => {
+  const { items } = run([carpetPage], MINI_BOOK);
+  assert.equal(items.find((i) => i.sku === "7396C 105085").note, "i2 — non-directional install · QuickShip");
+  assert.equal(items.find((i) => i.sku === "7396C 105074").note, "i2 — non-directional install");
+  assert.equal(items.find((i) => i.sku === "9628C 107689").note, "i2 — non-directional install · QuickShip");
+});
+
+test("cross-format twins keep the format code on their color rows", () => {
+  const { items } = run([carpetPage], MINI_BOOK);
+  const sq = items.find((i) => i.sku === "1648C 101130 50");
+  const pl = items.find((i) => i.sku === "1648C 101130 SP");
+  assert.ok(sq && pl, "both formats expand");
+  assert.equal(sq.size, "50cm x 50cm");
+  assert.equal(pl.size, "25cm x 1m plank");
+  assert.equal(sq.description, "Viva Colores, Aceitunado");
+});
+
+test("LVT colorways join like carpet, and thickness twins stay apart", () => {
+  const { items } = run([lvtPage], MINI_BOOK);
+  const al = items.find((i) => i.sku === "A016R A01602");
+  assert.ok(al, "LVT color row keyed by the item pair");
+  assert.equal(al.description, "Brushed Lines, Alabaster");
+  assert.equal(al.type, "vinyl");
+  assert.equal(al.thickness, "4.5 mm");
+  assert.equal(items.find((i) => i.sku === "A016R A01618").note, "QuickShip");
+  // the 3.0 mm edition is its own printed name and is not in the mini book
+  assert.ok(items.find((i) => i.sku === "HEIRLOOM 3.0mm"), "unknown style imports style-only");
+});
+
+test("styles the color book doesn't know import style-only, and the wizard says which", () => {
+  const { items, warnings, meta } = run([carpetPage], MINI_BOOK);
+  assert.ok(items.find((i) => i.sku === "CAP ROCK"), "colorless style keeps its name row");
+  assert.equal(meta.colorless, 6);       // WW860, AE310, BBT I, OA408, CAP ROCK, OA442
+  assert.ok(warnings.some((w) => /Colorways joined/.test(w)));
+  assert.ok(warnings.some((w) => /style-only/.test(w) && /CAP ROCK/.test(w)));
+});
+
+test("a color-row pick lands through the real path with the style's carton", () => {
+  const { items } = run([carpetPage], MINI_BOOK);
+  const patch = stockPatch(pricedItem(items.find((i) => i.sku === "7396C 105074"), { default: 50 }), {});
+  assert.equal(patch.type, "carpet");
+  assert.equal(patch.priceSqft, "4.38");
+  assert.equal(patch.cartonSf, "53.82");
+  assert.equal(patch.sizeText, "25cm x 1m plank");
+});
+
+test("the shipped color book covers the quoted collections", () => {
+  assert.match(INTERFACE_COLORS_DATE, /^\d{4}-\d{2}-\d{2}$/);
+  const oa = INTERFACE_COLORS["OPEN AIR 401"];
+  assert.equal(oa.no, "9628C");
+  assert.ok(oa.colors.length >= 20, "Open Air's neutral palette");
+  assert.ok(oa.colors.some(([, n]) => n === "Linen"));
+  const ww = INTERFACE_COLORS["WW860"];
+  assert.equal(ww.no, "8109C");
+  assert.ok(ww.colors.some(([, n]) => /Tweed$/.test(n)));
+  // every entry is [number, name, quickship?] with a style number beside it
+  for (const [style, e] of Object.entries(INTERFACE_COLORS)) {
+    assert.ok(/^[A-Z0-9]+$/.test(e.no), `${style} carries a style number`);
+    assert.ok(e.colors.length > 0, `${style} carries colors`);
+  }
 });

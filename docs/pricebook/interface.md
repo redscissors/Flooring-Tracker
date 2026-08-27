@@ -1,10 +1,11 @@
-# Interface carpet tile — pricing, formats, and the missing color book
+# Interface carpet tile — pricing, formats, and the color book
 
 How Interface's dealer pricing works and how ned imports it
-(`src/interfacebook.js`), written 2026-08-27 from the Keim dealer price list
-(8.19.25 edition, `.scratch/114_interface-carpet-tile/`) and the rep's own
-explanation (Jeff Krejci, Interface — "Pricing and Package Sizes",
-2026-07-03).
+(`src/interfacebook.js` + the `src/interfacecolors.js` color book), written
+2026-08-27 from the Keim dealer price list (8.19.25 edition,
+`.scratch/114_interface-carpet-tile/`) and the rep's own explanation (Jeff
+Krejci, Interface — "Pricing and Package Sizes", 2026-07-03); the color book
+added the same day from shop.interface.com.
 
 ## How Interface prices carpet tile
 
@@ -53,55 +54,58 @@ Suggested markup shape for the book: a default plus a per-collection override
 (the book's markup group is the collection), since the Open Air family is the
 promo-priced line.
 
-## The missing "color book"
+## The color book
 
 The price list has no colorways — the colors live in Interface's physical
-sample deck and on interface.com. Each style runs 8–24 colorways, and each
-style+color pair has its own Interface item number (style code + color
-number, e.g. Open Air 401 = style 9628, "9628009 Linen").
+sample deck and on interface.com. Each style runs 8–25 colorways, and each
+style+color pair has its own Interface identity: the style number plus a
+color number (Open Air 401 = style 9628C; "9628C 107689" is its Amber).
 
-**The real fix:** ask Jeff Krejci for Interface's **item/color list export**
-(the specifier data Interface publishes per style — item numbers, colorway
-names, carton specs, and which styles are the 4.78 sy heavy packs). With
-that file in hand, the importer can grow a second joined source (the Mirage
-chart pattern, ADR 0025 rule 7) and the book becomes one row per orderable
-style+color with real item numbers.
+That pairing is now in the repo as **`src/interfacecolors.js`** — the
+transcribed color book, scraped from shop.interface.com's US product pages
+(2026-08-27; the owner opened the environment's network access to
+www.interface.com + shop.interface.com for it). One entry per price-list
+style, keyed by the style name exactly as the sheet prints it: the style
+number, and every colorway's `[colorNumber, name, quickShip?]` — the
+QuickShip mark is the shop's own badge. 302 of the list's 305 styles are on
+the shop site (3,400 colorways); HN830 and OVEREDGE are not sold there and
+import style-only, and cross-format twins (Viva Colores) share one entry.
 
-Until then, colors are picked off the sample deck and typed onto the
-selection line — the book prices the style, which is what the estimate needs
-(every colorway of a style shares its price).
+`parseInterfacePages` joins it at import time (the transcription sibling of
+the Mirage joined-source idea, ADR 0025 rule 7 — but the second source is a
+checked-in table, not a dropped file, since Interface publishes no color
+export a browser import could read): the book lands **one row per orderable
+style+color**, SKU `"<styleNo> <colorNo>"` (+ the format code on twins),
+description "Style, Colorway", the style's cost/carton/collection on every
+row, QuickShip joined onto the note beside i2. The wizard's warnings name
+the join date and any style-only leftovers, so a stale color book is
+visible at every re-import.
 
-Colorways verified from Interface's site (2026-08-27), for the collections
-the shop quotes:
+**Refreshing after a season shift or a new price list** (colorway ranges
+move seasonally): from the repo root,
 
-- **Open Air Neutrals** (shared 24-color palette): Amber, Barley, Black,
-  Brown, Buckwheat, Burlap, Charcoal, Concrete, Ebony, Flannel, Granite,
-  Gypsum, Iron, Linen, Mist, Natural, Navy, Nickel, Oat, Raffia, Sawgrass,
-  Shell, Stone, Travertine. Open Air Stria layers three accent stripes from
-  the Open Ended range onto the same neutrals.
-- **Open Road** (Come & Go, Free Reign — shared palette): Amber, Amethyst,
-  Black, Bordeaux, Brick, Cayenne, Charcoal, Ebony, Flannel, Granite,
-  Hickory, Indigo, Iron, Linen, Mist, Natural, Navy, Nickel, Oat, Pine,
-  Shell, Spruce, Stone, Turquoise.
-- **Harmonize & Ground Waves** (shared neutrals; Ground Waves adds accent
-  bands, Verse a second accent set): Cobalt, Driftwood, Flax, Gravel, Gull,
-  Iceberg, Iron, Laurel, Mesquite, Midnight, Pewter, Prairie.
-- **Shiver Me Timbers** (24 wood-name colors): Ash, Balsam, Beech, Birch,
-  Buckeye, Cedar, Cyprus, Dogwood, Eucalyptus, Ginkgo, Hawthorn, Hickory,
-  Ironwood, Juniper, Laurel, Magnolia, Maple, Mimosa, Poplar, Sequoia,
-  Spruce, Sycamore, Walnut, Willow.
-- **WW860 (World Woven)**: Linen Tweed, Flannel Tweed, Brown Tweed, Natural
-  Tweed, Charcoal Tweed, Black Tweed, Raffia Tweed, Sisal Tweed, plus
-  quick-ship and extended colorways (Navy, Nickel, Riverbed, Shell, Umber,
-  Volcanic Tweed).
+```
+node .scratch/114_interface-carpet-tile/colorbook-styles.mjs <price-list.pdf> > styles.json
+python3 .scratch/114_interface-carpet-tile/colorbook-scrape.py styles.json src/interfacecolors.js
+```
 
-Colorway ranges shift seasonally — treat this list as orientation, the
-sample deck and the rep's export as the record.
+then re-run the tests and re-import the price list in the app — the book
+picks up the new colorways on the apply. Needs egress to shop.interface.com
+(the Claude environment allowlist, or any machine that reaches it).
+
+The rep's item/color **export** would still be better than the scrape —
+it's the same data with carton specs and heavy-pack flags attached, and it
+doesn't depend on the storefront's markup staying stable.
 
 ## Open questions for the rep
 
 1. Which styles on the list are the **4.78 sy / 16-tile** heavy packs?
 2. Carton packs for the **1m × 1m** and **50cm × 1m** formats.
-3. The **item/color list export** (see above).
+3. The **item/color list export** — now mostly answered by the shop scrape
+   (see the color book above), still wanted for carton specs and as the
+   authoritative record.
 4. The list's footnote asterisks (Shishu Stitch*, Open Air 442 * …) — what do
    they mark? (The importer drops them from names.)
+5. HN830 and OVEREDGE are priced on the list but not sold on
+   shop.interface.com — still orderable? Their colorways come off the sample
+   deck until answered.

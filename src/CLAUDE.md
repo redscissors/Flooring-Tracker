@@ -291,9 +291,23 @@ src/
                     # deliberately on the MFG column, not Product Line — style
                     # names overlap their collection names ("Open Air 401
                     # Stria" in "Open Air Stria") and mappedItem's fronting
-                    # would double the words — and one row per STYLE: the sheet
-                    # carries no colors, colorways come off the sample deck
-                    # (docs/pricebook/interface.md)
+                    # would double the words. The sheet is one row per STYLE
+                    # with no colors; the import joins interfacecolors.js and
+                    # lands ONE ROW PER COLORWAY keyed by the real Interface
+                    # item pair ("9628C 107689" = Open Air 401, Amber; twins
+                    # keep the format code), the style's cost/carton on every
+                    # row, QuickShip beside i2 in the note; a style the color
+                    # book doesn't know imports style-only under its name and
+                    # the wizard says which (docs/pricebook/interface.md)
+  interfacecolors.js  # the Interface color book: every colorway of every
+                    # price-list style (name + color number + QuickShip),
+                    # transcribed from shop.interface.com's US product pages
+                    # (2026-08-27), keyed by the sheet's printed style name.
+                    # GENERATED wholesale by .scratch/114's colorbook-styles.mjs
+                    # + colorbook-scrape.py — refresh by re-running them, never
+                    # by hand-editing rows. ~100 KB that must stay OFF the boot
+                    # path: only interfacebook.js imports it, which keeps it in
+                    # the Settings/pricebook lazy chunk
   stock.js          # stock-item search / SKU fill snapshot / drift / base
                     # companions / grout families, over stock-shaped items
                     # (the ADR 0027 book items + projected family rows)

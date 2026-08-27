@@ -30,8 +30,18 @@
 // the markup groupBy — everything a collection needs — while the description
 // stays exactly the style name this module cases by hand (codes like WW860
 // keep their capitals, which the generic smartCase would fold to "Ww860").
+//
+// The sheet's rows are styles; the orderable unit is style + colorway. The
+// import joins interfacecolors.js — the transcribed shop.interface.com color
+// book (one entry per price-list style: Interface's style number + every
+// colorway's number/name/QuickShip mark) — and lands ONE ROW PER COLORWAY,
+// keyed by the real Interface item pair ("9628C 107689" = Open Air 401,
+// Amber), every colorway carrying its style's price and carton. A style the
+// color book doesn't know (not sold on the shop site) imports style-only
+// under its name, and the wizard says which.
 
 import { clusterRows } from "./pdfbook.js";
+import { INTERFACE_COLORS, INTERFACE_COLORS_DATE } from "./interfacecolors.js";
 
 const str = (c) => (c == null ? "" : String(c).trim());
 const num = (c) => { const n = parseFloat(str(c).replace(/[$,]/g, "")); return Number.isFinite(n) ? n : null; };
@@ -98,7 +108,7 @@ const CANON_MAPPING = {
 
 const BRAND = "Interface";
 
-export function parseInterfacePages(pages, name = "Interface price list") {
+export function parseInterfacePages(pages, name = "Interface price list", colorBook = INTERFACE_COLORS) {
   const carpet = []; // { sku, name, collection, format, i2, sy }
   const lvt = [];    // { sku, name, collection, size, thickness, sf }
   const warnings = [];
@@ -160,6 +170,28 @@ export function parseInterfacePages(pages, name = "Interface price list") {
   { const seen = new Set(); for (const c of carpet) { if (seen.has(c.sku)) dupes.add(c.sku); seen.add(c.sku); } }
 
   const rows = [CANON.slice()];
+  const colorless = [];
+  let colorRows = 0;
+  // One row per colorway when the color book knows the style; the style's own
+  // name-keyed row otherwise. Cross-format twins share a style number, so the
+  // format code keeps riding the SKU for them.
+  const emit = (styleSku, styleRow, note) => {
+    const entry = colorBook[styleSku];
+    if (!entry) {
+      colorless.push(styleSku);
+      rows.push(styleRow);
+      return;
+    }
+    const [sku, desc] = styleRow;
+    for (const [no, colorName, qs] of entry.colors) {
+      const suffixed = sku === styleSku ? `${entry.no} ${no}` : `${entry.no} ${no} ${sku.slice(styleSku.length + 1)}`;
+      rows.push([
+        suffixed, `${desc}, ${colorName}`, ...styleRow.slice(2, 12),
+        [note, qs ? "QuickShip" : ""].filter(Boolean).join(" · "),
+      ]);
+      colorRows++;
+    }
+  };
   for (const c of carpet) {
     const f = FORMATS[c.format];
     // A pure-code style name (WW860, AE310) means nothing alone — the
@@ -167,18 +199,26 @@ export function parseInterfacePages(pages, name = "Interface price list") {
     // still rides the MFG column for search and markup grouping.
     const coded = c.name.split(/\s+/).every((w) => /\d/.test(w));
     const desc = coded && c.collection ? `${c.collection} ${c.name}` : c.name;
-    rows.push([
+    const note = c.i2 ? "i2 — non-directional install" : "";
+    emit(c.sku, [
       dupes.has(c.sku) ? `${c.sku} ${c.format}` : c.sku,
       desc, c.collection, f.size, "",
       f.carton ? String(CARTON_SF) : "", f.carton ? String(CARTON_PC) : "",
       String(round4(c.sy / SY_TO_SF)), "SF", f.carton ? "CT" : "",
-      "carpet", BRAND, c.i2 ? "i2 — non-directional install" : "",
-    ]);
+      "carpet", BRAND, note,
+    ], note);
   }
   for (const v of lvt) {
-    rows.push([v.sku, v.name, v.collection, v.size, v.thickness, "", "", String(v.sf), "SF", "", "vinyl", BRAND, ""]);
+    emit(v.sku, [v.sku, v.name, v.collection, v.size, v.thickness, "", "", String(v.sf), "SF", "", "vinyl", BRAND, ""], "");
   }
 
+  if (colorRows) {
+    const styled = carpet.length + lvt.length - colorless.length;
+    warnings.push(`Colorways joined from the Interface color book (shop.interface.com, ${INTERFACE_COLORS_DATE}): ${styled} styles land as ${colorRows} style+color rows keyed by Interface item numbers.`);
+  }
+  if (colorless.length && colorRows) {
+    warnings.push(`${colorless.length} style${colorless.length === 1 ? "" : "s"} not in the color book import style-only: ${colorless.join(", ")}.`);
+  }
   if (carpet.length) {
     warnings.push(`Interface quotes carpet tile per square yard — costs imported as $/sy ÷ 9 per sq ft. Carton coverage assumed ${CARTON_SF} sf (5.98 sy, ${CARTON_PC} tiles); higher face weight styles pack 43.02 sf (4.78 sy, 16 tiles) — confirm with the rep before ordering those.`);
     const large = carpet.filter((c) => !FORMATS[c.format].carton).length;
@@ -186,5 +226,5 @@ export function parseInterfacePages(pages, name = "Interface price list") {
   }
   if (!carpet.length && !lvt.length) warnings.push("No Interface product rows were recognized — is this the Interface dealer price list?");
 
-  return { name, rows, mapping: { ...CANON_MAPPING }, warnings, meta: { carpet: carpet.length, lvt: lvt.length } };
+  return { name, rows, mapping: { ...CANON_MAPPING }, warnings, meta: { carpet: carpet.length, lvt: lvt.length, colors: colorRows, colorless: colorless.length } };
 }
