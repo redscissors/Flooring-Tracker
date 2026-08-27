@@ -9,6 +9,7 @@ import { isTrueTouch, isTrueTouchSheet } from "./truetouchbook.js";
 import { isHallmarkWood, isTarkettLvt, isOvfSundries } from "./ovfbook.js";
 import { isMirageChart, mirageFileKind } from "./miragebook.js";
 import { isEmserIspl } from "./emserbook.js";
+import { isInterfacePriceList } from "./interfacebook.js";
 
 // The strongest format tag we can read straight off the file. Priority follows
 // the spec: VTC EFT → OVF books → Emser ISPL → Mannington PDF → generic. The
@@ -19,7 +20,7 @@ export function fileFormat({ sheets, pages, isPdf }) {
   // or it fingerprints as plain "generic", and ADR 0025's manual source slots —
   // which key on the format tag, PDFs having no header signature — would accept
   // any unrelated PDF as the missing chart.
-  if (isPdf) return isManningtonCartons(pages || []) ? "mannington" : isMirageChart(pages || []) ? "mirage-chart" : isTrueTouch(pages || []) ? "ovf-truetouch" : "generic";
+  if (isPdf) return isManningtonCartons(pages || []) ? "mannington" : isMirageChart(pages || []) ? "mirage-chart" : isTrueTouch(pages || []) ? "ovf-truetouch" : isInterfacePriceList(pages || []) ? "interface" : "generic";
   if (detectVtcEft(sheets || [])) return "vtc-eft";
   if (isHallmarkWood(sheets || [])) return "ovf-hallmark";
   if (isTarkettLvt(sheets || [])) return "ovf-tarkett";
@@ -110,7 +111,7 @@ export function mappingMatchesFile(mapping, sheets) {
   catch { return false; }
 }
 
-const FORMAT_NAMES = { mannington: "Mannington cartons", "ovf-truetouch": "OVF TrueTouch", "ovf-hallmark": "OVF Hallmark wood", "ovf-tarkett": "OVF Tarkett LVT", "ovf-sundries": "OVF sundries", "emser-ispl": "Emser ISPL", "mirage-chart": "Mirage product chart", "mirage-flooring": "Mirage flooring list", "mirage-trim": "Mirage trim list", "vendor-sku": "ERP stock list" };
+const FORMAT_NAMES = { mannington: "Mannington cartons", "ovf-truetouch": "OVF TrueTouch", "ovf-hallmark": "OVF Hallmark wood", "ovf-tarkett": "OVF Tarkett LVT", "ovf-sundries": "OVF sundries", "emser-ispl": "Emser ISPL", "mirage-chart": "Mirage product chart", "mirage-flooring": "Mirage flooring list", "mirage-trim": "Mirage trim list", interface: "Interface price list", "vendor-sku": "ERP stock list" };
 const labelFor = (format, b, title) =>
   format === "vtc-eft" ? `Virginia Tile EFT${title ? ` · ${title}` : ""} → ${b?.name || "book"}`
     : FORMAT_NAMES[format] ? `${FORMAT_NAMES[format]} → ${b?.name || "book"}`

@@ -281,6 +281,33 @@ src/
                     # transition products keyed by Catalog # (their 94" length
                     # read off the column header into size), flagged `trim` so
                     # the book can mark trims up separately from floors (ADR 0012)
+  interfacebook.js  # Interface dealer price list PDF -> canonical rows (carpet
+                    # tile + a trailing LVT section). Carpet costs are per
+                    # SQUARE YARD on the sheet -> imported ÷9 per sq ft; carton
+                    # coverage is the rep's stated standard pack (53.82 sf / 20
+                    # tiles — the sheet states none, so it is assumed and the
+                    # wizard warns; 1m×1m and 50cm×1m formats get none), the
+                    # size a decoded format letter (SP/50/M/P), the collection
+                    # deliberately on the MFG column, not Product Line — style
+                    # names overlap their collection names ("Open Air 401
+                    # Stria" in "Open Air Stria") and mappedItem's fronting
+                    # would double the words. The sheet is one row per STYLE
+                    # with no colors; the import joins interfacecolors.js and
+                    # lands ONE ROW PER COLORWAY keyed by the real Interface
+                    # item pair ("9628C 107689" = Open Air 401, Amber; twins
+                    # keep the format code), the style's cost/carton on every
+                    # row, QuickShip beside i2 in the note; a style the color
+                    # book doesn't know imports style-only under its name and
+                    # the wizard says which (docs/pricebook/interface.md)
+  interfacecolors.js  # the Interface color book: every colorway of every
+                    # price-list style (name + color number + QuickShip),
+                    # transcribed from shop.interface.com's US product pages
+                    # (2026-08-27), keyed by the sheet's printed style name.
+                    # GENERATED wholesale by .scratch/114's colorbook-styles.mjs
+                    # + colorbook-scrape.py — refresh by re-running them, never
+                    # by hand-editing rows. ~100 KB that must stay OFF the boot
+                    # path: only interfacebook.js imports it, which keeps it in
+                    # the Settings/pricebook lazy chunk
   stock.js          # stock-item search / SKU fill snapshot / drift / base
                     # companions / grout families, over stock-shaped items
                     # (the ADR 0027 book items + projected family rows)
