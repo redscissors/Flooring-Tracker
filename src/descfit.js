@@ -35,7 +35,9 @@
 // own room goes back into the body, and the ext copy still carries the full
 // text. The "+" appears only when identifying text was actually cut.
 
-export const DEFAULT_DESC_LIMIT = 30;
+// The desk's ERP description field holds 70 characters (owner 2026-08-27 —
+// corrected from the 30 the feature shipped with).
+export const DEFAULT_DESC_LIMIT = 70;
 const MARK = "+";
 
 const rankOf = (p) => p.rank || 0;
@@ -43,7 +45,7 @@ const text = (p, key) => String((key === "short" ? p.short || p.full : p.full) |
 const join = (parts, key) => parts.map((p) => text(p, key)).filter(Boolean).join(" ");
 
 // With every part abbreviated the field often has room to spare, and an
-// all-short line wastes it ("WO Char Sol" in a 30-char field). Spend the
+// all-short line wastes it ("WO Char Sol" alone in the field). Spend the
 // headroom writing words back out, most important first — lowest rank, print
 // order within a rank — keeping each promotion only if the line still fits.
 // Greedy on purpose: deterministic, and the identity words get the room before
@@ -113,8 +115,8 @@ export function fitDescription(parts, limit) {
   }
   const budget = Math.max(0, lim - MARK.length - 1 - pinRoom);
   // Drop ONE category at a time rather than a whole rank, so the field keeps as
-  // much as it can hold — dropping by rank strands headroom (a 30-char field
-  // ending up with 20 chars in it). Least important goes first: highest rank,
+  // much as it can hold — dropping by rank strands headroom (the field ending
+  // up two-thirds full). Least important goes first: highest rank,
   // and within a rank the later-printed one.
   const order = rest
     .map((p, i) => ({ p, i }))

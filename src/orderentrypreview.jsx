@@ -7,13 +7,15 @@
 // cache), a Glazzio book line, a PC-sold primer and an RL-sold roll (no unit
 // start — only CT leads), and a plain stocked SKU line. The 8/26 batch adds
 // the Glazzio CLNL289 sheet mosaic: SH unit, nominal size (true size on
-// hover), exact SF/SH coverage, and the pinned SKU + coverage tail. Open with
-// ?wide=1 for the soft-drop panel (owner 2026-08-26): the same lines at a
-// 68-char field, where CLNL289's only loss is "Collection" (soft) so it
-// pastes with NO "+", while the hand-entered Uptown line still cuts identity
-// and keeps the marker + the footer's amber note. The 8/27 batch adds the two
-// plank-size lines (the Hallmark NO6EMEO-19 example): at 30 both degrade to
-// the width alone; at ?wide=1 the full thickness × width × length flows.
+// hover), exact SF/SH coverage, and the pinned SKU + coverage tail. The 8/27
+// batch corrected the field to its real 70 characters (the old 30 default and
+// this file's ?wide=1 68-char view are both gone — the one view IS the field
+// now): CLNL289's soft "Collection" drop and Uptown's marked cut, the 8/26
+// proofs, show at 70 unchanged. It also adds the plank-size lines (the
+// Hallmark NO6EMEO-19 example): Emerson and the Tarkett vinyl fit written out
+// whole, Alta Vista Balboa gives up only its 5/8" thickness, and Santa Monica
+// degrades to the width alone — all without a "+", the full dimensions riding
+// the Ext copy.
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import { OrderEntryPanel } from "./orderentry.jsx";
@@ -24,7 +26,7 @@ import { lineItems, defaultConfig } from "./sheoga.js";
 import { skuKeys } from "./orderbook.js";
 
 const s = normalizeSettings();
-const DESC_LIMIT = 30;
+const DESC_LIMIT = 70;
 
 const stockBookIds = new Set(["bkStock"]);
 const bookBrands = new Map([["bkGlz", "Glazzio"], ["bkOvfHm", "Hallmark"], ["bkOvfTk", "Tarkett"]]);
@@ -51,9 +53,13 @@ const rows = [
   // Glazzio sheet mosaic as a pick now lands it (the 8/26 CLNL289 flags):
   // SH unit (no CT tag), nominal 12x12" with the exact dims on hover, 1.06 SF/SH
   { ...newProduct(), id: uid(), type: "tile", bookId: "bkGlz", sku: "CLNL289", brandColor: "Glazzio Colonial Collection Long Hex Village Square", sizeText: "12.375x12.375 sheet", L: "1", W: "2", qty: "35", priceSqft: "28.72", costSqft: "19.15", cartonSf: "1.06", cartonUnit: "SH" },
-  // Hallmark hardwood plank (owner 2026-08-27, the NO6EMEO-19 example): the
-  // size degrades thickness-first, length-next — the width never leaves
+  // Hallmark hardwood planks (owner 2026-08-27, the NO6EMEO-19 example): the
+  // size degrades thickness-first, length-next — the width never leaves.
+  // Emerson fits the 70 field whole; Alta Vista's 25-character dimensions
+  // crowd it, so Balboa drops its thickness and Santa Monica keeps width only
   { ...newProduct(), id: uid(), type: "hardwood", bookId: "bkOvfHm", sku: "NO6EMEO-19", brandColor: "Oak Emerson", sizeText: '7/16" x 6"x RL-74"', qty: "230", priceSqft: "8.99", costSqft: "4.69", cartonSf: "24.93", cartonUnit: "CT" },
+  { ...newProduct(), id: uid(), type: "hardwood", bookId: "bkOvfHm", sku: "AV75OBALC", brandColor: "European White Oak Balboa", sizeText: '5/8" x 7 1/2" x RL- 74 3/4"', qty: "410", priceSqft: "13.99", costSqft: "7.29", cartonSf: "27", cartonUnit: "CT" },
+  { ...newProduct(), id: uid(), type: "hardwood", bookId: "bkOvfHm", sku: "AV75OSANC", brandColor: "European White Oak Santa Monica", sizeText: '5/8" x 7 1/2" x RL- 74 3/4"', qty: "185", priceSqft: "13.99", costSqft: "7.29", cartonSf: "27", cartonUnit: "CT" },
   // Tarkett vinyl plank — a width × length size keeps the width the same way
   { ...newProduct(), id: uid(), type: "vinyl", bookId: "bkOvfTk", sku: "270311021", brandColor: "ProGen Sagebrush", sizeText: '7" x 60"', qty: "350", priceSqft: "6.49", costSqft: "3.97", cartonSf: "26.25", cartonUnit: "CT" },
   // PC-sold primer off an order book — no unit start any more (only CT leads)
@@ -64,19 +70,14 @@ const rows = [
   { ...newProduct(), id: uid(), type: "tile", sku: "05153", brandColor: "Hanoi White Matte", L: "12", W: "24", qty: "140", priceSqft: "4.79", cartonSf: "15.5", cartonUnit: "CT" },
 ];
 
-const WIDE_LIMIT = 68;
-const wideView = new URLSearchParams(window.location.search).has("wide");
-const limit = wideView ? WIDE_LIMIT : DESC_LIMIT;
-const built = rows.map((p) => orderEntryRow(p, s, "Area 1", limit, stockBookIds, bookBrands, stockSkus));
+const built = rows.map((p) => orderEntryRow(p, s, "Area 1", DESC_LIMIT, stockBookIds, bookBrands, stockSkus));
 
 createRoot(document.getElementById("preview")).render(
   <OrderEntryPanel
-    name={wideView
-      ? 'Soft drops at a 68-char field — "Collection" alone lost pastes with no +'
-      : "Order entry preview — job-line flag batch"}
+    name="Order entry preview — the 70-character field, plank sizes width-first"
     special={built.filter((r) => r.special)}
     stock={built.filter((r) => !r.special)}
-    descLimit={limit}
+    descLimit={DESC_LIMIT}
     onClose={() => {}}
   />,
 );

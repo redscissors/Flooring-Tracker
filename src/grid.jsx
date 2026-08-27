@@ -272,9 +272,12 @@ export function GridSizeInput({ p, onCommit, tabIndex }) {
 // An <input> can't wrap or color part of its text, so the field is a
 // transparent-text textarea over a painted mirror: the mirror sizes the box,
 // draws the glyphs, and paints everything past `budget` red — the characters
-// that stop the row's order description (size · product · SKU · coverage,
-// nameBudget in orderentry.js) from fitting the ERP field in one piece. A
-// count chip shows the would-be paste length against descLimit while over.
+// that keep the row's order description from fitting the ERP field even AFTER
+// order entry's own formatting (owner 2026-08-27): the budget already assumes
+// the ladder's soft drops — a plank size down to its width, a leading brand or
+// "Collection" gone — so red means the paste will actually cut, not merely
+// abbreviate (nameBudget in orderentry.js). A count chip shows the would-be
+// paste length against descLimit while over.
 const CELL_LINE = 14;              // px line-height; two lines + pad = 34px cap
 const OVER_RED = "#dc2626";
 export function GridProductBox({ value, stock, onChange, onPick, searchOrder, bookName, placeholder = "Product…", inputRef, budget = Infinity, descLimit = 0, strictness, fallback }) {
@@ -322,7 +325,7 @@ export function GridProductBox({ value, stock, onChange, onPick, searchOrder, bo
           title="Brand / color — or search the price book and pick a match to fill the row" />
         {over && descLimit > 0 && (
           <span style={{ position: "absolute", right: 2, bottom: 1, zIndex: 2, fontSize: 8.5, fontWeight: 700, padding: "0 3px", borderRadius: 4, background: "var(--ft-card)", color: OVER_RED, border: "1px solid color-mix(in oklab, #dc2626 40%, transparent)", pointerEvents: "none" }}
-            title={`The order-entry description would be ${String(value).length + (descLimit - budget)} characters — the ERP field holds ${descLimit}. Trim the red tail to fit in one piece.`}>
+            title={`Even after order entry trims what it can, the description would be ${String(value).length + (descLimit - budget)} characters — the ERP field holds ${descLimit}. Trim the red tail to fit.`}>
             {String(value).length + (descLimit - budget)}/{descLimit}
           </span>
         )}

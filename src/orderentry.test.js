@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { isSpecialOrder, orderCopyText, orderDescription, nameBudget, sheetNominal, tightSize } from "./orderentry.js";
+import { DEFAULT_DESC_LIMIT } from "./descfit.js";
 import { lineItems, multiWidthLineItems, defaultConfig } from "./sheoga.js";
 
 const floor = (over = {}) => ({ ...defaultConfig("floor"), sp: "White Oak", w: 5.25, ...over });
@@ -173,7 +174,7 @@ test("nameBudget: what the limit leaves the product text after the tag, size, SK
   // "Anatolia Carrara Bianco" is 23 chars: at limit 58 the whole flow fits exactly
   assert.equal(nameBudget(book, 58), "Anatolia Carrara Bianco".length);
   assert.equal(nameBudget(book, 0), Infinity, "no limit configured — nothing to trim against");
-  assert.equal(nameBudget({ sizePlain: "", sku: "", coverage: "" }, 30), 30);
+  assert.equal(nameBudget({ sizePlain: "", sku: "", coverage: "" }, 70), 70);
   assert.equal(nameBudget({ sizePlain: "0.5x10", sku: "WOWPOWIEDGEG", coverage: "10 PC/CT" }, 20), 0, "never negative");
 });
 
@@ -246,32 +247,41 @@ const emerson = {
   tag: "CT", sizePlain: '7/16"x6"x RL-74"', name: "Oak Emerson", type: "hardwood",
   sku: "NO6EMEO-19", coverage: "24.93 SF/CT",
 };
+// Alta Vista carries the size that actually crowds the 70-character field —
+// the dimensions alone are 25 characters of it.
+const altaVista = (color, sku) => ({
+  tag: "CT", sizePlain: '5/8" x 7 1/2" x RL- 74 3/4"', name: `European White Oak ${color}`,
+  type: "hardwood", sku, coverage: "27 SF/CT",
+});
 
 test("orderDescription: a plank size flows whole while there's room", () => {
-  const d = orderDescription(emerson, 0);
+  const d = orderDescription(emerson, DEFAULT_DESC_LIMIT);
   assert.equal(d.tier, "full");
   assert.equal(d.main, 'CT 7/16"x 6" xRL-74" Oak Emerson NO6EMEO-19 24.93 SF/CT');
+  assert.equal(d.ext, null);
 });
 
 test("orderDescription: the thickness is the first dimension dropped, without a marker", () => {
-  const d = orderDescription(emerson, 50);
-  assert.ok(!d.main.includes('7/16"'), "thickness goes first");
-  assert.equal(d.main, 'CT 6" xRL-74" Oak Emerson NO6EMEO-19 24.93 SF/CT');
+  // Balboa runs 73 written out — three over the field. The thickness alone
+  // closes the gap; everything else stays.
+  const d = orderDescription(altaVista("Balboa", "AV75OBALC"), DEFAULT_DESC_LIMIT);
+  assert.equal(d.main, 'CT 7 1/2" xRL- 74 3/4" European White Oak Balboa AV75OBALC 27 SF/CT');
   assert.ok(!d.main.includes("+"), "losing a dimension is not a cut spec");
   assert.equal(d.cut, false);
-  assert.ok(d.ext.includes('7/16"x 6" xRL-74"'), "the extended text keeps the full size");
+  assert.ok(d.ext.includes('5/8"x 7 1/2" xRL- 74 3/4"'), "the extended text keeps the full size");
 });
 
 test("orderDescription: the length goes next, the width never does", () => {
-  const d = orderDescription(emerson, 40);
-  assert.equal(d.main, 'CT 6" Oak Emerson NO6EMEO-19 24.93 SF/CT');
+  const santa = altaVista("Santa Monica", "AV75OSANC");
+  const d = orderDescription(santa, DEFAULT_DESC_LIMIT);
+  assert.equal(d.main, 'CT 7 1/2" European White Oak Santa Monica AV75OSANC 27 SF/CT');
   assert.ok(!d.main.includes("+"), "width alone is still a whole spec");
-  // Even on the marked clip rung (the default 30-char field) the width stays.
-  const tight = orderDescription(emerson, 30);
-  assert.equal(tight.main, 'CT 6" + NO6EMEO-19 24.93 SF/CT');
-  assert.ok(tight.main.length <= 30);
-  for (const limit of [0, 55, 50, 45, 40, 35, 30]) {
-    assert.ok(orderDescription(emerson, limit).main.includes('6"'), `lost the width at ${limit}`);
+  // Even once the name itself has to cut, the width stays ahead of it.
+  const tight = orderDescription(santa, 45);
+  assert.ok(tight.main.includes(" + "), "the name cut announces itself");
+  assert.ok(tight.main.includes('7 1/2"'));
+  for (const limit of [0, 70, 60, 55, 50, 45, 40]) {
+    assert.ok(orderDescription(santa, limit).main.includes('7 1/2"'), `lost the width at ${limit}`);
   }
 });
 
@@ -280,10 +290,26 @@ test("orderDescription: a vinyl width × length size drops only the length", () 
     tag: "CT", sizePlain: '7"x60"', name: "ProGen Sagebrush", type: "vinyl",
     sku: "270311021", coverage: "26.25 SF/CT",
   };
+  assert.equal(orderDescription(tarkett, DEFAULT_DESC_LIMIT).tier, "full");
   assert.equal(orderDescription(tarkett, 0).main, 'CT 7" x60" ProGen Sagebrush 270311021 26.25 SF/CT');
   const d = orderDescription(tarkett, 45);
   assert.equal(d.main, 'CT 7" ProGen Sagebrush 270311021 26.25 SF/CT');
   assert.ok(!d.main.includes("+"));
+});
+
+test("orderDescription: a laminate plank splits the same way, mm read as the thickness", () => {
+  const crescendo = {
+    tag: "CT", sizePlain: '10mm x 9.69" x 80.71"', name: "Crescendo Silverstrand", type: "laminate",
+    sku: "CR10SILV", coverage: "22.6 SF/CT",
+  };
+  assert.equal(orderDescription(crescendo, DEFAULT_DESC_LIMIT).tier, "full");
+  const d = orderDescription(crescendo, 60);
+  assert.equal(d.main, 'CT 9.69" x80.71" Crescendo Silverstrand CR10SILV 22.6 SF/CT');
+  assert.ok(!d.main.includes("10mm"));
+  // The metric-thickness vinyl planks read the same way.
+  const pvp = { ...emerson, type: "vinyl", sizePlain: '5.5mm x 9"x 59"', name: "Courtier Monarch", sku: "COMON9O5MM" };
+  assert.ok(!orderDescription(pvp, 48).main.includes("5.5mm"));
+  assert.ok(orderDescription(pvp, 48).main.includes('9"'));
 });
 
 test("orderDescription: a thickness × width pair keeps the width, a multi-width keeps the list", () => {
@@ -298,17 +324,27 @@ test("orderDescription: a thickness × width pair keeps the width, a multi-width
   assert.ok(d.main.includes('5, 6, 7 1/2"'), "every width survives");
 });
 
-test("orderDescription: only hardwood and vinyl split their sizes — everything else is one token", () => {
+test("orderDescription: only the plank types split their sizes — everything else is one token", () => {
   const tile = { ...emerson, type: "tile" };
   const d = orderDescription(tile, 0);
   assert.ok(d.main.includes('7/16"x6"x RL-74"'), "a tile size stays whole");
-  // A metric-thickness vinyl plank still reads mm as the thickness.
-  const pvp = { ...emerson, type: "vinyl", sizePlain: '5.5mm x 9"x 59"', name: "Courtier Monarch", sku: "COMON9O5MM" };
-  assert.ok(!orderDescription(pvp, 48).main.includes("5.5mm"));
-  assert.ok(orderDescription(pvp, 48).main.includes('9"'));
   // Unparseable size text on a plank row falls back to the one-token size.
   const odd = { ...emerson, sizePlain: "Random Width Mix" };
   assert.ok(orderDescription(odd, 0).main.includes("Random Width Mix"));
+});
+
+test("nameBudget: red only when the paste still cuts AFTER order entry's formatting", () => {
+  // Santa Monica fits the 70 field once the ladder drops both spare
+  // dimensions — the budget charges the size at its width, so no red…
+  const santa = altaVista("Santa Monica", "AV75OSANC");
+  assert.ok(nameBudget(santa, DEFAULT_DESC_LIMIT) >= santa.name.length, "a formatted fit never reads red");
+  assert.ok(nameBudget(santa, 60) >= santa.name.length, "60 still lands unmarked — no red");
+  // …and the first red character appears exactly where the unmarked rung dies.
+  assert.ok(nameBudget(santa, 59) < santa.name.length, "at 59 the paste cuts, so the tail reads red");
+  // A leading brand and "Collection" hand their room back to the name: the
+  // colonial's 51-char name pastes clean at 70 (only soft losses), so no red.
+  assert.ok(nameBudget(colonial, 70) >= colonial.name.length);
+  assert.ok(nameBudget(colonial, 56) < colonial.name.length, "at 56 identity is cut — red is honest");
 });
 
 test("sheetNominal: a landed sheet size reads nominal, anything else passes through", () => {

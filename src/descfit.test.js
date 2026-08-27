@@ -249,14 +249,12 @@ test("short forms are unambiguous within a category", () => {
   assert.ok(shorts.size >= 8);
 });
 
-test("an ordinary configuration fits 30 characters without splitting", () => {
+test("an ordinary configuration fits the 70-character field written out whole", () => {
   const cfg = { ...defaultConfig("floor"), sp: "White Oak", w: 5.25, grade: "char", cons: "solid", finish: "t1" };
   const built = calcConfig({ mode: "floor", cfg }, 400);
   const r = fitDescription(descParts({ mode: "floor", cfg }), DEFAULT_DESC_LIMIT);
-  assert.equal(r.tier, "short");
-  // The species (+7) overruns, so the grade takes the room instead.
-  assert.equal(r.main, '5¼" WO Character Sol T-1 30sh');
-  assert.equal(r.full, built.desc);
+  assert.equal(r.tier, "full");
+  assert.equal(r.main, built.desc);
   assert.equal(r.ext, null);
 });
 
