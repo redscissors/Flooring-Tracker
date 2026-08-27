@@ -67,6 +67,49 @@ export function sheetNominal(sizeText) {
   return L > 0 && W > 0 ? `${L}x${W}"` : "";
 }
 
+// A plank floor's stated size is thickness × width × length, and order entry
+// doesn't weigh the three equally (owner 2026-08-27, the Hallmark NO6EMEO-19
+// case): the WIDTH is how the desk reads a plank, so it stays in the
+// description as long as anything fits — the thickness goes first and the
+// length next when the field runs tight. Both are soft: a width-only size is
+// the spec the desk needs, not a cut one, so losing them alone never wears the
+// "+" marker, and the extended text still carries the full dimensions. Each
+// dimension takes its own "x" with it when it goes, so what remains still
+// reads as a size: `7/16"x 6" xRL-74"` → `6" xRL-74"` → `6"`. Thickness drops
+// with the "Collection" tier (rank 4, ahead of the brand); length holds out
+// past the brand (rank 2). Hardwood and vinyl rows only — a tile's 12"x24" is
+// one identity token, and every other type is unchanged.
+const DIM_WORDS = /\bRL\b|mm\b/gi; // no \b before mm — a digit-mm join ("5.5mm") has no boundary
+const dimish = (t) => /\d/.test(t) && !/[a-z]/i.test(t.replace(DIM_WORDS, ""));
+const inchesOf = (t) => {
+  const s = String(t).trim().replace(/["”]$/, "");
+  const m = s.match(/^(\d+(?:\.\d+)?)(?:\s+(\d+)\s*\/\s*(\d+))?$/);
+  if (m) return Number(m[1]) + (m[2] ? Number(m[2]) / Number(m[3]) : 0);
+  const f = s.match(/^(\d+)\s*\/\s*(\d+)$/);
+  return f ? Number(f[1]) / Number(f[2]) : null;
+};
+// mm is always a thickness on these sheets, and no plank is under 2" wide or
+// 2" thick, so the inch boundary is unambiguous.
+const isThick = (t) => {
+  if (/mm$/i.test(String(t).trim())) return true;
+  const v = inchesOf(t);
+  return v != null && v < 2;
+};
+export function plankSizeParts(sizeText) {
+  const s = tightSize(sizeText);
+  if (!s) return [];
+  const toks = s.split(/\s*[x×]\s*/i).map((t) => t.trim()).filter(Boolean);
+  if (toks.length < 2 || toks.length > 3 || !toks.every(dimish)) return textParts(s);
+  const [t, w, l] = toks.length === 3 ? toks : isThick(toks[0]) ? [toks[0], toks[1], ""] : ["", toks[0], toks[1]];
+  return [
+    ...(t ? [{ full: `${t}x`, rank: 4, soft: true }] : []),
+    { full: w, rank: 0 },
+    ...(l ? [{ full: `x${l}`, rank: 2, soft: true }] : []),
+  ];
+}
+const PLANK_TYPES = new Set(["hardwood", "vinyl"]);
+const sizeParts = (r) => (PLANK_TYPES.has(r.type) ? plankSizeParts(r.sizePlain) : textParts(tightSize(r.sizePlain)));
+
 // A special line → what belongs in the ERP's description field, via the fit
 // ladder. A Sheoga row abbreviates losslessly because its description is built
 // from known enums (descParts); everything else is arbitrary vendor text with no
@@ -125,7 +168,7 @@ export function orderDescription(r, limit) {
   const parts = [
     ...(r.tag ? [{ full: String(r.tag), rank: 0 }] : []),
     ...((sheogaParts && [{ full: "Sheoga", rank: 0 }, ...sheogaParts])
-      || [...textParts(tightSize(r.sizePlain)), ...(branded ? [{ full: brand, rank: 3, soft: true }] : []), ...nameParts(body)]),
+      || [...sizeParts(r), ...(branded ? [{ full: brand, rank: 3, soft: true }] : []), ...nameParts(body)]),
   ];
   const tail = [];
   if (r.sku) tail.push({ full: String(r.sku), pin: true });
@@ -149,6 +192,7 @@ export const orderCopyText = (r) => (r.desc ? r.desc.main : "");
 // 7-char size already splits a 70-char field.
 export function nameBudget(r, limit) {
   if (!(Number(limit) > 0)) return Infinity;
-  const others = [r.tag, tightSize(r.sizePlain), r.sku, r.coverage].map((x) => String(x || "").trim()).filter(Boolean);
+  const size = sizeParts(r).map((p) => p.full).join(" ");
+  const others = [r.tag, size, r.sku, r.coverage].map((x) => String(x || "").trim()).filter(Boolean);
   return Math.max(0, Number(limit) - others.reduce((n, s) => n + s.length + 1, 0));
 }

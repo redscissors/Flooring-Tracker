@@ -91,6 +91,13 @@ test("a cut landing after a separator doesn't leave it dangling before the marke
   assert.ok(!/[—–·,;:-] \+$/.test(r.main), "a trailing separator reads as a typo");
 });
 
+test("a word ending exactly at the clip budget is kept, not cut back a word", () => {
+  // limit 8 → body budget 6: "AB CDE" fills it to the last character.
+  const r = fitDescription(textParts("AB CDE FG"), 8);
+  assert.equal(r.main, "AB CDE +");
+  assert.ok(r.main.length <= 8);
+});
+
 test("a single word longer than the field overruns rather than being cut apart", () => {
   const r = fitDescription(textParts("Supercalifragilistic"), 10);
   assert.equal(r.main, "Supercalifragilistic +", "a hard cut would fake an abbreviation");

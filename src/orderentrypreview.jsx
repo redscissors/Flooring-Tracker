@@ -11,7 +11,9 @@
 // ?wide=1 for the soft-drop panel (owner 2026-08-26): the same lines at a
 // 68-char field, where CLNL289's only loss is "Collection" (soft) so it
 // pastes with NO "+", while the hand-entered Uptown line still cuts identity
-// and keeps the marker + the footer's amber note.
+// and keeps the marker + the footer's amber note. The 8/27 batch adds the two
+// plank-size lines (the Hallmark NO6EMEO-19 example): at 30 both degrade to
+// the width alone; at ?wide=1 the full thickness × width × length flows.
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import { OrderEntryPanel } from "./orderentry.jsx";
@@ -25,7 +27,7 @@ const s = normalizeSettings();
 const DESC_LIMIT = 30;
 
 const stockBookIds = new Set(["bkStock"]);
-const bookBrands = new Map([["bkGlz", "Glazzio"]]);
+const bookBrands = new Map([["bkGlz", "Glazzio"], ["bkOvfHm", "Hallmark"], ["bkOvfTk", "Tarkett"]]);
 // The mock ERP stock cache: only these SKUs are shop stock.
 const stockSkus = new Set(["05153", "23015"].flatMap(skuKeys));
 
@@ -49,6 +51,11 @@ const rows = [
   // Glazzio sheet mosaic as a pick now lands it (the 8/26 CLNL289 flags):
   // SH unit (no CT tag), nominal 12x12" with the exact dims on hover, 1.06 SF/SH
   { ...newProduct(), id: uid(), type: "tile", bookId: "bkGlz", sku: "CLNL289", brandColor: "Glazzio Colonial Collection Long Hex Village Square", sizeText: "12.375x12.375 sheet", L: "1", W: "2", qty: "35", priceSqft: "28.72", costSqft: "19.15", cartonSf: "1.06", cartonUnit: "SH" },
+  // Hallmark hardwood plank (owner 2026-08-27, the NO6EMEO-19 example): the
+  // size degrades thickness-first, length-next — the width never leaves
+  { ...newProduct(), id: uid(), type: "hardwood", bookId: "bkOvfHm", sku: "NO6EMEO-19", brandColor: "Oak Emerson", sizeText: '7/16" x 6"x RL-74"', qty: "230", priceSqft: "8.99", costSqft: "4.69", cartonSf: "24.93", cartonUnit: "CT" },
+  // Tarkett vinyl plank — a width × length size keeps the width the same way
+  { ...newProduct(), id: uid(), type: "vinyl", bookId: "bkOvfTk", sku: "270311021", brandColor: "ProGen Sagebrush", sizeText: '7" x 60"', qty: "350", priceSqft: "6.49", costSqft: "3.97", cartonSf: "26.25", cartonUnit: "CT" },
   // PC-sold primer off an order book — no unit start any more (only CT leads)
   { ...newProduct(), id: uid(), type: "misc", qtyType: "count", bookId: "bkSlr", sku: "SLRPRMU1", brandColor: "Primer-U Universal Primer 1 Gal (3.78 L)", qty: "2", priceSqft: "65.61", costSqft: "43.74", sellUnit: "PC" },
   // RL-sold membrane, stocked at the shop → keys as stock, in rolls, untagged

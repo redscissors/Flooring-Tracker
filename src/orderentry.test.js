@@ -240,6 +240,77 @@ test('orderDescription: "Collection" is the first word to go when the field runs
   assert.ok(tighter.main.includes(" + "), "identity cut still announces itself");
 });
 
+// --- plank sizes on the fit ladder (owner 2026-08-27, the NO6EMEO-19 case) ----
+
+const emerson = {
+  tag: "CT", sizePlain: '7/16"x6"x RL-74"', name: "Oak Emerson", type: "hardwood",
+  sku: "NO6EMEO-19", coverage: "24.93 SF/CT",
+};
+
+test("orderDescription: a plank size flows whole while there's room", () => {
+  const d = orderDescription(emerson, 0);
+  assert.equal(d.tier, "full");
+  assert.equal(d.main, 'CT 7/16"x 6" xRL-74" Oak Emerson NO6EMEO-19 24.93 SF/CT');
+});
+
+test("orderDescription: the thickness is the first dimension dropped, without a marker", () => {
+  const d = orderDescription(emerson, 50);
+  assert.ok(!d.main.includes('7/16"'), "thickness goes first");
+  assert.equal(d.main, 'CT 6" xRL-74" Oak Emerson NO6EMEO-19 24.93 SF/CT');
+  assert.ok(!d.main.includes("+"), "losing a dimension is not a cut spec");
+  assert.equal(d.cut, false);
+  assert.ok(d.ext.includes('7/16"x 6" xRL-74"'), "the extended text keeps the full size");
+});
+
+test("orderDescription: the length goes next, the width never does", () => {
+  const d = orderDescription(emerson, 40);
+  assert.equal(d.main, 'CT 6" Oak Emerson NO6EMEO-19 24.93 SF/CT');
+  assert.ok(!d.main.includes("+"), "width alone is still a whole spec");
+  // Even on the marked clip rung (the default 30-char field) the width stays.
+  const tight = orderDescription(emerson, 30);
+  assert.equal(tight.main, 'CT 6" + NO6EMEO-19 24.93 SF/CT');
+  assert.ok(tight.main.length <= 30);
+  for (const limit of [0, 55, 50, 45, 40, 35, 30]) {
+    assert.ok(orderDescription(emerson, limit).main.includes('6"'), `lost the width at ${limit}`);
+  }
+});
+
+test("orderDescription: a vinyl width × length size drops only the length", () => {
+  const tarkett = {
+    tag: "CT", sizePlain: '7"x60"', name: "ProGen Sagebrush", type: "vinyl",
+    sku: "270311021", coverage: "26.25 SF/CT",
+  };
+  assert.equal(orderDescription(tarkett, 0).main, 'CT 7" x60" ProGen Sagebrush 270311021 26.25 SF/CT');
+  const d = orderDescription(tarkett, 45);
+  assert.equal(d.main, 'CT 7" ProGen Sagebrush 270311021 26.25 SF/CT');
+  assert.ok(!d.main.includes("+"));
+});
+
+test("orderDescription: a thickness × width pair keeps the width, a multi-width keeps the list", () => {
+  const pair = { ...emerson, sizePlain: '3/4" x 5"', name: "Organic Oak Ambrosia", sku: "OS34OAMB" };
+  assert.ok(orderDescription(pair, 0).main.includes('3/4"x 5"'));
+  assert.ok(!orderDescription(pair, 42).main.includes('3/4"'), "the pair has no length — thickness still goes first");
+  assert.ok(orderDescription(pair, 42).main.includes('5"'));
+  // A width list IS the width — it never drops as a length.
+  const multi = { ...emerson, sizePlain: '5/8"x5, 6, 7 1/2"', name: "Monterey Casita", sku: "AMZ5CAS" };
+  const d = orderDescription(multi, 46);
+  assert.ok(!d.main.includes('5/8"'));
+  assert.ok(d.main.includes('5, 6, 7 1/2"'), "every width survives");
+});
+
+test("orderDescription: only hardwood and vinyl split their sizes — everything else is one token", () => {
+  const tile = { ...emerson, type: "tile" };
+  const d = orderDescription(tile, 0);
+  assert.ok(d.main.includes('7/16"x6"x RL-74"'), "a tile size stays whole");
+  // A metric-thickness vinyl plank still reads mm as the thickness.
+  const pvp = { ...emerson, type: "vinyl", sizePlain: '5.5mm x 9"x 59"', name: "Courtier Monarch", sku: "COMON9O5MM" };
+  assert.ok(!orderDescription(pvp, 48).main.includes("5.5mm"));
+  assert.ok(orderDescription(pvp, 48).main.includes('9"'));
+  // Unparseable size text on a plank row falls back to the one-token size.
+  const odd = { ...emerson, sizePlain: "Random Width Mix" };
+  assert.ok(orderDescription(odd, 0).main.includes("Random Width Mix"));
+});
+
 test("sheetNominal: a landed sheet size reads nominal, anything else passes through", () => {
   assert.equal(sheetNominal("12.375x12.375 sheet"), '12x12"');
   assert.equal(sheetNominal("11.75x11.813 sheet"), '12x12"');

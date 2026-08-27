@@ -178,7 +178,7 @@ export function orderEntryRow(p, s, area, descLimit, stockBookIds, bookBrands, s
   // Sheoga sells by description, not SKU — the description IS the order.
   const byDesc = !!p.sheoga && !p.sku;
   const r = {
-    id: p.id, special: isSpecialOrder(p, stockBookIds, stockSkus), byDesc, area,
+    id: p.id, special: isSpecialOrder(p, stockBookIds, stockSkus), byDesc, area, type: p.type,
     tag, sizePlain, sizeTrue: nominal ? tightSize(sizeRaw) : "", name, brand: (p.bookId && bookBrands?.get(p.bookId)) || "", sku: p.sku, coverage, sheoga: p.sheoga,
     qty, qtyAssumed, unitCode: code, qtyText: qty > 0 ? `${qty} ${code}` : "—",
     perCost: qty > 0 ? extCost / qty : 0,

@@ -61,13 +61,14 @@ const promote = (parts, budget) => {
 };
 
 // Last resort on the split rung: cut at a word boundary so a half-word never
-// reads as an abbreviation we meant. When there is no boundary — one word longer
-// than the whole field — keep the word intact and let it overrun; a hard cut
-// would hand back a fragment indistinguishable from a real short form, and an
-// overrun the caller can see beats a lie it can't.
+// reads as an abbreviation we meant. The scan runs to n+1 so a word ending
+// exactly at the budget is kept, not cut back a word. When there is no
+// boundary — one word longer than the whole field — keep the word intact and
+// let it overrun; a hard cut would hand back a fragment indistinguishable from
+// a real short form, and an overrun the caller can see beats a lie it can't.
 const clip = (s, n) => {
   if (s.length <= n) return s;
-  const sp = s.slice(0, n).lastIndexOf(" ");
+  const sp = s.slice(0, n + 1).lastIndexOf(" ");
   return (sp > 0 ? s.slice(0, sp) : s.split(" ")[0]).trim();
 };
 
