@@ -10,6 +10,7 @@ import { entryFileName, captureHandoff, captureHandoffSession, clearHandoffSessi
 import { parsePdfPages } from "./pdfbook.js";
 import { isManningtonCartons, parseManningtonPages } from "./manningtonbook.js";
 import { isTrueTouch, parseTrueTouchPages } from "./truetouchbook.js";
+import { isInterfacePriceList, parseInterfacePages } from "./interfacebook.js";
 import { parseOvf } from "./ovfbook.js";
 import { parseEmser } from "./emserbook.js";
 import { parseMirage } from "./miragebook.js";
@@ -1786,8 +1787,12 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
       if (isPdf || prePages) {
         const pages = prePages || (await readPdfPages(file));
         setFmt(fileFormat({ pages, isPdf: true }));
-        const parsePdf = isManningtonCartons(pages) ? parseManningtonPages : isTrueTouch(pages) ? parseTrueTouchPages : parsePdfPages;
-        const { name, rows, mapping } = parsePdf(pages, (file?.name || book.name || "book").replace(/\.pdf$/i, ""));
+        const parsePdf = isManningtonCartons(pages) ? parseManningtonPages : isTrueTouch(pages) ? parseTrueTouchPages : isInterfacePriceList(pages) ? parseInterfacePages : parsePdfPages;
+        const { name, rows, mapping, warnings } = parsePdf(pages, (file?.name || book.name || "book").replace(/\.pdf$/i, ""));
+        // Parser-level warnings (Interface's per-square-yard conversion, a
+        // Mannington page that recognized nothing) merge into the wizard's
+        // warning list the same way Mirage's joined parse does.
+        setSrcWarn(warnings || []);
         setSheets([{ name, rows }]);
         applyDetected({ sheet: name, ...mapping });
         setReading(false);

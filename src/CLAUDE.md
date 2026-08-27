@@ -281,6 +281,19 @@ src/
                     # transition products keyed by Catalog # (their 94" length
                     # read off the column header into size), flagged `trim` so
                     # the book can mark trims up separately from floors (ADR 0012)
+  interfacebook.js  # Interface dealer price list PDF -> canonical rows (carpet
+                    # tile + a trailing LVT section). Carpet costs are per
+                    # SQUARE YARD on the sheet -> imported ÷9 per sq ft; carton
+                    # coverage is the rep's stated standard pack (53.82 sf / 20
+                    # tiles — the sheet states none, so it is assumed and the
+                    # wizard warns; 1m×1m and 50cm×1m formats get none), the
+                    # size a decoded format letter (SP/50/M/P), the collection
+                    # deliberately on the MFG column, not Product Line — style
+                    # names overlap their collection names ("Open Air 401
+                    # Stria" in "Open Air Stria") and mappedItem's fronting
+                    # would double the words — and one row per STYLE: the sheet
+                    # carries no colors, colorways come off the sample deck
+                    # (docs/pricebook/interface.md)
   stock.js          # stock-item search / SKU fill snapshot / drift / base
                     # companions / grout families, over stock-shaped items
                     # (the ADR 0027 book items + projected family rows)
