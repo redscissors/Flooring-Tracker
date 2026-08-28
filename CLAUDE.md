@@ -176,7 +176,18 @@ Rationale, the change-classification table, and the sanctioned write paths live 
 (floortrack-* knowledge packs, /decide, /design-review, etc.) — no longer
 auto-triggering skills, but read them like any other doc when their topic
 comes up. `.claude/skills/` now holds the general-purpose superpowers
-workflow skills (MIT, from github.com/obra/superpowers).
+workflow skills (MIT, from github.com/obra/superpowers). The superpowers
+plugin itself is enabled through the checked-in `.claude/settings.json`
+(marketplace `obra/superpowers-marketplace`); its SessionStart hook is what
+enforces skill usage. Cloud/web sessions pick it up from that file; on a
+local machine run `claude plugin install superpowers@superpowers-marketplace`
+once if Claude Code reports it as not installed.
+
+**Skills-first rule:** before responding to any request — including
+questions — check the available skills list and invoke any that plausibly
+apply: brainstorming before building, systematic-debugging before fixing,
+verification-before-completion before claiming anything works. If a skill
+might apply, invoke it; don't rationalize skipping it.
 
 ## Not yet implemented
 
