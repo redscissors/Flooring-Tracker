@@ -90,6 +90,18 @@ test("inserts the wedi/Schluter areas immediately after the host area", () => {
   assert.equal(patch.categories[4].id, after.id);
 });
 
+test("each side lands as its own kit: lines share one kitId per area, sides differ (ADR 0035)", () => {
+  const proj = hostProject();
+  const host = proj.categories[1];
+  const patch = compareOptionsPatch(proj, host.id, { wediLines: [wediLine, { ...wediLine, wedi: { part: true } }], schluterLines: [schluterLine] });
+  const wediRows = patch.categories[2].products.slice(0, 2);
+  const schRow = patch.categories[3].products[0];
+  assert.ok(wediRows[0].kitId, "the wedi anchor is stamped");
+  assert.equal(wediRows[0].kitId, wediRows[1].kitId, "the wedi companion shares the anchor's kitId");
+  assert.ok(schRow.kitId, "the Schluter anchor is stamped");
+  assert.notEqual(schRow.kitId, wediRows[0].kitId, "the two sides are separate kits");
+});
+
 test("appends both areas at the end when the host id is gone", () => {
   const proj = hostProject();
   const patch = compareOptionsPatch(proj, "not-a-real-id", { wediLines: [wediLine], schluterLines: [schluterLine], label: "Hall Bath" });

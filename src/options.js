@@ -1,4 +1,4 @@
-import { uid, OPTION_SLOTS, newArea, newProduct } from "./model.js";
+import { uid, OPTION_SLOTS, newArea, newProduct, stampKit } from "./model.js";
 
 // Quote options (ADR 0031): an area's `option` is "" (shared — part of the job
 // in every option) or a fixed slot letter (A–L since 2026-08-26 — six wasn't
@@ -48,7 +48,7 @@ export const compareOptionsPatch = (project, hostAreaId, { wediLines, schluterLi
   const base = (label && label.trim()) || (host?.name && host.name.trim()) || "Shower";
   const areaFor = (name, slot, lines) => ({
     ...newArea(), name, option: slot,
-    products: [...lines.map((p) => ({ ...newProduct(), ...p })), newProduct()],
+    products: [...stampKit(lines).map((p) => ({ ...newProduct(), ...p })), newProduct()],
   });
   const wediArea = areaFor(`${base} — wedi`, "A", wediLines);
   const schluterArea = areaFor(`${base} — Schluter`, "B", schluterLines);

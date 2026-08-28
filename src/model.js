@@ -97,7 +97,7 @@ export const newBuilder = (name = "") => ({ id: uid(), name });
 // `freight` stores only the opt-OUT ("off"): a row whose book charges freight
 // rides the shipment by default, including rows saved before the program
 // existed (ADR 0030).
-export const normP = (p) => ({ id: p.id || uid(), type: TYPES.includes(p.type) ? p.type : "tile", sku: p.sku ?? "", L: p.L ?? "", W: p.W ?? "", thickness: p.thickness || "0.375", sizeText: p.sizeText ?? (p.size || ""), brandColor: p.brandColor ?? [p.brand, p.color].filter(Boolean).join(" / "), priceSqft: p.priceSqft ?? "", qtyType: p.qtyType === "count" ? "count" : "sqft", qty: p.qty ?? "", cartonSf: p.cartonSf ?? "", cartonPc: p.cartonPc ?? "", cartonUnit: p.cartonUnit || "CT", sellUnit: p.sellUnit ?? "", cartonManual: p.cartonManual ?? "", note: p.note ?? "", freight: p.freight === "off" ? "off" : "", bookId: p.bookId ?? "", cost: p.cost ?? "", costSqft: p.costSqft ?? "", markupPct: p.markupPct ?? "", freightFlag: !!p.freightFlag, tierPrice: p.tierPrice ?? "", sheoga: p.sheoga ?? null, wedi: p.wedi ?? null, schluter: p.schluter ?? null, grout: { checked: !!p.grout?.checked, product: p.grout?.product || "", color: p.grout?.color || "", sku: p.grout?.sku ?? "", joint: num(p.grout?.joint) > 0 ? p.grout.joint : 0.125, manual: p.grout?.manual ?? "", caulk: p.grout?.caulk ?? "", caulkSku: p.grout?.caulkSku ?? "", caulkPrice: p.grout?.caulkPrice ?? "" }, mortar: { checked: !!p.mortar?.checked, product: p.mortar?.product || "", manual: p.mortar?.manual ?? "" }, underlay: { checked: !!p.underlay?.checked, product: p.underlay?.product || "", manual: p.underlay?.manual ?? "", install: !!p.underlay?.install, installMortars: p.underlay?.installMortars || {}, installSkip: p.underlay?.installSkip || {} }, attached: normAttachedJob(p.attached) });
+export const normP = (p) => ({ id: p.id || uid(), type: TYPES.includes(p.type) ? p.type : "tile", sku: p.sku ?? "", L: p.L ?? "", W: p.W ?? "", thickness: p.thickness || "0.375", sizeText: p.sizeText ?? (p.size || ""), brandColor: p.brandColor ?? [p.brand, p.color].filter(Boolean).join(" / "), priceSqft: p.priceSqft ?? "", qtyType: p.qtyType === "count" ? "count" : "sqft", qty: p.qty ?? "", cartonSf: p.cartonSf ?? "", cartonPc: p.cartonPc ?? "", cartonUnit: p.cartonUnit || "CT", sellUnit: p.sellUnit ?? "", cartonManual: p.cartonManual ?? "", note: p.note ?? "", freight: p.freight === "off" ? "off" : "", bookId: p.bookId ?? "", cost: p.cost ?? "", costSqft: p.costSqft ?? "", markupPct: p.markupPct ?? "", freightFlag: !!p.freightFlag, tierPrice: p.tierPrice ?? "", kitId: p.kitId ?? "", sheoga: p.sheoga ?? null, wedi: p.wedi ?? null, schluter: p.schluter ?? null, grout: { checked: !!p.grout?.checked, product: p.grout?.product || "", color: p.grout?.color || "", sku: p.grout?.sku ?? "", joint: num(p.grout?.joint) > 0 ? p.grout.joint : 0.125, manual: p.grout?.manual ?? "", caulk: p.grout?.caulk ?? "", caulkSku: p.grout?.caulkSku ?? "", caulkPrice: p.grout?.caulkPrice ?? "" }, mortar: { checked: !!p.mortar?.checked, product: p.mortar?.product || "", manual: p.mortar?.manual ?? "" }, underlay: { checked: !!p.underlay?.checked, product: p.underlay?.product || "", manual: p.underlay?.manual ?? "", install: !!p.underlay?.install, installMortars: p.underlay?.installMortars || {}, installSkip: p.underlay?.installSkip || {} }, attached: normAttachedJob(p.attached) });
 // Add-on material selections, keyed by category id (ADR 0016). Old records have
 // no `attached` — they normalize to {} and stay valid.
 export const normAttachedJob = (a) => { const out = {}; if (a && typeof a === "object") for (const k of Object.keys(a)) { const v = a[k] || {}; out[k] = { checked: !!v.checked, product: v.product || "", manual: v.manual ?? "" }; } return out; };
@@ -116,6 +116,56 @@ export const normWasteJob = (w) => (w == null ? null : { tile: w.tile ?? 10, flo
 // project quoted before the switch existed, and vendor freight was always owed
 // on those orders too.
 export const normC = (c) => ({ ...c, customerId: c.customerId ?? null, createdAt: c.createdAt || Date.now(), quick: !!c.quick, freight: c.freight !== false, categories: (c.categories || []).map(normA), versions: c.versions || [], attachments: c.attachments || [], salesperson: c.salesperson || null, priceTier: normTier(c.priceTier), customPct: c.customPct ?? "", printPricing: normPrintPricing(c.printPricing), waste: normWasteJob(c.waste), sheogaBasket: (c.sheogaBasket || []).map(normBasketEntry).filter(Boolean), optionNames: (() => { const out = {}; const v = c.optionNames; if (v && typeof v === "object") for (const s of OPTION_SLOTS) { const n = typeof v[s] === "string" ? v[s].trim() : ""; if (n) out[s] = n; } return out; })() });
+
+// --- configurator kit landing (ADR 0035) ----------------------------------
+// One configurator emission (anchor + companions) is one KIT: every line lands
+// carrying the same kitId so a later reconfigure can replace the whole set.
+const VENDOR_KEYS = ["sheoga", "wedi", "schluter"];
+const vendorOf = (p) => VENDOR_KEYS.find((k) => p?.[k]);
+const hasCfg = (p) => VENDOR_KEYS.some((k) => p?.[k]?.cfg);
+// A companion is any vendor-marked line with no cfg of its own — wedi/Schluter
+// { part: true } and the Sheoga fee mark alike.
+const isCompanion = (p, v) => !!p?.[v] && !p[v].cfg;
+// Idempotent: lines already carrying a kitId keep it, so per-entry basket
+// stamps survive the shared landing helpers restamping the flattened array.
+export const stampKit = (lines) => {
+  const kid = uid();
+  return (lines || []).map((l) => (l.kitId ? l : { ...l, kitId: kid }));
+};
+// The one landing rule for configurator lines: the anchor row is filled in
+// place, companions insert after it, and the OLD kit's companions are removed —
+// by kitId group when the anchor has one (refused if the group holds another
+// cfg-bearing row: a bundle sibling or a duplicated anchor is never deleted by
+// editing its neighbor), else — a legacy reconfigure — by consuming the
+// contiguous run of same-vendor, kitId-less companions directly below the
+// anchor. A fresh add (anchor without a same-vendor cfg) removes nothing.
+// Returns the next categories, or null when there is nothing to land on.
+export const landKitLines = (categories, aid, pid, lines) => {
+  if (!(lines || []).length) return null;
+  const a = (categories || []).find((x) => x.id === aid);
+  const anchor = a?.products.find((p) => p.id === pid);
+  if (!anchor) return null;
+  const stamped = stampKit(lines);
+  const remove = new Set();
+  if (anchor.kitId) {
+    const group = categories.flatMap((c) => c.products).filter((p) => p.kitId === anchor.kitId && p.id !== pid);
+    if (!group.some(hasCfg)) group.forEach((p) => remove.add(p.id));
+  } else {
+    const v = vendorOf(stamped[0]);
+    if (v && anchor[v]?.cfg) {
+      const i = a.products.findIndex((p) => p.id === pid);
+      for (let j = i + 1; j < a.products.length; j++) {
+        const r = a.products[j];
+        if (r.kitId || !isCompanion(r, v)) break;
+        remove.add(r.id);
+      }
+    }
+  }
+  return categories.map((c) => ({ ...c, products: c.products.flatMap((p) => {
+    if (p.id === pid) return [{ ...p, ...stamped[0] }, ...stamped.slice(1).map((patch) => ({ ...newProduct(), ...patch }))];
+    return remove.has(p.id) ? [] : [p];
+  }) }));
+};
 
 // personData is what gets written back to a person's data jsonb; the person/
 // builder row mappers and selects live in bootload.js.

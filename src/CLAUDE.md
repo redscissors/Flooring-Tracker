@@ -60,6 +60,16 @@ src/
   model.js          # job-model factories + normalizers: `uid`/`money`, `newProduct`/
                     # `newArea`/`newProject`, `normP`/`normA`/`normC`, `catSig`,
                     # `rowBlank`, `personData`… (model.test.js, their first tests)
+                    # + the configurator kit landing (ADR 0035): `stampKit`
+                    # (one shared kitId per emission, idempotent) and
+                    # `landKitLines` — the one rule all three configurators'
+                    # Adds land through (App.jsx addSheogaLines): anchor filled
+                    # in place, companions inserted after it, the OLD kit's
+                    # companions removed by kitId group (refused when the group
+                    # holds another cfg-bearing row — a Sheoga bundle sibling
+                    # or duplicated anchor is never deleted by editing its
+                    # neighbor), legacy kitId-less anchors falling back to the
+                    # contiguous same-vendor companion run below the anchor
   print.js          # print/order math: `printProduct`, `orderLineCost`, `lineTotal`,
                     # `printAreaFloor`, `areaPrintLabel`, `orderEntryRow`,
                     # `ESTIMATE_PRINT_LAYOUT`… (print.test.js)

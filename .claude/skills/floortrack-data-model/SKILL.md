@@ -80,6 +80,7 @@ Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
            underlay:{checked,product,manual,install},
            attached:{ [categoryId]: {checked,product,manual} },
            freight: "" | "off",
+           kitId: "" | string,
            sheoga: { mode, cfg } | null,
            wedi: { mode, cfg } | { part: true } | null }
            // freight = the row's opt-OUT of its book's freight program
@@ -88,6 +89,15 @@ Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
            // the program existed is included too. The AMOUNT is never per row —
            // the vendor's minimum and pallet threshold are order-scoped, so
            // freightList charges each book once over every row that opted in.
+           // kitId = the kit-instance link (ADR 0035): one configurator
+           // emission (anchor + companions) lands with one shared kitId,
+           // stamped at landing time (model.js stampKit/landKitLines), so a
+           // reconfigure Add replaces the whole kit group and two same-vendor
+           // kits in one area stay tellable apart. "" on rows saved before it
+           // existed (reconfigure then falls back to consuming the contiguous
+           // companion run below the anchor) and on duplicated rows (a copied
+           // id would let the duplicate's reconfigure delete the original's
+           // rows).
            // sheoga = the raw Sheoga-configurator configuration (issue 023)
            // snapshotted onto a row added from the configurator, so
            // "Reconfigure" reopens the popup pre-filled (src/sheoga.js

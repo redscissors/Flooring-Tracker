@@ -21,7 +21,7 @@ import { seedFromQuery as wediSeed } from "./wediquery.js";
 // engine, adapter, and popup all stay inside the lazy chunk (ADR 0026/0032).
 import { seedFromQuery as schluterSeed } from "./schluterquery.js";
 import { STOCK_LOADING_MSG, TYPES, TLBL, underlayLabel, TYPE_ACCENT, ROW_WASH, TOTAL_WASH, JOINTS, colorsFor, ATT_BUCKET, TIER_COLOR, tierBadgeText, PROJECT_NAME_MAX, AUTO_KEEP, QUICK_SWEEP_DAYS } from "./uiconst.js";
-import { uid, money, sf1, miscQty, blobToDataURL, dataURLToBlob, wasteNote, newProduct, newArea, areaLabel, rowBlank, catSig, newProject, newPerson, newBuilder, normC, personData, quickAutoName, isRealProjectName, QUICK_DEFAULT_NAME } from "./model.js";
+import { uid, money, sf1, miscQty, blobToDataURL, dataURLToBlob, wasteNote, newProduct, newArea, areaLabel, rowBlank, catSig, newProject, newPerson, newBuilder, normC, personData, quickAutoName, isRealProjectName, QUICK_DEFAULT_NAME, stampKit, landKitLines } from "./model.js";
 import { lineTotal, printProduct, printAreaFloor, KSHORT, u1, orderEntryRow } from "./print.js";
 import { jobTotals } from "./jobtotals.js";
 import { OPTION_SLOTS, OPTION_COLOR, optionsUsed, bucketCats, scopedCats, optionTitle, optionShort, duplicateInto, compareOptionsPatch } from "./options.js";
@@ -786,31 +786,24 @@ export default function App({ user, onSignOut }) {
   // Append moved Sheoga lines as new product rows at the end of an area — used
   // by basket "Move", which must apply lines AND clear the basket in ONE
   // updateProject (two calls would clobber via the non-functional setter).
+  // Lines arrive stamped per basket entry (moveBasketEntries); stampKit here
+  // is the idempotent backstop for any unstamped path.
   const appendSheogaLines = (categories, aid, lines) => categories.map((a) =>
-    a.id === aid ? { ...a, products: [...a.products, ...lines.map((patch) => ({ ...newProduct(), ...patch }))] } : a);
-  // Sheoga configurator add (issue 023): the main line fills the row the popup
-  // was opened from and each vendor-fee line lands as its own new row after it,
-  // mirroring addStockProducts. Payloads come from sheoga.js lineItems() —
-  // snapshot rule, nothing reprices later.
+    a.id === aid ? { ...a, products: [...a.products, ...stampKit(lines).map((patch) => ({ ...newProduct(), ...patch }))] } : a);
+  // One landing for all three configurators (issue 023 / 066 / 097): the anchor
+  // line (the one carrying the vendor's {mode,cfg} marker) fills the row the
+  // popup was opened from and every companion lands as its own new row after
+  // it, the whole emission stamped with one kitId; a reconfigure Add replaces
+  // the old kit's companion rows instead of stranding them (ADR 0035 — the
+  // rules, including the legacy fallback and the bundle-sibling guard, live in
+  // model.js landKitLines). Payloads come from each engine's lineItems() —
+  // snapshot rule, nothing reprices later (ADR 0003). One updateProject with
+  // the whole categories patch: group cleanup can reach other areas, and
+  // usedirectory's setter is non-functional.
   const addSheogaLines = (aid, pid, lines) => {
-    if (!lines.length) return;
-    const a = sel.categories.find((x) => x.id === aid);
-    if (!a || !a.products.some((p) => p.id === pid)) return;
-    const products = a.products.flatMap((p) => p.id !== pid ? [p] : [
-      { ...p, ...lines[0] },
-      ...lines.slice(1).map((patch) => ({ ...newProduct(), ...patch })),
-    ]);
-    updArea(aid, { products });
+    const next = landKitLines(sel.categories, aid, pid, lines);
+    if (next) updateProject(sel.id, { categories: next });
   };
-  // wedi configurator add (issue 066): identical shape — the pan (the anchor
-  // line, the one carrying wedi:{mode,cfg}) fills the row the popup was opened
-  // from and every companion lands as its own new row after it. Payloads come
-  // from wedi.js lineItems(); nothing reprices later (ADR 0003).
-  // …and the same landing for wedi (issue 066) and Schluter (issue 097): the
-  // anchor line (the one carrying the vendor's {mode,cfg} marker) fills the
-  // row the popup was opened from and every companion lands as its own new
-  // row after it. One helper, three configurators — nothing reprices later
-  // (ADR 0003).
   const addWediLines = (aid, pid, lines) => addSheogaLines(aid, pid, lines);
   const addSchluterLines = (aid, pid, lines) => addSheogaLines(aid, pid, lines);
   // Compare tab → two sibling option areas beside the host area, in ONE patch:
@@ -824,7 +817,8 @@ export default function App({ user, onSignOut }) {
   // into the first area of whichever project the salesperson picks in the
   // Apps-hub destination prompt (filling a blank adder row if there is one, else
   // appending). A blank adder row is the trailing empty row every area carries.
-  const applySheogaToFirstArea = (categories, lines) => {
+  const applySheogaToFirstArea = (categories, rawLines) => {
+    const lines = stampKit(rawLines);
     const cats = categories.length ? categories : [newArea()];
     return cats.map((cat, i) => {
       if (i !== 0) return cat;
@@ -862,7 +856,10 @@ export default function App({ user, onSignOut }) {
     const a = sel.categories.find((x) => x.id === aid);
     const i = a ? a.products.findIndex((x) => x.id === pid) : -1;
     if (i < 0) return;
-    const copy = { ...structuredClone(a.products[i]), id: uid() };
+    // kitId never copies: the duplicate sits directly above the original's
+    // companions, and a copied id would make reconfiguring the duplicate
+    // delete the original kit's rows (ADR 0035).
+    const copy = { ...structuredClone(a.products[i]), id: uid(), kitId: "" };
     updateProject(sel.id, { categories: sel.categories.map((c) => c.id !== aid ? c : { ...c, products: [...c.products.slice(0, i + 1), copy, ...c.products.slice(i + 1)] }) });
   };
 

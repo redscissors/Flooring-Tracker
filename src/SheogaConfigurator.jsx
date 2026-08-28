@@ -18,6 +18,7 @@ import {
   DEFAULT_MARKUP, DEFAULT_VENT_MARKUP, tierSellOf, tierFeeOf, cartonize, lineItems, frameLineal, SHEET_NOTE,
   redistributeShares, multiWidthBuild, multiWidthLineItems, normBasketEntry,
 } from "./sheoga.js";
+import { stampKit } from "./model.js";
 import { TIER_COLOR, tierBadgeText } from "./uiconst.js";
 
 const fm = (n) => "$" + n.toFixed(2);
@@ -1340,7 +1341,9 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
   const selectAllBasket = () => { const all = (basket || []).every((b) => basketSel[b.id]); const next = {}; (basket || []).forEach((b) => { next[b.id] = !all; }); setBasketSel(next); };
   const removeBasketEntry = (id) => onBasketChange((basket || []).filter((b) => b.id !== id));
   const moveBasketEntries = (entries) => {
-    const lines = entries.flatMap((e) => basketEntryView(e).lines());
+    // Stamped per entry BEFORE flattening: each basket entry is its own kit
+    // (ADR 0035), and the landing helper's idempotent restamp keeps these ids.
+    const lines = entries.flatMap((e) => stampKit(basketEntryView(e).lines()));
     const nextBasket = (basket || []).filter((b) => !entries.includes(b));
     onMoveEntries(lines, nextBasket);
     setBasketSel({});
