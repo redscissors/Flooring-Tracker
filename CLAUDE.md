@@ -178,9 +178,9 @@ auto-triggering skills, but read them like any other doc when their topic
 comes up. The general-purpose superpowers workflow skills (brainstorming,
 systematic-debugging, TDD, verification-before-completion, …) come from the
 superpowers plugin, enabled through the checked-in `.claude/settings.json`
-(marketplace `obra/superpowers-marketplace`); its SessionStart hook is what
+(marketplace `anthropics/claude-plugins-official`); its SessionStart hook is what
 enforces skill usage. Cloud/web sessions pick it up from that file; on a
-local machine run `claude plugin install superpowers@superpowers-marketplace`
+local machine run `claude plugin install superpowers@claude-plugins-official`
 once if Claude Code reports it as not installed. `.claude/skills/` holds only
 this project's own skills (floortrack-data-model) plus the Supabase packs.
 
