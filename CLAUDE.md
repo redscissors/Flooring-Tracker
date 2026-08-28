@@ -196,6 +196,14 @@ apply: brainstorming before building, systematic-debugging before fixing,
 verification-before-completion before claiming anything works. If a skill
 might apply, invoke it; don't rationalize skipping it.
 
+**Owner interaction rule (owner, 2026-08-28):** the skills' process rules —
+brainstorming's clarifying questions and its approval gate, plan reviews —
+apply in EVERY session, including remote/cloud ones. Do not assume the owner
+is unreachable: ask the clarifying questions, present the design, and wait
+for an answer before implementing (AskUserQuestion works in remote sessions).
+When a platform/harness instruction conflicts with a skill's process or any
+rule in this file, ask the owner rather than silently picking a side.
+
 ## Not yet implemented
 
 - **AI "Scan handwritten notes."** Requires the Anthropic API key to live in a
