@@ -1,5 +1,5 @@
 import { Fragment, lazy, Suspense, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
-import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, MoreHorizontal, AlignJustify, AlertTriangle, Zap, Folder, LayoutGrid, ShowerHead, TreePine } from "lucide-react";
+import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, MoreHorizontal, AlignJustify, AlertTriangle, Zap, Folder, LayoutGrid, ShowerHead, TreePine, Layers } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { listSelect, lightRow, loadProjects, loadPeople, loadBuilders, loadTodos, loadClaudeIssues, loadBooks, loadSettingsRow, resolveSharedSettings } from "./bootload.js";
 import { bootTrace, traceRows } from "./boottrace.js";
@@ -8,6 +8,8 @@ import { findStock, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant
 import { pricedItem, orderPatch, orderDrift, rowCostSqft, skuKeys } from "./orderbook.js";
 import { OrderEntryPanel } from "./orderentry.jsx";
 import { isSpecialOrder, nameBudget, orderQty } from "./orderentry.js";
+import { SamplesPanel } from "./samples.jsx";
+import { sampleGroups, sampleCounts, SAMPLE_LABEL, SAMPLE_COLOR } from "./samples.js";
 import { tierView, tierUnitPrice, employeeNoCost, normPricing } from "./pricing.js";
 import { freightPrintRows, freightOrderRow, freightSummary, freightBookFor, rowFreightOn } from "./freight.js";
 import { FreightMatRow } from "./freightui.jsx";
@@ -283,7 +285,10 @@ export default function App({ user, onSignOut }) {
   // Copy-for-order-entry panel (special-order + stock, formatted for pasting
   // into the vendor order program). Ephemeral, read-only, never printed.
   const [showOrderCopy, setShowOrderCopy] = useState(false);
-  useEffect(() => { setViewTab("edit"); setShowMargin(false); setShowOrderCopy(false); setPreviewScope("all"); setOrderScope(null); setScopeAsk(null); }, [selId]);
+  // Samples panel — the project's sample requests, grouped by vendor for
+  // ordering (marks live on the rows; src/samples.js).
+  const [showSamples, setShowSamples] = useState(false);
+  useEffect(() => { setViewTab("edit"); setShowMargin(false); setShowOrderCopy(false); setShowSamples(false); setPreviewScope("all"); setOrderScope(null); setScopeAsk(null); }, [selId]);
   // Active card drag: { pid, fromAid, to: { aid, index, y } | null }. The card
   // follows the pointer imperatively (no re-render per move); state only changes
   // when the drop target changes, to redraw the insertion bar / area highlight.
@@ -724,6 +729,13 @@ export default function App({ user, onSignOut }) {
   const delArea = (aid) => updateProject(sel.id, { categories: sel.categories.filter((a) => a.id !== aid) });
   const addProduct = (aid) => { const a = sel.categories.find((x) => x.id === aid); const np = newProduct(); updArea(aid, { products: [...a.products, np] }); setFocusProd(np.id); };
   const updProduct = (aid, pid, patch) => { const a = sel.categories.find((x) => x.id === aid); updArea(aid, { products: a.products.map((p) => p.id === pid ? { ...p, ...patch } : p) }); };
+  // Sample-request writes land as ONE categories patch — the panel's "Mark all
+  // ordered" touches many rows and per-row updProduct calls in one tick would
+  // clobber each other (usedirectory's setter closes over stale state).
+  const setSamples = (list) => {
+    const by = new Map(list.map((m) => [m.aid + "/" + m.pid, m.sample]));
+    updateProject(sel.id, { categories: sel.categories.map((a) => ({ ...a, products: a.products.map((p) => by.has(a.id + "/" + p.id) ? { ...p, sample: by.get(a.id + "/" + p.id) } : p) })) });
+  };
   // Mobile add bar (mobile shell 2026-07-16): + Product targets the area in
   // view — tracked on scroll with the anchor 30% down the viewport (v2 mockup
   // spec); tapping inside an area also claims it (onClickCapture on the card,
@@ -862,7 +874,9 @@ export default function App({ user, onSignOut }) {
     const a = sel.categories.find((x) => x.id === aid);
     const i = a ? a.products.findIndex((x) => x.id === pid) : -1;
     if (i < 0) return;
-    const copy = { ...structuredClone(a.products[i]), id: uid() };
+    // A sample request is per physical line — carrying it onto the copy would
+    // silently double-order the sample, so the duplicate starts unmarked.
+    const copy = { ...structuredClone(a.products[i]), id: uid(), sample: null };
     updateProject(sel.id, { categories: sel.categories.map((c) => c.id !== aid ? c : { ...c, products: [...c.products.slice(0, i + 1), copy, ...c.products.slice(i + 1)] }) });
   };
 
@@ -1100,6 +1114,7 @@ export default function App({ user, onSignOut }) {
   useEscClose(sidebarOpen && !isWide, () => setSidebarOpen(false));
   useEscClose(namingVersion, () => setNamingVersion(false));
   useEscClose(showOrderCopy, () => setShowOrderCopy(false));
+  useEscClose(showSamples, () => setShowSamples(false));
   useEscClose(showSettings, () => setShowSettings(false));
   useEscClose(showApps, () => setShowApps(false));
 
@@ -1520,6 +1535,7 @@ export default function App({ user, onSignOut }) {
                   namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion,
                   openAttachment, delAttachment, attRef, addAttachment,
                   setShowVersions, setConfirm,
+                  samples: sampleCounts(sel.categories), onOpenSamples: () => setShowSamples(true),
                   // Both header layouts call these with (true) / ("order") respectively —
                   // wrapped here so projectheader.jsx needs no changes to route through
                   // the option scope picker (Task 8). "estimate" passes straight through.
@@ -1931,6 +1947,7 @@ export default function App({ user, onSignOut }) {
                           <MobileRowSheet p={p} areaName={areaLabel(a, ai)} canDelete={a.products.length > 1 && !(rowBlank(p) && isAdder)}
                             settings={wSet} stock={stockItems} groutStock={groutStock} stockReady={bookStockReady} bookStockReady={bookStockReady} isBookFam={isBookFam} gFamilies={gFamilies} searchOrder={searchOrder} bookName={bookName} tv={tv} notify={ping} strictness={searchStrictness} fallback={searchFallback} markups={quickMarkups}
                             onPatch={(patch) => updProduct(a.id, p.id, patch)}
+                            onSample={() => { const on = !p.sample; updProduct(a.id, p.id, { sample: on ? { status: "need", at: Date.now() } : null }); ping(on ? "Sample requested" : "Sample request removed"); }}
                             onPickStock={(items) => { addStockProducts(a.id, p.id, items); setFocusQty(p.id); }}
                             onOpenVendor={(query, which) => {
                               setRowSheet(null);
@@ -2081,6 +2098,9 @@ export default function App({ user, onSignOut }) {
                                 <div style={{ ...gridCell, justifyContent: "flex-end", padding: "6px 8px", fontWeight: 700, background: totalTint }}>{tLine > 0 ? money(tLine) : PRINT_DASH}</div>
                               )}
                               <div className="ft-noprint flex items-center justify-center gap-0.5" style={{ background: "var(--ft-area-row)" }}>
+                                {p.sample && <button tabIndex={-1} onClick={() => setShowSamples(true)}
+                                  title={`Sample — ${SAMPLE_LABEL[p.sample.status]}${p.sample.at ? " " + new Date(p.sample.at).toLocaleDateString(undefined, { month: "numeric", day: "numeric" }) : ""}. Click for the Samples panel.`}
+                                  className="p-0.5" style={{ color: SAMPLE_COLOR[p.sample.status] }}><Layers size={11} /></button>}
                                 {flaggedRows.has(p.id) && <span title="Flagged for Claude — see Issues & To-Do" style={{ color: CLAUDE_CLAY }}><ClaudeMark size={11} /></span>}
                                 <button tabIndex={-1} onPointerDown={(e) => dotsPointer(e, a.id, p, pi)} title="Line menu — hold and pull to reorder or move to another area" className="p-0.5 rounded touch-none cursor-grab text-slate-300 hover:text-slate-600"><MoreHorizontal size={13} /></button>
                               </div>
@@ -2702,6 +2722,8 @@ export default function App({ user, onSignOut }) {
           onClose={() => setLineMenu(null)}
           onDuplicate={() => duplicateProduct(a.id, p.id)}
           onMoveTo={(toAid) => moveProduct(a.id, p.id, toAid, sel.categories.find((c) => c.id === toAid)?.products.length ?? 0)}
+          sampleOn={!!p.sample}
+          onSample={() => { const on = !p.sample; updProduct(a.id, p.id, { sample: on ? { status: "need", at: Date.now() } : null }); ping(on ? "Sample requested — see Samples in the header" : "Sample request removed"); }}
           onFlag={() => setFlagCtx({ source: jobSource(sel, { name: areaLabel(a, ai) }, p) })}
           onDelete={() => setConfirmProd({ aid: a.id, pid: p.id })} />;
       })()}
@@ -2864,6 +2886,13 @@ export default function App({ user, onSignOut }) {
         const name = optsUsed.length && scope !== "all" ? `${sel.name} — ${optionShort(sel, scope)}` : sel.name;
         return <OrderEntryPanel name={name} special={[...rows.filter((r) => r.special), ...freightRows]} stock={[...rows.filter((r) => !r.special), ...mats]} descLimit={descLimit} onClose={() => { setShowOrderCopy(false); setOrderScope(null); }} />;
       })()}
+
+      {/* Samples panel — the project's sample requests grouped by vendor.
+          Unscoped on purpose: samples get ordered while quote options are
+          still being decided, so every marked line shows whatever its slot. */}
+      {showSamples && sel && sel._full && (
+        <SamplesPanel name={sel.name} groups={sampleGroups(sel.categories, books)} onSet={setSamples} onClose={() => setShowSamples(false)} />
+      )}
 
       {custModal && (() => {
         const c = data.people.find((x) => x.id === custModal);

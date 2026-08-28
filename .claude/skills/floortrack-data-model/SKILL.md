@@ -80,8 +80,16 @@ Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
            underlay:{checked,product,manual,install},
            attached:{ [categoryId]: {checked,product,manual} },
            freight: "" | "off",
+           sample: null | { status: "need"|"ordered"|"in", at },
            sheoga: { mode, cfg } | null,
            wedi: { mode, cfg } | { part: true } | null }
+           // sample = the line's sample request (sample-ordering workflow,
+           // 2026-08-28): null = never requested; otherwise the request's
+           // status — "need" (to order), "ordered", "in" (received) — with
+           // `at` = when the status last moved. Written only through the line
+           // menu / mobile row sheet toggle and the Samples panel's status
+           // chips (src/samples.jsx), normalized by model.js normSample.
+           // Duplicating a line clears it (a copy must not double-order).
            // freight = the row's opt-OUT of its book's freight program
            // (ADR 0030). "" (the default) means the row rides the vendor's
            // shipment; only the explicit "off" is stored, so a row saved before

@@ -143,7 +143,9 @@ src/
                     # are the row's one grip; no tip line, the grab cursor is
                     # the affordance) or a right-click on the row (suppressed
                     # inside fields so native paste keeps working). Duplicate /
-                    # Move to area (inline expand, no floating submenu) / Flag
+                    # Move to area (inline expand, no floating submenu) /
+                    # Request sample (issue 115 — toggles the row's
+                    # product.sample mark, see samples.js) / Flag
                     # for Claude / Delete (routes to the existing inline
                     # confirm). The old hand + trash hover icons are retired on
                     # product rows; the empty search-row adder wears the same ⋯
@@ -1324,6 +1326,39 @@ src/
                     # the destination justify the price on the ESTIMATE, but the
                     # desk keys shipping as a single charge and pallets/feet/
                     # pieces can't share a quantity column
+  samples.js        # sample-ordering pure logic (issue 115): `normSample`'s
+                    # siblings over the rows' `product.sample` marks —
+                    # `sampleGroups` (marked lines grouped by the VENDOR the row
+                    # snapshotted from: book brandLabel/name, Sheoga lines under
+                    # Sheoga, the rest under a trailing Other — a sample order
+                    # is placed per vendor), `sampleCounts` (open = not yet
+                    # received, the header badge), `sampleCopyText` (the
+                    # per-vendor list: size · name — SKU, one line each, no qty
+                    # — samples are one apiece), and the shared status
+                    # vocabulary/colors (SAMPLE_LABEL/SAMPLE_COLOR/SAMPLE_CHIP:
+                    # amber = to order, slate = waiting on the vendor, moss =
+                    # received) (samples.test.js)
+  samples.jsx       # the Samples panel — the order-entry dock shell over
+                    # sampleGroups: per-line status chips (To order → Ordered →
+                    # Received), per-vendor "Mark all ordered" + "Copy list",
+                    # remove ×. Presentation only; every write goes back through
+                    # `onSet` as ONE batch — App.jsx's `setSamples` applies it
+                    # as a single updateProject categories patch, because
+                    # usedirectory's setter closes over stale state and per-row
+                    # calls in one tick would clobber (the options.js rule).
+                    # Marks are made from the line menu's "Request sample" (and
+                    # the mobile row sheet's toggle); a marked row wears a
+                    # status-colored layers icon in its action cell that opens
+                    # the panel, and both header layouts carry a Samples button
+                    # with the open count. Deliberately UNSCOPED across quote
+                    # options — samples get ordered while options are still
+                    # being decided. Duplicating a line clears its mark (a copy
+                    # must not silently double-order)
+  samplespreview.jsx  # dev-only harness (samples-preview.html): the REAL
+                    # SamplesPanel over stateful mock rows through the real
+                    # normA/sampleGroups, exercising the one-batch onSet
+                    # contract; ?empty=1 shows the empty state; no Supabase,
+                    # not part of the app build
   vendorfetch.js    # vendor sheet fetch (ADR 0019): portal-link parse/validate,
                     # bookmarklet source + clipboard hand-off (copies a marked
                     # base64 payload — HANDOFF_MARK/stripHandoffMark — that the

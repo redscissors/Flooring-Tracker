@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, Building2, Lock, LockOpen, Save, History, ClipboardList, Copy, Printer, Trash2, Check, Truck, X } from "lucide-react";
+import { ChevronDown, Building2, Lock, LockOpen, Save, History, ClipboardList, Copy, Printer, Trash2, Check, Truck, X, Layers } from "lucide-react";
 import { SalespersonPop, SegBar, WasteBar, FilesPop, useAnchoredPanel, vPos, useEscClose } from "./widgets.jsx";
 import { FreightColumn } from "./freightui.jsx";
 import { normPricing } from "./pricing.js";
@@ -130,7 +130,7 @@ function SaveVersionPop({ open, onOpen, onClose, name, setName, onConfirm, tip }
   );
 }
 
-export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTotal, optionBadges = null, freightCost = 0, saveOk, settings, jobWasteUI, updateProject, onOpenCustomer, onPromote, nameRef, nameTabRef, orderEntryRef, focusName, namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion, openAttachment, delAttachment, attRef, addAttachment, setShowVersions, setPrintMode, setConfirm, setShowOrderCopy }) {
+export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTotal, optionBadges = null, freightCost = 0, saveOk, settings, jobWasteUI, updateProject, onOpenCustomer, onPromote, nameRef, nameTabRef, orderEntryRef, focusName, namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion, openAttachment, delAttachment, attRef, addAttachment, setShowVersions, setPrintMode, setConfirm, setShowOrderCopy, samples = null, onOpenSamples }) {
   const sp = sel.salesperson || profile;
   const pcts = normPricing(settings.pricing);
   const tierFill = TIER_COLOR[sel.priceTier] ? { background: TIER_COLOR[sel.priceTier].main } : undefined;
@@ -241,6 +241,13 @@ export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTot
 
         <div className="flex flex-col gap-1 shrink-0" style={{ width: 148 }}>
           <button onClick={() => setConfirm({ id: sel.id })} className="rounded-md flex items-center justify-center gap-1.5 text-[10px] font-bold shrink-0 border text-slate-400 hover:bg-red-50 hover:border-red-200 hover:text-red-500" style={{ height: 19, borderColor: "var(--ft-border-strong)" }}><Trash2 size={11} /> Delete</button>
+          {onOpenSamples && (
+            <button onClick={onOpenSamples} data-tip="Samples — this job's sample requests, grouped by vendor and ready to order"
+              className="rounded-md flex items-center justify-center gap-1.5 text-[10px] font-bold shrink-0 border text-slate-500 hover:bg-slate-50" style={{ height: 19, borderColor: "var(--ft-border-strong)" }}>
+              <Layers size={11} /> Samples
+              {samples?.open > 0 && <span className="rounded px-1 font-bold" style={samples.need > 0 ? { background: "#fef6e2", color: "#b45309" } : { background: "var(--ft-brand-soft)", color: "var(--ft-brand-deep)" }}>{samples.open}</span>}
+            </button>
+          )}
           <button ref={orderEntryRef} data-flow-end="1" onClick={() => setShowOrderCopy(true)} className={prim} style={{ flex: 1, ...tierFill }}>
             <span className="flex items-center gap-1.5"><Copy size={13} /> Order entry</span>
             <span className="text-[9px] font-semibold opacity-70">For ERP One</span>
@@ -258,7 +265,7 @@ export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTot
 // Moved whole from App.jsx (print-sheet style: customer | project | salesperson
 // up top, then pricing + notes | actions, then the Add-area row).
 
-export function ProjectHeaderClassic({ sel, cust, builderName, profile, tv, grandTotal, optionBadges = null, saveOk, settings, jobWasteUI, updateProject, onOpenCustomer, onPromote, nameRef, nameTabRef, orderEntryRef, focusName, namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion, openAttachment, delAttachment, attRef, addAttachment, setShowVersions, setPrintMode, setConfirm, setShowOrderCopy }) {
+export function ProjectHeaderClassic({ sel, cust, builderName, profile, tv, grandTotal, optionBadges = null, saveOk, settings, jobWasteUI, updateProject, onOpenCustomer, onPromote, nameRef, nameTabRef, orderEntryRef, focusName, namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion, openAttachment, delAttachment, attRef, addAttachment, setShowVersions, setPrintMode, setConfirm, setShowOrderCopy, samples = null, onOpenSamples }) {
   const sp = sel.salesperson || profile;
   const cols = { display: "grid", gridTemplateColumns: "1fr 1.28fr 1.08fr", gap: 16 };
   const midPad = { borderLeft: "1px solid var(--ft-border)", borderRight: "1px solid var(--ft-border)", padding: "0 16px" };
@@ -361,6 +368,12 @@ export function ProjectHeaderClassic({ sel, cust, builderName, profile, tv, gran
                 <FilesPop attachments={sel.attachments} onOpen={openAttachment} onDelete={delAttachment} onAdd={() => attRef.current?.click()} />
                 <input ref={attRef} type="file" onChange={addAttachment} className="hidden" />
                 <button onClick={() => setShowVersions(true)} title={`Version history (${sel.versions?.length || 0})`} className="h-[30px] flex-1 flex items-center justify-center rounded-md border border-slate-200 hover:bg-slate-50"><History size={14} /></button>
+                {onOpenSamples && (
+                  <button onClick={onOpenSamples} title={`Samples — this job's sample requests (${samples?.open || 0} open)`} className="h-[30px] flex-1 flex items-center justify-center rounded-md border border-slate-200 hover:bg-slate-50 relative">
+                    <Layers size={14} />
+                    {samples?.open > 0 && <span className="absolute rounded-full px-1 font-bold" style={{ top: -5, right: -5, fontSize: 9, lineHeight: "13px", minWidth: 13, ...(samples.need > 0 ? { background: "#b45309", color: "#fff" } : { background: "var(--ft-brand)", color: "#fff" }) }}>{samples.open}</span>}
+                  </button>
+                )}
               </div>
               <div className="flex gap-1.5">
                 <button onClick={() => setPrintMode("order")} className="h-[30px] flex-1 flex items-center justify-center gap-1.5 text-[12.5px] font-semibold rounded-md border border-slate-200 hover:bg-slate-50 whitespace-nowrap"><ClipboardList size={14} /> Order sheet</button>

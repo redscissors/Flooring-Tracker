@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Search, Plus, X, Check, ChevronRight, ChevronDown, Trash2, StickyNote, Settings } from "lucide-react";
+import { Search, Plus, X, Check, ChevronRight, ChevronDown, Trash2, StickyNote, Settings, Layers } from "lucide-react";
+import { SAMPLE_LABEL, SAMPLE_CHIP } from "./samples.js";
 import { num, wasteFor, groutExact, mortarExact, getGrout, getMortar, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, offeredAttached, offeredCategories, getAttached } from "./catalog.js";
 import { groutSnapshotPatch } from "./stock.js";
 import { tierUnitPrice, employeeNoCost } from "./pricing.js";
@@ -247,7 +248,7 @@ export function MobileProductRow({ p, settings, tv, onOpen, onPointerDown }) {
 // editors can't drift on write paths. The SKU field opens MobileSearchSheet
 // (full-screen, per the keyboard plan); picks flow through onPickStock, the
 // caller's addStockProducts, exactly like a grid SKU pick.
-export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutStock, stockReady, bookStockReady, isBookFam, gFamilies, searchOrder, bookName, tv, markups = MARKUP_PRESETS, onPatch, onPickStock, onOpenVendor, onDelete, onFlag, onClose, qtyRef, notify, strictness, fallback }) {
+export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutStock, stockReady, bookStockReady, isBookFam, gFamilies, searchOrder, bookName, tv, markups = MARKUP_PRESETS, onPatch, onPickStock, onOpenVendor, onDelete, onSample, onFlag, onClose, qtyRef, notify, strictness, fallback }) {
   const [searching, setSearching] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
   const [insExpanded, setInsExpanded] = useState(false);
@@ -623,8 +624,14 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutS
         <label className={fl}>Note</label>
         <input value={p.note} onChange={(e) => onPatch({ note: e.target.value })} placeholder="note…" className={fi + " italic font-normal"} />
       </div>
+      {onSample && (
+        <button onClick={onSample} className="mt-3 w-full h-[38px] rounded-md border border-slate-200 text-[12.5px] font-bold flex items-center justify-center gap-1.5"
+          style={p.sample ? SAMPLE_CHIP[p.sample.status] : { background: "var(--ft-card, #fff)" }}>
+          <Layers size={13} /> {p.sample ? `Sample ${SAMPLE_LABEL[p.sample.status].toLowerCase()} — tap to remove` : "Request sample"}
+        </button>
+      )}
       {onFlag && (
-        <button onClick={onFlag} className="mt-3 w-full h-[38px] rounded-md border text-[12.5px] font-bold flex items-center justify-center gap-1.5" style={{ color: "#B85C3F", borderColor: "color-mix(in oklab, #D97757 45%, transparent)", background: "var(--ft-card, #fff)" }}>
+        <button onClick={onFlag} className={(onSample ? "mt-2" : "mt-3") + " w-full h-[38px] rounded-md border text-[12.5px] font-bold flex items-center justify-center gap-1.5"} style={{ color: "#B85C3F", borderColor: "color-mix(in oklab, #D97757 45%, transparent)", background: "var(--ft-card, #fff)" }}>
           <ClaudeMark size={13} /> Flag for Claude
         </button>
       )}

@@ -50,6 +50,13 @@ test("normP maps the legacy brand/color pair into brandColor", () => {
   assert.equal(normP({ brand: "Daltile", color: "Ash" }).brandColor, "Daltile / Ash");
 });
 
+test("normP normalizes the sample request and defaults it to null", () => {
+  assert.equal(normP({ id: "x" }).sample, null, "old records have no sample field");
+  assert.deepEqual(normP({ id: "x", sample: { status: "ordered", at: 5 } }).sample, { status: "ordered", at: 5 });
+  assert.deepEqual(normP({ id: "x", sample: { status: "bogus" } }).sample, { status: "need", at: null }, "an unknown status falls back to need");
+  assert.equal(normP({ id: "x", sample: "yes" }).sample, null, "a non-object mark is dropped");
+});
+
 test("normC normalizes areas, versions, tier and waste", () => {
   const c = normC({ id: "c1", categories: [{ products: [{}] }] });
   assert.equal(c.priceTier, "retail");
