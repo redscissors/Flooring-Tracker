@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# Claude Code on the web only — local setups install deps and plugins once by hand
+# Claude Code on the web only — local setups install deps once by hand
 if [ "${CLAUDE_CODE_REMOTE:-}" != "true" ]; then
   exit 0
 fi
@@ -10,9 +10,7 @@ cd "$CLAUDE_PROJECT_DIR"
 
 npm install
 
-# Cloud sessions register this repo's marketplaces from .claude/settings.json but
-# do not auto-install its enabledPlugins. Installing here puts the plugin into the
-# cached container state so sessions load it at startup.
-if ! claude plugin list 2>/dev/null | grep -q 'superpowers@claude-plugins-official'; then
-  claude plugin install superpowers@claude-plugins-official
-fi
+# No `claude plugin install` here: cloud containers are ephemeral (nothing under
+# ~/.claude survives to the next session) and hooks run after the session's skill
+# registry is built, so an install from this hook can never load. The superpowers
+# skills are vendored in .claude/skills/ instead — see CLAUDE.md.
