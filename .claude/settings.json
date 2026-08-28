@@ -1,13 +1,13 @@
 {
   "extraKnownMarketplaces": {
-    "superpowers-marketplace": {
+    "claude-plugins-official": {
       "source": {
         "source": "github",
-        "repo": "obra/superpowers-marketplace"
+        "repo": "anthropics/claude-plugins-official"
       }
     }
   },
   "enabledPlugins": {
-    "superpowers@superpowers-marketplace": true
+    "superpowers@claude-plugins-official": true
   }
 }
