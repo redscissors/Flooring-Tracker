@@ -161,7 +161,7 @@ export default function App({ user, onSignOut }) {
   const {
     data, setData, loading, setLoading, hydrateDirectory,
     selId, setSelId, selCustId, setSelCustId, sel, selCust,
-    updateProject, addProject, startQuickPrice, pickProject, goHome, delProject, claimProjectNo,
+    updateProject, addProject, startQuickPrice, pickProject, goHome, delProject, claimProjectNo, dropUnsavedDraft,
     promoteProject, promoteToNewCustomer,
     addPerson, updatePerson, delPerson, addBuilderFor,
     builderNameOf, projectsOf, migrateLegacyCustomers,
@@ -1073,7 +1073,7 @@ export default function App({ user, onSignOut }) {
   useEffect(() => {
     const prev = prevSelRef.current;
     prevSelRef.current = selId;
-    if (prev && prev !== selId) autoSnapshot(prev);
+    if (prev && prev !== selId) { autoSnapshot(prev); dropUnsavedDraft(prev); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selId]);
   const handleSignOut = async () => { await autoSnapshot(selId); onSignOut(); };
