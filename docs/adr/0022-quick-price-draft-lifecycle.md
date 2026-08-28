@@ -101,3 +101,24 @@ person, degrading empty customer fields to a dash.
 - New Project lifecycle states exist: **draft (quick)** → **promoted (normal)**,
   or **draft → auto-discarded**. Everything downstream keys off the two-field
   definition above.
+
+## Amendment 2026-08-28 — an untouched draft is never written
+
+`startQuickPrice` no longer INSERTs the project row at creation. The draft is
+born in client state only, carrying an in-memory `_unsaved` flag (stripped by
+`custData` like `_full`), and its first real change — any `updateProject`, or
+a straight promotion — performs the INSERT (as an id-keyed upsert; the flag
+clears only on success, so a failed attempt retries on the next edit rather
+than silently updating a row that doesn't exist).
+
+- An abandoned untouched draft — tab closed, navigated away, signed out —
+  leaves **no row at all**. The blank-on-leave delete and the 30-day sweep now
+  only cover drafts that were touched and later blanked (and any rows created
+  before this amendment).
+- Deselecting a still-blank unsaved draft by **any** navigation (not just the
+  logo) drops it from state (`dropUnsavedDraft`): keeping it in the sidebar
+  would show a row a reload loses. A draft holding content whose insert failed
+  is kept, so edits are never thrown away.
+- Trade-offs accepted: a draft is invisible to teammates and other devices
+  until first touched, and a hand-typed name on the very first edit claims its
+  project number only after the INSERT lands.

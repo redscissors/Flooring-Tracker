@@ -100,7 +100,7 @@ export function useDirectory({ user, ping, flashSaved, setSidebarOpen, setFocusP
   // customerId is the projects.customer_id column, not part of the data blob.
   // projectNo mirrors the project_no column (spec 2026-08-14) — column only,
   // so the DB stays the sole authority on the number.
-  const custData = ({ ownerId, visibility, archived, versions, _full, updatedAt, customerId, projectNo, ...rest }) => rest;
+  const custData = ({ ownerId, visibility, archived, versions, _full, _unsaved, updatedAt, customerId, projectNo, ...rest }) => rest;
 
   // Settings live in one shared record (ADR 0002) — last-write-wins across the
   // whole team, the same as a Public customer's data.
@@ -160,24 +160,54 @@ export function useDirectory({ user, ping, flashSaved, setSidebarOpen, setFocusP
     }
     const next = { ...data, projects: data.projects.map((c) => c.id === id ? { ...c, ...patch, updatedAt: Date.now() } : c) };
     setData(next);
-    if ("name" in patch) claimProjectNo(id, patch.name);
+    if ("name" in patch && !cur?._unsaved) claimProjectNo(id, patch.name);
     const cust = next.projects.find((c) => c.id === id);
-    (async () => { try { const { error } = await supabase.from("projects").update({ data: custData(cust) }).eq("id", id); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — export a backup"); } })();
+    (async () => {
+      try {
+        if (cust._unsaved) {
+          // First real edit of a deferred quick draft (ADR 0022 amendment) —
+          // the row doesn't exist yet, so this write is the INSERT. Upsert so
+          // a retry after a failed attempt (flag still set) can't collide on
+          // the id; the flag clears only on success so the next edit retries.
+          const { error } = await supabase.from("projects").upsert({ id, owner_id: user.id, customer_id: cust.customerId || null, data: custData(cust), created_at: new Date(cust.createdAt).toISOString() }, { onConflict: "id" });
+          if (error) throw error;
+          setData((prev) => ({ ...prev, projects: prev.projects.map((c) => c.id === id ? { ...c, _unsaved: false } : c) }));
+          if ("name" in patch) claimProjectNo(id, patch.name);
+        } else {
+          const { error } = await supabase.from("projects").update({ data: custData(cust) }).eq("id", id);
+          if (error) throw error;
+        }
+        flashSaved();
+      } catch (e) { ping("Save failed — export a backup"); }
+    })();
   };
 
   const addProject = (customerId = null, name = "New Project", opts = {}) => {
     const c = { ...newProject(customerId, name, { ...opts, waste: data.settings.waste }), salesperson: { name: profile.name || "", phone: profile.phone || "", email: profile.email || "" }, updatedAt: Date.now(), _full: true };
+    // A quick draft's INSERT is deferred to its first real edit (ADR 0022
+    // amendment 2026-08-28): a draft nobody touched never reaches the DB, so
+    // abandoning it — close the tab, click away, sign out — leaves no row.
+    if (opts.quick) c._unsaved = true;
     setData((prev) => ({ ...prev, projects: [c, ...prev.projects] }));
     baselineRef.current = { id: c.id, json: catSig(c.categories) };
     setSelId(c.id); setSelCustId(customerId); setSidebarOpen(false);
     // Quick prices land straight in product search (the seeded area's blank
     // adder row); named projects focus the name field as before.
     if (opts.quick) setFocusProd(c.categories[0]?.products[0]?.id); else setFocusName(true);
-    (async () => { try { const { error } = await supabase.from("projects").insert({ id: c.id, owner_id: user.id, customer_id: customerId, data: custData(c), created_at: new Date(c.createdAt).toISOString() }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — export a backup"); } })();
+    if (!c._unsaved) (async () => { try { const { error } = await supabase.from("projects").insert({ id: c.id, owner_id: user.id, customer_id: customerId, data: custData(c), created_at: new Date(c.createdAt).toISOString() }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — export a backup"); } })();
     return c;
   };
   const startQuickPrice = () => addProject(null, QUICK_DEFAULT_NAME, { quick: true, seedArea: true });
   const pickProject = (id) => { const p = data.projects.find((c) => c.id === id); setSelId(id); if (p) setSelCustId(p.customerId || null); setSidebarOpen(false); loadDetail(id); };
+  // A deferred quick draft (ADR 0022 amendment) has no DB row until its first
+  // real edit. Deselected still blank, there is nothing worth keeping and no
+  // row to delete — drop it from state so the sidebar never shows a row a
+  // reload would lose. A draft holding content whose insert failed (flag still
+  // set) is deliberately kept so the edits aren't thrown away.
+  const dropUnsavedDraft = (id) => {
+    const p = dataRef.current.projects.find((c) => c.id === id);
+    if (p && p._unsaved && (p.categories || []).every((a) => (a.products || []).every(rowBlank))) setData((prev) => ({ ...prev, projects: prev.projects.filter((c) => c.id !== id) }));
+  };
   // Return to the landing screen from anywhere (the ned logo / mobile mark).
   // The open project is a real, autosaved row, so leaving never loses it — it
   // just deselects. The one exception: an untouched quick-price draft (all
@@ -186,7 +216,8 @@ export function useDirectory({ user, ping, flashSaved, setSidebarOpen, setFocusP
   const goHome = () => {
     const cur = sel;
     setSelId(null); setSelCustId(null);
-    if (cur && cur._full && cur.quick && cur.categories.every((a) => (a.products || []).every(rowBlank))) delProject(cur.id);
+    if (!cur || !cur._full || !cur.quick || !cur.categories.every((a) => (a.products || []).every(rowBlank))) return;
+    if (cur._unsaved) dropUnsavedDraft(cur.id); else delProject(cur.id);
   };
   const delProject = async (id) => {
     const cust = data.projects.find((c) => c.id === id);
@@ -216,9 +247,19 @@ export function useDirectory({ user, ping, flashSaved, setSidebarOpen, setFocusP
     setData((prev) => ({ ...prev, projects: prev.projects.map((c) => c.id === id ? { ...c, customerId, quick: false, updatedAt: Date.now() } : c) }));
     (async () => {
       try {
-        const upd = cur._full ? { customer_id: customerId, data: custData({ ...cur, customerId, quick: false }) } : { customer_id: customerId };
-        const { error } = await supabase.from("projects").update(upd).eq("id", id);
-        if (error) throw error; flashSaved();
+        if (cur._unsaved) {
+          // Promoting a deferred draft nobody edited yet — the row doesn't
+          // exist, so an UPDATE would silently match nothing. This write is
+          // its INSERT, customer_id and cleared flag in the same row.
+          const { error } = await supabase.from("projects").upsert({ id, owner_id: user.id, customer_id: customerId, data: custData({ ...cur, quick: false }), created_at: new Date(cur.createdAt).toISOString() }, { onConflict: "id" });
+          if (error) throw error;
+          setData((prev) => ({ ...prev, projects: prev.projects.map((c) => c.id === id ? { ...c, _unsaved: false } : c) }));
+        } else {
+          const upd = cur._full ? { customer_id: customerId, data: custData({ ...cur, customerId, quick: false }) } : { customer_id: customerId };
+          const { error } = await supabase.from("projects").update(upd).eq("id", id);
+          if (error) throw error;
+        }
+        flashSaved();
       } catch (e) { ping("Save failed — check connection"); }
     })();
     setSelCustId(customerId);
@@ -287,7 +328,7 @@ export function useDirectory({ user, ping, flashSaved, setSidebarOpen, setFocusP
     data, setData, loading, setLoading, hydrateDirectory: setData,
     selId, setSelId, selCustId, setSelCustId, sel, selCust,
     loadDetail,
-    updateProject, addProject, startQuickPrice, pickProject, goHome, delProject, claimProjectNo,
+    updateProject, addProject, startQuickPrice, pickProject, goHome, delProject, claimProjectNo, dropUnsavedDraft,
     linkProject, promoteProject, promoteToNewCustomer,
     addPerson, updatePerson, delPerson, addBuilderFor,
     builderNameOf, projectsOf, migrateLegacyCustomers,
