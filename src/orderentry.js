@@ -48,7 +48,7 @@ export const ORDER_MIN_QTY = 1;
 export const orderQty = (qty) => (Number(qty) > 0 ? { qty: Number(qty), qtyAssumed: false } : { qty: ORDER_MIN_QTY, qtyAssumed: true });
 
 // A dimension is one token to whoever reads the order — `2"x18"`, not
-// `2" × 18"`. The spaces cost three characters of a 30-character field that the
+// `2" × 18"`. The spaces cost three characters of a 70-character field that the
 // product text needs more, and the multiplication sign is not something every
 // ERP field takes cleanly. Only collapsed between digits, so a "Hex Tile" keeps
 // its space.
@@ -66,6 +66,50 @@ export function sheetNominal(sizeText) {
   const L = Math.round(Number(m[1])), W = Math.round(Number(m[2]));
   return L > 0 && W > 0 ? `${L}x${W}"` : "";
 }
+
+// A plank floor's stated size is thickness × width × length, and order entry
+// doesn't weigh the three equally (owner 2026-08-27, the Hallmark NO6EMEO-19
+// case): the WIDTH is how the desk reads a plank, so it stays in the
+// description as long as anything fits — the thickness goes first and the
+// length next when the field runs tight. Both are soft: a width-only size is
+// the spec the desk needs, not a cut one, so losing them alone never wears the
+// "+" marker, and the extended text still carries the full dimensions. Each
+// dimension takes its own "x" with it when it goes, so what remains still
+// reads as a size: `7/16"x 6" xRL-74"` → `6" xRL-74"` → `6"`. "Collection"
+// always disappears first (rank 5, owner 2026-08-27); the thickness follows
+// (rank 4, ahead of the brand); length holds out past the brand (rank 2).
+// Plank goods only — hardwood, vinyl and laminate —
+// a tile's 12"x24" is one identity token, and every other type is unchanged.
+const DIM_WORDS = /\bRL\b|mm\b/gi; // no \b before mm — a digit-mm join ("5.5mm") has no boundary
+const dimish = (t) => /\d/.test(t) && !/[a-z]/i.test(t.replace(DIM_WORDS, ""));
+const inchesOf = (t) => {
+  const s = String(t).trim().replace(/["”]$/, "");
+  const m = s.match(/^(\d+(?:\.\d+)?)(?:\s+(\d+)\s*\/\s*(\d+))?$/);
+  if (m) return Number(m[1]) + (m[2] ? Number(m[2]) / Number(m[3]) : 0);
+  const f = s.match(/^(\d+)\s*\/\s*(\d+)$/);
+  return f ? Number(f[1]) / Number(f[2]) : null;
+};
+// mm is always a thickness on these sheets, and no plank is under 2" wide or
+// 2" thick, so the inch boundary is unambiguous.
+const isThick = (t) => {
+  if (/mm$/i.test(String(t).trim())) return true;
+  const v = inchesOf(t);
+  return v != null && v < 2;
+};
+export function plankSizeParts(sizeText) {
+  const s = tightSize(sizeText);
+  if (!s) return [];
+  const toks = s.split(/\s*[x×]\s*/i).map((t) => t.trim()).filter(Boolean);
+  if (toks.length < 2 || toks.length > 3 || !toks.every(dimish)) return textParts(s);
+  const [t, w, l] = toks.length === 3 ? toks : isThick(toks[0]) ? [toks[0], toks[1], ""] : ["", toks[0], toks[1]];
+  return [
+    ...(t ? [{ full: `${t}x`, rank: 4, soft: true }] : []),
+    { full: w, rank: 0 },
+    ...(l ? [{ full: `x${l}`, rank: 2, soft: true }] : []),
+  ];
+}
+const PLANK_TYPES = new Set(["hardwood", "vinyl", "laminate"]);
+const sizeParts = (r) => (PLANK_TYPES.has(r.type) ? plankSizeParts(r.sizePlain) : textParts(tightSize(r.sizePlain)));
 
 // A special line → what belongs in the ERP's description field, via the fit
 // ladder. A Sheoga row abbreviates losslessly because its description is built
@@ -101,8 +145,9 @@ export function sheetNominal(sizeText) {
 //
 // "Collection" inside a product name is series typography, not identity
 // (Marcus 2026-08-26): every vendor's series can carry it, so it identifies
-// nothing at the order desk. It splits into its own part at rank 4 — the very
-// first thing dropped when the field runs tight, ahead of even the brand —
+// nothing at the order desk. It splits into its own part at rank 5 — ALWAYS
+// the first thing dropped when the field runs tight, ahead of the brand and
+// of a plank's spare dimensions (owner 2026-08-27) —
 // and stays in place while there's room. Both it and the brand are SOFT
 // (owner 2026-08-26): a description whose only losses are these words is not
 // a partial spec, so it pastes without the "+" marker (descfit.js).
@@ -110,14 +155,17 @@ const nameParts = (text) => {
   const s = String(text || "").trim();
   if (!s) return [];
   return s.split(/\b(Collection)\b/i)
-    .map((tok, i) => (i % 2 ? { full: tok, rank: 4, soft: true } : textParts(tok)))
+    .map((tok, i) => (i % 2 ? { full: tok, rank: 5, soft: true } : textParts(tok)))
     .flat();
 };
-export function orderDescription(r, limit) {
+const brandLead = (r) => {
   const named = String(r.name || "").trim();
   const brand = !r.sheoga ? String(r.brand || "").trim() : "";
-  const branded = brand && (named.toLowerCase() + " ").startsWith(brand.toLowerCase() + " ");
-  const body = branded ? named.slice(brand.length).trim() : named;
+  const branded = !!brand && (named.toLowerCase() + " ").startsWith(brand.toLowerCase() + " ");
+  return { brand, branded, body: branded ? named.slice(brand.length).trim() : named };
+};
+export function orderDescription(r, limit) {
+  const { brand, branded, body } = brandLead(r);
   // Structured parts win over the row's name text: they're the same description
   // (descfit.test.js asserts the join matches across every configuration) but
   // carry the per-category short forms that make the abbreviated rung possible.
@@ -125,7 +173,7 @@ export function orderDescription(r, limit) {
   const parts = [
     ...(r.tag ? [{ full: String(r.tag), rank: 0 }] : []),
     ...((sheogaParts && [{ full: "Sheoga", rank: 0 }, ...sheogaParts])
-      || [...textParts(tightSize(r.sizePlain)), ...(branded ? [{ full: brand, rank: 3, soft: true }] : []), ...nameParts(body)]),
+      || [...sizeParts(r), ...(branded ? [{ full: brand, rank: 3, soft: true }] : []), ...nameParts(body)]),
   ];
   const tail = [];
   if (r.sku) tail.push({ full: String(r.sku), pin: true });
@@ -141,14 +189,23 @@ export function orderDescription(r, limit) {
 // (orderDescription) and copies with it.
 export const orderCopyText = (r) => (r.desc ? r.desc.main : "");
 
-// How many characters of the product/color text still let the WHOLE flow —
-// size · product · SKU · coverage — land in the ERP field on the clean "full"
-// rung (no "+", no extended text). The grid paints anything past this budget
-// red so a salesperson can trim to a guaranteed one-field paste. Counting only
-// the product text against the raw limit would lie: a 68-char name with a
-// 7-char size already splits a 70-char field.
+// How many characters of the product/color text still land the line in the ERP
+// field AFTER order entry's own formatting has done what it can (owner
+// 2026-08-27; the earlier budget measured the clean full rung, so a line the
+// soft drops rescued still flagged red). The grid paints anything past this
+// budget red, so red letters mean "this will actually cut", never "this needs
+// the ladder". The formatting the budget assumes is the ladder's own unmarked
+// floor: a plank size gives up thickness and length (the width stays), and a
+// leading book brand or a "Collection" hands its room back to the name — those
+// characters are added to the budget since the name carries them but the field
+// won't. The SKU + coverage tail is untouchable. A name past this budget
+// forces the marked "+" cut.
 export function nameBudget(r, limit) {
   if (!(Number(limit) > 0)) return Infinity;
-  const others = [r.tag, tightSize(r.sizePlain), r.sku, r.coverage].map((x) => String(x || "").trim()).filter(Boolean);
-  return Math.max(0, Number(limit) - others.reduce((n, s) => n + s.length + 1, 0));
+  const minSize = sizeParts(r).filter((p) => !p.soft).map((p) => p.full).join(" ");
+  const others = [r.tag, minSize, r.sku, r.coverage].map((x) => String(x || "").trim()).filter(Boolean);
+  const { brand, branded, body } = brandLead(r);
+  let soft = branded ? brand.length + 1 : 0;
+  for (const m of body.matchAll(/\b(Collection)\b/gi)) soft += m[0].length + 1;
+  return Math.max(0, Number(limit) - others.reduce((n, s) => n + s.length + 1, 0)) + soft;
 }

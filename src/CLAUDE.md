@@ -1275,7 +1275,22 @@ src/
                     # tail still names the unit when it fits); `tightSize` makes
                     # a dimension one
                     # token, `12"x24"`, collapsing only between digits so a "Hex
-                    # Tile" keeps its spaces) and
+                    # Tile" keeps its spaces; `plankSizeParts` — plank rows
+                    # ONLY (hardwood / vinyl / laminate — owner 2026-08-27,
+                    # the Hallmark NO6EMEO-19 case) — splits a thickness ×
+                    # width × length
+                    # size into per-dimension parts so the fit ladder drops the
+                    # thickness first and the length next, each taking its own
+                    # "x" with it, while the WIDTH never leaves the field as
+                    # long as anything fits; both drops are soft, so a
+                    # width-only size pastes without the "+" and the extended
+                    # text keeps the full dimensions. Every other type keeps
+                    # the one-token size. `nameBudget` (same day) budgets the
+                    # grid's red overflow tail against the field AFTER those
+                    # soft drops — width-only size, brand and "Collection"
+                    # room handed back — so red letters mean the paste will
+                    # actually cut, never that the ladder merely has work to
+                    # do) and
                     # `orderCopyText` (the description field's contents, nothing
                     # else — qty/cost/sell are separate ERP fields with their own
                     # columns; the unit tag is NOT one of them, so it rides

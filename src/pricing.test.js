@@ -26,10 +26,10 @@ test("normTier / normPrintPricing default invalid values", () => {
 });
 
 test("normPricing defaults builder 8 / sale 10 / wedi builder 18 / Sheoga markup 40 / vent markup 50 and clamps", () => {
-  assert.deepEqual(normPricing(undefined), { builderPct: 8, salePct: 10, wediBuilderPct: 18, schluterBuilderPct: 8, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, quickMarkups: [30, 50, 100], descLimit: 30, searchStrictness: 0.3, searchFallback: 0.18 });
-  assert.deepEqual(normPricing({ builderPct: 12, salePct: 15 }), { builderPct: 12, salePct: 15, wediBuilderPct: 18, schluterBuilderPct: 8, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, quickMarkups: [30, 50, 100], descLimit: 30, searchStrictness: 0.3, searchFallback: 0.18 });
-  assert.deepEqual(normPricing({ builderPct: -5, salePct: 400 }), { builderPct: 0, salePct: 100, wediBuilderPct: 18, schluterBuilderPct: 8, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, quickMarkups: [30, 50, 100], descLimit: 30, searchStrictness: 0.3, searchFallback: 0.18 });
-  assert.deepEqual(normPricing({ builderPct: "abc" }), { builderPct: 8, salePct: 10, wediBuilderPct: 18, schluterBuilderPct: 8, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, quickMarkups: [30, 50, 100], descLimit: 30, searchStrictness: 0.3, searchFallback: 0.18 });
+  assert.deepEqual(normPricing(undefined), { builderPct: 8, salePct: 10, wediBuilderPct: 18, schluterBuilderPct: 8, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, quickMarkups: [30, 50, 100], descLimit: 70, searchStrictness: 0.3, searchFallback: 0.18 });
+  assert.deepEqual(normPricing({ builderPct: 12, salePct: 15 }), { builderPct: 12, salePct: 15, wediBuilderPct: 18, schluterBuilderPct: 8, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, quickMarkups: [30, 50, 100], descLimit: 70, searchStrictness: 0.3, searchFallback: 0.18 });
+  assert.deepEqual(normPricing({ builderPct: -5, salePct: 400 }), { builderPct: 0, salePct: 100, wediBuilderPct: 18, schluterBuilderPct: 8, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, quickMarkups: [30, 50, 100], descLimit: 70, searchStrictness: 0.3, searchFallback: 0.18 });
+  assert.deepEqual(normPricing({ builderPct: "abc" }), { builderPct: 8, salePct: 10, wediBuilderPct: 18, schluterBuilderPct: 8, sheogaMarkupPct: 40, sheogaVentMarkupPct: 50, quickMarkups: [30, 50, 100], descLimit: 70, searchStrictness: 0.3, searchFallback: 0.18 });
   // The wedi Builder stamp (issue 066): a discount off retail, so it clamps like
   // builderPct — 18 = the owner's ×0.82.
   assert.equal(normPricing({ wediBuilderPct: 25 }).wediBuilderPct, 25);
@@ -39,13 +39,13 @@ test("normPricing defaults builder 8 / sale 10 / wedi builder 18 / Sheoga markup
   // Markup is a % over cost, not a discount — it may exceed 100.
   assert.equal(normPricing({ sheogaMarkupPct: 150 }).sheogaMarkupPct, 150);
   assert.equal(normPricing({ sheogaMarkupPct: -3 }).sheogaMarkupPct, 0);
-  assert.equal(normPricing({ sheogaVentMarkupPct: 75, descLimit: 30 }).sheogaVentMarkupPct, 75);
+  assert.equal(normPricing({ sheogaVentMarkupPct: 75, descLimit: 70 }).sheogaVentMarkupPct, 75);
   // The ERP description-field width: whole characters, 0 = no fitting.
   assert.equal(normPricing({ descLimit: 40 }).descLimit, 40);
   assert.equal(normPricing({ descLimit: 0 }).descLimit, 0);
   assert.equal(normPricing({ descLimit: -5 }).descLimit, 0);
   assert.equal(normPricing({ descLimit: 9999 }).descLimit, 200);
-  assert.equal(normPricing({ descLimit: "abc" }).descLimit, 30);
+  assert.equal(normPricing({ descLimit: "abc" }).descLimit, 70);
   // Item-search strictness: trigram threshold (fraction), clamped to [0.1, 0.9].
   assert.equal(normPricing(undefined).searchStrictness, 0.3);
   assert.equal(normPricing({ searchStrictness: 0.5 }).searchStrictness, 0.5);

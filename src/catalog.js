@@ -8,6 +8,7 @@ import { normVendorGroups } from "./vendorfetch.js";
 import { normLabelPresets, customLabelPresets } from "./labels.js";
 import { normLink, normBookFamily } from "./booklink.js";
 import { normQuickMarkups } from "./costentry.js";
+import { DEFAULT_DESC_LIMIT } from "./descfit.js";
 
 export const GROUTS = ["PermaColor Select", "SpectraLOCK 1", "SpectraLOCK PRO", "CEG-Lite", "Tec Power Grout"];
 export const MORTARS = ["ProLite", "AcrylPro", "Schluter All Set"];
@@ -766,7 +767,7 @@ const frac = (v, dflt) => { const n = parseFloat(v); return Number.isFinite(n) ?
 // finds NOTHING, so even a bad typo never leaves the salesperson empty. Only
 // fires when it is actually looser; drag it up to meet the strictness to switch
 // the wider retry off.
-export const normPricing = (raw) => ({ builderPct: pct100(raw?.builderPct, 8), salePct: pct100(raw?.salePct, 10), wediBuilderPct: pct100(raw?.wediBuilderPct, 18), schluterBuilderPct: pct100(raw?.schluterBuilderPct, 8), sheogaMarkupPct: pctMarkup(raw?.sheogaMarkupPct, 40), sheogaVentMarkupPct: pctMarkup(raw?.sheogaVentMarkupPct, 50), quickMarkups: normQuickMarkups(raw?.quickMarkups), descLimit: chars(raw?.descLimit, 30), searchStrictness: frac(raw?.searchStrictness, 0.3), searchFallback: frac(raw?.searchFallback, 0.18) });
+export const normPricing = (raw) => ({ builderPct: pct100(raw?.builderPct, 8), salePct: pct100(raw?.salePct, 10), wediBuilderPct: pct100(raw?.wediBuilderPct, 18), schluterBuilderPct: pct100(raw?.schluterBuilderPct, 8), sheogaMarkupPct: pctMarkup(raw?.sheogaMarkupPct, 40), sheogaVentMarkupPct: pctMarkup(raw?.sheogaVentMarkupPct, 50), quickMarkups: normQuickMarkups(raw?.quickMarkups), descLimit: chars(raw?.descLimit, DEFAULT_DESC_LIMIT), searchStrictness: frac(raw?.searchStrictness, 0.3), searchFallback: frac(raw?.searchFallback, 0.18) });
 
 // The in-memory settings object carries the catalog plus derived grouts/mortars
 // maps the math reads. Only { waste, catalog, pricing, apps, ops } is persisted.

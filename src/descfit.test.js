@@ -91,6 +91,13 @@ test("a cut landing after a separator doesn't leave it dangling before the marke
   assert.ok(!/[—–·,;:-] \+$/.test(r.main), "a trailing separator reads as a typo");
 });
 
+test("a word ending exactly at the clip budget is kept, not cut back a word", () => {
+  // limit 8 → body budget 6: "AB CDE" fills it to the last character.
+  const r = fitDescription(textParts("AB CDE FG"), 8);
+  assert.equal(r.main, "AB CDE +");
+  assert.ok(r.main.length <= 8);
+});
+
 test("a single word longer than the field overruns rather than being cut apart", () => {
   const r = fitDescription(textParts("Supercalifragilistic"), 10);
   assert.equal(r.main, "Supercalifragilistic +", "a hard cut would fake an abbreviation");
@@ -242,14 +249,12 @@ test("short forms are unambiguous within a category", () => {
   assert.ok(shorts.size >= 8);
 });
 
-test("an ordinary configuration fits 30 characters without splitting", () => {
+test("an ordinary configuration fits the 70-character field written out whole", () => {
   const cfg = { ...defaultConfig("floor"), sp: "White Oak", w: 5.25, grade: "char", cons: "solid", finish: "t1" };
   const built = calcConfig({ mode: "floor", cfg }, 400);
   const r = fitDescription(descParts({ mode: "floor", cfg }), DEFAULT_DESC_LIMIT);
-  assert.equal(r.tier, "short");
-  // The species (+7) overruns, so the grade takes the room instead.
-  assert.equal(r.main, '5¼" WO Character Sol T-1 30sh');
-  assert.equal(r.full, built.desc);
+  assert.equal(r.tier, "full");
+  assert.equal(r.main, built.desc);
   assert.equal(r.ext, null);
 });
 
