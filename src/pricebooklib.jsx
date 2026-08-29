@@ -1059,6 +1059,8 @@ export function BookDetail({ book, updateBook, confirmBook, delBook, onDeleted, 
   const fr = normFreight(book.data?.freight);
   const frSummary = fr.mode === "program" ? `on${fr.destination ? ` — ${fr.destination}` : ""}` : "none";
   const brSummary = brandLabel || "none";
+  const rep = book.data?.rep || {};
+  const repSummary = (rep.name || "").trim() || (rep.email || "").trim() || "none";
 
   return (
     <div className="mt-3">
@@ -1100,6 +1102,7 @@ export function BookDetail({ book, updateBook, confirmBook, delBook, onDeleted, 
           {isOrder && <BookTab label="Markup" summary={mkSummary} tone={noMarkup ? "bad" : ""} active={tab === "markup"} onClick={() => setTab(tab === "markup" ? null : "markup")} />}
           {isOrder && <BookTab label="Freight" summary={frSummary} active={tab === "freight"} onClick={() => setTab(tab === "freight" ? null : "freight")} />}
           {isOrder && <BookTab label="Brand" summary={brSummary} active={tab === "brand"} onClick={() => setTab(tab === "brand" ? null : "brand")} />}
+          <BookTab label="Rep" summary={repSummary} active={tab === "rep"} onClick={() => setTab(tab === "rep" ? null : "rep")} />
         </div>
         {tab && (
           <div className="rounded-b-md px-4 pb-3" style={{ border: "1px solid var(--ft-border)", borderTop: "none", background: "var(--ft-card)" }}>
@@ -1123,6 +1126,9 @@ export function BookDetail({ book, updateBook, confirmBook, delBook, onDeleted, 
             )}
             {tab === "brand" && (
               <BrandCard book={book} items={items || []} onSave={(v) => updateBook(book.id, { dataPatch: { brandLabel: v } })} inp={inp} lbl={lbl} />
+            )}
+            {tab === "rep" && (
+              <RepCard book={book} onSave={(v) => updateBook(book.id, { dataPatch: { rep: v } })} inp={inp} lbl={lbl} />
             )}
           </div>
         )}
@@ -1599,6 +1605,29 @@ export function BrandCard({ book, items, onSave, inp, lbl }) {   // exported for
           {t ? <>a pick lands “{exName}”</> : "picks land the sheet's description as-is"}
           <HelpTip tip="Future picks only — lines already on estimates keep their text (edit a line to add or drop it there). In Copy-for-order-entry, the brand is the first thing dropped when the ERP description field runs out of room." />
         </span>
+      </div>
+    </div>
+  );
+}
+
+// The vendor's sample-order contact (spec 2026-08-28): who the Samples
+// panel's "Email the rep" addresses. Read live at email time, never
+// snapshotted into requests, so a rep change applies to every open request.
+export function RepCard({ book, onSave, inp, lbl }) {   // exported for the preview harness
+  const saved = book.data?.rep || {};
+  const [name, setName] = useState(saved.name || "");
+  const [email, setEmail] = useState(saved.email || "");
+  const dirty = name.trim() !== (saved.name || "") || email.trim() !== (saved.email || "");
+  return (
+    <div className="pt-3 max-w-md">
+      <div className="grid grid-cols-2 gap-3">
+        <div><label className={lbl}>Rep name</label><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Jeff Krejci" className={inp} /></div>
+        <div><label className={lbl}>Rep email</label><input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="rep@vendor.com" className={inp} /></div>
+      </div>
+      <div className="mt-2 flex items-center gap-2">
+        <button disabled={!dirty} onClick={() => onSave({ name: name.trim(), email: email.trim() })}
+          className="rounded-md bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 text-xs font-semibold disabled:opacity-40">Save</button>
+        <span className="text-[11px] text-slate-400">The Samples panel's "Email the rep" addresses this contact — samples ship to the customer, so this is just who gets the request.</span>
       </div>
     </div>
   );
