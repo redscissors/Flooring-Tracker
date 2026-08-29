@@ -54,6 +54,9 @@ supabase/
   todos.sql         # run once: todos table + RLS (team issue / to-do list)
   claude-issues.sql # run once: claude_issues table + RLS (the central Claude
                     # issue bucket — "Flag for Claude" from anywhere, issue 087)
+  samples.sql       # run once: sample_requests table + RLS (sample-ordering
+                    # workflow, spec 2026-08-28); until it is run the sample
+                    # surfaces stay empty and writes ping "run samples.sql?"
   labels.sql        # run once: labels table + RLS (Apps hub label set)
   pricebooks.sql    # run once: price book registry + items + versions tables
                     # + RLS (ADR 0009; docs/pricebook/design.md)

@@ -46,6 +46,17 @@ claude_issue row : { id (text pk), data: { text, done, doneAt, createdBy, create
                   // contract) so the book page's filter chip stays cheap —
                   // unparking the mark does not touch the central row.
 
+sample_request row : { id (text pk), data: { status: "need"|"ordered",
+                  createdBy, createdAt, orderedBy, orderedAt,
+                  custId, custName, areaName, productId, bookId, bookName,
+                  item: { name, sku, size, type } } }
+                  // sample-ordering workflow (spec 2026-08-28), shared like
+                  // todos; snapshot + live ids (the claude_issues doctrine).
+                  // Product rows carry NO sample field — these rows are the
+                  // one source for the row icon, project panel, header badge,
+                  // and the customer browser's samples column. Written only
+                  // through useSamples (usesamples.js).
+
 Customer { id, name, address, phone, email, notes, createdAt,
            categories: Area[], attachments: Att[],
            salesperson: { name, phone, email } | null,
@@ -80,16 +91,8 @@ Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
            underlay:{checked,product,manual,install},
            attached:{ [categoryId]: {checked,product,manual} },
            freight: "" | "off",
-           sample: null | { status: "need"|"ordered"|"in", at },
            sheoga: { mode, cfg } | null,
            wedi: { mode, cfg } | { part: true } | null }
-           // sample = the line's sample request (sample-ordering workflow,
-           // 2026-08-28): null = never requested; otherwise the request's
-           // status — "need" (to order), "ordered", "in" (received) — with
-           // `at` = when the status last moved. Written only through the line
-           // menu / mobile row sheet toggle and the Samples panel's status
-           // chips (src/samples.jsx), normalized by model.js normSample.
-           // Duplicating a line clears it (a copy must not double-order).
            // freight = the row's opt-OUT of its book's freight program
            // (ADR 0030). "" (the default) means the row rides the vendor's
            // shipment; only the explicit "off" is stored, so a row saved before
