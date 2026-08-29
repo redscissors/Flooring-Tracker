@@ -21,7 +21,7 @@ import { seedFromQuery as wediSeed } from "./wediquery.js";
 // engine, adapter, and popup all stay inside the lazy chunk (ADR 0026/0032).
 import { seedFromQuery as schluterSeed } from "./schluterquery.js";
 import { STOCK_LOADING_MSG, TYPES, TLBL, underlayLabel, TYPE_ACCENT, ROW_WASH, TOTAL_WASH, JOINTS, colorsFor, ATT_BUCKET, TIER_COLOR, tierBadgeText, PROJECT_NAME_MAX, AUTO_KEEP, QUICK_SWEEP_DAYS } from "./uiconst.js";
-import { uid, money, sf1, miscQty, blobToDataURL, dataURLToBlob, wasteNote, newProduct, newArea, areaLabel, rowBlank, catSig, newProject, newPerson, newBuilder, normC, personData, quickAutoName, isRealProjectName, QUICK_DEFAULT_NAME, stampKit, landKitLines } from "./model.js";
+import { uid, money, sf1, miscQty, blobToDataURL, dataURLToBlob, wasteNote, newProduct, newArea, areaLabel, rowBlank, catSig, newProject, newPerson, newBuilder, normC, personData, quickAutoName, isRealProjectName, QUICK_DEFAULT_NAME, stampKit, landKitLines, placedKits, removeKitLines } from "./model.js";
 import { lineTotal, printProduct, printAreaFloor, KSHORT, u1, orderEntryRow } from "./print.js";
 import { jobTotals } from "./jobtotals.js";
 import { OPTION_SLOTS, OPTION_COLOR, optionsUsed, bucketCats, scopedCats, optionTitle, optionShort, duplicateInto, compareOptionsPatch } from "./options.js";
@@ -2715,7 +2715,7 @@ export default function App({ user, onSignOut }) {
         return (
           <LazyBoundary>
           <Suspense fallback={null}>
-          <SheogaConfigurator seed={sheogaPop.seed}
+          <SheogaConfigurator key={sheogaPop.pid} seed={sheogaPop.seed}
             initialSf={num(row.qty) > 0 && row.qtyType === "sqft" ? num(row.qty) : 0}
             markupDefault={normPricing(settings.pricing).sheogaMarkupPct}
             ventMarkupDefault={normPricing(settings.pricing).sheogaVentMarkupPct}
@@ -2728,7 +2728,10 @@ export default function App({ user, onSignOut }) {
             onMoveEntries={(lines, nextBasket) => updateProject(sel.id, { categories: appendSheogaLines(sel.categories, sheogaPop.aid, lines), sheogaBasket: nextBasket })}
             onAdd={(lines) => { addSheogaLines(sheogaPop.aid, sheogaPop.pid, lines); setSheogaPop(null); setFocusQty(sheogaPop.pid); }}
             onConfigChange={(live) => { try { localStorage.setItem("ft-open-layer", JSON.stringify({ kind: "sheoga", aid: sheogaPop.aid, pid: sheogaPop.pid, seed: live })); } catch (x) { } }}
-            onClose={() => setSheogaPop(null)} />
+            onClose={() => setSheogaPop(null)}
+            placed={placedKits(sel.categories, "sheoga")}
+            onOpenPlaced={(k) => setSheogaPop({ aid: k.areaId, pid: k.rowId, seed: k.marker })}
+            onDeleteKit={(k) => { const next = removeKitLines(sel.categories, k.areaId, k.rowId); if (next) updateProject(sel.id, { categories: next }); }} />
           </Suspense>
           </LazyBoundary>
         );
