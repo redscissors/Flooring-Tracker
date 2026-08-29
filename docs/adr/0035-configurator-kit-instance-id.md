@@ -1,5 +1,7 @@
 # Configurator kits carry a shared `kitId`; reconfigure replaces the kit group; the basket derives placed kits from the rows
 
+Date: 2026-08-28 · Status: Accepted
+
 Every configurator emission (Sheoga, wedi, Schluter) lands its lines — anchor plus
 companions — stamped with one shared top-level `kitId` (a fresh uid per emission,
 stamped at landing time, passed through `normP`). Reconfigure-and-Add then replaces
@@ -35,7 +37,9 @@ cfg); step 2 stamps the bundle snap onto the first line's marker.
   never removes anything.
 - **Duplicate strips `kitId`.** LineMenu's Duplicate inserts the copy directly above
   the original's companions; a copied `kitId` would make reconfiguring the duplicate
-  delete the original's rows. The copy lands `kitId`-less (legacy-style).
+  delete the original's rows. The copy lands `kitId`-less (legacy-style). An AREA copy
+  (`duplicateInto`, quote options) instead REMAPS kitIds per copy — the copy keeps kit
+  semantics but is its own group.
 - **Replacement re-lands snapshots.** Re-emitting reprices every line of the kit from
   the current tables/registry (ADR 0003/0018 are unchanged — the rows are still
   snapshots; the *user* chose to re-land them). Hand edits to companion rows are

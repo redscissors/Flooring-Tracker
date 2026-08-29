@@ -68,8 +68,10 @@ src/
                     # companions removed by kitId group (refused when the group
                     # holds another cfg-bearing row — a Sheoga bundle sibling
                     # or duplicated anchor is never deleted by editing its
-                    # neighbor), legacy kitId-less anchors falling back to the
-                    # contiguous same-vendor companion run below the anchor;
+                    # neighbor — except by the bundle's OWN anchor: ownsGroup,
+                    # it takes the whole group), legacy kitId-less anchors
+                    # falling back to the contiguous same-vendor companion run
+                    # below the anchor;
                     # removeKitLines (a placed kit's delete — anchor + the
                     # same companion set) and placedKits (the derived
                     # in-this-project list — a stamped bundle's siblings fold

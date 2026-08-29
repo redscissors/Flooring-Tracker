@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { newArea, newProduct } from "./model.js";
+import { newArea, newProduct, removeKitLines } from "./model.js";
 import { OPTION_SLOTS, OPTION_COLOR, optionsUsed, hasOptions, bucketCats, scopedCats, optionTitle, optionShort, normOptionNames, duplicateInto, compareOptionsPatch } from "./options.js";
 
 const area = (option, id = "x") => ({ id, name: "n" + id, option, products: [{ id: "p" + id, sku: "S" + id }] });
@@ -55,6 +55,21 @@ test("duplicateInto: fresh ids top to bottom, tagged slot, source untouched", ()
   assert.notEqual(copy.products[0].id, src.products[0].id);
   assert.equal(copy.products[0].sku, "Sorig");
   assert.equal(src.option, "");
+});
+
+test("duplicateInto remaps kitIds so a copied kit is its own group (ADR 0035)", () => {
+  const bundle = { mode: "floor", cfg: { w: 3.25 }, multiWidth: true, bundle: { base: { mode: "floor", cfg: { sp: "Hickory" } }, widths: [{ w: 3.25, share: 50 }, { w: 4.25, share: 50 }], sf: 200, markupPct: 40 } };
+  const w1 = { ...newProduct(), brandColor: "w1", kitId: "K", sheoga: bundle };
+  const w2 = { ...newProduct(), brandColor: "w2", kitId: "K", sheoga: { mode: "floor", cfg: { w: 4.25 }, multiWidth: true } };
+  const fee = { ...newProduct(), brandColor: "fee", kitId: "K", sheoga: { fee: true } };
+  const src = { ...newArea(), name: "Bath", products: [w1, w2, fee] };
+  const copy = duplicateInto(src, "B");
+  assert.ok(copy.products[0].kitId && copy.products[0].kitId !== "K", "the copy gets a fresh kitId");
+  assert.ok(copy.products.every((p) => p.kitId === copy.products[0].kitId), "one kit stays one group in the copy");
+  const cats = [src, copy];
+  const next = removeKitLines(cats, copy.id, copy.products[0].id);
+  assert.equal(next[0].products.length, 3, "removing the copied bundle leaves the original option untouched");
+  assert.equal(next[1].products.length, 0);
 });
 
 // --- compareOptionsPatch (phase 5 task 2) -----------------------------------

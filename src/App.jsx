@@ -2731,7 +2731,7 @@ export default function App({ user, onSignOut }) {
             onClose={() => setSheogaPop(null)}
             placed={placedKits(sel.categories, "sheoga")}
             onOpenPlaced={(k) => setSheogaPop({ aid: k.areaId, pid: k.rowId, seed: k.marker })}
-            onDeleteKit={(k) => { const next = removeKitLines(sel.categories, k.areaId, k.rowId); if (next) updateProject(sel.id, { categories: next }); }} />
+            onDeleteKit={(k) => { const next = removeKitLines(sel.categories, k.areaId, k.rowId); if (next) { updateProject(sel.id, { categories: next }); if (k.rowId === sheogaPop.pid) setSheogaPop(null); } }} />
           </Suspense>
           </LazyBoundary>
         );

@@ -158,9 +158,11 @@ export const stampKit = (lines) => {
 // place, companions insert after it, and the OLD kit's companions are removed —
 // by kitId group when the anchor has one (refused if the group holds another
 // cfg-bearing row: a bundle sibling or a duplicated anchor is never deleted by
-// editing its neighbor), else — a legacy reconfigure — by consuming the
-// contiguous run of same-vendor, kitId-less companions directly below the
-// anchor. A fresh add (anchor without a same-vendor cfg) removes nothing.
+// editing its neighbor — except by the bundle's OWN anchor (marker carries the
+// bundle snap): ownsGroup, it takes the whole group), else — a legacy
+// reconfigure — by consuming the contiguous run of same-vendor, kitId-less
+// companions directly below the anchor. A fresh add (anchor without a
+// same-vendor cfg) removes nothing.
 // Returns the next categories, or null when there is nothing to land on.
 export const landKitLines = (categories, aid, pid, lines) => {
   if (!(lines || []).length) return null;

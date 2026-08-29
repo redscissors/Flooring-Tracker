@@ -31,7 +31,17 @@ export const normOptionNames = (v) => {
 export const optionTitle = (proj, slot) => proj?.optionNames?.[slot] || `Option ${slot}`;
 export const optionShort = (proj, slot) => (proj?.optionNames?.[slot] ? `${slot} · ${proj.optionNames[slot]}` : `Option ${slot}`);
 
-export const duplicateInto = (area, slot) => ({ ...area, id: uid(), option: slot, products: (area.products || []).map((p) => ({ ...p, id: uid() })) });
+// A copied kit is its OWN kit: remap kitIds per copy, or the ownsGroup rule
+// (ADR 0035) would let either copy's Remove/Reconfigure take the other option's rows.
+export const duplicateInto = (area, slot) => {
+  const kitMap = new Map();
+  const remapKit = (p) => {
+    if (!p.kitId) return p;
+    if (!kitMap.has(p.kitId)) kitMap.set(p.kitId, uid());
+    return { ...p, kitId: kitMap.get(p.kitId) };
+  };
+  return { ...area, id: uid(), option: slot, products: (area.products || []).map((p) => remapKit({ ...p, id: uid() })) };
+};
 
 // The Compare tab (phase 5) prices one shower in both wedi and Schluter, then
 // lands each build as its own quote option. Both areas MUST land through a
