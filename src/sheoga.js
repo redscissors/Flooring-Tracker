@@ -719,12 +719,15 @@ export function multiWidthBuild(base, widths, sf) {
 // misc rows. Same shape as lineItems() so addSheogaLines consumes it unchanged.
 export function multiWidthLineItems(base, widths, sf, markupPct = DEFAULT_MARKUP) {
   const b = multiWidthBuild(base, widths, sf);
-  const rows = b.lines.filter((l) => l.ok).map((l) => ({
+  const rows = b.lines.filter((l) => l.ok).map((l, i) => ({
     type: "hardwood", sku: "", sizeText: l.size || "", brandColor: `Sheoga — ${l.rest}`,
     qtyType: "sqft", qty: l.sf > 0 ? String(l.sf) : "",
     priceSqft: String(sellOf(l.cost, markupPct)), costSqft: String(round2(l.cost)), markupPct: String(markupPct),
     ...(l.cartonSf ? { cartonSf: String(l.cartonSf) } : {}),
-    sheoga: { mode: base.mode, cfg: JSON.parse(JSON.stringify({ ...base.cfg, w: l.w })), multiWidth: true },
+    sheoga: {
+      mode: base.mode, cfg: JSON.parse(JSON.stringify({ ...base.cfg, w: l.w })), multiWidth: true,
+      ...(i === 0 ? { bundle: JSON.parse(JSON.stringify({ base, widths, sf, markupPct })) } : {}),
+    },
   }));
   const fees = b.fees.map((x) => ({
     type: "misc", sku: "", sizeText: "", brandColor: `Sheoga — ${x.label}`, qtyType: "count", qty: "1",
