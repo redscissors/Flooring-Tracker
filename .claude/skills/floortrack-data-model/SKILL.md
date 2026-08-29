@@ -97,7 +97,13 @@ Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
            // existed (reconfigure then falls back to consuming the contiguous
            // companion run below the anchor) and on duplicated rows (a copied
            // id would let the duplicate's reconfigure delete the original's
-           // rows).
+           // rows). A multi-width bundle's first width line also carries
+           // `bundle: { base, widths, sf, markupPct }` inside its sheoga
+           // marker — the whole reopenable bundle snapshot (ADR 0035 step 2)
+           // — and that anchor owns its kitId group outright; the basket
+           // drawer's 'In this project' list derives from these markers
+           // (`placedKits`/`removeKitLines`, model.js), never from stored
+           // basket entries.
            // sheoga = the raw Sheoga-configurator configuration (issue 023)
            // snapshotted onto a row added from the configurator, so
            // "Reconfigure" reopens the popup pre-filled (src/sheoga.js

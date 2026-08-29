@@ -126,6 +126,28 @@ const hasCfg = (p) => VENDOR_KEYS.some((k) => p?.[k]?.cfg);
 // A companion is any vendor-marked line with no cfg of its own — wedi/Schluter
 // { part: true } and the Sheoga fee mark alike.
 const isCompanion = (p, v) => !!p?.[v] && !p[v].cfg;
+// A bundle's anchor (the row whose marker carries the whole bundle snap) OWNS
+// its group: re-emitting or deleting the bundle takes every width and pooled
+// fee. Only a bundle-less anchor defers to the sibling guard below.
+const ownsGroup = (p) => VENDOR_KEYS.some((k) => p?.[k]?.bundle);
+// The rows a kit's anchor takes with it — shared by landing and delete so the
+// two can never disagree. `v` is the vendor whose companions a legacy
+// (kitId-less) anchor may consume.
+const kitCompanionIds = (categories, a, anchor, v) => {
+  const remove = new Set();
+  if (anchor.kitId) {
+    const group = categories.flatMap((c) => c.products).filter((p) => p.kitId === anchor.kitId && p.id !== anchor.id);
+    if (ownsGroup(anchor) || !group.some(hasCfg)) group.forEach((p) => remove.add(p.id));
+  } else if (v && anchor[v]?.cfg) {
+    const i = a.products.findIndex((p) => p.id === anchor.id);
+    for (let j = i + 1; j < a.products.length; j++) {
+      const r = a.products[j];
+      if (r.kitId || !isCompanion(r, v)) break;
+      remove.add(r.id);
+    }
+  }
+  return remove;
+};
 // Idempotent: lines already carrying a kitId keep it, so per-entry basket
 // stamps survive the shared landing helpers restamping the flattened array.
 export const stampKit = (lines) => {
@@ -146,25 +168,39 @@ export const landKitLines = (categories, aid, pid, lines) => {
   const anchor = a?.products.find((p) => p.id === pid);
   if (!anchor) return null;
   const stamped = stampKit(lines);
-  const remove = new Set();
-  if (anchor.kitId) {
-    const group = categories.flatMap((c) => c.products).filter((p) => p.kitId === anchor.kitId && p.id !== pid);
-    if (!group.some(hasCfg)) group.forEach((p) => remove.add(p.id));
-  } else {
-    const v = vendorOf(stamped[0]);
-    if (v && anchor[v]?.cfg) {
-      const i = a.products.findIndex((p) => p.id === pid);
-      for (let j = i + 1; j < a.products.length; j++) {
-        const r = a.products[j];
-        if (r.kitId || !isCompanion(r, v)) break;
-        remove.add(r.id);
-      }
-    }
-  }
+  const remove = kitCompanionIds(categories, a, anchor, vendorOf(stamped[0]));
   return categories.map((c) => ({ ...c, products: c.products.flatMap((p) => {
     if (p.id === pid) return [{ ...p, ...stamped[0] }, ...stamped.slice(1).map((patch) => ({ ...newProduct(), ...patch }))];
     return remove.has(p.id) ? [] : [p];
   }) }));
+};
+// Delete a placed kit: the anchor row plus everything kitCompanionIds says is
+// its — the basket drawer's "Remove" (ADR 0035 step 2). Null when the anchor
+// is already gone.
+export const removeKitLines = (categories, aid, pid) => {
+  const a = (categories || []).find((x) => x.id === aid);
+  const anchor = a?.products.find((p) => p.id === pid);
+  if (!anchor) return null;
+  const remove = kitCompanionIds(categories, a, anchor, vendorOf(anchor));
+  remove.add(pid);
+  return categories.map((c) => ({ ...c, products: c.products.filter((p) => !remove.has(p.id)) }));
+};
+// The derived "in this project" list (ADR 0035: the rows ARE the registry —
+// placed kits are never stored twice). One entry per reconfigurable anchor of
+// `vendor`; a stamped bundle's sibling widths fold under their anchor, while a
+// LEGACY bundle (moved before the snap existed) lists each width on its own.
+export const placedKits = (categories, vendor) => {
+  const cats = categories || [];
+  const bundleKits = new Set();
+  for (const c of cats) for (const p of c.products || []) if (p[vendor]?.bundle && p.kitId) bundleKits.add(p.kitId);
+  const out = [];
+  cats.forEach((c, i) => (c.products || []).forEach((p) => {
+    const m = p[vendor];
+    if (!m?.cfg) return;
+    if (m.multiWidth && !m.bundle && p.kitId && bundleKits.has(p.kitId)) return;
+    out.push({ rowId: p.id, kitId: p.kitId || "", areaId: c.id, areaName: areaLabel(c, i), marker: m, qty: p.qty ?? "", markupPct: p.markupPct ?? "" });
+  }));
+  return out;
 };
 
 // personData is what gets written back to a person's data jsonb; the person/

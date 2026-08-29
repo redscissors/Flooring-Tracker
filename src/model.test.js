@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normP, normA, normC, rowBlank, newProduct, newArea, newProject, areaLabel, money, catSig, quickAutoName, isQuickAutoName, isRealProjectName, QUICK_DEFAULT_NAME, stampKit, landKitLines } from "./model.js";
+import { normP, normA, normC, rowBlank, newProduct, newArea, newProject, areaLabel, money, catSig, quickAutoName, isQuickAutoName, isRealProjectName, QUICK_DEFAULT_NAME, stampKit, landKitLines, removeKitLines, placedKits } from "./model.js";
 
 test("normP fills every field a grid row reads from a bare object", () => {
   const p = normP({ id: "x" });
@@ -231,6 +231,81 @@ test("landKitLines: missing anchor or empty lines returns null", () => {
   assert.equal(landKitLines(cats, cats[0].id, "nope", wediLines()), null);
   assert.equal(landKitLines(cats, "nope", cats[0].products[0].id, wediLines()), null);
   assert.equal(landKitLines(cats, cats[0].id, cats[0].products[0].id, []), null);
+});
+
+const bundleMarker = () => ({ mode: "floor", cfg: { w: 3.25 }, multiWidth: true, bundle: { base: { mode: "floor", cfg: { sp: "Hickory" } }, widths: [{ w: 3.25, share: 50 }, { w: 4.25, share: 50 }], sf: 200, markupPct: 40 } });
+
+test("landKitLines: a bundle's own anchor replaces the whole group, siblings included", () => {
+  const w1 = { ...newProduct(), brandColor: "Sheoga — 3 1/4", kitId: "K", sheoga: bundleMarker() };
+  const w2 = { ...newProduct(), brandColor: "Sheoga — 4 1/4", kitId: "K", sheoga: { mode: "floor", cfg: { w: 4.25 }, multiWidth: true } };
+  const fee = { ...newProduct(), brandColor: "Sheoga — fee", kitId: "K", sheoga: { fee: true } };
+  const other = { ...newProduct(), brandColor: "Tile", priceSqft: "4" };
+  const cats = [{ ...newArea(), products: [w1, w2, fee, other] }];
+  const next = landKitLines(cats, cats[0].id, w1.id, [{ brandColor: "Sheoga — 5in", sheoga: { mode: "floor", cfg: { w: 5 } } }]);
+  assert.deepEqual(next[0].products.map((p) => p.brandColor), ["Sheoga — 5in", "Tile"], "re-emitting the bundle replaces every width and the pooled fee");
+});
+
+test("removeKitLines: removes the anchor and its companions, across areas", () => {
+  const anchor = wediAnchor({ kitId: "K" });
+  const p1 = wediPart({ kitId: "K" });
+  const other = { ...newProduct(), brandColor: "Tile", priceSqft: "4" };
+  const stray = wediPart({ kitId: "K" });
+  const cats = [{ ...newArea(), products: [anchor, p1, other] }, { ...newArea(), products: [stray] }];
+  const next = removeKitLines(cats, cats[0].id, anchor.id);
+  assert.deepEqual(next[0].products.map((p) => p.brandColor), ["Tile"]);
+  assert.equal(next[1].products.length, 0);
+});
+
+test("removeKitLines: a bundle anchor takes the whole bundle; a sibling width takes only itself", () => {
+  const mk = () => {
+    const w1 = { ...newProduct(), brandColor: "w1", kitId: "K", sheoga: bundleMarker() };
+    const w2 = { ...newProduct(), brandColor: "w2", kitId: "K", sheoga: { mode: "floor", cfg: { w: 4.25 }, multiWidth: true } };
+    const fee = { ...newProduct(), brandColor: "fee", kitId: "K", sheoga: { fee: true } };
+    return [{ ...newArea(), products: [w1, w2, fee] }];
+  };
+  let cats = mk();
+  assert.deepEqual(removeKitLines(cats, cats[0].id, cats[0].products[1].id)[0].products.map((p) => p.brandColor), ["w1", "fee"], "a sibling width never takes its neighbors");
+  cats = mk();
+  assert.deepEqual(removeKitLines(cats, cats[0].id, cats[0].products[0].id)[0].products, [], "the bundle anchor owns the group");
+});
+
+test("removeKitLines: legacy anchor takes its contiguous companion run; missing anchor is null", () => {
+  const anchor = wediAnchor();
+  const p1 = wediPart(), p2 = wediPart();
+  const stamped = wediPart({ kitId: "other" });
+  const cats = [{ ...newArea(), products: [anchor, p1, p2, stamped] }];
+  const next = removeKitLines(cats, cats[0].id, anchor.id);
+  assert.deepEqual(next[0].products.map((p) => p.brandColor), ["wedi — screws"], "the run stops at a part stamped by another kit");
+  assert.equal(removeKitLines(cats, cats[0].id, "nope"), null);
+});
+
+test("placedKits: anchors only — companions, fees and stamped bundle siblings fold away", () => {
+  const single = { ...newProduct(), qty: "120", markupPct: "40", kitId: "K1", sheoga: { mode: "floor", cfg: { sp: "Hickory" } } };
+  const fee1 = { ...newProduct(), kitId: "K1", sheoga: { fee: true } };
+  const bw1 = { ...newProduct(), kitId: "K2", sheoga: bundleMarker() };
+  const bw2 = { ...newProduct(), kitId: "K2", sheoga: { mode: "floor", cfg: { w: 4.25 }, multiWidth: true } };
+  const wediRow = wediAnchor();
+  const plain = { ...newProduct(), brandColor: "Tile", priceSqft: "4" };
+  const a = { ...newArea(), name: "Kitchen", products: [single, fee1, bw1, bw2, wediRow, plain] };
+  const ks = placedKits([a], "sheoga");
+  assert.deepEqual(ks.map((k) => k.rowId), [single.id, bw1.id]);
+  assert.equal(ks[0].areaName, "Kitchen");
+  assert.equal(ks[0].qty, "120");
+  assert.equal(ks[0].markupPct, "40");
+  assert.equal(ks[1].marker.bundle.widths.length, 2);
+  assert.deepEqual(placedKits([a], "wedi").map((k) => k.rowId), [wediRow.id]);
+});
+
+test("placedKits: legacy bundle widths (no bundle snap in the group) each list as their own kit", () => {
+  const bw1 = { ...newProduct(), kitId: "K", sheoga: { mode: "floor", cfg: { w: 3.25 }, multiWidth: true } };
+  const bw2 = { ...newProduct(), kitId: "K", sheoga: { mode: "floor", cfg: { w: 4.25 }, multiWidth: true } };
+  assert.equal(placedKits([{ ...newArea(), products: [bw1, bw2] }], "sheoga").length, 2);
+});
+
+test("placedKits: area name falls back to the 1-based index", () => {
+  const anchor = { ...newProduct(), sheoga: { mode: "floor", cfg: { sp: "Oak" } } };
+  const ks = placedKits([{ ...newArea(), products: [] }, { ...newArea(), products: [anchor] }], "sheoga");
+  assert.equal(ks[0].areaName, "Area 2");
 });
 
 test("isRealProjectName: only a hand-typed name counts (spec 2026-08-14 claim rule)", () => {

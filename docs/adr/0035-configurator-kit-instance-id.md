@@ -25,7 +25,10 @@ cfg); step 2 stamps the bundle snap onto the first line's marker.
   it (any area) is replaced — *unless* the group holds another cfg-bearing row (a
   Sheoga bundle sibling, or a duplicated anchor), in which case replacement is refused
   and the old append behavior stands, so a sibling width is never deleted by editing
-  its neighbor. A legacy anchor (saved before `kitId`) falls back to consuming the
+  its neighbor — with one exception (step 2): an anchor whose marker carries the
+  bundle snap owns its whole group, so re-emitting the bundle, or editing it down to
+  a single, replaces every width and pooled fee. A legacy anchor (saved before
+  `kitId`) falls back to consuming the
   contiguous run of same-vendor, `kitId`-less companion rows directly below it —
   rows carrying a different `kitId` are never consumed, so a stamped kit sitting
   below a legacy one is safe. A fresh add (anchor without a same-vendor cfg marker)
