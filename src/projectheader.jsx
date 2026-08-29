@@ -245,7 +245,7 @@ export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTot
             <button onClick={onOpenSamples} data-tip="Samples — this job's sample requests, grouped by vendor and ready to order"
               className="rounded-md flex items-center justify-center gap-1.5 text-[10px] font-bold shrink-0 border text-slate-500 hover:bg-slate-50" style={{ height: 19, borderColor: "var(--ft-border-strong)" }}>
               <Layers size={11} /> Samples
-              {samples?.open > 0 && <span className="rounded px-1 font-bold" style={samples.need > 0 ? { background: "#fef6e2", color: "#b45309" } : { background: "var(--ft-brand-soft)", color: "var(--ft-brand-deep)" }}>{samples.open}</span>}
+              {samples?.need > 0 && <span className="rounded px-1 font-bold" style={{ background: "#fef6e2", color: "#b45309" }}>{samples.need}</span>}
             </button>
           )}
           <button ref={orderEntryRef} data-flow-end="1" onClick={() => setShowOrderCopy(true)} className={prim} style={{ flex: 1, ...tierFill }}>
@@ -369,9 +369,9 @@ export function ProjectHeaderClassic({ sel, cust, builderName, profile, tv, gran
                 <input ref={attRef} type="file" onChange={addAttachment} className="hidden" />
                 <button onClick={() => setShowVersions(true)} title={`Version history (${sel.versions?.length || 0})`} className="h-[30px] flex-1 flex items-center justify-center rounded-md border border-slate-200 hover:bg-slate-50"><History size={14} /></button>
                 {onOpenSamples && (
-                  <button onClick={onOpenSamples} title={`Samples — this job's sample requests (${samples?.open || 0} open)`} className="h-[30px] flex-1 flex items-center justify-center rounded-md border border-slate-200 hover:bg-slate-50 relative">
+                  <button onClick={onOpenSamples} title={`Samples — this job's sample requests (${samples?.need || 0} to order)`} className="h-[30px] flex-1 flex items-center justify-center rounded-md border border-slate-200 hover:bg-slate-50 relative">
                     <Layers size={14} />
-                    {samples?.open > 0 && <span className="absolute rounded-full px-1 font-bold" style={{ top: -5, right: -5, fontSize: 9, lineHeight: "13px", minWidth: 13, ...(samples.need > 0 ? { background: "#b45309", color: "#fff" } : { background: "var(--ft-brand)", color: "#fff" }) }}>{samples.open}</span>}
+                    {samples?.need > 0 && <span className="absolute rounded-full px-1 font-bold" style={{ top: -5, right: -5, fontSize: 9, lineHeight: "13px", minWidth: 13, background: "#b45309", color: "#fff" }}>{samples.need}</span>}
                   </button>
                 )}
               </div>

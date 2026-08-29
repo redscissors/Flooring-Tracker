@@ -1,7 +1,7 @@
 import { Fragment, lazy, Suspense, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
 import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, MoreHorizontal, AlignJustify, AlertTriangle, Zap, Folder, LayoutGrid, ShowerHead, TreePine, Layers } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
-import { listSelect, lightRow, loadProjects, loadPeople, loadBuilders, loadTodos, loadClaudeIssues, loadBooks, loadSettingsRow, resolveSharedSettings } from "./bootload.js";
+import { listSelect, lightRow, loadProjects, loadPeople, loadBuilders, loadTodos, loadClaudeIssues, loadBooks, loadSettingsRow, resolveSharedSettings, loadSampleRequests } from "./bootload.js";
 import { bootTrace, traceRows } from "./boottrace.js";
 import { num, wasteFor, withProjWaste, normalizeSettings, serializeSettings, groutExact, mortarExact, getGrout, getMortar, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, offeredAttached, offeredCategories, getAttached, qtyDrift } from "./catalog.js";
 import { findStock, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant, groutFamilies, groutSnapshotPatch } from "./stock.js";
@@ -9,7 +9,8 @@ import { pricedItem, orderPatch, orderDrift, rowCostSqft, skuKeys } from "./orde
 import { OrderEntryPanel } from "./orderentry.jsx";
 import { isSpecialOrder, nameBudget, orderQty } from "./orderentry.js";
 import { SamplesPanel } from "./samples.jsx";
-import { sampleGroups, sampleCounts, SAMPLE_LABEL, SAMPLE_COLOR } from "./samples.js";
+import { requestFrom, sampleCounts, custSampleTally, SAMPLE_LABEL, SAMPLE_COLOR } from "./samples.js";
+import { useSamples } from "./usesamples.js";
 import { tierView, tierUnitPrice, employeeNoCost, normPricing } from "./pricing.js";
 import { freightPrintRows, freightOrderRow, freightSummary, freightBookFor, rowFreightOn } from "./freight.js";
 import { FreightMatRow } from "./freightui.jsx";
@@ -431,6 +432,7 @@ export default function App({ user, onSignOut }) {
       await Promise.allSettled([
         trace.span("todos", () => loadTodos(supabase)).then(hydrateTodos, () => { }),
         trace.span("claude", () => loadClaudeIssues(supabase)).then(hydrateClaudeIssues, () => { }),
+        trace.span("samples", () => loadSampleRequests(supabase)).then(hydrateSampleRequests, () => { }),
         trace.span("books", () => loadBooks(supabase))
           .then((rows) => hydrateBooks(rows), () => { })
           .finally(() => setBooksHydrated(true)),
@@ -561,6 +563,10 @@ export default function App({ user, onSignOut }) {
     claudeIssues, hydrateClaudeIssues, refreshClaudeIssues,
     addClaudeIssue, toggleClaudeIssue, delClaudeIssue, clearDoneClaudeIssues,
   } = useClaudeIssues({ user, profile, ping, flashSaved });
+  const {
+    sampleRequests, hydrateSampleRequests, refreshSampleRequests,
+    addSampleRequest, delSampleRequest, setSampleOrdered,
+  } = useSamples({ user, profile, ping, flashSaved });
   // Which Issues & To-Do tab is up; the sidebar button refreshes both lists.
   const [issuesTab, setIssuesTab] = useState("team");
   const openIssues = (tab) => { if (tab) setIssuesTab(tab); openTodos(); refreshClaudeIssues(); };
@@ -569,6 +575,9 @@ export default function App({ user, onSignOut }) {
   const [lineMenu, setLineMenu] = useState(null);
   const [flagCtx, setFlagCtx] = useState(null);
   const flaggedRows = useMemo(() => new Set(claudeIssues.filter((i) => !i.done && i.source.productId).map((i) => i.source.productId)), [claudeIssues]);
+  // This project's sample requests + a productId lookup for the row icons.
+  const projSamples = useMemo(() => sampleRequests.filter((r) => r.custId === selId), [sampleRequests, selId]);
+  const sampleByProduct = useMemo(() => new Map(projSamples.map((r) => [r.productId, r])), [projSamples]);
   const {
     labels, showApps, setShowApps,
     openApps, addLabel, addLabelsBulk, updateLabel, delLabel, saveLabelPreset,
@@ -729,13 +738,6 @@ export default function App({ user, onSignOut }) {
   const delArea = (aid) => updateProject(sel.id, { categories: sel.categories.filter((a) => a.id !== aid) });
   const addProduct = (aid) => { const a = sel.categories.find((x) => x.id === aid); const np = newProduct(); updArea(aid, { products: [...a.products, np] }); setFocusProd(np.id); };
   const updProduct = (aid, pid, patch) => { const a = sel.categories.find((x) => x.id === aid); updArea(aid, { products: a.products.map((p) => p.id === pid ? { ...p, ...patch } : p) }); };
-  // Sample-request writes land as ONE categories patch — the panel's "Mark all
-  // ordered" touches many rows and per-row updProduct calls in one tick would
-  // clobber each other (usedirectory's setter closes over stale state).
-  const setSamples = (list) => {
-    const by = new Map(list.map((m) => [m.aid + "/" + m.pid, m.sample]));
-    updateProject(sel.id, { categories: sel.categories.map((a) => ({ ...a, products: a.products.map((p) => by.has(a.id + "/" + p.id) ? { ...p, sample: by.get(a.id + "/" + p.id) } : p) })) });
-  };
   // Mobile add bar (mobile shell 2026-07-16): + Product targets the area in
   // view — tracked on scroll with the anchor 30% down the viewport (v2 mockup
   // spec); tapping inside an area also claims it (onClickCapture on the card,
@@ -874,10 +876,19 @@ export default function App({ user, onSignOut }) {
     const a = sel.categories.find((x) => x.id === aid);
     const i = a ? a.products.findIndex((x) => x.id === pid) : -1;
     if (i < 0) return;
-    // A sample request is per physical line — carrying it onto the copy would
-    // silently double-order the sample, so the duplicate starts unmarked.
-    const copy = { ...structuredClone(a.products[i]), id: uid(), sample: null };
+    const copy = { ...structuredClone(a.products[i]), id: uid() };
     updateProject(sel.id, { categories: sel.categories.map((c) => c.id !== aid ? c : { ...c, products: [...c.products.slice(0, i + 1), copy, ...c.products.slice(i + 1)] }) });
+  };
+
+  // Request/unrequest a sample for a line — the ONE add/remove entry
+  // (usesamples.js owns the writes). Toggling off an ordered request is the
+  // user saying "never mind"; the row simply leaves the log.
+  const toggleSample = (a, ai, p) => {
+    const existing = sampleByProduct.get(p.id);
+    if (existing) { delSampleRequest(existing.id); ping("Sample request removed"); return; }
+    const custName = data.people.find((c) => c.id === sel.customerId)?.name || sel.name || "";
+    addSampleRequest(requestFrom({ project: sel, custName, area: a, areaIndex: ai, product: p, books, by: profile.name || user.email || "" }));
+    ping("Sample requested — see Samples in the header");
   };
 
   // The row-end ⋯ is the line's one grip (issue 087, owner "option A"): a hold
@@ -1535,7 +1546,7 @@ export default function App({ user, onSignOut }) {
                   namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion,
                   openAttachment, delAttachment, attRef, addAttachment,
                   setShowVersions, setConfirm,
-                  samples: sampleCounts(sel.categories), onOpenSamples: () => setShowSamples(true),
+                  samples: sampleCounts(projSamples), onOpenSamples: () => { setShowSamples(true); refreshSampleRequests(); },
                   // Both header layouts call these with (true) / ("order") respectively —
                   // wrapped here so projectheader.jsx needs no changes to route through
                   // the option scope picker (Task 8). "estimate" passes straight through.
@@ -1947,7 +1958,8 @@ export default function App({ user, onSignOut }) {
                           <MobileRowSheet p={p} areaName={areaLabel(a, ai)} canDelete={a.products.length > 1 && !(rowBlank(p) && isAdder)}
                             settings={wSet} stock={stockItems} groutStock={groutStock} stockReady={bookStockReady} bookStockReady={bookStockReady} isBookFam={isBookFam} gFamilies={gFamilies} searchOrder={searchOrder} bookName={bookName} tv={tv} notify={ping} strictness={searchStrictness} fallback={searchFallback} markups={quickMarkups}
                             onPatch={(patch) => updProduct(a.id, p.id, patch)}
-                            onSample={() => { const on = !p.sample; updProduct(a.id, p.id, { sample: on ? { status: "need", at: Date.now() } : null }); ping(on ? "Sample requested" : "Sample request removed"); }}
+                            sample={sampleByProduct.get(p.id) || null}
+                            onSample={() => toggleSample(a, ai, p)}
                             onPickStock={(items) => { addStockProducts(a.id, p.id, items); setFocusQty(p.id); }}
                             onOpenVendor={(query, which) => {
                               setRowSheet(null);
@@ -2098,9 +2110,11 @@ export default function App({ user, onSignOut }) {
                                 <div style={{ ...gridCell, justifyContent: "flex-end", padding: "6px 8px", fontWeight: 700, background: totalTint }}>{tLine > 0 ? money(tLine) : PRINT_DASH}</div>
                               )}
                               <div className="ft-noprint flex items-center justify-center gap-0.5" style={{ background: "var(--ft-area-row)" }}>
-                                {p.sample && <button tabIndex={-1} onClick={() => setShowSamples(true)}
-                                  title={`Sample — ${SAMPLE_LABEL[p.sample.status]}${p.sample.at ? " " + new Date(p.sample.at).toLocaleDateString(undefined, { month: "numeric", day: "numeric" }) : ""}. Click for the Samples panel.`}
-                                  className="p-0.5" style={{ color: SAMPLE_COLOR[p.sample.status] }}><Layers size={11} /></button>}
+                                {(() => { const sr = sampleByProduct.get(p.id); return sr && (
+                                  <button tabIndex={-1} onClick={() => setShowSamples(true)}
+                                    title={`Sample — ${SAMPLE_LABEL[sr.status]}${sr.status === "ordered" && sr.orderedAt ? " " + new Date(sr.orderedAt).toLocaleDateString(undefined, { month: "numeric", day: "numeric" }) : ""}. Click for the Samples panel.`}
+                                    className="p-0.5" style={{ color: SAMPLE_COLOR[sr.status] }}><Layers size={11} /></button>
+                                ); })()}
                                 {flaggedRows.has(p.id) && <span title="Flagged for Claude — see Issues & To-Do" style={{ color: CLAUDE_CLAY }}><ClaudeMark size={11} /></span>}
                                 <button tabIndex={-1} onPointerDown={(e) => dotsPointer(e, a.id, p, pi)} title="Line menu — hold and pull to reorder or move to another area" className="p-0.5 rounded touch-none cursor-grab text-slate-300 hover:text-slate-600"><MoreHorizontal size={13} /></button>
                               </div>
@@ -2722,8 +2736,8 @@ export default function App({ user, onSignOut }) {
           onClose={() => setLineMenu(null)}
           onDuplicate={() => duplicateProduct(a.id, p.id)}
           onMoveTo={(toAid) => moveProduct(a.id, p.id, toAid, sel.categories.find((c) => c.id === toAid)?.products.length ?? 0)}
-          sampleOn={!!p.sample}
-          onSample={() => { const on = !p.sample; updProduct(a.id, p.id, { sample: on ? { status: "need", at: Date.now() } : null }); ping(on ? "Sample requested — see Samples in the header" : "Sample request removed"); }}
+          sampleOn={sampleByProduct.has(p.id)}
+          onSample={() => toggleSample(a, ai, p)}
           onFlag={() => setFlagCtx({ source: jobSource(sel, { name: areaLabel(a, ai) }, p) })}
           onDelete={() => setConfirmProd({ aid: a.id, pid: p.id })} />;
       })()}
@@ -2890,9 +2904,16 @@ export default function App({ user, onSignOut }) {
       {/* Samples panel — the project's sample requests grouped by vendor.
           Unscoped on purpose: samples get ordered while quote options are
           still being decided, so every marked line shows whatever its slot. */}
-      {showSamples && sel && sel._full && (
-        <SamplesPanel name={sel.name} groups={sampleGroups(sel.categories, books)} onSet={setSamples} onClose={() => setShowSamples(false)} />
-      )}
+      {showSamples && sel && sel._full && (() => {
+        const cust = data.people.find((c) => c.id === sel.customerId);
+        return (
+          <SamplesPanel name={sel.name} requests={projSamples}
+            custInfo={{ custName: cust?.name || sel.name || "", address: sel.address || "", phone: sel.phone || cust?.phone || "" }}
+            repFor={(g) => books.find((b) => b.id === g.bookId)?.data?.rep || null}
+            onOrdered={setSampleOrdered} onRemove={delSampleRequest}
+            onClose={() => setShowSamples(false)} />
+        );
+      })()}
 
       {custModal && (() => {
         const c = data.people.find((x) => x.id === custModal);

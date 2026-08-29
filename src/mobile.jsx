@@ -248,7 +248,7 @@ export function MobileProductRow({ p, settings, tv, onOpen, onPointerDown }) {
 // editors can't drift on write paths. The SKU field opens MobileSearchSheet
 // (full-screen, per the keyboard plan); picks flow through onPickStock, the
 // caller's addStockProducts, exactly like a grid SKU pick.
-export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutStock, stockReady, bookStockReady, isBookFam, gFamilies, searchOrder, bookName, tv, markups = MARKUP_PRESETS, onPatch, onPickStock, onOpenVendor, onDelete, onSample, onFlag, onClose, qtyRef, notify, strictness, fallback }) {
+export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutStock, stockReady, bookStockReady, isBookFam, gFamilies, searchOrder, bookName, tv, markups = MARKUP_PRESETS, onPatch, onPickStock, onOpenVendor, onDelete, sample, onSample, onFlag, onClose, qtyRef, notify, strictness, fallback }) {
   const [searching, setSearching] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
   const [insExpanded, setInsExpanded] = useState(false);
@@ -626,8 +626,8 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutS
       </div>
       {onSample && (
         <button onClick={onSample} className="mt-3 w-full h-[38px] rounded-md border border-slate-200 text-[12.5px] font-bold flex items-center justify-center gap-1.5"
-          style={p.sample ? SAMPLE_CHIP[p.sample.status] : { background: "var(--ft-card, #fff)" }}>
-          <Layers size={13} /> {p.sample ? `Sample ${SAMPLE_LABEL[p.sample.status].toLowerCase()} — tap to remove` : "Request sample"}
+          style={sample ? SAMPLE_CHIP[sample.status] : { background: "var(--ft-card, #fff)" }}>
+          <Layers size={13} /> {sample ? `Sample ${SAMPLE_LABEL[sample.status].toLowerCase()} — tap to remove` : "Request sample"}
         </button>
       )}
       {onFlag && (
