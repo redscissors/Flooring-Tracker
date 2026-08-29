@@ -1394,7 +1394,7 @@ export default function App({ user, onSignOut }) {
                 ERP-style directory grid (issue 040). Quick prices AND the
                 unassigned estimates/drafts live behind its Estimates & drafts
                 toggle, so this is the everyday door to all of them. */}
-            <button onClick={() => { setShowBrowser(true); setSidebarOpen(false); }} title="Browse all customers"
+            <button onClick={() => { setShowBrowser(true); setSidebarOpen(false); refreshSampleRequests(); }} title="Browse all customers"
               className="w-full flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm font-semibold py-1.5 text-slate-600">
               <Folder size={15} className="text-indigo-500" /> Customers
               <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 rounded-full px-1.5 leading-5">{data.people.length}</span>
@@ -2637,6 +2637,7 @@ export default function App({ user, onSignOut }) {
         <Suspense fallback={null}>
         <CustomerBrowser people={data.people} projects={data.projects} builders={data.builders}
           myName={profile.name || ""}
+          sampleTally={custSampleTally(sampleRequests)}
           initialCols={appBlobRef.current?.ui?.browserCols}
           onColOrder={(order) => saveUiPref({ browserCols: order })}
           onClose={() => setShowBrowser(false)}

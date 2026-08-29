@@ -9,8 +9,9 @@ import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import { SamplesPanel } from "./samples.jsx";
-import { requestFrom } from "./samples.js";
+import { requestFrom, custSampleTally } from "./samples.js";
 import { normA } from "./model.js";
+import CustomerBrowser from "./CustomerBrowser.jsx";
 
 const BOOKS = [
   { id: "bkGlz", kind: "order", name: "Glazzio EFT", data: { brandLabel: "Glazzio", rep: { name: "Jeff Krejci", email: "jeff@glazzio.example" } } },
@@ -29,6 +30,31 @@ const SEED = [
   mk(bath, { id: "p5", type: "vinyl", sku: "STIPEHW1212PEBF", brandColor: "Uptown Pebbles Harmony Warm Blend", sizeText: "12x12" }),
 ];
 
+// ?browser=1: the customer browser mount (Task 8 preview proof) — a person
+// with an open-request project (c1, seeded above) beside a sample-less
+// project of hers (c9) so the row's chips read both, plus a second,
+// entirely sample-less person (k2) so the Samples filter visibly narrows
+// the grid rather than leaving it unchanged.
+const BROWSER_PEOPLE = [
+  { id: "k1", name: "Kathy Marsh" },
+  { id: "k2", name: "Nolan Price" },
+];
+const BROWSER_PROJECTS = [
+  { id: "c1", customerId: "k1", name: "Marsh — whole first floor", quick: false, createdAt: Date.now(), updatedAt: Date.now(), salesperson: { name: "Dana" } },
+  { id: "c9", customerId: "k1", name: "Marsh — basement", quick: false, createdAt: Date.now(), updatedAt: Date.now() },
+  { id: "c10", customerId: "k2", name: "Price — kitchen", quick: false, createdAt: Date.now(), updatedAt: Date.now() },
+];
+
+function BrowserHarness() {
+  return (
+    <CustomerBrowser people={BROWSER_PEOPLE} projects={BROWSER_PROJECTS} builders={[]}
+      myName="" sampleTally={custSampleTally(SEED)}
+      onColOrder={() => {}} onClose={() => {}}
+      onOpenCustomer={() => {}} onOpenProject={() => {}}
+      onNewCustomer={() => {}} onNewProject={() => {}} />
+  );
+}
+
 function Harness() {
   const empty = new URLSearchParams(location.search).has("empty");
   const [reqs, setReqs] = useState(empty ? [] : SEED);
@@ -41,4 +67,5 @@ function Harness() {
       onClose={() => {}} />
   );
 }
-createRoot(document.getElementById("preview")).render(<Harness />);
+const browser = new URLSearchParams(location.search).has("browser");
+createRoot(document.getElementById("preview")).render(browser ? <BrowserHarness /> : <Harness />);
