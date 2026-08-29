@@ -69,7 +69,11 @@ src/
                     # holds another cfg-bearing row — a Sheoga bundle sibling
                     # or duplicated anchor is never deleted by editing its
                     # neighbor), legacy kitId-less anchors falling back to the
-                    # contiguous same-vendor companion run below the anchor
+                    # contiguous same-vendor companion run below the anchor;
+                    # removeKitLines (a placed kit's delete — anchor + the
+                    # same companion set) and placedKits (the derived
+                    # in-this-project list — a stamped bundle's siblings fold
+                    # under their anchor, legacy widths list singly)
   print.js          # print/order math: `printProduct`, `orderLineCost`, `lineTotal`,
                     # `printAreaFloor`, `areaPrintLabel`, `orderEntryRow`,
                     # `ESTIMATE_PRINT_LAYOUT`… (print.test.js)
@@ -428,7 +432,14 @@ src/
                     # the tier's color (sheoga.js tierSellOf/tierFeeOf). Display
                     # only: rows Add/Move land RETAIL, the job sheet's own lens
                     # reprices them (ADR 0018). Opened from the Apps hub instead,
-                    # the bar falls back to a local retail-seeded preview
+                    # the bar falls back to a local retail-seeded preview.
+                    # The basket drawer's second section, "In this project"
+                    # (ADR 0035 step 2), derives from placedKits — Reconfigure
+                    # retargets the popup onto that kit's anchor (App.jsx
+                    # remounts on key={pid} so the seed re-applies; a bundle
+                    # seed restores the whole multi-width build off
+                    # sheoga.bundle) and Remove deletes the kit's lines
+                    # through removeKitLines with an inline confirm
   wedi.js           # wedi shower-system configurator engine (issue 066): the
                     # opposite of Sheoga on both axes — every piece has a part
                     # number and wedi publishes retail, so nothing is marked up
@@ -1186,6 +1197,11 @@ src/
                     # (useSchluterCatalog) — without the bag that column is
                     # only ever "Loading the Schluter price books…". Same
                     # no-op `onQuoteOptions`; not part of the app build
+  sheogapreview.jsx # dev-only harness (sheoga-preview.html): the REAL
+                    # SheogaConfigurator over local mock state, no Supabase —
+                    # preview proof for the ADR 0035 step 2 drawer; landing/
+                    # delete/reconfigure run the real model.js paths over
+                    # local state; not part of the app build
   comparekit.js     # one room priced in BOTH shower systems (phase 5,
                     # ADR 0034) — the first module allowed to import wedi.js
                     # and schluter.js together, and outside the compare chunk
