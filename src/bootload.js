@@ -6,6 +6,7 @@
 import { fetchAllRows } from "./fetchall.js";
 import { normLabel } from "./labels.js";
 import { normClaudeIssue } from "./claudeissues.js";
+import { normSampleRequest } from "./samples.js";
 import { normalizeSettings, serializeSettings, catalogHasSeedUnderlayments } from "./catalog.js";
 
 export const SHARED_SETTINGS_ID = "singleton";
@@ -118,6 +119,13 @@ export const loadClaudeIssues = async (db) => {
   const { data: rows, error } = await db.from("claude_issues").select("id, data").order("created_at", { ascending: false });
   if (error) throw error;
   return (rows || []).map((r) => normClaudeIssue({ id: r.id, ...(r.data || {}) }));
+};
+
+// Sample requests (spec 2026-08-28) — newest first; bounded like todos.
+export const loadSampleRequests = async (db) => {
+  const { data: rows, error } = await db.from("sample_requests").select("id, data").order("created_at", { ascending: false });
+  if (error) throw error;
+  return (rows || []).map((r) => normSampleRequest({ id: r.id, ...(r.data || {}) })).filter(Boolean);
 };
 
 // Labels page with fetchAllRows since the shared set can exceed the 1000-row cap.
