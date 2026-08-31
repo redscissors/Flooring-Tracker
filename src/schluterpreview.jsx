@@ -8,11 +8,16 @@
 // code in sku with the mfg code in vendorSkus (the ERP stock export), a
 // special-order row is EFT-shaped (mfg code as its own sku) — so the preview
 // exercises the adapter path end to end, exactly what production runs.
+//
+// Stateful cats/basket so the ADR 0035 step 3 drawer exercises the real
+// landKitLines/placedKits/removeKitLines paths.
+import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import SchluterConfigurator from "./SchluterConfigurator.jsx";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
 import { normOrderItem } from "./orderbook.js";
+import { newProduct, newArea, landKitLines, removeKitLines, placedKits } from "./model.js";
 
 const stockRows = FIXTURE_ITEMS.filter((i) => i.stock).map((i) => normOrderItem({
   sku: i.erp || i.sku, bookId: "bk_stock", description: i.name, vendorSkus: i.erp ? [i.sku] : [],
@@ -41,22 +46,33 @@ eftRows.push(normOrderItem({
   description: "KERDI-SHOWER-KIT KERDI-SHOWER TT 38 X 32", leadTime: "READY SHIP",
 }));
 
-createRoot(document.getElementById("preview")).render(
-  <SchluterConfigurator
-    seed={null}
-    schluterBuilderPct={8}
-    wediBuilderPct={18}
-    areaName="Master bath"
-    projectName="Harper — 214 Ridgeway"
-    stockRows={stockRows}
-    bookStockReady
-    books={[{ id: "bk_eft", kind: "order", active: true, name: "Schluter EFT" }]}
-    loadBookItems={async () => eftRows}
-    mortars={{ "Schluter All Set": { tier1: 95, tier2: 70, tier3: 45, unit: "bags", price: 39.21 }, "ProLite": { tier1: 90, tier2: 63, tier3: 45, unit: "bags", price: 32.5 } }}
-    mortarDefault="Schluter All Set"
-    onAdd={(rows) => console.log("onAdd", rows)}
-    onQuoteOptions={(p) => console.log("onQuoteOptions", p)}
-    onClose={() => console.log("onClose")}
-    onConfigChange={() => {}}
-  />
-);
+function Harness() {
+  const [cats, setCats] = useState([{ ...newArea(), name: "Master bath", products: [newProduct()] }]);
+  const [basket, setBasket] = useState([]);
+  const [pop, setPop] = useState({ aid: null, pid: null, seed: null, n: 0 });
+  const aid = pop.aid || cats[0].id, pid = pop.pid || cats[0].products.at(-1).id;
+  return (
+    <SchluterConfigurator key={pid + ":" + pop.n} seed={pop.seed}
+      schluterBuilderPct={8}
+      wediBuilderPct={18}
+      areaName="Master bath"
+      projectName="Harper — 214 Ridgeway"
+      stockRows={stockRows}
+      bookStockReady
+      books={[{ id: "bk_eft", kind: "order", active: true, name: "Schluter EFT" }]}
+      loadBookItems={async () => eftRows}
+      mortars={{ "Schluter All Set": { tier1: 95, tier2: 70, tier3: 45, unit: "bags", price: 39.21 }, "ProLite": { tier1: 90, tier2: 63, tier3: 45, unit: "bags", price: 32.5 } }}
+      mortarDefault="Schluter All Set"
+      basket={basket} onBasketChange={setBasket}
+      placed={placedKits(cats, "schluter")}
+      onOpenPlaced={(k) => setPop((p) => ({ aid: k.areaId, pid: k.rowId, seed: k.marker, n: p.n + 1 }))}
+      onDeleteKit={(k) => setCats((c) => removeKitLines(c, k.areaId, k.rowId) || c)}
+      onAdd={(lines) => setCats((c) => { const withRow = c.map((a) => (a.id === aid && !a.products.some((x) => x.id === pid) ? { ...a, products: [...a.products, { ...newProduct(), id: pid }] } : a)); return landKitLines(withRow, aid, pid, lines) || withRow; })}
+      onMoveEntries={(lines, nextBasket) => { setCats((c) => c.map((a) => (a.id === aid ? { ...a, products: [...a.products, ...lines.map((p2) => ({ ...newProduct(), ...p2 }))] } : a))); setBasket(nextBasket); }}
+      onQuoteOptions={(p) => console.log("onQuoteOptions", p)}
+      onClose={() => console.log("close")} onConfigChange={() => {}}
+    />
+  );
+}
+
+createRoot(document.getElementById("preview")).render(<Harness />);
