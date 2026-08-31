@@ -132,6 +132,18 @@ src/
   useclaudeissues.js  # `useClaudeIssues` — central Claude issue write paths
                     # (issue 087): add/update/toggle/del/clearDone, shaped like
                     # useTodos (shared rows, optimistic, claude-issues.sql)
+  usesamples.js     # `useSamples` — sample_requests write paths (spec
+                    # 2026-08-28), shaped like useClaudeIssues: shared rows,
+                    # optimistic local update, one write per action.
+                    # `addSampleRequest`/`delSampleRequest` and
+                    # `setSampleOrdered(ids, ordered)` — an ID LIST so
+                    # "Mark all ordered" is one upsert, not a write per row;
+                    # stamps orderedBy/orderedAt (or clears them on undo).
+                    # `refreshSampleRequests` re-runs `loadSampleRequests`
+                    # (bootload.js) for the Customers-button/Samples-panel
+                    # open refresh, on top of the table's own stage-2
+                    # background hydrate (ADR 0026, alongside todos/claude
+                    # issues)
   claudeflag.jsx    # `ClaudeMark` (the rays, moved out of pricebooklib) +
                     # `FlagForClaude` — the ONE flag popover every surface
                     # opens with a prebuilt source: captured-context box,
@@ -143,7 +155,9 @@ src/
                     # are the row's one grip; no tip line, the grab cursor is
                     # the affordance) or a right-click on the row (suppressed
                     # inside fields so native paste keeps working). Duplicate /
-                    # Move to area (inline expand, no floating submenu) / Flag
+                    # Move to area (inline expand, no floating submenu) /
+                    # Request sample (spec 2026-08-28 — toggles a shared
+                    # sample_requests row for this line, see samples.js) / Flag
                     # for Claude / Delete (routes to the existing inline
                     # confirm). The old hand + trash hover icons are retired on
                     # product rows; the empty search-row adder wears the same ⋯
@@ -170,11 +184,22 @@ src/
                     # special-order rule, Sheoga lead kept, CT-only tag);
                     # not part of the app build
   custbrowser.js    # customer-browser pure logic (issue 040): rows/filter/sort +
-                    # group-by-salesman over the boot's light rows (custbrowser.test.js)
+                    # group-by-salesman over the boot's light rows (custbrowser.test.js).
+                    # `custSamples`/`filterBySamples` (spec 2026-08-28) roll a
+                    # customer's projects up against the sample_requests tally
+                    # Map (App's `projectSampleTally(sampleRequests)`) for the
+                    # browser's samples column and filter
   CustomerBrowser.jsx  # the customer browser, a `React.lazy` chunk (ADR 0026):
                     # near-fullscreen ERP-style directory grid — dense customer
                     # rows grouped by salesman over a bottom project-lines panel —
-                    # opened from the sidebar's Customers folder (issue 040)
+                    # opened from the sidebar's Customers folder (issue 040).
+                    # Takes a `sampleTally` prop (App, `projectSampleTally`
+                    # re-run on every sampleRequests change): a draggable
+                    # Samples column (`sampleChips` — amber "N to order" +
+                    # moss "M ordered", shared with the unfiled strips and the
+                    # project-lines panel) and a Samples filter button
+                    # (open = customer has any need>0) beside the salesperson
+                    # box, over the same rows/strips it narrows
   EstimatePrint.jsx # `EstimatePaper` (+ `PRINT_DASH`) — the print/Preview-tab "paper", one
                     # component behind both call sites so they can never drift. STATIC import only:
                     # `window.print()` fires right after the print-mode render, so a `React.lazy`
@@ -251,7 +276,13 @@ src/
                     # flag time (with the diff context in its snapshot), the
                     # book's item mark rides the apply as opts.claudeSkus since
                     # an added row doesn't exist to mark yet; a bundle carries
-                    # earlier files' flags to the last file's apply
+                    # earlier files' flags to the last file's apply.
+                    # A Rep tab (spec 2026-08-28, `RepCard`) sits last on
+                    # EVERY book kind (not gated behind `isOrder` like Markup/
+                    # Freight/Brand): the vendor sample-order contact
+                    # (book.data.rep {name, email}) the Samples panel's
+                    # "Email the rep" button addresses — no salesperson info,
+                    # samples ship straight to the customer
   SettingsWorkspace.jsx  # the Settings workspace, now a `React.lazy` chunk (ADR 0026);
                     # `MATERIAL_CATEGORIES` lives here. Shrink-to-fit (issue 084,
                     # the wedi popup's rig): drawn at SETTINGS_DESIGN_W (1240)
@@ -1324,6 +1355,58 @@ src/
                     # the destination justify the price on the ESTIMATE, but the
                     # desk keys shipping as a single charge and pallets/feet/
                     # pieces can't share a quantity column
+  samples.js        # sample-ordering pure logic (spec 2026-08-28, reworked off
+                    # the issue 115 v1): request rows are the ONE source —
+                    # shared `sample_requests` rows (snapshot + live ids, the
+                    # claude-issues doctrine — supabase/samples.sql), never a
+                    # field on the product row. `normSampleRequest` (status
+                    # need/ordered only — v1's "in"/received dropped) +
+                    # `requestFrom` (a NEW request, the line frozen at request
+                    # time: vendor resolves ONCE here — book brandLabel/name,
+                    # Sheoga lines under Sheoga, everything else under a
+                    # trailing "Other / hand-entered"). `sampleGroups` (rows
+                    # grouped by that frozen vendor, Other always last — a
+                    # sample order is placed per vendor), `sampleCounts` (the
+                    # header badge), `projectSampleTally` (a
+                    # projectId→{need,ordered} Map — the browser column/
+                    # filter's one shared roll-up),
+                    # and `repEmail`/`mailtoHref` (the vendor rep's email: item
+                    # list + the CUSTOMER as ship-to — samples ship direct —
+                    # and deliberately NO salesperson info, owner call
+                    # 2026-08-28). Split from samples.jsx so `node --test` can
+                    # cover it (samples.test.js)
+  samples.jsx       # the Samples panel (spec 2026-08-28) — this project's
+                    # sample_requests, grouped by vendor via `sampleGroups`,
+                    # in the same right-dock shell as order entry. Per-line
+                    # two-way status toggle (To order ⇄ Ordered), per-vendor
+                    # "Mark all ordered" and an "Email the rep" mailto button
+                    # built from `repEmail`/`mailtoHref` (falls back to a
+                    # Copy-email button + a "No rep on file" hint pointing at
+                    # the book's Rep tab when the vendor has no email saved),
+                    # remove ×. Presentation only — contract is
+                    # `SamplesPanel({ name, requests, custInfo, repFor,
+                    # onOrdered, onRemove, onClose })`: every write goes back
+                    # through `onOrdered(ids, ordered)` — an ID LIST, so "Mark
+                    # all ordered" is one write, never one per row (useSamples'
+                    # `setSampleOrdered`). Marks are made from the line menu's
+                    # "Request sample" (and the mobile row sheet's toggle); a
+                    # marked row wears a status-colored layers icon in its
+                    # action cell that opens the panel, and both header
+                    # layouts carry a Samples button badged on any open
+                    # (need) request. Deliberately UNSCOPED across quote
+                    # options — samples get ordered while options are still
+                    # being decided, and there's no cross-project samples desk
+  samplespreview.jsx  # dev-only harness (samples-preview.html): the REAL
+                    # SamplesPanel over request rows built through the REAL
+                    # requestFrom/normSampleRequest, no Supabase, no App shell.
+                    # Stateful, so the status toggle, Mark all ordered, the
+                    # mailto button, and remove all exercise the real
+                    # onOrdered(ids, ordered) contract. `?empty=1` shows the
+                    # empty state. `?browser=1` mounts the REAL
+                    # CustomerBrowser instead, over a second sample-less
+                    # customer (Task 8 preview proof — the samples column/
+                    # filter's mock state), fed `sampleTally={projectSampleTally(SEED)}`
+                    # so the filter visibly narrows the grid
   vendorfetch.js    # vendor sheet fetch (ADR 0019): portal-link parse/validate,
                     # bookmarklet source + clipboard hand-off (copies a marked
                     # base64 payload — HANDOFF_MARK/stripHandoffMark — that the

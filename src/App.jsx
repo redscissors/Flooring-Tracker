@@ -1,13 +1,16 @@
 import { Fragment, lazy, Suspense, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
-import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, MoreHorizontal, AlignJustify, AlertTriangle, Zap, Folder, LayoutGrid, ShowerHead, TreePine } from "lucide-react";
+import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, MoreHorizontal, AlignJustify, AlertTriangle, Zap, Folder, LayoutGrid, ShowerHead, TreePine, Layers } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
-import { listSelect, lightRow, loadProjects, loadPeople, loadBuilders, loadTodos, loadClaudeIssues, loadBooks, loadSettingsRow, resolveSharedSettings } from "./bootload.js";
+import { listSelect, lightRow, loadProjects, loadPeople, loadBuilders, loadTodos, loadClaudeIssues, loadBooks, loadSettingsRow, resolveSharedSettings, loadSampleRequests } from "./bootload.js";
 import { bootTrace, traceRows } from "./boottrace.js";
 import { num, wasteFor, withProjWaste, normalizeSettings, serializeSettings, groutExact, mortarExact, getGrout, getMortar, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, offeredAttached, offeredCategories, getAttached, qtyDrift } from "./catalog.js";
 import { findStock, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant, groutFamilies, groutSnapshotPatch } from "./stock.js";
 import { pricedItem, orderPatch, orderDrift, rowCostSqft, skuKeys } from "./orderbook.js";
 import { OrderEntryPanel } from "./orderentry.jsx";
 import { isSpecialOrder, nameBudget, orderQty } from "./orderentry.js";
+import { SamplesPanel } from "./samples.jsx";
+import { requestFrom, sampleCounts, projectSampleTally, SAMPLE_LABEL, SAMPLE_COLOR } from "./samples.js";
+import { useSamples } from "./usesamples.js";
 import { tierView, tierUnitPrice, employeeNoCost, normPricing } from "./pricing.js";
 import { freightPrintRows, freightOrderRow, freightSummary, freightBookFor, rowFreightOn } from "./freight.js";
 import { FreightMatRow } from "./freightui.jsx";
@@ -283,7 +286,10 @@ export default function App({ user, onSignOut }) {
   // Copy-for-order-entry panel (special-order + stock, formatted for pasting
   // into the vendor order program). Ephemeral, read-only, never printed.
   const [showOrderCopy, setShowOrderCopy] = useState(false);
-  useEffect(() => { setViewTab("edit"); setShowMargin(false); setShowOrderCopy(false); setPreviewScope("all"); setOrderScope(null); setScopeAsk(null); }, [selId]);
+  // Samples panel — the project's sample requests, grouped by vendor for
+  // ordering (marks live on the rows; src/samples.js).
+  const [showSamples, setShowSamples] = useState(false);
+  useEffect(() => { setViewTab("edit"); setShowMargin(false); setShowOrderCopy(false); setShowSamples(false); setPreviewScope("all"); setOrderScope(null); setScopeAsk(null); }, [selId]);
   // Active card drag: { pid, fromAid, to: { aid, index, y } | null }. The card
   // follows the pointer imperatively (no re-render per move); state only changes
   // when the drop target changes, to redraw the insertion bar / area highlight.
@@ -426,6 +432,7 @@ export default function App({ user, onSignOut }) {
       await Promise.allSettled([
         trace.span("todos", () => loadTodos(supabase)).then(hydrateTodos, () => { }),
         trace.span("claude", () => loadClaudeIssues(supabase)).then(hydrateClaudeIssues, () => { }),
+        trace.span("samples", () => loadSampleRequests(supabase)).then(hydrateSampleRequests, () => { }),
         trace.span("books", () => loadBooks(supabase))
           .then((rows) => hydrateBooks(rows), () => { })
           .finally(() => setBooksHydrated(true)),
@@ -556,6 +563,10 @@ export default function App({ user, onSignOut }) {
     claudeIssues, hydrateClaudeIssues, refreshClaudeIssues,
     addClaudeIssue, toggleClaudeIssue, delClaudeIssue, clearDoneClaudeIssues,
   } = useClaudeIssues({ user, profile, ping, flashSaved });
+  const {
+    sampleRequests, hydrateSampleRequests, refreshSampleRequests,
+    addSampleRequest, delSampleRequest, setSampleOrdered,
+  } = useSamples({ user, profile, ping, flashSaved });
   // Which Issues & To-Do tab is up; the sidebar button refreshes both lists.
   const [issuesTab, setIssuesTab] = useState("team");
   const openIssues = (tab) => { if (tab) setIssuesTab(tab); openTodos(); refreshClaudeIssues(); };
@@ -564,6 +575,12 @@ export default function App({ user, onSignOut }) {
   const [lineMenu, setLineMenu] = useState(null);
   const [flagCtx, setFlagCtx] = useState(null);
   const flaggedRows = useMemo(() => new Set(claudeIssues.filter((i) => !i.done && i.source.productId).map((i) => i.source.productId)), [claudeIssues]);
+  // This project's sample requests + a productId lookup for the row icons.
+  const projSamples = useMemo(() => sampleRequests.filter((r) => r.projectId === selId), [sampleRequests, selId]);
+  const sampleByProduct = useMemo(() => new Map(projSamples.map((r) => [r.productId, r])), [projSamples]);
+  // The customer browser's per-project roll-up (F6): recomputed only when the
+  // shared request list actually changes, not on every render of the browser.
+  const sampleTally = useMemo(() => projectSampleTally(sampleRequests), [sampleRequests]);
   const {
     labels, showApps, setShowApps,
     openApps, addLabel, addLabelsBulk, updateLabel, delLabel, saveLabelPreset,
@@ -866,6 +883,17 @@ export default function App({ user, onSignOut }) {
     updateProject(sel.id, { categories: sel.categories.map((c) => c.id !== aid ? c : { ...c, products: [...c.products.slice(0, i + 1), copy, ...c.products.slice(i + 1)] }) });
   };
 
+  // Request/unrequest a sample for a line — the ONE add/remove entry
+  // (usesamples.js owns the writes). Toggling off an ordered request is the
+  // user saying "never mind"; the row simply leaves the log.
+  const toggleSample = (a, ai, p) => {
+    const existing = sampleByProduct.get(p.id);
+    if (existing) { delSampleRequest(existing.id); ping("Sample request removed"); return; }
+    const custName = data.people.find((c) => c.id === sel.customerId)?.name || sel.name || "";
+    addSampleRequest(requestFrom({ project: sel, custName, area: a, areaIndex: ai, product: p, books, by: profile.name || user.email || "" }));
+    ping("Sample requested — see Samples in the header");
+  };
+
   // The row-end ⋯ is the line's one grip (issue 087, owner "option A"): a hold
   // arms startDrag exactly like the old hand icon; a release before the hold
   // arms — and without slipping — is a plain click and opens the line menu.
@@ -1100,6 +1128,7 @@ export default function App({ user, onSignOut }) {
   useEscClose(sidebarOpen && !isWide, () => setSidebarOpen(false));
   useEscClose(namingVersion, () => setNamingVersion(false));
   useEscClose(showOrderCopy, () => setShowOrderCopy(false));
+  useEscClose(showSamples, () => setShowSamples(false));
   useEscClose(showSettings, () => setShowSettings(false));
   useEscClose(showApps, () => setShowApps(false));
 
@@ -1368,7 +1397,7 @@ export default function App({ user, onSignOut }) {
                 ERP-style directory grid (issue 040). Quick prices AND the
                 unassigned estimates/drafts live behind its Estimates & drafts
                 toggle, so this is the everyday door to all of them. */}
-            <button onClick={() => { setShowBrowser(true); setSidebarOpen(false); }} title="Browse all customers"
+            <button onClick={() => { setShowBrowser(true); setSidebarOpen(false); refreshSampleRequests(); }} title="Browse all customers"
               className="w-full flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm font-semibold py-1.5 text-slate-600">
               <Folder size={15} className="text-indigo-500" /> Customers
               <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 rounded-full px-1.5 leading-5">{data.people.length}</span>
@@ -1520,6 +1549,7 @@ export default function App({ user, onSignOut }) {
                   namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion,
                   openAttachment, delAttachment, attRef, addAttachment,
                   setShowVersions, setConfirm,
+                  samples: sampleCounts(projSamples), onOpenSamples: () => { setShowSamples(true); refreshSampleRequests(); },
                   // Both header layouts call these with (true) / ("order") respectively —
                   // wrapped here so projectheader.jsx needs no changes to route through
                   // the option scope picker (Task 8). "estimate" passes straight through.
@@ -1554,6 +1584,10 @@ export default function App({ user, onSignOut }) {
                       <button onClick={() => setProjSheet(true)} className={tile}><div className={tLbl}>Print</div><div className={tVal}>{sel.printPricing === "unit" ? "Unit $" : sel.printPricing === "none" ? "No $" : "All $"}</div></button>
                       <button onClick={() => setProjSheet(true)} className={tile}><div className={tLbl}>Files</div><div className={tVal}>{(sel.attachments || []).length}</div></button>
                       <button onClick={() => setShowVersions(true)} className={tile}><div className={tLbl}>Versions</div><div className={tVal}>{sel.versions?.length || 0}</div></button>
+                      <button onClick={() => { setShowSamples(true); refreshSampleRequests(); }} className={tile}>
+                        <div className={tLbl}>Samples</div>
+                        <div className={tVal} style={sampleCounts(projSamples).need > 0 ? { color: "#b45309" } : undefined}>{sampleCounts(projSamples).need || "—"}</div>
+                      </button>
                       {saveOk && <div className={tile}><div className={tLbl}>Sync</div><div className={tVal} style={{ color: "var(--ft-brand)" }}>Saved ✓</div></div>}
                     </div>
                     <MobileSheet open={projSheet} onClose={() => setProjSheet(false)} title={sel.name || "Untitled project"}
@@ -1931,6 +1965,8 @@ export default function App({ user, onSignOut }) {
                           <MobileRowSheet p={p} areaName={areaLabel(a, ai)} canDelete={a.products.length > 1 && !(rowBlank(p) && isAdder)}
                             settings={wSet} stock={stockItems} groutStock={groutStock} stockReady={bookStockReady} bookStockReady={bookStockReady} isBookFam={isBookFam} gFamilies={gFamilies} searchOrder={searchOrder} bookName={bookName} tv={tv} notify={ping} strictness={searchStrictness} fallback={searchFallback} markups={quickMarkups}
                             onPatch={(patch) => updProduct(a.id, p.id, patch)}
+                            sample={sampleByProduct.get(p.id) || null}
+                            onSample={() => toggleSample(a, ai, p)}
                             onPickStock={(items) => { addStockProducts(a.id, p.id, items); setFocusQty(p.id); }}
                             onOpenVendor={(query, which) => {
                               setRowSheet(null);
@@ -2081,6 +2117,11 @@ export default function App({ user, onSignOut }) {
                                 <div style={{ ...gridCell, justifyContent: "flex-end", padding: "6px 8px", fontWeight: 700, background: totalTint }}>{tLine > 0 ? money(tLine) : PRINT_DASH}</div>
                               )}
                               <div className="ft-noprint flex items-center justify-center gap-0.5" style={{ background: "var(--ft-area-row)" }}>
+                                {(() => { const sr = sampleByProduct.get(p.id); return sr && (
+                                  <button tabIndex={-1} onClick={() => { setShowSamples(true); refreshSampleRequests(); }}
+                                    title={`Sample — ${SAMPLE_LABEL[sr.status]}${sr.status === "ordered" && sr.orderedAt ? " " + new Date(sr.orderedAt).toLocaleDateString(undefined, { month: "numeric", day: "numeric" }) : ""}. Click for the Samples panel.`}
+                                    className="p-0.5" style={{ color: SAMPLE_COLOR[sr.status] }}><Layers size={11} /></button>
+                                ); })()}
                                 {flaggedRows.has(p.id) && <span title="Flagged for Claude — see Issues & To-Do" style={{ color: CLAUDE_CLAY }}><ClaudeMark size={11} /></span>}
                                 <button tabIndex={-1} onPointerDown={(e) => dotsPointer(e, a.id, p, pi)} title="Line menu — hold and pull to reorder or move to another area" className="p-0.5 rounded touch-none cursor-grab text-slate-300 hover:text-slate-600"><MoreHorizontal size={13} /></button>
                               </div>
@@ -2603,6 +2644,7 @@ export default function App({ user, onSignOut }) {
         <Suspense fallback={null}>
         <CustomerBrowser people={data.people} projects={data.projects} builders={data.builders}
           myName={profile.name || ""}
+          sampleTally={sampleTally}
           initialCols={appBlobRef.current?.ui?.browserCols}
           onColOrder={(order) => saveUiPref({ browserCols: order })}
           onClose={() => setShowBrowser(false)}
@@ -2702,6 +2744,8 @@ export default function App({ user, onSignOut }) {
           onClose={() => setLineMenu(null)}
           onDuplicate={() => duplicateProduct(a.id, p.id)}
           onMoveTo={(toAid) => moveProduct(a.id, p.id, toAid, sel.categories.find((c) => c.id === toAid)?.products.length ?? 0)}
+          sampleOn={sampleByProduct.has(p.id)}
+          onSample={() => toggleSample(a, ai, p)}
           onFlag={() => setFlagCtx({ source: jobSource(sel, { name: areaLabel(a, ai) }, p) })}
           onDelete={() => setConfirmProd({ aid: a.id, pid: p.id })} />;
       })()}
@@ -2863,6 +2907,20 @@ export default function App({ user, onSignOut }) {
         const freightRows = oeT.fList.map((l) => freightOrderRow(l, descLimit));
         const name = optsUsed.length && scope !== "all" ? `${sel.name} — ${optionShort(sel, scope)}` : sel.name;
         return <OrderEntryPanel name={name} special={[...rows.filter((r) => r.special), ...freightRows]} stock={[...rows.filter((r) => !r.special), ...mats]} descLimit={descLimit} onClose={() => { setShowOrderCopy(false); setOrderScope(null); }} />;
+      })()}
+
+      {/* Samples panel — the project's sample requests grouped by vendor.
+          Unscoped on purpose: samples get ordered while quote options are
+          still being decided, so every marked line shows whatever its slot. */}
+      {showSamples && sel && sel._full && (() => {
+        const cust = data.people.find((c) => c.id === sel.customerId);
+        return (
+          <SamplesPanel name={sel.name} requests={projSamples}
+            custInfo={{ custName: cust?.name || sel.name || "", address: sel.address || cust?.address || "", phone: sel.phone || cust?.phone || "" }}
+            repFor={(g) => books.find((b) => b.id === g.bookId)?.data?.rep || null}
+            onOrdered={setSampleOrdered} onRemove={delSampleRequest}
+            onClose={() => setShowSamples(false)} />
+        );
       })()}
 
       {custModal && (() => {

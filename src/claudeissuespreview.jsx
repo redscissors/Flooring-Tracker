@@ -59,6 +59,7 @@ function App() {
       <LineMenu menu={menu} title="12×24 Aniston Silver Polished" subtitle="Master Bath"
         areas={[{ id: "a2", name: "Kitchen" }, { id: "a3", name: "Mudroom" }]} canDelete
         onClose={() => setMenu(null)} onDuplicate={() => { }} onMoveTo={() => { }}
+        sampleOn={false} onSample={() => { }}
         onFlag={() => setFlag({ source: jobSource(MOCK_PROJECT, MOCK_AREA, MOCK_ROW) })} onDelete={() => { }} />
       <FlagForClaude ctx={flag} onClose={() => setFlag(null)} onAdd={(text, source) => { claude.onAdd(text, source); setTab("claude"); }} />
     </div>

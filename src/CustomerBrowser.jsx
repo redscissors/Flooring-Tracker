@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
-import { X, Search, Plus, Users, Folder, FileText, ChevronRight, ChevronDown, ArrowUpRight, Zap, Clock, Check } from "lucide-react";
-import { browserRows, quickRows, draftRows, filterRows, filterBySales, sortRows, groupBySales, salesNameOf, salesRoster, defaultSalesFilter, shortDate, projNos, SORTS, NO_SALES, normColOrder, moveCol } from "./custbrowser.js";
+import { X, Search, Plus, Users, Folder, FileText, ChevronRight, ChevronDown, ArrowUpRight, Zap, Clock, Check, Layers } from "lucide-react";
+import { browserRows, quickRows, draftRows, filterRows, filterBySales, sortRows, groupBySales, salesNameOf, salesRoster, defaultSalesFilter, shortDate, projNos, SORTS, NO_SALES, normColOrder, moveCol, custSamples, filterBySamples } from "./custbrowser.js";
 import { useEscClose, DotMenu } from "./widgets.jsx";
 
 // The customer browser (issue 040): an ERP-style directory — a dense grid of
@@ -9,7 +9,7 @@ import { useEscClose, DotMenu } from "./widgets.jsx";
 // reads all day). Replaces the sidebar's expanding age-bucket folders. Pure
 // UI over the boot's light rows; opening it fetches nothing, and every action
 // routes back through App's existing handlers.
-export default function CustomerBrowser({ people, projects, builders, myName, initialCols, onColOrder, onClose, onOpenCustomer, onOpenProject, onNewCustomer, onNewProject }) {
+export default function CustomerBrowser({ people, projects, builders, myName, initialCols, onColOrder, onClose, onOpenCustomer, onOpenProject, onNewCustomer, onNewProject, sampleTally = new Map() }) {
   const [q, setQ] = useState("");
   // Column order: seeded from the salesperson's saved arrangement, edited by
   // dragging the header cells; every change flows up through onColOrder.
@@ -32,21 +32,34 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
   // header's Estimates & drafts toggle shows the strip. Both lists narrow with
   // the search box AND the salesperson filter, like the grid.
   const [showQuick, setShowQuick] = useState(false);
+  // Samples filter (spec 2026-08-28): only customers with OPEN (to-order)
+  // sample requests, over the same grid + strips the salesperson box narrows.
+  const [samplesOnly, setSamplesOnly] = useState(false);
   useEscClose(true, onClose);
 
   const rows = useMemo(() => browserRows({ people, projects, builders }), [people, projects, builders]);
   const quick = useMemo(() => quickRows(projects, q, salesQ), [projects, q, salesQ]);
   const drafts = useMemo(() => draftRows(projects, q, salesQ), [projects, q, salesQ]);
+  const quickShown = useMemo(() => samplesOnly ? quick.filter((p) => (sampleTally.get(p.id)?.need || 0) > 0) : quick, [quick, samplesOnly, sampleTally]);
+  const draftsShown = useMemo(() => samplesOnly ? drafts.filter((p) => (sampleTally.get(p.id)?.need || 0) > 0) : drafts, [drafts, samplesOnly, sampleTally]);
   const quickCount = useMemo(() => quickRows(projects).length, [projects]);
   const draftCount = useMemo(() => draftRows(projects).length, [projects]);
   const unfiledCount = quickCount + draftCount;
-  const shown = useMemo(() => sortRows(filterBySales(filterRows(rows, q), salesQ), sortKey), [rows, q, salesQ, sortKey]);
+  const shown = useMemo(() => sortRows(filterBySales(filterRows(samplesOnly ? filterBySamples(rows, sampleTally) : rows, q), salesQ), sortKey), [rows, q, salesQ, sortKey, samplesOnly, sampleTally]);
   // Flat list by default; the salesman bands appear only while the
   // salesperson box narrows the list (they show which salesmen matched).
   const groups = useMemo(() => salesQ.trim() ? groupBySales(shown) : [{ sales: null, rows: shown }], [salesQ, shown]);
   const flat = useMemo(() => groups.flatMap((g) => g.rows), [groups]);
   const sel = flat.find((r) => r.id === selId) || null;
   const projCount = rows.reduce((n, r) => n + r.projs.length, 0);
+
+  // Shared count chips — the samples column, the strips, and the lines panel.
+  const sampleChips = (t) => (t.need || t.ordered) ? (
+    <span className="inline-flex items-center gap-1 whitespace-nowrap">
+      {t.need > 0 && <span className="text-[10px] font-semibold rounded-full px-1.5 leading-4" style={{ background: "#fef6e2", color: "#b45309" }}>{t.need} to order</span>}
+      {t.ordered > 0 && <span className="text-[10px] font-semibold rounded-full px-1.5 leading-4" style={{ background: "var(--ft-brand-soft)", color: "var(--ft-brand-deep)" }}>{t.ordered} ordered</span>}
+    </span>
+  ) : null;
 
   // Arrow keys walk the visible rows from the search box; Enter opens the
   // highlighted customer (or the single match).
@@ -83,6 +96,7 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
     address: { label: "Address" },
     email: { label: "Email", cls: "hidden lg:table-cell" },
     jobs: { label: "Jobs", cls: "text-center" },
+    samples: { label: "Samples" },
     created: { label: "Created", sort: "created", cls: "text-right" },
     modified: { label: "Modified", sort: "modified", cls: "text-right" },
   };
@@ -101,6 +115,7 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
         {r.projs.length > 0 && <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 rounded-full px-1.5 leading-4 inline-block">{r.projs.length}</span>}
       </td>
     ),
+    samples: (r) => <td key="samples" className={td}>{sampleChips(custSamples(sampleTally, r.projs))}</td>,
     created: (r) => <td key="created" className={`${td} ft-mono whitespace-nowrap text-right text-slate-500`}>{shortDate(r.createdAt)}</td>,
     modified: (r) => <td key="modified" className={`${td} ft-mono whitespace-nowrap text-right text-slate-500`}>{shortDate(r.activity)}</td>,
   };
@@ -137,6 +152,7 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
       {p.projectNo && <span className="ft-mono text-[11px] text-slate-400 shrink-0">N{p.projectNo}</span>}
       <span className="ft-item-name text-[12.5px] truncate">{p.name || fallbackName}</span>
       {salesNameOf(p) && <span className="text-[10.5px] text-slate-400 truncate">{salesNameOf(p)}</span>}
+      {sampleChips(sampleTally.get(p.id) || { need: 0, ordered: 0 })}
       <span className="ml-auto ft-mono text-[11px] text-slate-400 whitespace-nowrap">{shortDate(p.createdAt)} · {shortDate(p.updatedAt)}</span>
       <ChevronRight size={13} className="text-slate-300 opacity-0 group-hover:opacity-100 shrink-0" />
     </button>
@@ -200,6 +216,11 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
               ))}
             </DotMenu>
           </div>
+          <button onClick={() => setSamplesOnly((s) => !s)}
+            title={samplesOnly ? "Show every customer" : "Only customers with samples still to order"}
+            className={`h-[26px] flex items-center gap-1 rounded-md border px-2 text-xs font-semibold shrink-0 ${samplesOnly ? "ft-seg-on border-slate-200" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}>
+            <Layers size={13} /> Samples
+          </button>
           {unfiledCount > 0 && (
             <button onClick={() => setShowQuick((s) => !s)}
               title={showQuick ? "Hide estimates & drafts" : "Show estimates & drafts"}
@@ -220,21 +241,21 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
             <div className="overflow-y-auto">
               {quickCount > 0 && (<>
                 <div className="flex items-center gap-2 px-3 md:px-4 py-1.5 sticky top-0" style={{ background: "var(--ft-band)" }}>
-                  <span className="ft-eyebrow text-[9.5px] flex items-center gap-1.5"><Zap size={11} className="text-indigo-500" /> Quick prices <span className="normal-case tracking-normal font-normal text-slate-400">· {quick.length === quickCount ? quickCount : `${quick.length} of ${quickCount}`}</span></span>
+                  <span className="ft-eyebrow text-[9.5px] flex items-center gap-1.5"><Zap size={11} className="text-indigo-500" /> Quick prices <span className="normal-case tracking-normal font-normal text-slate-400">· {quickShown.length === quickCount ? quickCount : `${quickShown.length} of ${quickCount}`}</span></span>
                   <span className="ml-auto text-[9.5px] text-slate-400 whitespace-nowrap">unfiled drafts clear 30 days after their last edit</span>
                 </div>
                 <div className="px-1.5 py-1">
-                  {quick.length === 0 && <div className="text-[12px] text-slate-400 px-2.5 py-1.5">No matches</div>}
-                  {quick.map((p) => unfiledRow(p, Zap, "Quick price"))}
+                  {quickShown.length === 0 && <div className="text-[12px] text-slate-400 px-2.5 py-1.5">No matches</div>}
+                  {quickShown.map((p) => unfiledRow(p, Zap, "Quick price"))}
                 </div>
               </>)}
               {draftCount > 0 && (<>
                 <div className="flex items-center gap-2 px-3 md:px-4 py-1.5 sticky top-0" style={{ background: "var(--ft-band)" }}>
-                  <span className="ft-eyebrow text-[9.5px] flex items-center gap-1.5"><FileText size={11} className="text-indigo-500" /> Unassigned jobs <span className="normal-case tracking-normal font-normal text-slate-400">· {drafts.length === draftCount ? draftCount : `${drafts.length} of ${draftCount}`}</span></span>
+                  <span className="ft-eyebrow text-[9.5px] flex items-center gap-1.5"><FileText size={11} className="text-indigo-500" /> Unassigned jobs <span className="normal-case tracking-normal font-normal text-slate-400">· {draftsShown.length === draftCount ? draftCount : `${draftsShown.length} of ${draftCount}`}</span></span>
                 </div>
                 <div className="px-1.5 py-1">
-                  {drafts.length === 0 && <div className="text-[12px] text-slate-400 px-2.5 py-1.5">No matches</div>}
-                  {drafts.map((p) => unfiledRow(p, FileText, "Untitled project"))}
+                  {draftsShown.length === 0 && <div className="text-[12px] text-slate-400 px-2.5 py-1.5">No matches</div>}
+                  {draftsShown.map((p) => unfiledRow(p, FileText, "Untitled project"))}
                 </div>
               </>)}
             </div>
@@ -262,7 +283,7 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
               ))}
             </tbody>
           </table>
-          {flat.length === 0 && <div className="text-center text-sm text-slate-400 mt-10">{q ? "No matches" : "No customers yet"}</div>}
+          {flat.length === 0 && <div className="text-center text-sm text-slate-400 mt-10">{q || samplesOnly ? "No matches" : "No customers yet"}</div>}
         </div>
 
         {/* Project lines for the selected customer — the ERP order-lines panel */}
@@ -286,6 +307,7 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
                   {p.projectNo && <span className="ft-mono text-[11px] text-slate-400 shrink-0">N{p.projectNo}</span>}
                   <span className="ft-item-name text-[12.5px] truncate">{p.name || "Untitled project"}</span>
                   {salesNameOf(p) && <span className="text-[10.5px] text-slate-400 truncate">{salesNameOf(p)}</span>}
+                  {sampleChips(sampleTally.get(p.id) || { need: 0, ordered: 0 })}
                   <span className="ml-auto ft-mono text-[11px] text-slate-400 whitespace-nowrap">{shortDate(p.createdAt)} · {shortDate(p.updatedAt)}</span>
                   <ChevronRight size={13} className="text-slate-300 opacity-0 group-hover:opacity-100 shrink-0" />
                 </button>
