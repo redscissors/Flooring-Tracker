@@ -800,12 +800,13 @@ export default function App({ user, onSignOut }) {
     ]);
     updArea(aid, { products });
   };
-  // Append moved Sheoga lines as new product rows at the end of an area — used
-  // by basket "Move", which must apply lines AND clear the basket in ONE
+  // Append moved configurator lines as new product rows at the end of an area —
+  // used by basket "Move", which must apply lines AND clear the basket in ONE
   // updateProject (two calls would clobber via the non-functional setter).
-  // Lines arrive stamped per basket entry (moveBasketEntries); stampKit here
-  // is the idempotent backstop for any unstamped path.
-  const appendSheogaLines = (categories, aid, lines) => categories.map((a) =>
+  // Vendor-generic (issue 023/066/097 all move through this): lines arrive
+  // stamped per basket entry (moveBasketEntries); stampKit here is the
+  // idempotent backstop for any unstamped path.
+  const appendKitLines = (categories, aid, lines) => categories.map((a) =>
     a.id === aid ? { ...a, products: [...a.products, ...stampKit(lines).map((patch) => ({ ...newProduct(), ...patch }))] } : a);
   // One landing for all three configurators (issue 023 / 066 / 097): the anchor
   // line (the one carrying the vendor's {mode,cfg} marker) fills the row the
@@ -2759,7 +2760,7 @@ export default function App({ user, onSignOut }) {
         return (
           <LazyBoundary>
           <Suspense fallback={null}>
-          <SheogaConfigurator key={sheogaPop.pid} seed={sheogaPop.seed}
+          <SheogaConfigurator key={sheogaPop.pid + ":" + (sheogaPop.n || 0)} seed={sheogaPop.seed}
             initialSf={num(row.qty) > 0 && row.qtyType === "sqft" ? num(row.qty) : 0}
             markupDefault={normPricing(settings.pricing).sheogaMarkupPct}
             ventMarkupDefault={normPricing(settings.pricing).sheogaVentMarkupPct}
@@ -2769,12 +2770,12 @@ export default function App({ user, onSignOut }) {
             onTierChange={(patch) => updateProject(sel.id, patch)}
             areaName={sel.categories.find((x) => x.id === sheogaPop.aid)?.name || "this area"}
             onMove={(lines) => addSheogaLines(sheogaPop.aid, sheogaPop.pid, lines)}
-            onMoveEntries={(lines, nextBasket) => updateProject(sel.id, { categories: appendSheogaLines(sel.categories, sheogaPop.aid, lines), sheogaBasket: nextBasket })}
+            onMoveEntries={(lines, nextBasket) => updateProject(sel.id, { categories: appendKitLines(sel.categories, sheogaPop.aid, lines), sheogaBasket: nextBasket })}
             onAdd={(lines) => { addSheogaLines(sheogaPop.aid, sheogaPop.pid, lines); setSheogaPop(null); setFocusQty(sheogaPop.pid); }}
             onConfigChange={(live) => { try { localStorage.setItem("ft-open-layer", JSON.stringify({ kind: "sheoga", aid: sheogaPop.aid, pid: sheogaPop.pid, seed: live })); } catch (x) { } }}
             onClose={() => setSheogaPop(null)}
             placed={placedKits(sel.categories, "sheoga")}
-            onOpenPlaced={(k) => setSheogaPop({ aid: k.areaId, pid: k.rowId, seed: k.marker })}
+            onOpenPlaced={(k) => setSheogaPop({ aid: k.areaId, pid: k.rowId, seed: k.marker, n: (sheogaPop.n || 0) + 1 })}
             onDeleteKit={(k) => { const next = removeKitLines(sel.categories, k.areaId, k.rowId); if (next) { updateProject(sel.id, { categories: next }); if (k.rowId === sheogaPop.pid) setSheogaPop(null); } }} />
           </Suspense>
           </LazyBoundary>
@@ -2794,7 +2795,7 @@ export default function App({ user, onSignOut }) {
         return (
           <LazyBoundary>
           <Suspense fallback={null}>
-          <WediConfigurator seed={wediPop.seed}
+          <WediConfigurator key={wediPop.pid + ":" + (wediPop.n || 0)} seed={wediPop.seed}
             wediBuilderPct={normPricing(settings.pricing).wediBuilderPct}
             schluterBuilderPct={normPricing(settings.pricing).schluterBuilderPct}
             tier={{ tier: sel.priceTier || "retail", customPct: sel.customPct, builderPct: normPricing(settings.pricing).builderPct, salePct: normPricing(settings.pricing).salePct }}
@@ -2804,6 +2805,12 @@ export default function App({ user, onSignOut }) {
             stockRows={stockItems} bookStockReady={bookStockReady}
             books={books} loadBookItems={loadBookItems}
             mortars={settings.mortars} mortarDefault={settings.catalog?.defaults?.mortar || ""}
+            basket={sel.wediBasket || []}
+            onBasketChange={(next) => updateProject(sel.id, { wediBasket: next })}
+            onMoveEntries={(lines, nextBasket) => updateProject(sel.id, { categories: appendKitLines(sel.categories, wediPop.aid, lines), wediBasket: nextBasket })}
+            placed={placedKits(sel.categories, "wedi")}
+            onOpenPlaced={(k) => setWediPop({ aid: k.areaId, pid: k.rowId, seed: k.marker, n: (wediPop.n || 0) + 1 })}
+            onDeleteKit={(k) => { const next = removeKitLines(sel.categories, k.areaId, k.rowId); if (next) { updateProject(sel.id, { categories: next }); if (k.rowId === wediPop.pid) setWediPop(null); } }}
             onQuoteOptions={(p) => addCompareOptions(wediPop.aid, p)}
             onAdd={(lines) => { addWediLines(wediPop.aid, wediPop.pid, lines); setWediPop(null); setFocusQty(wediPop.pid); }}
             onConfigChange={(live) => { try { localStorage.setItem("ft-open-layer", JSON.stringify({ kind: "wedi", aid: wediPop.aid, pid: wediPop.pid, seed: live })); } catch (x) { } }}

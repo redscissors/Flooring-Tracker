@@ -13,7 +13,7 @@
 import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Plus, Printer, Copy, Eye } from "lucide-react";
-import { useEscClose, SourceSwitch, NumIn } from "./widgets.jsx";
+import { useEscClose, SourceSwitch, NumIn, KitBasketPanel } from "./widgets.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
   catalog, item, group, pans, curbs, kitFor, solve, figureConsumables, panelPlan,
@@ -21,9 +21,10 @@ import {
   tierPrice, lineItems, coverFrames, inch, round2, TIERS, SKU, MODULE_DEPTH, MODEXT_DEPTH,
   FINISHES, GROUP_LABEL, BUILDER_MULT, SO_MIN_NET,
   normBench, benchPremades, benchPanRoom, benchPanPlan, smallerPanFor,
-  BENCH_CORNER_LBL,
+  BENCH_CORNER_LBL, buildFromMarker,
 } from "./wedi.js";
 import { TopDown, Iso, railSplit, RAIL_DESIGN_W, curbHeight } from "./showerdraw.jsx";
+import { stampKit, normKitBasketEntry } from "./model.js";
 
 // The Compare tab drags in comparekit → BOTH engines' tables, so it stays its
 // own chunk behind this popup's own lazy boundary (ADR 0026).
@@ -556,7 +557,8 @@ function seedState(seed) {
 
 export default function WediConfigurator({ seed, tier, onTierChange, wediBuilderPct, schluterBuilderPct,
   stockRows, bookStockReady, books, loadBookItems, mortars, mortarDefault,
-  onAdd, onQuoteOptions, onClose, areaName, projectName, onConfigChange, embedded = false }) {
+  onAdd, basket, onBasketChange, onMoveEntries, placed, onOpenPlaced, onDeleteKit,
+  onQuoteOptions, onClose, areaName, projectName, onConfigChange, embedded = false }) {
   const init = useRef(null);
   if (!init.current) init.current = seedState(seed);
   const s0 = init.current;
@@ -666,6 +668,8 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
   const [benchMenu, setBenchMenu] = useState(null); // { kind, side|corner, x, y } — pan zone clicked
   const [confirmPan, setConfirmPan] = useState(null); // kit card clicked over a custom shower
   const [payload, setPayload] = useState(null);
+  const [basketOpen, setBasketOpen] = useState(false);
+  const [basketSel, setBasketSel] = useState({});
   const [printing, setPrinting] = useState(false);
   const [toast, setToast] = useState("");
   // Cost & margin stay hidden until clicked — a customer may be watching the
@@ -713,6 +717,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     else if (swap) setSwap(null);
     else if (chipMenu) setChipMenu(null);
     else if (placing) setPlacing(false);
+    else if (basketOpen) setBasketOpen(false);
     else onClose();
   });
   // The layout sheet unmounts on afterprint, not right after window.print()
@@ -1301,6 +1306,43 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
 
   const rows = useMemo(() => (build ? lineItems(build, { tier: tierId, builderPct: bPct }) : []), [build, tierId, bPct]);
 
+  // --- basket (ADR 0035 step 3) ---------------------------------------------
+  // Staged and placed kits both re-derive through buildFromMarker and price
+  // through the SAME tier lens as the build column, so a kit reads the same
+  // number everywhere. Display-only derivations — nothing here reprices rows.
+  const entryView = (marker) => {
+    const b = buildFromMarker(marker);
+    if (!b) return { title: "wedi build", meta: "the catalog no longer knows this kit", price: null, faint: true, lines: null };
+    const room = b.cfg.room;
+    return {
+      title: b.pan ? b.pan.name : "wedi build",
+      meta: `${b.lines.length} lines${room ? ` · ${round2(room.w)}×${round2(room.d)}"` : ""}`,
+      price: round2(b.lines.reduce((t, l) => t + tierOf(l.item) * l.qty, 0)),
+      lines: () => lineItems(b, { tier: tierId, builderPct: bPct }),
+    };
+  };
+  const stagedViews = useMemo(() => (basket || []).map((e) => ({ id: e.id, ...entryView(e.snap) })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [basket, tierId, customPct, salePct, bPct]);
+  const placedViews = useMemo(() => (placed || []).map((k) => ({ ...k, ...entryView(k.marker) })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [placed, tierId, customPct, salePct, bPct]);
+  const addToBasket = () => {
+    if (!build || !onBasketChange) return;
+    const entry = normKitBasketEntry({ addedAt: Date.now(), snap: { mode: build.mode, cfg: JSON.parse(JSON.stringify(build.cfg)) } });
+    if (entry) { onBasketChange([...(basket || []), entry]); setBasketOpen(true); say("Staged in the basket — saved with this job"); }
+  };
+  const moveEntries = (ids) => {
+    const picked = (basket || []).filter((b) => ids.includes(b.id));
+    const views = picked.map((e) => stagedViews.find((v) => v.id === e.id)).filter((v) => v && v.lines);
+    if (!views.length || !onMoveEntries) return;
+    // Stamped per entry BEFORE flattening: each staged entry is its own kit
+    // (its own kitId group) even when several move in one click.
+    const lines = views.flatMap((v) => stampKit(v.lines()));
+    onMoveEntries(lines, (basket || []).filter((b) => !ids.includes(b.id) || !views.some((v) => v.id === b.id)));
+    setBasketSel({});
+  };
+
   const copyList = () => {
     const txt = build.lines.map((l) => (l.item.stock ? l.item.erp + "\t" + l.qty : "wedi " + l.item.us + " — " + l.item.name + " × " + l.qty)).join("\n");
     (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(
@@ -1878,6 +1920,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
           </button>
           <div className="btnrow">
             <button className="wbtn primary" onClick={() => setPayload(rows)} data-wedi-add><Plus size={13} /> Add to product lines</button>
+            {onBasketChange && <button className="wbtn" onClick={addToBasket} data-wedi-add-basket><Plus size={13} /> Basket</button>}
             <button className="wbtn" disabled={!diag} onClick={() => setPrinting(true)}><Printer size={13} /> Print layout</button>
             <button className="wbtn" onClick={copyList}><Copy size={13} /> Order entry</button>
           </div>
@@ -2362,6 +2405,9 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
             <div className="eyebrow">Vendor configurator</div>
             <div className="name">wedi shower systems <small>sell = book retail · cost = distributor net</small></div>
           </div>
+          {onBasketChange && <button className="relative inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold hover:bg-slate-50" onClick={() => setBasketOpen(true)} data-wedi-basket>
+            🧺 Basket{(basket || []).length > 0 && <span className="rounded-full bg-[color:var(--ft-brand)] text-white text-[11px] font-extrabold min-w-[18px] h-[18px] px-1 flex items-center justify-center">{basket.length}</span>}
+          </button>}
           <button className="rclear" data-wedi-clear
             title="wipe the build — walls, cuts, parts — and reset the custom shower form"
             onClick={() => { hardReset(null); say("Design cleared"); }}>Clear design</button>
@@ -2382,6 +2428,17 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
               {diagRail}
             </>)}
           </div>
+        </div>
+        <div className={`absolute inset-0 z-[55] transition-opacity ${basketOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`} style={{ background: "rgba(20,15,10,.4)" }} onClick={() => setBasketOpen(false)} />
+        <div className={`absolute top-0 right-0 bottom-0 z-[56] w-[400px] max-w-full bg-white border-l border-slate-300 shadow-2xl transition-transform ${basketOpen ? "translate-x-0" : "translate-x-full"}`}>
+          <KitBasketPanel staged={stagedViews} sel={basketSel}
+            onToggle={(id) => setBasketSel((s) => ({ ...s, [id]: !s[id] }))}
+            onSelectAll={() => { const all = stagedViews.every((v) => basketSel[v.id]); const next = {}; stagedViews.forEach((v) => { next[v.id] = !all; }); setBasketSel(next); }}
+            onRemove={(id) => onBasketChange((basket || []).filter((b) => b.id !== id))}
+            onMove={onMoveEntries ? () => moveEntries(stagedViews.filter((v) => basketSel[v.id]).map((v) => v.id)) : undefined}
+            onMoveAll={() => moveEntries(stagedViews.map((v) => v.id))}
+            placed={placedViews} onEditPlaced={(k) => onOpenPlaced?.(k)} onDeletePlaced={(k) => onDeleteKit?.(k)}
+            areaName={areaName} tierColor={tierColor} onClose={() => setBasketOpen(false)} />
         </div>
       </div>
       {swapPanel}

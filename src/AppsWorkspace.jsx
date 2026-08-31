@@ -129,6 +129,7 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
   // (SheogaConfigurator closes itself after a bundle move) so a pending choice
   // never unmounts the configurator and loses the build.
   const [sheogaBasket, setSheogaBasket] = useState([]);
+  const [wediBasket, setWediBasket] = useState([]);
   const [pending, setPendingState] = useState(null);
   const pendingRef = useRef(null);
   const setPending = (v) => { pendingRef.current = v; setPendingState(v); };
@@ -140,6 +141,7 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
   const commitTo = (where, p) => {
     if (where === "current") p.dest.addToCurrent(p.lines); else p.dest.addToNew(p.lines);
     if (p.dest === sheoga) setSheogaBasket(p.nextBasket || []);
+    if (p.dest === wedi) setWediBasket(p.nextBasket || []);
     setPending(null);
   };
   const first = presets[0] || normPreset({ id: "sample-tag" });
@@ -484,6 +486,9 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
                 stockRows={wedi.stockRows} bookStockReady={wedi.bookStockReady}
                 books={wedi.books} loadBookItems={wedi.loadBookItems}
                 mortars={wedi.mortars} mortarDefault={wedi.mortarDefault}
+                basket={wediBasket}
+                onBasketChange={setWediBasket}
+                onMoveEntries={(lines, nextBasket) => requestCommit(wedi, lines, nextBasket)}
                 onAdd={(lines) => requestCommit(wedi, lines, null)}
                 onClose={() => { if (!pendingRef.current) setApp("labels"); }}
               />
