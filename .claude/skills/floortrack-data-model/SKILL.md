@@ -62,7 +62,8 @@ Customer { id, name, address, phone, email, notes, createdAt,
            salesperson: { name, phone, email } | null,
            priceTier: "retail|builder|employee|sale|custom", customPct,
            printPricing: "full|unit|none", freight: bool,
-           optionNames: {A?..L?} }   // optionNames = quote-option labels (ADR 0031; slots A–L since 2026-08-26)
+           optionNames: {A?..L?},   // optionNames = quote-option labels (ADR 0031; slots A–L since 2026-08-26)
+           sheogaBasket: [], wediBasket: [], schluterBasket: [] }
            // freight = the job's freight master switch (ADR 0030), default ON
            // (an absent field is a job quoted before it existed). Off means no
            // freight line anywhere, whatever the rows say.
@@ -74,6 +75,13 @@ Customer { id, name, address, phone, email, notes, createdAt,
            // salesperson = snapshot of the CREATOR's profile (ADR 0008); the
            // estimate prints it (falling back to the signed-in profile when
            // null, i.e. pre-0008 records); editable via the header popover.
+           // *Basket = the configurators' STAGED (unplaced) kit entries
+           // (ADR 0035 steps 2–3) — the only basket state that persists;
+           // placed kits always derive from the anchor markers (placedKits).
+           // Sheoga entries: sheoga.js normBasketEntry (single | bundle).
+           // wedi/Schluter entries: model.js normKitBasketEntry —
+           // { id, kind: "kit", addedAt, snap: { mode, cfg } }, the snap
+           // being exactly the row marker Reconfigure reopens on.
 Area     { id, name, option: ""|"A"…"L", products: Product[] }   // option = quote-option slot (ADR 0031, A–L since 2026-08-26); "" = shared base
 Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
            sku, L, W, thickness, sizeText, brandColor, priceSqft,

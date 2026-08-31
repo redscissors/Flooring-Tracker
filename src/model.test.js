@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normP, normA, normC, rowBlank, newProduct, newArea, newProject, areaLabel, money, catSig, quickAutoName, isQuickAutoName, isRealProjectName, QUICK_DEFAULT_NAME, stampKit, landKitLines, removeKitLines, placedKits } from "./model.js";
+import { normP, normA, normC, rowBlank, newProduct, newArea, newProject, areaLabel, money, catSig, quickAutoName, isQuickAutoName, isRealProjectName, QUICK_DEFAULT_NAME, stampKit, landKitLines, removeKitLines, placedKits, normKitBasketEntry } from "./model.js";
 
 test("normP fills every field a grid row reads from a bare object", () => {
   const p = normP({ id: "x" });
@@ -313,4 +313,28 @@ test("isRealProjectName: only a hand-typed name counts (spec 2026-08-14 claim ru
     assert.equal(isRealProjectName(bad), false, JSON.stringify(bad));
   for (const good of ["Marsh — whole first floor", "N house", "Quick pricers club", "Q-shaped room"])
     assert.equal(isRealProjectName(good), true, good);
+});
+
+test("normKitBasketEntry: fills defaults, rejects junk (ADR 0035 step 3)", () => {
+  const e = normKitBasketEntry({ snap: { mode: "custom", cfg: { panKey: "X" } } });
+  assert.ok(e.id);
+  assert.ok(e.addedAt > 0);
+  assert.equal(e.kind, "kit");
+  assert.deepEqual(e.snap, { mode: "custom", cfg: { panKey: "X" } });
+  const kept = normKitBasketEntry({ id: "bk1", addedAt: 5, snap: { mode: "kit", cfg: {} } });
+  assert.equal(kept.id, "bk1");
+  assert.equal(kept.addedAt, 5);
+  for (const junk of [null, 7, "x", {}, { snap: null }, { snap: {} }, { snap: { cfg: "nope" } }])
+    assert.equal(normKitBasketEntry(junk), null, JSON.stringify(junk));
+});
+
+test("normC: wediBasket/schluterBasket normalize, drop junk, default empty (ADR 0035 step 3)", () => {
+  const c = normC({ id: "c1", name: "X", wediBasket: [{ snap: { mode: "kit", cfg: { panKey: "P" } } }, { bad: true }], schluterBasket: "junk" });
+  assert.equal(c.wediBasket.length, 1);
+  assert.equal(c.wediBasket[0].snap.cfg.panKey, "P");
+  assert.deepEqual(c.schluterBasket, []);
+  assert.deepEqual(normC({ id: "c2", name: "Y" }).wediBasket, []);
+  const p = newProject();
+  assert.deepEqual(p.wediBasket, []);
+  assert.deepEqual(p.schluterBasket, []);
 });
