@@ -5180,6 +5180,41 @@ export function kitFor(panKey, opts) {
   };
 }
 
+// Re-derive the billed kit from a saved marker / staged basket entry
+// ({ mode, cfg } — cfg from kitFor). The drawer's staged and placed kits both
+// price through this, so a kit reads the same before and after it lands. A
+// custom cfg re-runs the solver and re-picks its option by id (the seedState
+// doctrine); qtyOv/manual never rode the cfg, so a rebuilt kit is exactly
+// what Reconfigure restores. Null when the catalog no longer knows the pan.
+export function buildFromMarker(marker) {
+  const cfg = marker && marker.cfg;
+  if (!cfg || !cfg.panKey || !item(cfg.panKey)) return null;
+  let option = null;
+  if (cfg.solve && cfg.solve.input) {
+    const res = solve({ tolerance: 0.51, anchor: "left", ...cfg.solve.input });
+    // id alone isn't unique — several pans can share a kind ("drainat") at
+    // different ranks — so the pan this cfg was actually built on (the same
+    // panKey kitFor gets below) disambiguates; id alone still breaks a tie
+    // between two candidates sharing that pan.
+    option = res.find((o) => o.pan && o.pan.key === cfg.panKey && o.id === cfg.solve.id)
+      || res.find((o) => o.pan && o.pan.key === cfg.panKey) || res[0] || null;
+  }
+  return kitFor(cfg.panKey, {
+    option: option || undefined,
+    room: cfg.room || undefined,
+    walls: cfg.walls && cfg.walls.length ? cfg.walls.map((w) => ({ ...w })) : undefined,
+    wallHeight: cfg.walls && cfg.walls[0] ? +cfg.walls[0].h : undefined,
+    panelKey: cfg.panelKey || undefined,
+    curbKey: cfg.curbKey, coverKey: cfg.coverKey || undefined,
+    coverFrame: cfg.coverFrame || undefined,
+    sealantForm: cfg.sealantForm, recess: cfg.recess,
+    addons: (cfg.addons || []).slice(), benches: (cfg.benches || []).map((b) => ({ ...b })),
+    corners: (cfg.corners || []).slice(),
+    maxIn: !!cfg.maxIn, tileT: cfg.tileT, tier: cfg.tier,
+    mode: marker.mode || undefined,
+  });
+}
+
 // ============================================================================
 // solver
 // ============================================================================

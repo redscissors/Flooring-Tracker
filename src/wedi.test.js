@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  catalog, item, group, pans, curbs, kitFor, solve, figureConsumables, panelPlan,
+  catalog, item, group, pans, curbs, kitFor, buildFromMarker, solve, figureConsumables, panelPlan,
   openEdges, openCorners, curbRuns, wallSpans, expandWallFaces, WALL_THICK, panThick, BROWSE_SECTIONS, sectionHit,
   tierPrice, lineItems, factoryKit, linearCoverFor, coverFrames, coverFrameFor, dims, round2, inch,
   TIERS, SKU, BUILDER_MULT, SO_MIN_NET, CONSUMABLES, FINISHES, GROUP_LABEL, MODULE_CHANNEL,
@@ -1198,4 +1198,33 @@ test("stock-only leaves non-stocked modules out of the solve pool; no source is 
   assert.deepEqual(solve({ ...room }), solve({ ...room, source: "all" }));
   const pt = { w: 60, d: 36, curb: "curbed", drain: "center" };
   assert.deepEqual(solve({ ...pt }), solve({ ...pt, source: "all" }));
+});
+
+// --- ADR 0035 step 3: buildFromMarker ------------------------------------------
+
+test("buildFromMarker: a kit marker round-trips to the same bill (ADR 0035 step 3)", () => {
+  const pan = pans().find((p) => p.group === "fundo") || pans()[0];
+  const b1 = kitFor(pan.key, {});
+  const b2 = buildFromMarker({ mode: b1.mode, cfg: b1.cfg });
+  assert.ok(b2);
+  const bill = (b) => b.lines.map((l) => l.item.key + "×" + l.qty);
+  assert.deepEqual(bill(b2), bill(b1));
+  assert.deepEqual(b2.cfg, b1.cfg, "the cfg itself is stable across the round trip");
+});
+
+test("buildFromMarker: a custom (solved) marker re-solves and honors the option id", () => {
+  const input = { w: 40, d: 62, curb: "curbed", drain: "center" };
+  const res = solve({ ...input, tolerance: 0.51, anchor: "left" });
+  assert.ok(res.length > 1, "the test needs a room with several options");
+  const opt = res[1];
+  const b1 = kitFor(opt.pan.key, { option: opt, room: opt.room, mode: "custom" });
+  const b2 = buildFromMarker({ mode: "custom", cfg: b1.cfg });
+  assert.ok(b2);
+  assert.deepEqual(b2.lines.map((l) => l.item.key + "×" + l.qty), b1.lines.map((l) => l.item.key + "×" + l.qty));
+});
+
+test("buildFromMarker: junk is null, never a throw", () => {
+  assert.equal(buildFromMarker(null), null);
+  assert.equal(buildFromMarker({ mode: "kit", cfg: {} }), null);
+  assert.equal(buildFromMarker({ mode: "kit", cfg: { panKey: "no-such-pan" } }), null);
 });
