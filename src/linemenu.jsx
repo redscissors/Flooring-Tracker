@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Copy, FolderInput, Trash2, ChevronRight } from "lucide-react";
+import { Copy, FolderInput, Trash2, ChevronRight, Layers } from "lucide-react";
 import { useEscClose } from "./widgets.jsx";
 import { ClaudeMark, CLAUDE_CLAY_DEEP } from "./claudeflag.jsx";
 
@@ -11,7 +11,7 @@ const MENU_W = 236;
 // the dots are the row's one grip — or by right-click anywhere on the row.
 // Fixed at the pointer, clamped to the viewport; "Move to area" expands inline
 // instead of floating a submenu.
-export function LineMenu({ menu, title, subtitle, areas, canDelete, onClose, onDuplicate, onMoveTo, onFlag, onDelete }) {
+export function LineMenu({ menu, title, subtitle, areas, canDelete, sampleOn, onClose, onDuplicate, onMoveTo, onSample, onFlag, onDelete }) {
   const ref = useRef(null);
   const [moving, setMoving] = useState(false);
   useEscClose(!!menu, onClose);
@@ -42,6 +42,11 @@ export function LineMenu({ menu, title, subtitle, areas, canDelete, onClose, onD
       {moving && areas.map((a) => (
         <button key={a.id} className={mi + " pl-9 text-slate-600"} onClick={() => { onMoveTo(a.id); onClose(); }}>{a.name}</button>
       ))}
+      {onSample && (
+        <button className={mi} onClick={() => { onSample(); onClose(); }}>
+          <Layers size={13} className="text-slate-400" /> {sampleOn ? "Remove sample request" : "Request sample"}
+        </button>
+      )}
       <button className={mi} style={{ color: CLAUDE_CLAY_DEEP }} onClick={() => { onFlag(); onClose(); }}><ClaudeMark size={13} /> Flag for Claude…</button>
       {canDelete && <>
         <div className="border-t border-slate-100 my-1" />

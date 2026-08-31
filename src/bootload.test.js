@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { loadProjects, loadTodos, resolveSharedSettings, loadSettingsRow, listSelect } from "./bootload.js";
+import { loadProjects, loadTodos, resolveSharedSettings, loadSettingsRow, listSelect, loadSampleRequests } from "./bootload.js";
 
 // Chainable thenable standing in for the supabase query builder (same idea as
 // fetchall.test.js): select/eq/order return the builder; awaiting it resolves
@@ -62,4 +62,15 @@ test("loadProjects falls back to the legacy select when project_no is missing", 
   assert.equal(rows[0].projectNo, null);
   assert.equal(asked.length, 2);
   assert.ok(!listSelect().includes("project_no"));
+});
+
+test("loadSampleRequests maps and normalizes rows", async () => {
+  const rows = await loadSampleRequests(fakeDb({ sample_requests: [
+    { id: "r1", data: { status: "ordered", projectId: "c1", item: { name: "Calacatta", sku: "CM1224" } } },
+    { id: "r2", data: { status: "bogus" } },
+  ] }));
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].status, "ordered");
+  assert.equal(rows[0].item.sku, "CM1224");
+  assert.equal(rows[1].status, "need");
 });

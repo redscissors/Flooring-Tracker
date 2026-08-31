@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { salesNameOf, salesRoster, defaultSalesFilter, browserRows, quickRows, draftRows, filterRows, filterBySales, sortRows, groupBySales, NO_SALES, shortDate, BROWSER_COLS, normColOrder, moveCol, projNoHit, projNos } from "./custbrowser.js";
+import { salesNameOf, salesRoster, defaultSalesFilter, browserRows, quickRows, draftRows, filterRows, filterBySales, sortRows, groupBySales, NO_SALES, shortDate, BROWSER_COLS, normColOrder, moveCol, projNoHit, projNos, custSamples, filterBySamples } from "./custbrowser.js";
 
 const people = [
   { id: "c1", name: "Sarah Jones", phone: "(330) 555-0101", address: "4905 Harris Rd", builderId: "b1", createdAt: 100, updatedAt: 150 },
@@ -207,6 +207,18 @@ test("salesRoster: every salesperson on a job, A–Z, deduped case-insensitively
   ]);
   assert.deepEqual(roster, ["Alan Yoder", "Gina Boyd", "Marcus Mast"]);
   assert.deepEqual(salesRoster([]), []);
+});
+
+test("custSamples sums a customer's project tallies; filterBySamples keeps open-request customers", () => {
+  const tally = new Map([["j1", { need: 2, ordered: 1 }], ["j2", { need: 0, ordered: 3 }]]);
+  assert.deepEqual(custSamples(tally, [{ id: "j1" }, { id: "j2" }, { id: "j3" }]), { need: 2, ordered: 4 });
+  assert.deepEqual(custSamples(tally, [{ id: "j3" }]), { need: 0, ordered: 0 });
+  const rows = [
+    { id: "c1", projs: [{ id: "j1" }] },          // open requests
+    { id: "c2", projs: [{ id: "j2" }] },          // ordered only
+    { id: "c3", projs: [{ id: "j3" }] },          // none
+  ];
+  assert.deepEqual(filterBySamples(rows, tally).map((r) => r.id), ["c1"]);
 });
 
 test("defaultSalesFilter: opens on me only when a job actually carries my name", () => {

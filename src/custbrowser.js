@@ -117,6 +117,18 @@ export function filterBySales(rows, name) {
     r.projs.some((p) => salesNameOf(p).toLowerCase().includes(s)));
 }
 
+// Samples roll-up for the browser (spec 2026-08-28): tally is
+// projectSampleTally's Map keyed by project id. The filter keeps customers with
+// OPEN (to-order) requests — one press answers "what still needs ordering";
+// the column shows both counts so the ordered log reads at a glance.
+export const custSamples = (tally, projs = []) => {
+  const out = { need: 0, ordered: 0 };
+  for (const p of projs) { const t = tally.get(p.id); if (t) { out.need += t.need; out.ordered += t.ordered; } }
+  return out;
+};
+export const filterBySamples = (rows, tally) =>
+  rows.filter((r) => custSamples(tally, r.projs).need > 0);
+
 // Each key carries its natural direction: dates newest-first, names A–Z.
 export const SORTS = [["created", "Created"], ["modified", "Modified"], ["name", "A–Z"]];
 export function sortRows(rows, key) {
@@ -148,7 +160,7 @@ export function groupBySales(rows) {
 // app_data blob (ui.browserCols), so each salesperson's arrangement follows
 // their login. `sales` carries the salesman in the default flat view — the
 // band grouping only kicks in once the salesperson box has a name.
-export const BROWSER_COLS = ["projno", "sales", "builder", "phone", "address", "email", "jobs", "created", "modified"];
+export const BROWSER_COLS = ["projno", "sales", "builder", "phone", "address", "email", "jobs", "samples", "created", "modified"];
 
 // Sanitize a saved order: unknown keys drop, duplicates collapse, columns
 // added since the save append in default position.
