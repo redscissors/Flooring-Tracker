@@ -112,6 +112,9 @@ const CSS = `
 .wedi-pop .xbtn{width:30px;height:30px;border-radius:6px;border:1px solid var(--ft-border);background:var(--ft-card);color:var(--ft-muted);font-size:15px;font-weight:700;cursor:pointer;flex:none;display:flex;align-items:center;justify-content:center}
 .wedi-pop .pop-head .rclear{margin-left:auto;font-size:11px;padding:5px 10px}
 .wedi-pop .pop-head .rclear + .tierbar{margin-left:0}
+/* Basket leads the right-hand control group, as it does in the Schluter head. */
+.wedi-pop .pop-head [data-wedi-basket]{margin-left:auto}
+.wedi-pop .pop-head [data-wedi-basket] + .rclear{margin-left:0}
 .wedi-pop .pop-head .srcseg + .tierbar{margin-left:0}
 .wedi-pop .srcseg{display:inline-flex;border:1px solid var(--ft-border-strong);border-radius:7px;overflow:hidden;background:var(--ft-card)}
 .wedi-pop .srcseg button{border:none;background:var(--ft-card);color:var(--ft-muted);font-size:11.5px;font-weight:700;padding:6px 11px;cursor:pointer}
@@ -1335,6 +1338,9 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
       lines: () => lineItems({ ...b, lines }, { tier: tierId, builderPct: bPct }),
     };
   };
+  // The `|| {}` is the staged fork: a truthy session makes the entry read its
+  // OWN Fit flag, where the placed fork (entryView(k.marker)) follows the live
+  // toggle. An entry saved without a session must still take the staged path.
   const stagedViews = useMemo(() => (basket || []).map((e) => ({ id: e.id, ...entryView(e.snap, e.session || {}) })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [basket, tierId, customPct, salePct, bPct]);
@@ -1352,7 +1358,8 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
   const moveEntries = (ids) => {
     const picked = (basket || []).filter((b) => ids.includes(b.id));
     const views = picked.map((e) => stagedViews.find((v) => v.id === e.id)).filter((v) => v && v.lines);
-    if (!views.length || !onMoveEntries) return;
+    if (!onMoveEntries) return;
+    if (!views.length) { say("Nothing to move — the catalog no longer knows these kits"); return; }
     // Stamped per entry BEFORE flattening: each staged entry is its own kit
     // (its own kitId group) even when several move in one click.
     const lines = views.flatMap((v) => stampKit(v.lines()));

@@ -437,7 +437,7 @@ export function SourceSwitch({ source, onChange, title }) {
 // carry checkboxes + Move (delete-on-move rides the caller's patch); placed
 // rows carry Reconfigure + the armed two-click Remove (the Sheoga idiom).
 const fmt$ = (n) => (n == null ? "—" : "$" + Math.round(n).toLocaleString());
-export function KitBasketPanel({ title = "Basket", staged = [], sel = {}, onToggle, onSelectAll, onRemove, onMove, onMoveAll, placed = [], onEditPlaced, onDeletePlaced, areaName, onClose, tierColor, emptyText = 'Basket is empty. Build a kit and "Add to basket".' }) {
+export function KitBasketPanel({ title = "Basket", staged = [], sel = {}, onToggle, onSelectAll, onRemove, onMove, onMoveAll, placed = [], onEditPlaced, onDeletePlaced, areaName, onClose, tierColor, emptyText = 'Basket is empty. Build a kit and click "Basket".' }) {
   const n = staged.length, selCount = staged.filter((b) => sel[b.id]).length;
   const [armDel, setArmDel] = useState(null);
   return (

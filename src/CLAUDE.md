@@ -698,7 +698,11 @@ src/
                     # project.wediBasket ("Basket" beside Add), the derived
                     # In-this-project section reconfigures/removes placed
                     # kits (App remounts on a pid+nonce key so reconfiguring
-                    # the CURRENT kit re-seeds too), delete-on-move stands
+                    # the CURRENT kit re-seeds too), delete-on-move stands,
+                    # and a staged entry carries its `session` sibling
+                    # (qtyOv, the manual extras, the Fit flag) beside the
+                    # marker snap, so a staged-then-moved kit bills what was
+                    # on screen
   showerdraw.js     # the shared shower drawings' pure-geometry half — TopDown/
                     # Iso's constants and math, extracted out of
                     # WediConfigurator.jsx (issue 097, ADR 0033) so a second
@@ -1231,7 +1235,9 @@ src/
                     # Same basket drawer (project.schluterBasket) — entries
                     # wait FAINT on catReady before pricing (ADR 0032); a
                     # staged snap is markCfg, so manual extras and the quoted
-                    # tray survive staging.
+                    # tray survive staging, and the entry's `session` sibling
+                    # (qtyOv + the Fit flag) rides beside it, so a
+                    # staged-then-moved kit bills what was on screen.
   schluterpreview.jsx  # dev-only harness (schluter-preview.html): the REAL
                     # SchluterConfigurator over the fixture pushed BACKWARDS
                     # through normOrderItem into live registry shape (shop

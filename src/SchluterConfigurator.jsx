@@ -769,6 +769,9 @@ export default function SchluterConfigurator({
       lines: () => lineItems({ ...b, lines, mode: marker.mode || "custom", cfg: c2 }, { builderPct: bPct }),
     };
   };
+  // The `|| {}` is the staged fork: a truthy session makes the entry read its
+  // OWN Fit flag, where the placed fork (entryView(k.marker)) follows the live
+  // toggle. An entry saved without a session must still take the staged path.
   const stagedViews = useMemo(() => (basket || []).map((e) => ({ id: e.id, ...entryView(e.snap, e.session || {}) })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [basket, catReady, cat, tierId, customPct, salePct, bPct]);
@@ -786,7 +789,12 @@ export default function SchluterConfigurator({
   const moveEntries = (ids) => {
     const picked = (basket || []).filter((b) => ids.includes(b.id));
     const views = picked.map((e) => stagedViews.find((v) => v.id === e.id)).filter((v) => v && v.lines);
-    if (!views.length || !onMoveEntries) return;
+    if (!onMoveEntries) return;
+    if (!views.length) {
+      say(catReady && cat.length ? "Nothing to move — the catalog no longer knows these kits"
+        : "Still loading the price books — staged kits can't be priced yet");
+      return;
+    }
     // Stamped per entry BEFORE flattening: each staged entry is its own kit
     // (its own kitId group) even when several move in one click.
     const lines = views.flatMap((v) => stampKit(v.lines()));

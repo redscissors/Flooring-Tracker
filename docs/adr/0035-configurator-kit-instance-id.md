@@ -21,6 +21,26 @@ staged to placed rather than being lost. The one true information loss on move t
 is the Sheoga multi-width bundle (each width line keeps only its own single-width
 cfg); step 2 stamps the bundle snap onto the first line's marker.
 
+## Amendment 2026-08-31 — a staged entry carries its session
+
+Step 3 adds a `session` sibling to every staged basket entry — `{ qtyOv, manual,
+panelFit }` on wedi, `{ qtyOv, panelFit }` on Schluter, whose `markCfg` already
+holds manual/source/pick. The reconfigure marker itself is unchanged and still
+deliberately carries no session state: it is what Reconfigure reopens on, and a
+stepped quantity is a decision about one emission, not about the configuration.
+But a staged entry is not a marker — it is a build waiting to be placed, and the
+salesperson has already seen its number. Without the sibling, staging a kit and
+then moving it silently bills something other than what "Add to product lines"
+would have landed a click earlier, which is exactly the drift the basket exists
+to avoid. Each popup applies the sibling through the build column's own tail
+(wedi `applySession`, Schluter `applyQtyOv`), one helper shared by the build memo
+and the drawer so the two cannot disagree.
+
+The scope boundary is staged entries only. Once a kit is PLACED its landed rows
+are the truth — this ADR's derive-live rule — so the "In this project" figure
+stays a marker-derived recipe price and reads the popup's live settings, not a
+frozen session.
+
 ## Consequences
 
 - **Replacement rules.** With a `kitId` on the reconfigured anchor, every row sharing
