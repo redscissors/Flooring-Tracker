@@ -1024,6 +1024,28 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
   return { lines: L, cand };
 }
 
+// Re-derive the billed kit from a saved marker / staged basket entry
+// ({ mode, cfg } — cfg is the popup's markCfg, so it carries manual/source/
+// pick too). The basket drawer prices staged and placed kits through this;
+// the caller owns the board Fit plan and the tier lens. cfg.pick keeps the
+// QUOTED tray picked (the markCfg doctrine — never whatever ranks first
+// today); a pick the catalog no longer knows falls back to rank 1. Null when
+// there's no room, no rows, or nothing fits.
+export function buildFromMarker(marker, cat) {
+  const cfg = marker && marker.cfg;
+  if (!cfg || !(cfg.w > 0 && cfg.d > 0) || !(cat || []).length) return null;
+  const source = cfg.source === "stock" ? "stock" : "all";
+  const cands = trayCandidates(cfg, cat, { source });
+  const pick = (cfg.pick && cands.find((c) => c.tray && c.tray.sku === cfg.pick)) || cands[0] || null;
+  if (!pick) return null;
+  const b = buildKit(cfg, cat, { source, pick });
+  (cfg.manual || []).forEach((m) => {
+    const e = cat.find((i) => i.sku === m.sku);
+    if (e && m.qty > 0) b.lines.push({ g: "Extras", item: e, qty: m.qty, so: !e.stock, manual: true });
+  });
+  return { ...b, pick };
+}
+
 /**
  * Sum a build's material cost: priceFn(item) is the per-unit rate for
  * whatever pricing tier the caller wants (retail, cost×multiplier, …) —

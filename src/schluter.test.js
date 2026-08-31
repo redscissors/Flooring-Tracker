@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
-import { classify, catalogOf, trayCandidates, pickRolls, pickFrom, buildKit, linesTotal, tierPrice, lineItems, orderCopyLines, entryOpening, openRuns, boardPlan, boardSheets, expandBoardFaces, normBench, benchTrayRoom } from "./schluter.js";
+import { classify, catalogOf, trayCandidates, pickRolls, pickFrom, buildKit, buildFromMarker, linesTotal, tierPrice, lineItems, orderCopyLines, entryOpening, openRuns, boardPlan, boardSheets, expandBoardFaces, normBench, benchTrayRoom } from "./schluter.js";
 
 const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -821,4 +821,37 @@ test("cfg.swaps overrides the grate, curb and One-size board picks", () => {
   // a stale sku falls back to the recipe pick, never lands the wrong part
   const stale = buildKit(cfg({ swaps: { grate: "NOPE" } }), CAT, { source: "all" });
   assert.equal(stale.lines.find((l) => l.item.part === "grate").item.sku, grate0);
+});
+
+// --- buildFromMarker: basket drawer re-derives a bill from a saved marker (ADR 0035 step 3) ---
+
+test("buildFromMarker: a marker round-trips to the same bill and honors the picked tray (ADR 0035 step 3)", () => {
+  const c = cfg({});
+  const cands = trayCandidates(c, CAT, { source: "all" });
+  assert.ok(cands.length > 1, "the test needs several candidates");
+  const pick = cands[1];
+  const b1 = buildKit(c, CAT, { source: "all", pick });
+  const marker = { mode: "custom", cfg: { ...c, manual: [], source: "all", pick: pick.tray.sku } };
+  const b2 = buildFromMarker(marker, CAT);
+  assert.ok(b2);
+  const bill = (b) => b.lines.filter((l) => !l.noteOnly).map((l) => (l.item.sku || l.item.name) + "×" + l.qty);
+  assert.deepEqual(bill(b2), bill(b1));
+  assert.equal(b2.pick.tray.sku, pick.tray.sku, "the quoted tray stays picked, not whatever ranks first");
+});
+
+test("buildFromMarker: cfg.manual extras land as Extras lines; a stale pick falls back to rank 1", () => {
+  const extra = CAT.find((e) => e.g === "membrane" && e.sku);
+  const c = { ...cfg({}), manual: [{ sku: extra.sku, qty: 2 }], source: "all", pick: "no-such-sku" };
+  const b = buildFromMarker({ mode: "custom", cfg: c }, CAT);
+  assert.ok(b);
+  const m = b.lines.find((l) => l.manual);
+  assert.ok(m, "the manual extra rides the rebuilt bill");
+  assert.equal(m.qty, 2);
+  assert.ok(b.pick, "an unknown pick falls back to the top candidate");
+});
+
+test("buildFromMarker: no room, no catalog, junk — all null, never a throw", () => {
+  assert.equal(buildFromMarker(null, CAT), null);
+  assert.equal(buildFromMarker({ mode: "kit", cfg: { w: 0, d: 60 } }, CAT), null);
+  assert.equal(buildFromMarker({ mode: "kit", cfg: cfg({ walls: [] }) }, []), null);
 });
