@@ -11,14 +11,15 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Plus, Eye, Printer, Copy } from "lucide-react";
-import { useEscClose, SourceSwitch, NumIn } from "./widgets.jsx";
+import { useEscClose, SourceSwitch, NumIn, KitBasketPanel } from "./widgets.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
   trayCandidates, pickRolls, buildKit, tierPrice, lineItems, orderCopyLines, normBench, benchTrayRoom,
-  boardPlan, expandBoardFaces, wallArea, halfBoardPool,
+  boardPlan, expandBoardFaces, wallArea, halfBoardPool, buildFromMarker,
 } from "./schluter.js";
 import { mortarItemFrom, MORTAR_BED_SF_PER_BAG } from "./schluteradapter.js";
 import { useSchluterCatalog } from "./useschlutercatalog.js";
+import { stampKit, normKitBasketEntry } from "./model.js";
 import { schluterDiag, schluterWalls, schluterWallOn, schluterCurb, schluterOpenCorners, schluterCuts } from "./schluterdraw.js";
 import { TopDown, Iso, railSplit, RAIL_DESIGN_W, round2, WALL_THICK } from "./showerdraw.jsx";
 
@@ -439,7 +440,9 @@ function seedState(seed) {
 }
 
 export default function SchluterConfigurator({
-  seed, tier, onTierChange, schluterBuilderPct, wediBuilderPct, onAdd, onClose, areaName, projectName,
+  seed, tier, onTierChange, schluterBuilderPct, wediBuilderPct, onAdd,
+  basket, onBasketChange, onMoveEntries, placed, onOpenPlaced, onDeleteKit,
+  onClose, areaName, projectName,
   onConfigChange, onQuoteOptions, embedded = false,
   stockRows, bookStockReady, books, loadBookItems, mortars, mortarDefault,
 }) {
@@ -502,6 +505,8 @@ export default function SchluterConfigurator({
   const [printing, setPrinting] = useState(false);
   const [showMargin, setShowMargin] = useState(false);
   const [toast, setToast] = useState("");
+  const [basketOpen, setBasketOpen] = useState(false);
+  const [basketSel, setBasketSel] = useState({});
 
   const toastT = useRef(null);
   const say = (msg) => {
@@ -573,6 +578,7 @@ export default function SchluterConfigurator({
     else if (benchMenu) setBenchMenu(null);
     else if (wallMenu) setWallMenu(null);
     else if (placing) setPlacing(false);
+    else if (basketOpen) setBasketOpen(false);
     else onClose();
   });
 
@@ -735,6 +741,47 @@ export default function SchluterConfigurator({
   const rows = useMemo(
     () => (build ? lineItems({ ...build, mode, cfg: markCfg }, { builderPct: bPct }) : []),
     [build, mode, markCfg, bPct]);
+
+  // --- basket (ADR 0035 step 3) ---------------------------------------------
+  // The catalog is LIVE registry rows (ADR 0032): until catReady every entry
+  // renders faint instead of pricing — never a crash. Prices re-derive through
+  // buildFromMarker + the popup's own board plan + tier lens, so a kit reads
+  // the same number in the drawer and the build column.
+  const entryView = (marker) => {
+    if (!catReady || !cat.length) return { title: "Schluter kit", meta: "waiting on the price books…", price: null, faint: true, lines: null };
+    const b = buildFromMarker(marker, cat);
+    if (!b) return { title: "Schluter kit", meta: "the catalog no longer knows this kit", price: null, faint: true, lines: null };
+    const c2 = marker.cfg;
+    let lines = applyBoardPlan(b.lines, c2, panelFit && c2.wallSys === "board" ? boardPlan(expandBoardFaces(c2), cat, { source: c2.source === "stock" ? "stock" : "all" }) : null);
+    const bill = lines.filter((l) => !l.noteOnly);
+    return {
+      title: b.pick && b.pick.tray ? b.pick.tray.name : "Mortar-bed build",
+      meta: `${bill.length} lines · ${round2(c2.w)}×${round2(c2.d)}"`,
+      price: round2(bill.reduce((t, l) => t + tierOf(l.item) * l.qty, 0)),
+      lines: () => lineItems({ ...b, lines, mode: marker.mode || "custom", cfg: c2 }, { builderPct: bPct }),
+    };
+  };
+  const stagedViews = useMemo(() => (basket || []).map((e) => ({ id: e.id, ...entryView(e.snap) })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [basket, catReady, cat, tierId, customPct, salePct, bPct, panelFit]);
+  const placedViews = useMemo(() => (placed || []).map((k) => ({ ...k, ...entryView(k.marker) })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [placed, catReady, cat, tierId, customPct, salePct, bPct, panelFit]);
+  const addToBasket = () => {
+    if (!build || !onBasketChange) return;
+    const entry = normKitBasketEntry({ addedAt: Date.now(), snap: { mode, cfg: JSON.parse(JSON.stringify(markCfg)) } });
+    if (entry) { onBasketChange([...(basket || []), entry]); setBasketOpen(true); say("Staged in the basket — saved with this job"); }
+  };
+  const moveEntries = (ids) => {
+    const picked = (basket || []).filter((b) => ids.includes(b.id));
+    const views = picked.map((e) => stagedViews.find((v) => v.id === e.id)).filter((v) => v && v.lines);
+    if (!views.length || !onMoveEntries) return;
+    // Stamped per entry BEFORE flattening: each staged entry is its own kit
+    // (its own kitId group) even when several move in one click.
+    const lines = views.flatMap((v) => stampKit(v.lines()));
+    onMoveEntries(lines, (basket || []).filter((b) => !ids.includes(b.id) || !views.some((v) => v.id === b.id)));
+    setBasketSel({});
+  };
 
   const totals = useMemo(() => {
     if (!build) return null;
@@ -1538,6 +1585,7 @@ export default function SchluterConfigurator({
           </button>
           <div className="btnrow">
             <button className="wbtn primary" onClick={() => setPayload(rows)} data-schluter-add><Plus size={13} /> Add to product lines</button>
+            {onBasketChange && <button className="wbtn" onClick={addToBasket} data-schluter-add-basket><Plus size={13} /> Basket</button>}
             <button className="wbtn" disabled={!diag} onClick={() => setPrinting(true)} data-schluter-print><Printer size={13} /> Print layout</button>
             <button className="wbtn" onClick={copyList} data-schluter-copy><Copy size={13} /> Order entry</button>
           </div>
@@ -2105,6 +2153,9 @@ export default function SchluterConfigurator({
             <div className="name">Schluter <small>shower systems · registry-priced (retail = 1.5× cost)</small></div>
           </div>
           <div className="headctl">
+            {onBasketChange && <button className="relative inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold hover:bg-slate-50" onClick={() => setBasketOpen(true)} data-schluter-basket>
+              🧺 Basket{(basket || []).length > 0 && <span className="rounded-full bg-[color:var(--ft-brand)] text-white text-[11px] font-extrabold min-w-[18px] h-[18px] px-1 flex items-center justify-center">{basket.length}</span>}
+            </button>}
             <button className="rclear" data-schluter-clear
               title="wipe the build — room, walls, benches, add-ons — and reset the form"
               onClick={clearDesign}>Clear design</button>
@@ -2126,6 +2177,17 @@ export default function SchluterConfigurator({
               {diagRail}
             </>)}
           </div>
+        </div>
+        <div className={`absolute inset-0 z-[55] transition-opacity ${basketOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`} style={{ background: "rgba(20,15,10,.4)" }} onClick={() => setBasketOpen(false)} />
+        <div className={`absolute top-0 right-0 bottom-0 z-[56] w-[400px] max-w-full bg-white border-l border-slate-300 shadow-2xl transition-transform ${basketOpen ? "translate-x-0" : "translate-x-full"}`}>
+          <KitBasketPanel staged={stagedViews} sel={basketSel}
+            onToggle={(id) => setBasketSel((s) => ({ ...s, [id]: !s[id] }))}
+            onSelectAll={() => { const all = stagedViews.every((v) => basketSel[v.id]); const next = {}; stagedViews.forEach((v) => { next[v.id] = !all; }); setBasketSel(next); }}
+            onRemove={(id) => onBasketChange((basket || []).filter((b) => b.id !== id))}
+            onMove={onMoveEntries ? () => moveEntries(stagedViews.filter((v) => basketSel[v.id]).map((v) => v.id)) : undefined}
+            onMoveAll={() => moveEntries(stagedViews.map((v) => v.id))}
+            placed={placedViews} onEditPlaced={(k) => onOpenPlaced?.(k)} onDeletePlaced={(k) => onDeleteKit?.(k)}
+            areaName={areaName} tierColor={tierColor} onClose={() => setBasketOpen(false)} />
         </div>
       </div>
       {wallMenuPanel}

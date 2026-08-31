@@ -2830,7 +2830,7 @@ export default function App({ user, onSignOut }) {
         return (
           <LazyBoundary>
           <Suspense fallback={null}>
-          <SchluterConfigurator seed={schluterPop.seed}
+          <SchluterConfigurator key={schluterPop.pid + ":" + (schluterPop.n || 0)} seed={schluterPop.seed}
             schluterBuilderPct={normPricing(settings.pricing).schluterBuilderPct}
             wediBuilderPct={normPricing(settings.pricing).wediBuilderPct}
             tier={{ tier: sel.priceTier || "retail", customPct: sel.customPct, builderPct: normPricing(settings.pricing).builderPct, salePct: normPricing(settings.pricing).salePct }}
@@ -2840,6 +2840,12 @@ export default function App({ user, onSignOut }) {
             stockRows={stockItems} bookStockReady={bookStockReady}
             books={books} loadBookItems={loadBookItems}
             mortars={settings.mortars} mortarDefault={settings.catalog?.defaults?.mortar || ""}
+            basket={sel.schluterBasket || []}
+            onBasketChange={(next) => updateProject(sel.id, { schluterBasket: next })}
+            onMoveEntries={(lines, nextBasket) => updateProject(sel.id, { categories: appendKitLines(sel.categories, schluterPop.aid, lines), schluterBasket: nextBasket })}
+            placed={placedKits(sel.categories, "schluter")}
+            onOpenPlaced={(k) => setSchluterPop({ aid: k.areaId, pid: k.rowId, seed: k.marker, n: (schluterPop.n || 0) + 1 })}
+            onDeleteKit={(k) => { const next = removeKitLines(sel.categories, k.areaId, k.rowId); if (next) { updateProject(sel.id, { categories: next }); if (k.rowId === schluterPop.pid) setSchluterPop(null); } }}
             onQuoteOptions={(p) => addCompareOptions(schluterPop.aid, p)}
             onAdd={(lines) => { addSchluterLines(schluterPop.aid, schluterPop.pid, lines); setSchluterPop(null); setFocusQty(schluterPop.pid); }}
             onConfigChange={(live) => { try { localStorage.setItem("ft-open-layer", JSON.stringify({ kind: "schluter", aid: schluterPop.aid, pid: schluterPop.pid, seed: live })); } catch (x) { } }}

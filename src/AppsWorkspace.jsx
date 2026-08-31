@@ -130,6 +130,7 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
   // never unmounts the configurator and loses the build.
   const [sheogaBasket, setSheogaBasket] = useState([]);
   const [wediBasket, setWediBasket] = useState([]);
+  const [schluterBasket, setSchluterBasket] = useState([]);
   const [pending, setPendingState] = useState(null);
   const pendingRef = useRef(null);
   const setPending = (v) => { pendingRef.current = v; setPendingState(v); };
@@ -142,6 +143,7 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
     if (where === "current") p.dest.addToCurrent(p.lines); else p.dest.addToNew(p.lines);
     if (p.dest === sheoga) setSheogaBasket(p.nextBasket || []);
     if (p.dest === wedi) setWediBasket(p.nextBasket || []);
+    if (p.dest === schluter) setSchluterBasket(p.nextBasket || []);
     setPending(null);
   };
   const first = presets[0] || normPreset({ id: "sample-tag" });
@@ -505,6 +507,9 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
                 stockRows={schluter.stockRows} bookStockReady={schluter.bookStockReady}
                 books={schluter.books} loadBookItems={schluter.loadBookItems}
                 mortars={schluter.mortars} mortarDefault={schluter.mortarDefault}
+                basket={schluterBasket}
+                onBasketChange={setSchluterBasket}
+                onMoveEntries={(lines, nextBasket) => requestCommit(schluter, lines, nextBasket)}
                 onAdd={(lines) => requestCommit(schluter, lines, null)}
                 onClose={() => { if (!pendingRef.current) setApp("labels"); }}
               />
