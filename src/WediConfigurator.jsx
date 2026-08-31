@@ -820,6 +820,27 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     return out;
   };
 
+  // The build column's tail over a kitFor result — panel plan, stepped
+  // quantities, hand-added extras. The basket drawer runs it too, so a staged
+  // entry prices the build that was staged and not just its marker.
+  const applySession = (b, wl, s) => {
+    let lines = b.lines.map((l) => ({ item: l.item, qty: l.qty, group: l.group, note: l.note, auto: l.auto }));
+    if (s.panelFit) lines = applyPanelFit(lines, wl, b.panelSf);
+    lines.forEach((l) => {
+      const ov = s.qtyOv[l.item.key];
+      if (ov != null && l.auto !== false) { l.autoQty = l.qty; l.qty = ov; l.ov = true; }
+    });
+    lines = lines.filter((l) => l.qty > 0);
+    s.manual.forEach((m) => {
+      const it = item(m.key);
+      if (!it || !(m.qty > 0)) return;
+      const hit = lines.find((l) => l.item.key === m.key);
+      if (hit) hit.qty += m.qty;
+      else lines.push({ item: it, qty: m.qty, group: bucketOf(it), note: "", auto: false });
+    });
+    return lines;
+  };
+
   const pan = panKey ? item(panKey) : null;
   const room = option ? option.room : null;
   const buildWalls = useMemo(() => wallsArr(pan, room), [panKey, option, walls, extraWalls, wallH, wallFlip]);
@@ -858,21 +879,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
         mode: option ? "custom" : "kit", maxIn: maxIn, tileT: tileIn,
       });
       if (!b) return null;
-      let lines = b.lines.map((l) => ({ item: l.item, qty: l.qty, group: l.group, note: l.note, auto: l.auto }));
-      if (panelFit) lines = applyPanelFit(lines, buildWalls, b.panelSf);
-      lines.forEach((l) => {
-        const ov = qtyOv[l.item.key];
-        if (ov != null && l.auto !== false) { l.autoQty = l.qty; l.qty = ov; l.ov = true; }
-      });
-      lines = lines.filter((l) => l.qty > 0);
-      manual.forEach((m) => {
-        const it = item(m.key);
-        if (!it || !(m.qty > 0)) return;
-        const hit = lines.find((l) => l.item.key === m.key);
-        if (hit) hit.qty += m.qty;
-        else lines.push({ item: it, qty: m.qty, group: bucketOf(it), note: "", auto: false });
-      });
-      return { ...b, lines };
+      return { ...b, lines: applySession(b, buildWalls, { qtyOv, manual, panelFit }) };
     }
     if (manual.length) {
       const lines = manual.filter((m) => m.qty > 0).map((m) => {
@@ -1310,26 +1317,36 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
   // Staged and placed kits both re-derive through buildFromMarker and price
   // through the SAME tier lens as the build column, so a kit reads the same
   // number everywhere. Display-only derivations — nothing here reprices rows.
-  const entryView = (marker) => {
+  // A STAGED entry carries its own session (owner decision 2026-08-31), so its
+  // price is the build column's; a PLACED kit is a marker-only derivation —
+  // once landed the rows are the truth — and reads the live Fit setting.
+  const entryView = (marker, session) => {
     const b = buildFromMarker(marker);
     if (!b) return { title: "wedi build", meta: "the catalog no longer knows this kit", price: null, faint: true, lines: null };
     const room = b.cfg.room;
+    const s = session || {};
+    const lines = applySession(b, b.cfg.walls, {
+      qtyOv: s.qtyOv || {}, manual: s.manual || [], panelFit: session ? s.panelFit !== false : panelFit,
+    });
     return {
       title: b.pan ? b.pan.name : "wedi build",
-      meta: `${b.lines.length} lines${room ? ` · ${round2(room.w)}×${round2(room.d)}"` : ""}`,
-      price: round2(b.lines.reduce((t, l) => t + tierOf(l.item) * l.qty, 0)),
-      lines: () => lineItems(b, { tier: tierId, builderPct: bPct }),
+      meta: `${lines.length} lines${room ? ` · ${round2(room.w)}×${round2(room.d)}"` : ""}`,
+      price: round2(lines.reduce((t, l) => t + tierOf(l.item) * l.qty, 0)),
+      lines: () => lineItems({ ...b, lines }, { tier: tierId, builderPct: bPct }),
     };
   };
-  const stagedViews = useMemo(() => (basket || []).map((e) => ({ id: e.id, ...entryView(e.snap) })),
+  const stagedViews = useMemo(() => (basket || []).map((e) => ({ id: e.id, ...entryView(e.snap, e.session || {}) })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [basket, tierId, customPct, salePct, bPct]);
   const placedViews = useMemo(() => (placed || []).map((k) => ({ ...k, ...entryView(k.marker) })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [placed, tierId, customPct, salePct, bPct]);
+    [placed, tierId, customPct, salePct, bPct, panelFit]);
   const addToBasket = () => {
     if (!build || !onBasketChange) return;
-    const entry = normKitBasketEntry({ addedAt: Date.now(), snap: { mode: build.mode, cfg: JSON.parse(JSON.stringify(build.cfg)) } });
+    const entry = normKitBasketEntry({
+      addedAt: Date.now(), snap: { mode: build.mode, cfg: JSON.parse(JSON.stringify(build.cfg)) },
+      session: { qtyOv: { ...qtyOv }, manual: manual.map((m) => ({ ...m })), panelFit },
+    });
     if (entry) { onBasketChange([...(basket || []), entry]); setBasketOpen(true); say("Staged in the basket — saved with this job"); }
   };
   const moveEntries = (ids) => {

@@ -80,8 +80,20 @@ Customer { id, name, address, phone, email, notes, createdAt,
            // placed kits always derive from the anchor markers (placedKits).
            // Sheoga entries: sheoga.js normBasketEntry (single | bundle).
            // wedi/Schluter entries: model.js normKitBasketEntry —
-           // { id, kind: "kit", addedAt, snap: { mode, cfg } }, the snap
-           // being exactly the row marker Reconfigure reopens on.
+           // { id, kind: "kit", addedAt, snap: { mode, cfg }, session? },
+           // the snap being exactly the row marker Reconfigure reopens on.
+           // `session` is the OPTIONAL sibling (owner decision 2026-08-31):
+           // { qtyOv?, manual?, panelFit? } — the stepped quantities, the
+           // hand-added extras and the wall-panel Fit flag. They ride BESIDE
+           // the marker because the marker deliberately never carries session
+           // state, yet a staged entry still has to reproduce the build that
+           // was on screen: staging then moving must land exactly what "Add to
+           // product lines" would have landed. Written only when non-empty
+           // (panelFit only when false — true is the default), so an entry
+           // with nothing overridden serializes as it always did; read back as
+           // `session.panelFit !== false`. Schluter needs only qtyOv/panelFit,
+           // its markCfg already carrying manual/source/pick. A PLACED kit has
+           // no session — once landed the rows are the truth.
 Area     { id, name, option: ""|"A"…"L", products: Product[] }   // option = quote-option slot (ADR 0031, A–L since 2026-08-26); "" = shared base
 Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
            sku, L, W, thickness, sizeText, brandColor, priceSqft,

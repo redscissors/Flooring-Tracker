@@ -328,6 +328,25 @@ test("normKitBasketEntry: fills defaults, rejects junk (ADR 0035 step 3)", () =>
     assert.equal(normKitBasketEntry(junk), null, JSON.stringify(junk));
 });
 
+test("normKitBasketEntry: carries session overrides, drops junk (owner decision 2026-08-31)", () => {
+  const e = normKitBasketEntry({ snap: { mode: "custom", cfg: { panKey: "X" } },
+    session: { qtyOv: { a: 3, b: 0, bad: NaN, neg: -2 }, manual: [{ key: "K", qty: 2 }, { key: "", qty: 1 }, { key: "Z", qty: 0 }], panelFit: false } });
+  assert.deepEqual(e.session.qtyOv, { a: 3, b: 0 }, "finite >= 0 kept, NaN and negatives dropped");
+  assert.deepEqual(e.session.manual, [{ key: "K", qty: 2 }], "blank ids and qty<=0 dropped");
+  assert.equal(e.session.panelFit, false);
+  // a Schluter extra is keyed by sku
+  assert.deepEqual(normKitBasketEntry({ snap: { mode: "custom", cfg: {} }, session: { manual: [{ sku: "S1", qty: 1 }] } }).session.manual, [{ sku: "S1", qty: 1 }]);
+});
+
+test("normKitBasketEntry: an entry with nothing overridden carries no session key", () => {
+  const plain = normKitBasketEntry({ snap: { mode: "kit", cfg: { panKey: "X" } } });
+  assert.ok(!("session" in plain), "no session field when there is nothing to carry");
+  for (const junk of [null, 7, "x", { qtyOv: "no" }, { manual: {} }, { qtyOv: {}, manual: [] }])
+    assert.ok(!("session" in normKitBasketEntry({ snap: { mode: "kit", cfg: {} }, session: junk })), JSON.stringify(junk));
+  assert.equal(normKitBasketEntry({ snap: { mode: "kit", cfg: {} }, session: { panelFit: true } }).session, undefined,
+    "panelFit true is the default — nothing to store");
+});
+
 test("normC: wediBasket/schluterBasket normalize, drop junk, default empty (ADR 0035 step 3)", () => {
   const c = normC({ id: "c1", name: "X", wediBasket: [{ snap: { mode: "kit", cfg: { panKey: "P" } } }, { bad: true }], schluterBasket: "junk" });
   assert.equal(c.wediBasket.length, 1);

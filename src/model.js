@@ -121,9 +121,34 @@ export const normWasteJob = (w) => (w == null ? null : { tile: w.tile ?? 10, flo
 // engine exactly like a Reconfigure would. Engine-free on purpose — model.js
 // must never import wedi.js/schluter.js (boot path); junk cfgs price as a
 // faint row in the drawer instead of crashing here.
+// The stepped quantities, hand-added extras and panel-Fit flag ride BESIDE the
+// marker, never inside it: the marker is what a Reconfigure reopens on and it
+// deliberately carries no session state, but a staged entry still has to
+// reproduce the build that was on screen (owner decision 2026-08-31).
+const normKitSession = (s) => {
+  if (!s || typeof s !== "object") return undefined;
+  const out = {};
+  if (s.qtyOv && typeof s.qtyOv === "object" && !Array.isArray(s.qtyOv)) {
+    const ov = {};
+    for (const [k, v] of Object.entries(s.qtyOv)) if (typeof v === "number" && Number.isFinite(v) && v >= 0) ov[k] = v;
+    if (Object.keys(ov).length) out.qtyOv = ov;
+  }
+  const manual = (Array.isArray(s.manual) ? s.manual : []).map((m) => {
+    if (!m || typeof m !== "object" || !(+m.qty > 0)) return null;
+    const key = typeof m.key === "string" ? m.key.trim() : "";
+    const sku = typeof m.sku === "string" ? m.sku.trim() : "";
+    return key ? { key, qty: +m.qty } : sku ? { sku, qty: +m.qty } : null;
+  }).filter(Boolean);
+  if (manual.length) out.manual = manual;
+  if (s.panelFit === false) out.panelFit = false;
+  return Object.keys(out).length ? out : undefined;
+};
 export const normKitBasketEntry = (e) => {
   if (!e || typeof e !== "object" || !e.snap || typeof e.snap !== "object" || !e.snap.cfg || typeof e.snap.cfg !== "object") return null;
-  return { id: e.id || uid(), kind: "kit", addedAt: e.addedAt || Date.now(), snap: { mode: typeof e.snap.mode === "string" ? e.snap.mode : "custom", cfg: e.snap.cfg } };
+  const out = { id: e.id || uid(), kind: "kit", addedAt: e.addedAt || Date.now(), snap: { mode: typeof e.snap.mode === "string" ? e.snap.mode : "custom", cfg: e.snap.cfg } };
+  const session = normKitSession(e.session);
+  if (session) out.session = session;
+  return out;
 };
 const normKitBasket = (v) => (Array.isArray(v) ? v.map(normKitBasketEntry).filter(Boolean) : []);
 

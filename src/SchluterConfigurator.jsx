@@ -716,16 +716,18 @@ export default function SchluterConfigurator({
   };
 
   const ovKey = (l) => l.g + "|" + (l.item.sku || l.item.name);
+  // a stepped quantity keeps winning over the recipe's figure while the
+  // line survives; stepped to 0 the line leaves the bill (the wedi rule).
+  // The basket drawer runs it too, so a staged entry prices the build that
+  // was staged and not just its marker (owner decision 2026-08-31).
+  const applyQtyOv = (lines, ov) => lines.map((l) => {
+    const q = l.noteOnly ? null : ov[ovKey(l)];
+    return q == null ? l : { ...l, autoQty: l.qty, qty: q, ov: true };
+  }).filter((l) => l.noteOnly || l.qty > 0);
   const build = useMemo(() => {
     if (!pickCand) return null;
     const b = buildKit(cfg, cat, { source, pick: pickCand });
-    b.lines = applyBoardPlan(b.lines, cfg, plan);
-    // a stepped quantity keeps winning over the recipe's figure while the
-    // line survives; stepped to 0 the line leaves the bill (the wedi rule)
-    b.lines = b.lines.map((l) => {
-      const ov = l.noteOnly ? null : qtyOv[ovKey(l)];
-      return ov == null ? l : { ...l, autoQty: l.qty, qty: ov, ov: true };
-    }).filter((l) => l.noteOnly || l.qty > 0);
+    b.lines = applyQtyOv(applyBoardPlan(b.lines, cfg, plan), qtyOv);
     manual.forEach((m) => {
       const e = cat.find((i) => i.sku === m.sku);
       if (e) b.lines.push({ g: "Extras", item: e, qty: m.qty, so: !e.stock, manual: true });
@@ -747,12 +749,18 @@ export default function SchluterConfigurator({
   // renders faint instead of pricing — never a crash. Prices re-derive through
   // buildFromMarker + the popup's own board plan + tier lens, so a kit reads
   // the same number in the drawer and the build column.
-  const entryView = (marker) => {
+  // A STAGED entry carries its own session (owner decision 2026-08-31), so its
+  // price is the build column's; a PLACED kit is a marker-only derivation —
+  // once landed the rows are the truth — and reads the live Fit setting.
+  const entryView = (marker, session) => {
     if (!catReady || !cat.length) return { title: "Schluter kit", meta: "waiting on the price books…", price: null, faint: true, lines: null };
     const b = buildFromMarker(marker, cat);
     if (!b) return { title: "Schluter kit", meta: "the catalog no longer knows this kit", price: null, faint: true, lines: null };
     const c2 = marker.cfg;
-    let lines = applyBoardPlan(b.lines, c2, panelFit && c2.wallSys === "board" ? boardPlan(expandBoardFaces(c2), cat, { source: c2.source === "stock" ? "stock" : "all" }) : null);
+    const s = session || {};
+    const fit = session ? s.panelFit !== false : panelFit;
+    let lines = applyBoardPlan(b.lines, c2, fit && c2.wallSys === "board" ? boardPlan(expandBoardFaces(c2), cat, { source: c2.source === "stock" ? "stock" : "all" }) : null);
+    lines = applyQtyOv(lines, s.qtyOv || {});
     const bill = lines.filter((l) => !l.noteOnly);
     return {
       title: b.pick && b.pick.tray ? b.pick.tray.name : "Mortar-bed build",
@@ -761,15 +769,18 @@ export default function SchluterConfigurator({
       lines: () => lineItems({ ...b, lines, mode: marker.mode || "custom", cfg: c2 }, { builderPct: bPct }),
     };
   };
-  const stagedViews = useMemo(() => (basket || []).map((e) => ({ id: e.id, ...entryView(e.snap) })),
+  const stagedViews = useMemo(() => (basket || []).map((e) => ({ id: e.id, ...entryView(e.snap, e.session || {}) })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [basket, catReady, cat, tierId, customPct, salePct, bPct, panelFit]);
+    [basket, catReady, cat, tierId, customPct, salePct, bPct]);
   const placedViews = useMemo(() => (placed || []).map((k) => ({ ...k, ...entryView(k.marker) })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [placed, catReady, cat, tierId, customPct, salePct, bPct, panelFit]);
   const addToBasket = () => {
     if (!build || !onBasketChange) return;
-    const entry = normKitBasketEntry({ addedAt: Date.now(), snap: { mode, cfg: JSON.parse(JSON.stringify(markCfg)) } });
+    const entry = normKitBasketEntry({
+      addedAt: Date.now(), snap: { mode, cfg: JSON.parse(JSON.stringify(markCfg)) },
+      session: { qtyOv: { ...qtyOv }, panelFit },
+    });
     if (entry) { onBasketChange([...(basket || []), entry]); setBasketOpen(true); say("Staged in the basket — saved with this job"); }
   };
   const moveEntries = (ids) => {
