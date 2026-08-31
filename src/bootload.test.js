@@ -66,7 +66,7 @@ test("loadProjects falls back to the legacy select when project_no is missing", 
 
 test("loadSampleRequests maps and normalizes rows", async () => {
   const rows = await loadSampleRequests(fakeDb({ sample_requests: [
-    { id: "r1", data: { status: "ordered", custId: "c1", item: { name: "Calacatta", sku: "CM1224" } } },
+    { id: "r1", data: { status: "ordered", projectId: "c1", item: { name: "Calacatta", sku: "CM1224" } } },
     { id: "r2", data: { status: "bogus" } },
   ] }));
   assert.equal(rows.length, 2);

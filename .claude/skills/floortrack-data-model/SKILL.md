@@ -48,7 +48,7 @@ claude_issue row : { id (text pk), data: { text, done, doneAt, createdBy, create
 
 sample_request row : { id (text pk), data: { status: "need"|"ordered",
                   createdBy, createdAt, orderedBy, orderedAt,
-                  custId, custName, areaName, productId, bookId, bookName,
+                  projectId, custName, areaName, productId, bookId, bookName,
                   item: { name, sku, size, type } } }
                   // sample-ordering workflow (spec 2026-08-28), shared like
                   // todos; snapshot + live ids (the claude_issues doctrine).

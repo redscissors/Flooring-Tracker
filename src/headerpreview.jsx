@@ -39,7 +39,7 @@ function ProjectHeaderDemo() {
       startVersionName={() => setNamingVersion(true)} confirmVersion={() => setNamingVersion(false)}
       openAttachment={noop} delAttachment={noop} addAttachment={noop}
       setShowVersions={noop} setPrintMode={noop} setConfirm={noop} setShowOrderCopy={noop}
-      samples={{ need: 2, ordered: 1, in: 1, open: 3, total: 4 }} onOpenSamples={noop}
+      samples={{ need: 2, ordered: 1, total: 3 }} onOpenSamples={noop}
     />
   );
 }

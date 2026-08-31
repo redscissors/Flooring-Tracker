@@ -40,8 +40,8 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
   const rows = useMemo(() => browserRows({ people, projects, builders }), [people, projects, builders]);
   const quick = useMemo(() => quickRows(projects, q, salesQ), [projects, q, salesQ]);
   const drafts = useMemo(() => draftRows(projects, q, salesQ), [projects, q, salesQ]);
-  const quickShown = samplesOnly ? quick.filter((p) => (sampleTally.get(p.id)?.need || 0) > 0) : quick;
-  const draftsShown = samplesOnly ? drafts.filter((p) => (sampleTally.get(p.id)?.need || 0) > 0) : drafts;
+  const quickShown = useMemo(() => samplesOnly ? quick.filter((p) => (sampleTally.get(p.id)?.need || 0) > 0) : quick, [quick, samplesOnly, sampleTally]);
+  const draftsShown = useMemo(() => samplesOnly ? drafts.filter((p) => (sampleTally.get(p.id)?.need || 0) > 0) : drafts, [drafts, samplesOnly, sampleTally]);
   const quickCount = useMemo(() => quickRows(projects).length, [projects]);
   const draftCount = useMemo(() => draftRows(projects).length, [projects]);
   const unfiledCount = quickCount + draftCount;
@@ -283,7 +283,7 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
               ))}
             </tbody>
           </table>
-          {flat.length === 0 && <div className="text-center text-sm text-slate-400 mt-10">{q ? "No matches" : "No customers yet"}</div>}
+          {flat.length === 0 && <div className="text-center text-sm text-slate-400 mt-10">{q || samplesOnly ? "No matches" : "No customers yet"}</div>}
         </div>
 
         {/* Project lines for the selected customer — the ERP order-lines panel */}

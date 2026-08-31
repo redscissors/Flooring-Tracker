@@ -39,15 +39,14 @@ function VendorGroup({ g, custInfo, rep, onOrdered, onRemove }) {
               Mark all ordered
             </button>
           )}
-          {rep?.email ? (
+          {rep?.email && (
             <a href={mailtoHref(rep.email, mail.subject, mail.body)}
               title={`Opens your mail program addressed to ${rep.email}:\n\n${mail.body}`}
               className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] font-semibold bg-indigo-600 hover:bg-indigo-700 text-white">
               <Mail size={13} /> Email {rep.name ? rep.name.trim().split(/\s+/)[0] : "the rep"}
             </a>
-          ) : (
-            <CopyBtn text={mail.body} label="Copy email" />
           )}
+          <CopyBtn text={mail.body} label="Copy email" />
         </div>
       </div>
       {!rep?.email && g.bookId && (
@@ -94,6 +93,9 @@ export function SamplesPanel({ name, requests, custInfo, repFor, onOrdered, onRe
             </p>
           ) : (
             <>
+              {!custInfo.address && (
+                <p className="text-[11px]" style={{ color: "#b45309" }}>No ship-to address on this project — the rep email will have nowhere to send the samples. Add the project (or customer) address first.</p>
+              )}
               {groups.map((g) => <VendorGroup key={g.key} g={g} custInfo={custInfo} rep={repFor(g)} onOrdered={onOrdered} onRemove={onRemove} />)}
               <p className="text-[11px] text-slate-400">
                 Samples ship straight to the customer — the email carries their name and the project address. After sending, <b>Mark all ordered</b>; statuses are shared, so the whole team sees what's in flight.

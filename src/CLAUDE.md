@@ -187,13 +187,13 @@ src/
                     # group-by-salesman over the boot's light rows (custbrowser.test.js).
                     # `custSamples`/`filterBySamples` (spec 2026-08-28) roll a
                     # customer's projects up against the sample_requests tally
-                    # Map (App's `custSampleTally(sampleRequests)`) for the
+                    # Map (App's `projectSampleTally(sampleRequests)`) for the
                     # browser's samples column and filter
   CustomerBrowser.jsx  # the customer browser, a `React.lazy` chunk (ADR 0026):
                     # near-fullscreen ERP-style directory grid — dense customer
                     # rows grouped by salesman over a bottom project-lines panel —
                     # opened from the sidebar's Customers folder (issue 040).
-                    # Takes a `sampleTally` prop (App, `custSampleTally`
+                    # Takes a `sampleTally` prop (App, `projectSampleTally`
                     # re-run on every sampleRequests change): a draggable
                     # Samples column (`sampleChips` — amber "N to order" +
                     # moss "M ordered", shared with the unfiled strips and the
@@ -1367,8 +1367,9 @@ src/
                     # trailing "Other / hand-entered"). `sampleGroups` (rows
                     # grouped by that frozen vendor, Other always last — a
                     # sample order is placed per vendor), `sampleCounts` (the
-                    # header badge), `custSampleTally` (a custId→{need,ordered}
-                    # Map — the browser column/filter's one shared roll-up),
+                    # header badge), `projectSampleTally` (a
+                    # projectId→{need,ordered} Map — the browser column/
+                    # filter's one shared roll-up),
                     # and `repEmail`/`mailtoHref` (the vendor rep's email: item
                     # list + the CUSTOMER as ship-to — samples ship direct —
                     # and deliberately NO salesperson info, owner call
@@ -1404,7 +1405,7 @@ src/
                     # empty state. `?browser=1` mounts the REAL
                     # CustomerBrowser instead, over a second sample-less
                     # customer (Task 8 preview proof — the samples column/
-                    # filter's mock state), fed `sampleTally={custSampleTally(SEED)}`
+                    # filter's mock state), fed `sampleTally={projectSampleTally(SEED)}`
                     # so the filter visibly narrows the grid
   vendorfetch.js    # vendor sheet fetch (ADR 0019): portal-link parse/validate,
                     # bookmarklet source + clipboard hand-off (copies a marked

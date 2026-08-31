@@ -30,7 +30,7 @@ export const normSampleRequest = (r) => {
     status: SAMPLE_STATUSES.includes(r.status) ? r.status : "need",
     createdBy: str(r.createdBy), createdAt: r.createdAt || null,
     orderedBy: str(r.orderedBy), orderedAt: r.orderedAt || null,
-    custId: str(r.custId), custName: str(r.custName),
+    projectId: str(r.projectId), custName: str(r.custName),
     areaName: str(r.areaName), productId: str(r.productId),
     bookId: str(r.bookId), bookName: str(r.bookName) || OTHER,
     item: {
@@ -49,7 +49,7 @@ export const requestFrom = ({ project, custName, area, areaIndex, product: p, bo
     : p.sheoga ? "Sheoga Hardwood" : OTHER;
   return normSampleRequest({
     id: uid(), status: "need", createdBy: by, createdAt: Date.now(),
-    custId: project.id, custName: custName || project.name || "",
+    projectId: project.id, custName: custName || project.name || "",
     areaName: areaLabel(area, areaIndex), productId: p.id,
     bookId: book ? book.id : "", bookName,
     item: {
@@ -83,12 +83,12 @@ export const sampleCounts = (requests) => {
 };
 
 // Per-project roll-up for the customer browser's samples column/filter.
-export const custSampleTally = (requests) => {
+export const projectSampleTally = (requests) => {
   const m = new Map();
   for (const r of requests || []) {
-    const t = m.get(r.custId) || { need: 0, ordered: 0 };
+    const t = m.get(r.projectId) || { need: 0, ordered: 0 };
     t[r.status]++;
-    m.set(r.custId, t);
+    m.set(r.projectId, t);
   }
   return m;
 };

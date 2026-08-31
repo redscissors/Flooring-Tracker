@@ -9,7 +9,7 @@ import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import { SamplesPanel } from "./samples.jsx";
-import { requestFrom, custSampleTally } from "./samples.js";
+import { requestFrom, projectSampleTally } from "./samples.js";
 import { normA } from "./model.js";
 import CustomerBrowser from "./CustomerBrowser.jsx";
 
@@ -48,7 +48,7 @@ const BROWSER_PROJECTS = [
 function BrowserHarness() {
   return (
     <CustomerBrowser people={BROWSER_PEOPLE} projects={BROWSER_PROJECTS} builders={[]}
-      myName="" sampleTally={custSampleTally(SEED)}
+      myName="" sampleTally={projectSampleTally(SEED)}
       onColOrder={() => {}} onClose={() => {}}
       onOpenCustomer={() => {}} onOpenProject={() => {}}
       onNewCustomer={() => {}} onNewProject={() => {}} />

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { normA } from "./model.js";
 import {
-  normSampleRequest, requestFrom, sampleGroups, sampleCounts, custSampleTally,
+  normSampleRequest, requestFrom, sampleGroups, sampleCounts, projectSampleTally,
   repEmail, mailtoHref, SAMPLE_STATUSES, SAMPLE_LABEL,
 } from "./samples.js";
 
@@ -12,7 +12,7 @@ const BOOKS = [
 ];
 const req = (over = {}) => normSampleRequest({
   id: "r1", status: "need", createdBy: "Dana", createdAt: 1000,
-  custId: "c1", custName: "Kathy Marsh", areaName: "Kitchen", productId: "p1",
+  projectId: "c1", custName: "Kathy Marsh", areaName: "Kitchen", productId: "p1",
   bookId: "b1", bookName: "Glazzio", item: { name: "Calacatta Gold", sku: "CM1224", size: "12×24", type: "tile" },
   ...over,
 });
@@ -32,7 +32,7 @@ test("requestFrom: snapshots the line, resolves the vendor, stamps the creator",
   const product = { id: "p1", type: "tile", sku: "CM1224", brandColor: "Calacatta Gold", L: "12", W: "24", bookId: "b1" };
   const r = requestFrom({ project: { id: "c1" }, custName: "Kathy Marsh", area, areaIndex: 0, product, books: BOOKS, by: "Dana" });
   assert.equal(r.status, "need");
-  assert.equal(r.custId, "c1");
+  assert.equal(r.projectId, "c1");
   assert.equal(r.custName, "Kathy Marsh");
   assert.equal(r.areaName, "Kitchen");
   assert.equal(r.productId, "p1");
@@ -67,14 +67,14 @@ test("sampleGroups: groups by vendor in encounter order, Other last", () => {
   assert.equal(gs[0].bookId, "b1");
 });
 
-test("sampleCounts + custSampleTally", () => {
+test("sampleCounts + projectSampleTally", () => {
   const rows = [
     req({ id: "r1", status: "need" }),
-    req({ id: "r2", status: "ordered", custId: "c2" }),
+    req({ id: "r2", status: "ordered", projectId: "c2" }),
     req({ id: "r3", status: "ordered" }),
   ];
   assert.deepEqual(sampleCounts(rows), { need: 1, ordered: 2, total: 3 });
-  const tally = custSampleTally(rows);
+  const tally = projectSampleTally(rows);
   assert.deepEqual(tally.get("c1"), { need: 1, ordered: 1 });
   assert.deepEqual(tally.get("c2"), { need: 0, ordered: 1 });
   assert.deepEqual(sampleCounts([]), { need: 0, ordered: 0, total: 0 });

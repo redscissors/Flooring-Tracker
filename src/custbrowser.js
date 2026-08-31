@@ -118,7 +118,7 @@ export function filterBySales(rows, name) {
 }
 
 // Samples roll-up for the browser (spec 2026-08-28): tally is
-// custSampleTally's Map keyed by project id. The filter keeps customers with
+// projectSampleTally's Map keyed by project id. The filter keeps customers with
 // OPEN (to-order) requests — one press answers "what still needs ordering";
 // the column shows both counts so the ordered log reads at a glance.
 export const custSamples = (tally, projs = []) => {

@@ -6,11 +6,12 @@
 --
 -- Everything lives in `data` jsonb (see src/samples.js normSampleRequest):
 --   { status: "need"|"ordered", createdBy, createdAt, orderedBy, orderedAt,
---     custId, custName, areaName, productId, bookId, bookName,
+--     projectId, custName, areaName, productId, bookId, bookName,
 --     item: { name, sku, size, type } }
 -- `item`/`custName`/`areaName`/`bookName` freeze the line at request time so
 -- the customer browser's column and the ordered log stay meaningful after the
--- row is edited or deleted; custId/productId are the live ids surfaces match on.
+-- row is edited or deleted; projectId/productId/bookId are the live ids
+-- surfaces match on.
 
 create table if not exists public.sample_requests (
   id         text primary key,

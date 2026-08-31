@@ -33,7 +33,7 @@ for the vendor rep contact a request also needs.
 1. **`sample_requests`** (`supabase/samples.sql`, owner runs by hand — a
    pending write path until then, same as every other `supabase/*.sql` file)
    — one row per request, carrying both a snapshot (customer/area/item name,
-   sku, size, type, vendor) and the live ids (`custId`/`productId`/`bookId`)
+   sku, size, type, vendor) and the live ids (`projectId`/`productId`/`bookId`)
    the report/panel need. `status` is `"need"` or `"ordered"` only — v1's
    third "received" state didn't survive the rework (samples.js
    `normSampleRequest`/`requestFrom`, data-model skill updated). Product rows
@@ -48,7 +48,7 @@ for the vendor rep contact a request also needs.
 3. **`src/samples.js` + `samples.jsx`** — `sampleGroups` groups requests by
    the vendor frozen at request time (book brand label/name; Sheoga lines
    under Sheoga; everything else under a trailing "Other"), `sampleCounts`
-   feeds the header badge, `custSampleTally` rolls requests up per customer
+   feeds the header badge, `projectSampleTally` rolls requests up per project
    for the browser. The `SamplesPanel` (order-entry dock shell) is a two-way
    status toggle per line, per-vendor **Mark all ordered**, and **Email the
    rep** — a mailto built from `repEmail`/`mailtoHref` (item list + the
@@ -64,7 +64,7 @@ for the vendor rep contact a request also needs.
    header layouts carry a Samples button badged on any open (need) request.
 6. **Customer browser** — a draggable Samples column (amber "N to order" +
    moss "M ordered" chips, shared `sampleChips`) and a Samples filter button
-   (open = any need > 0), fed `sampleTally={custSampleTally(sampleRequests)}`
+   (open = any need > 0), fed `sampleTally={projectSampleTally(sampleRequests)}`
    from App; chips also show on the unfiled strips and the project-lines
    panel.
 7. **Previews** — `samples-preview.html` (`src/samplespreview.jsx`, stateful,

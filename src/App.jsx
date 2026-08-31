@@ -9,7 +9,7 @@ import { pricedItem, orderPatch, orderDrift, rowCostSqft, skuKeys } from "./orde
 import { OrderEntryPanel } from "./orderentry.jsx";
 import { isSpecialOrder, nameBudget, orderQty } from "./orderentry.js";
 import { SamplesPanel } from "./samples.jsx";
-import { requestFrom, sampleCounts, custSampleTally, SAMPLE_LABEL, SAMPLE_COLOR } from "./samples.js";
+import { requestFrom, sampleCounts, projectSampleTally, SAMPLE_LABEL, SAMPLE_COLOR } from "./samples.js";
 import { useSamples } from "./usesamples.js";
 import { tierView, tierUnitPrice, employeeNoCost, normPricing } from "./pricing.js";
 import { freightPrintRows, freightOrderRow, freightSummary, freightBookFor, rowFreightOn } from "./freight.js";
@@ -576,8 +576,11 @@ export default function App({ user, onSignOut }) {
   const [flagCtx, setFlagCtx] = useState(null);
   const flaggedRows = useMemo(() => new Set(claudeIssues.filter((i) => !i.done && i.source.productId).map((i) => i.source.productId)), [claudeIssues]);
   // This project's sample requests + a productId lookup for the row icons.
-  const projSamples = useMemo(() => sampleRequests.filter((r) => r.custId === selId), [sampleRequests, selId]);
+  const projSamples = useMemo(() => sampleRequests.filter((r) => r.projectId === selId), [sampleRequests, selId]);
   const sampleByProduct = useMemo(() => new Map(projSamples.map((r) => [r.productId, r])), [projSamples]);
+  // The customer browser's per-project roll-up (F6): recomputed only when the
+  // shared request list actually changes, not on every render of the browser.
+  const sampleTally = useMemo(() => projectSampleTally(sampleRequests), [sampleRequests]);
   const {
     labels, showApps, setShowApps,
     openApps, addLabel, addLabelsBulk, updateLabel, delLabel, saveLabelPreset,
@@ -1581,6 +1584,10 @@ export default function App({ user, onSignOut }) {
                       <button onClick={() => setProjSheet(true)} className={tile}><div className={tLbl}>Print</div><div className={tVal}>{sel.printPricing === "unit" ? "Unit $" : sel.printPricing === "none" ? "No $" : "All $"}</div></button>
                       <button onClick={() => setProjSheet(true)} className={tile}><div className={tLbl}>Files</div><div className={tVal}>{(sel.attachments || []).length}</div></button>
                       <button onClick={() => setShowVersions(true)} className={tile}><div className={tLbl}>Versions</div><div className={tVal}>{sel.versions?.length || 0}</div></button>
+                      <button onClick={() => { setShowSamples(true); refreshSampleRequests(); }} className={tile}>
+                        <div className={tLbl}>Samples</div>
+                        <div className={tVal} style={sampleCounts(projSamples).need > 0 ? { color: "#b45309" } : undefined}>{sampleCounts(projSamples).need || "—"}</div>
+                      </button>
                       {saveOk && <div className={tile}><div className={tLbl}>Sync</div><div className={tVal} style={{ color: "var(--ft-brand)" }}>Saved ✓</div></div>}
                     </div>
                     <MobileSheet open={projSheet} onClose={() => setProjSheet(false)} title={sel.name || "Untitled project"}
@@ -2111,7 +2118,7 @@ export default function App({ user, onSignOut }) {
                               )}
                               <div className="ft-noprint flex items-center justify-center gap-0.5" style={{ background: "var(--ft-area-row)" }}>
                                 {(() => { const sr = sampleByProduct.get(p.id); return sr && (
-                                  <button tabIndex={-1} onClick={() => setShowSamples(true)}
+                                  <button tabIndex={-1} onClick={() => { setShowSamples(true); refreshSampleRequests(); }}
                                     title={`Sample — ${SAMPLE_LABEL[sr.status]}${sr.status === "ordered" && sr.orderedAt ? " " + new Date(sr.orderedAt).toLocaleDateString(undefined, { month: "numeric", day: "numeric" }) : ""}. Click for the Samples panel.`}
                                     className="p-0.5" style={{ color: SAMPLE_COLOR[sr.status] }}><Layers size={11} /></button>
                                 ); })()}
@@ -2637,7 +2644,7 @@ export default function App({ user, onSignOut }) {
         <Suspense fallback={null}>
         <CustomerBrowser people={data.people} projects={data.projects} builders={data.builders}
           myName={profile.name || ""}
-          sampleTally={custSampleTally(sampleRequests)}
+          sampleTally={sampleTally}
           initialCols={appBlobRef.current?.ui?.browserCols}
           onColOrder={(order) => saveUiPref({ browserCols: order })}
           onClose={() => setShowBrowser(false)}
@@ -2909,7 +2916,7 @@ export default function App({ user, onSignOut }) {
         const cust = data.people.find((c) => c.id === sel.customerId);
         return (
           <SamplesPanel name={sel.name} requests={projSamples}
-            custInfo={{ custName: cust?.name || sel.name || "", address: sel.address || "", phone: sel.phone || cust?.phone || "" }}
+            custInfo={{ custName: cust?.name || sel.name || "", address: sel.address || cust?.address || "", phone: sel.phone || cust?.phone || "" }}
             repFor={(g) => books.find((b) => b.id === g.bookId)?.data?.rep || null}
             onOrdered={setSampleOrdered} onRemove={delSampleRequest}
             onClose={() => setShowSamples(false)} />

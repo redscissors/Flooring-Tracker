@@ -56,6 +56,10 @@ data: {
 }
 ```
 
+> Amendment (2026-08-29, owner): the project-id field ships named `projectId`
+> (not `custId`) — renamed before any data existed, so "customer" can't be
+> misread as the person.
+
 - **Snapshot + live ids** (the claude-issues doctrine): the row stays readable
   in the browser column and panel even if the product line is later edited or
   deleted; live ids let surfaces match rows and open the project.
