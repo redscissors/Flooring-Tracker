@@ -129,17 +129,25 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
   // (SheogaConfigurator closes itself after a bundle move) so a pending choice
   // never unmounts the configurator and loses the build.
   const [sheogaBasket, setSheogaBasket] = useState([]);
+  const [wediBasket, setWediBasket] = useState([]);
+  const [schluterBasket, setSchluterBasket] = useState([]);
   const [pending, setPendingState] = useState(null);
   const pendingRef = useRef(null);
   const setPending = (v) => { pendingRef.current = v; setPendingState(v); };
-  const requestCommit = (dest, lines, nextBasket) => {
+  // Keyed by a STABLE string, never the `dest` bag — App.jsx rebuilds those
+  // literals every render, so an identity test misses after a re-render and a
+  // moved entry stays staged.
+  const setBasketFor = { sheoga: setSheogaBasket, wedi: setWediBasket, schluter: setSchluterBasket };
+  const requestCommit = (destKey, dest, lines, nextBasket) => {
     if (!lines || !lines.length) return;
-    if (dest?.currentName) setPending({ dest, lines, nextBasket });
-    else commitTo("new", { dest, lines, nextBasket });
+    if (dest?.currentName) setPending({ destKey, dest, lines, nextBasket });
+    else commitTo("new", { destKey, dest, lines, nextBasket });
   };
   const commitTo = (where, p) => {
     if (where === "current") p.dest.addToCurrent(p.lines); else p.dest.addToNew(p.lines);
-    if (p.dest === sheoga) setSheogaBasket(p.nextBasket || []);
+    // Only a MOVE hands over a next basket (`[]` when it emptied it). A plain
+    // Add passes nothing and must leave every staged entry standing.
+    if (p.nextBasket && setBasketFor[p.destKey]) setBasketFor[p.destKey](p.nextBasket);
     setPending(null);
   };
   const first = presets[0] || normPreset({ id: "sample-tag" });
@@ -467,9 +475,9 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
               basket={sheogaBasket}
               onBasketChange={setSheogaBasket}
               areaName={sheoga.currentName || "a new quick price"}
-              onAdd={(lines) => requestCommit(sheoga, lines, null)}
-              onMove={(lines) => requestCommit(sheoga, lines, null)}
-              onMoveEntries={(lines, nextBasket) => requestCommit(sheoga, lines, nextBasket)}
+              onAdd={(lines) => requestCommit("sheoga", sheoga, lines, null)}
+              onMove={(lines) => requestCommit("sheoga", sheoga, lines, null)}
+              onMoveEntries={(lines, nextBasket) => requestCommit("sheoga", sheoga, lines, nextBasket)}
               onClose={() => { if (!pendingRef.current) setApp("labels"); }}
             />
           )}
@@ -484,7 +492,10 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
                 stockRows={wedi.stockRows} bookStockReady={wedi.bookStockReady}
                 books={wedi.books} loadBookItems={wedi.loadBookItems}
                 mortars={wedi.mortars} mortarDefault={wedi.mortarDefault}
-                onAdd={(lines) => requestCommit(wedi, lines, null)}
+                basket={wediBasket}
+                onBasketChange={setWediBasket}
+                onMoveEntries={(lines, nextBasket) => requestCommit("wedi", wedi, lines, nextBasket)}
+                onAdd={(lines) => requestCommit("wedi", wedi, lines, null)}
                 onClose={() => { if (!pendingRef.current) setApp("labels"); }}
               />
             </Suspense>
@@ -500,7 +511,10 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
                 stockRows={schluter.stockRows} bookStockReady={schluter.bookStockReady}
                 books={schluter.books} loadBookItems={schluter.loadBookItems}
                 mortars={schluter.mortars} mortarDefault={schluter.mortarDefault}
-                onAdd={(lines) => requestCommit(schluter, lines, null)}
+                basket={schluterBasket}
+                onBasketChange={setSchluterBasket}
+                onMoveEntries={(lines, nextBasket) => requestCommit("schluter", schluter, lines, nextBasket)}
+                onAdd={(lines) => requestCommit("schluter", schluter, lines, null)}
                 onClose={() => { if (!pendingRef.current) setApp("labels"); }}
               />
             </Suspense>

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normP, normA, normC, rowBlank, newProduct, newArea, newProject, areaLabel, money, catSig, quickAutoName, isQuickAutoName, isRealProjectName, QUICK_DEFAULT_NAME } from "./model.js";
+import { normP, normA, normC, rowBlank, newProduct, newArea, newProject, areaLabel, money, catSig, quickAutoName, isQuickAutoName, isRealProjectName, QUICK_DEFAULT_NAME, stampKit, landKitLines, removeKitLines, placedKits, normKitBasketEntry } from "./model.js";
 
 test("normP fills every field a grid row reads from a bare object", () => {
   const p = normP({ id: "x" });
@@ -123,9 +123,237 @@ test("normC: optionNames normalize to trimmed strings on valid slots", () => {
   assert.deepEqual(normC({ id: "c2", categories: [] }).optionNames, {});
 });
 
+// --- kit instance id (ADR 0035) -------------------------------------------
+
+const wediAnchor = (over = {}) => ({ ...newProduct(), brandColor: "wedi — pan", priceSqft: "500", qtyType: "count", qty: "1", wedi: { mode: "kit", cfg: { panKey: "US2000032" } }, ...over });
+const wediPart = (over = {}) => ({ ...newProduct(), brandColor: "wedi — screws", priceSqft: "20", qtyType: "count", qty: "1", wedi: { part: true }, ...over });
+const wediLines = () => [
+  { brandColor: "wedi — pan B", priceSqft: "600", qtyType: "count", qty: "1", wedi: { mode: "kit", cfg: { panKey: "US2000009" } } },
+  { brandColor: "wedi — sealant", priceSqft: "30", qtyType: "count", qty: "2", wedi: { part: true } },
+];
+
+test("stampKit stamps one shared kitId across an emission's lines", () => {
+  const lines = wediLines();
+  const out = stampKit(lines);
+  assert.ok(out[0].kitId, "anchor line carries a kitId");
+  assert.equal(out[0].kitId, out[1].kitId, "companions share the anchor's kitId");
+  assert.equal(lines[0].kitId, undefined, "input lines are not mutated");
+});
+
+test("stampKit leaves already-stamped lines untouched", () => {
+  const stamped = [{ ...wediLines()[0], kitId: "k1" }, { ...wediLines()[1], kitId: "k2" }];
+  const out = stampKit(stamped);
+  assert.equal(out[0].kitId, "k1");
+  assert.equal(out[1].kitId, "k2");
+});
+
+test("normP passes kitId through and defaults it empty", () => {
+  assert.equal(normP({ id: "x" }).kitId, "");
+  assert.equal(normP({ id: "x", kitId: "k1" }).kitId, "k1");
+});
+
+test("landKitLines: a fresh add fills the anchor row and appends stamped companions", () => {
+  const anchor = newProduct();
+  const other = { ...newProduct(), brandColor: "Tile", priceSqft: "4" };
+  const cats = [{ ...newArea(), products: [anchor, other] }];
+  const next = landKitLines(cats, cats[0].id, anchor.id, wediLines());
+  const ps = next[0].products;
+  assert.equal(ps.length, 3);
+  assert.equal(ps[0].id, anchor.id, "the anchor row keeps its identity");
+  assert.equal(ps[0].brandColor, "wedi — pan B");
+  assert.ok(ps[0].kitId, "the landed kit is stamped");
+  assert.equal(ps[1].kitId, ps[0].kitId, "companion shares the kitId");
+  assert.equal(ps[2].id, other.id, "unrelated rows stand");
+});
+
+test("landKitLines: reconfigure replaces the old kit's companion rows", () => {
+  const anchor = wediAnchor({ kitId: "K" });
+  const p1 = wediPart({ kitId: "K" }), p2 = wediPart({ kitId: "K" });
+  const other = { ...newProduct(), brandColor: "Tile", priceSqft: "4" };
+  const cats = [{ ...newArea(), products: [anchor, p1, p2, other] }];
+  const next = landKitLines(cats, cats[0].id, anchor.id, wediLines());
+  const ps = next[0].products;
+  assert.deepEqual(ps.map((p) => p.brandColor), ["wedi — pan B", "wedi — sealant", "Tile"], "old companions are gone, the new kit and unrelated rows stand");
+  assert.equal(ps[0].id, anchor.id);
+  assert.notEqual(ps[0].kitId, "K", "the re-landed kit gets a fresh id");
+});
+
+test("landKitLines: group replacement reaches a companion moved to another area", () => {
+  const anchor = wediAnchor({ kitId: "K" });
+  const stray = wediPart({ kitId: "K" });
+  const a1 = { ...newArea(), products: [anchor] };
+  const a2 = { ...newArea(), products: [stray, newProduct()] };
+  const next = landKitLines([a1, a2], a1.id, anchor.id, wediLines());
+  assert.equal(next[1].products.length, 1, "the moved companion is replaced with the kit");
+  assert.equal(next[0].products.length, 2, "anchor + new companion land in the anchor's area");
+});
+
+test("landKitLines: a second cfg-bearing row in the group blocks group removal", () => {
+  const w1 = { ...newProduct(), brandColor: "Sheoga — 3 1/4", kitId: "K", sheoga: { mode: "floor", cfg: { w: 3.25 } } };
+  const fee = { ...newProduct(), brandColor: "Sheoga — fee", kitId: "K", sheoga: { fee: true } };
+  const w2 = { ...newProduct(), brandColor: "Sheoga — 4 1/4", kitId: "K", sheoga: { mode: "floor", cfg: { w: 4.25 } } };
+  const cats = [{ ...newArea(), products: [w1, fee, w2] }];
+  const lines = [{ brandColor: "Sheoga — 5in", sheoga: { mode: "floor", cfg: { w: 5 } } }];
+  const next = landKitLines(cats, cats[0].id, w1.id, lines);
+  const ps = next[0].products;
+  assert.deepEqual(ps.map((p) => p.brandColor), ["Sheoga — 5in", "Sheoga — fee", "Sheoga — 4 1/4"], "a bundle sibling and its fee are never deleted by editing a neighbor width");
+});
+
+test("landKitLines: a legacy anchor consumes the contiguous companion run below it", () => {
+  const anchor = wediAnchor();
+  const p1 = wediPart(), p2 = wediPart();
+  const stampedPart = wediPart({ kitId: "other" });
+  const other = { ...newProduct(), brandColor: "Tile", priceSqft: "4" };
+  const cats = [{ ...newArea(), products: [anchor, p1, p2, stampedPart, other] }];
+  const next = landKitLines(cats, cats[0].id, anchor.id, wediLines());
+  assert.deepEqual(next[0].products.map((p) => p.brandColor), ["wedi — pan B", "wedi — sealant", "wedi — screws", "Tile"], "kitId-less parts are consumed; a part stamped by another kit stops the run");
+});
+
+test("landKitLines: a legacy Sheoga single consumes its fee line", () => {
+  const anchor = { ...newProduct(), brandColor: "Sheoga — White Oak", sheoga: { mode: "floor", cfg: { sp: "White Oak" } } };
+  const fee = { ...newProduct(), brandColor: "Sheoga — Small order fee", sheoga: { fee: true } };
+  const cats = [{ ...newArea(), products: [anchor, fee] }];
+  const lines = [{ brandColor: "Sheoga — Hickory", sheoga: { mode: "floor", cfg: { sp: "Hickory" } } }, { brandColor: "Sheoga — fee", sheoga: { fee: true } }];
+  const next = landKitLines(cats, cats[0].id, anchor.id, lines);
+  assert.deepEqual(next[0].products.map((p) => p.brandColor), ["Sheoga — Hickory", "Sheoga — fee"]);
+});
+
+test("landKitLines: a fresh add on a marker-less row never consumes a stray companion", () => {
+  const anchor = newProduct();
+  const stray = wediPart();
+  const cats = [{ ...newArea(), products: [anchor, stray] }];
+  const next = landKitLines(cats, cats[0].id, anchor.id, wediLines());
+  assert.equal(next[0].products.length, 3, "the stray part below a blank row is not this kit's to delete");
+});
+
+test("landKitLines: missing anchor or empty lines returns null", () => {
+  const cats = [{ ...newArea(), products: [newProduct()] }];
+  assert.equal(landKitLines(cats, cats[0].id, "nope", wediLines()), null);
+  assert.equal(landKitLines(cats, "nope", cats[0].products[0].id, wediLines()), null);
+  assert.equal(landKitLines(cats, cats[0].id, cats[0].products[0].id, []), null);
+});
+
+const bundleMarker = () => ({ mode: "floor", cfg: { w: 3.25 }, multiWidth: true, bundle: { base: { mode: "floor", cfg: { sp: "Hickory" } }, widths: [{ w: 3.25, share: 50 }, { w: 4.25, share: 50 }], sf: 200, markupPct: 40 } });
+
+test("landKitLines: a bundle's own anchor replaces the whole group, siblings included", () => {
+  const w1 = { ...newProduct(), brandColor: "Sheoga — 3 1/4", kitId: "K", sheoga: bundleMarker() };
+  const w2 = { ...newProduct(), brandColor: "Sheoga — 4 1/4", kitId: "K", sheoga: { mode: "floor", cfg: { w: 4.25 }, multiWidth: true } };
+  const fee = { ...newProduct(), brandColor: "Sheoga — fee", kitId: "K", sheoga: { fee: true } };
+  const other = { ...newProduct(), brandColor: "Tile", priceSqft: "4" };
+  const cats = [{ ...newArea(), products: [w1, w2, fee, other] }];
+  const next = landKitLines(cats, cats[0].id, w1.id, [{ brandColor: "Sheoga — 5in", sheoga: { mode: "floor", cfg: { w: 5 } } }]);
+  assert.deepEqual(next[0].products.map((p) => p.brandColor), ["Sheoga — 5in", "Tile"], "re-emitting the bundle replaces every width and the pooled fee");
+});
+
+test("removeKitLines: removes the anchor and its companions, across areas", () => {
+  const anchor = wediAnchor({ kitId: "K" });
+  const p1 = wediPart({ kitId: "K" });
+  const other = { ...newProduct(), brandColor: "Tile", priceSqft: "4" };
+  const stray = wediPart({ kitId: "K" });
+  const cats = [{ ...newArea(), products: [anchor, p1, other] }, { ...newArea(), products: [stray] }];
+  const next = removeKitLines(cats, cats[0].id, anchor.id);
+  assert.deepEqual(next[0].products.map((p) => p.brandColor), ["Tile"]);
+  assert.equal(next[1].products.length, 0);
+});
+
+test("removeKitLines: a bundle anchor takes the whole bundle; a sibling width takes only itself", () => {
+  const mk = () => {
+    const w1 = { ...newProduct(), brandColor: "w1", kitId: "K", sheoga: bundleMarker() };
+    const w2 = { ...newProduct(), brandColor: "w2", kitId: "K", sheoga: { mode: "floor", cfg: { w: 4.25 }, multiWidth: true } };
+    const fee = { ...newProduct(), brandColor: "fee", kitId: "K", sheoga: { fee: true } };
+    return [{ ...newArea(), products: [w1, w2, fee] }];
+  };
+  let cats = mk();
+  assert.deepEqual(removeKitLines(cats, cats[0].id, cats[0].products[1].id)[0].products.map((p) => p.brandColor), ["w1", "fee"], "a sibling width never takes its neighbors");
+  cats = mk();
+  assert.deepEqual(removeKitLines(cats, cats[0].id, cats[0].products[0].id)[0].products, [], "the bundle anchor owns the group");
+});
+
+test("removeKitLines: legacy anchor takes its contiguous companion run; missing anchor is null", () => {
+  const anchor = wediAnchor();
+  const p1 = wediPart(), p2 = wediPart();
+  const stamped = wediPart({ kitId: "other" });
+  const cats = [{ ...newArea(), products: [anchor, p1, p2, stamped] }];
+  const next = removeKitLines(cats, cats[0].id, anchor.id);
+  assert.deepEqual(next[0].products.map((p) => p.brandColor), ["wedi — screws"], "the run stops at a part stamped by another kit");
+  assert.equal(removeKitLines(cats, cats[0].id, "nope"), null);
+});
+
+test("placedKits: anchors only — companions, fees and stamped bundle siblings fold away", () => {
+  const single = { ...newProduct(), qty: "120", markupPct: "40", kitId: "K1", sheoga: { mode: "floor", cfg: { sp: "Hickory" } } };
+  const fee1 = { ...newProduct(), kitId: "K1", sheoga: { fee: true } };
+  const bw1 = { ...newProduct(), kitId: "K2", sheoga: bundleMarker() };
+  const bw2 = { ...newProduct(), kitId: "K2", sheoga: { mode: "floor", cfg: { w: 4.25 }, multiWidth: true } };
+  const wediRow = wediAnchor();
+  const plain = { ...newProduct(), brandColor: "Tile", priceSqft: "4" };
+  const a = { ...newArea(), name: "Kitchen", products: [single, fee1, bw1, bw2, wediRow, plain] };
+  const ks = placedKits([a], "sheoga");
+  assert.deepEqual(ks.map((k) => k.rowId), [single.id, bw1.id]);
+  assert.equal(ks[0].areaName, "Kitchen");
+  assert.equal(ks[0].qty, "120");
+  assert.equal(ks[0].markupPct, "40");
+  assert.equal(ks[1].marker.bundle.widths.length, 2);
+  assert.deepEqual(placedKits([a], "wedi").map((k) => k.rowId), [wediRow.id]);
+});
+
+test("placedKits: legacy bundle widths (no bundle snap in the group) each list as their own kit", () => {
+  const bw1 = { ...newProduct(), kitId: "K", sheoga: { mode: "floor", cfg: { w: 3.25 }, multiWidth: true } };
+  const bw2 = { ...newProduct(), kitId: "K", sheoga: { mode: "floor", cfg: { w: 4.25 }, multiWidth: true } };
+  assert.equal(placedKits([{ ...newArea(), products: [bw1, bw2] }], "sheoga").length, 2);
+});
+
+test("placedKits: area name falls back to the 1-based index", () => {
+  const anchor = { ...newProduct(), sheoga: { mode: "floor", cfg: { sp: "Oak" } } };
+  const ks = placedKits([{ ...newArea(), products: [] }, { ...newArea(), products: [anchor] }], "sheoga");
+  assert.equal(ks[0].areaName, "Area 2");
+});
+
 test("isRealProjectName: only a hand-typed name counts (spec 2026-08-14 claim rule)", () => {
   for (const bad of ["", "  ", null, undefined, "New Project", " New Project ", "Quick price", "Q-Marazzi Rice-8/14"])
     assert.equal(isRealProjectName(bad), false, JSON.stringify(bad));
   for (const good of ["Marsh — whole first floor", "N house", "Quick pricers club", "Q-shaped room"])
     assert.equal(isRealProjectName(good), true, good);
+});
+
+test("normKitBasketEntry: fills defaults, rejects junk (ADR 0035 step 3)", () => {
+  const e = normKitBasketEntry({ snap: { mode: "custom", cfg: { panKey: "X" } } });
+  assert.ok(e.id);
+  assert.ok(e.addedAt > 0);
+  assert.equal(e.kind, "kit");
+  assert.deepEqual(e.snap, { mode: "custom", cfg: { panKey: "X" } });
+  const kept = normKitBasketEntry({ id: "bk1", addedAt: 5, snap: { mode: "kit", cfg: {} } });
+  assert.equal(kept.id, "bk1");
+  assert.equal(kept.addedAt, 5);
+  for (const junk of [null, 7, "x", {}, { snap: null }, { snap: {} }, { snap: { cfg: "nope" } }])
+    assert.equal(normKitBasketEntry(junk), null, JSON.stringify(junk));
+});
+
+test("normKitBasketEntry: carries session overrides, drops junk (owner decision 2026-08-31)", () => {
+  const e = normKitBasketEntry({ snap: { mode: "custom", cfg: { panKey: "X" } },
+    session: { qtyOv: { a: 3, b: 0, bad: NaN, neg: -2 }, manual: [{ key: "K", qty: 2 }, { key: "", qty: 1 }, { key: "Z", qty: 0 }], panelFit: false } });
+  assert.deepEqual(e.session.qtyOv, { a: 3, b: 0 }, "finite >= 0 kept, NaN and negatives dropped");
+  assert.deepEqual(e.session.manual, [{ key: "K", qty: 2 }], "blank ids and qty<=0 dropped");
+  assert.equal(e.session.panelFit, false);
+  // a Schluter extra is keyed by sku
+  assert.deepEqual(normKitBasketEntry({ snap: { mode: "custom", cfg: {} }, session: { manual: [{ sku: "S1", qty: 1 }] } }).session.manual, [{ sku: "S1", qty: 1 }]);
+});
+
+test("normKitBasketEntry: an entry with nothing overridden carries no session key", () => {
+  const plain = normKitBasketEntry({ snap: { mode: "kit", cfg: { panKey: "X" } } });
+  assert.ok(!("session" in plain), "no session field when there is nothing to carry");
+  for (const junk of [null, 7, "x", { qtyOv: "no" }, { manual: {} }, { qtyOv: {}, manual: [] }])
+    assert.ok(!("session" in normKitBasketEntry({ snap: { mode: "kit", cfg: {} }, session: junk })), JSON.stringify(junk));
+  assert.equal(normKitBasketEntry({ snap: { mode: "kit", cfg: {} }, session: { panelFit: true } }).session, undefined,
+    "panelFit true is the default — nothing to store");
+});
+
+test("normC: wediBasket/schluterBasket normalize, drop junk, default empty (ADR 0035 step 3)", () => {
+  const c = normC({ id: "c1", name: "X", wediBasket: [{ snap: { mode: "kit", cfg: { panKey: "P" } } }, { bad: true }], schluterBasket: "junk" });
+  assert.equal(c.wediBasket.length, 1);
+  assert.equal(c.wediBasket[0].snap.cfg.panKey, "P");
+  assert.deepEqual(c.schluterBasket, []);
+  assert.deepEqual(normC({ id: "c2", name: "Y" }).wediBasket, []);
+  const p = newProject();
+  assert.deepEqual(p.wediBasket, []);
+  assert.deepEqual(p.schluterBasket, []);
 });

@@ -1,4 +1,4 @@
-import { uid, OPTION_SLOTS, newArea, newProduct } from "./model.js";
+import { uid, OPTION_SLOTS, newArea, newProduct, stampKit } from "./model.js";
 
 // Quote options (ADR 0031): an area's `option` is "" (shared — part of the job
 // in every option) or a fixed slot letter (A–L since 2026-08-26 — six wasn't
@@ -31,7 +31,17 @@ export const normOptionNames = (v) => {
 export const optionTitle = (proj, slot) => proj?.optionNames?.[slot] || `Option ${slot}`;
 export const optionShort = (proj, slot) => (proj?.optionNames?.[slot] ? `${slot} · ${proj.optionNames[slot]}` : `Option ${slot}`);
 
-export const duplicateInto = (area, slot) => ({ ...area, id: uid(), option: slot, products: (area.products || []).map((p) => ({ ...p, id: uid() })) });
+// A copied kit is its OWN kit: remap kitIds per copy, or the ownsGroup rule
+// (ADR 0035) would let either copy's Remove/Reconfigure take the other option's rows.
+export const duplicateInto = (area, slot) => {
+  const kitMap = new Map();
+  const remapKit = (p) => {
+    if (!p.kitId) return p;
+    if (!kitMap.has(p.kitId)) kitMap.set(p.kitId, uid());
+    return { ...p, kitId: kitMap.get(p.kitId) };
+  };
+  return { ...area, id: uid(), option: slot, products: (area.products || []).map((p) => remapKit({ ...p, id: uid() })) };
+};
 
 // The Compare tab (phase 5) prices one shower in both wedi and Schluter, then
 // lands each build as its own quote option. Both areas MUST land through a
@@ -48,7 +58,7 @@ export const compareOptionsPatch = (project, hostAreaId, { wediLines, schluterLi
   const base = (label && label.trim()) || (host?.name && host.name.trim()) || "Shower";
   const areaFor = (name, slot, lines) => ({
     ...newArea(), name, option: slot,
-    products: [...lines.map((p) => ({ ...newProduct(), ...p })), newProduct()],
+    products: [...stampKit(lines).map((p) => ({ ...newProduct(), ...p })), newProduct()],
   });
   const wediArea = areaFor(`${base} — wedi`, "A", wediLines);
   const schluterArea = areaFor(`${base} — Schluter`, "B", schluterLines);

@@ -719,6 +719,19 @@ test("multiWidthLineItems: unshippable widths are dropped, not zero-priced", () 
   assert.equal(rows.filter((r) => r.type === "hardwood").length, 1);
 });
 
+test("multiWidthLineItems: the first width line carries the whole bundle snapshot (ADR 0035 step 2)", () => {
+  const base = mwFloor();
+  const widths = [{ w: 3.25, share: 40 }, { w: 4.25, share: 60 }];
+  const rows = multiWidthLineItems(base, widths, 200, 40);
+  const floors = rows.filter((r) => r.type === "hardwood");
+  assert.equal(floors.length, 2);
+  assert.deepEqual(floors[0].sheoga.bundle, { base, widths, sf: 200, markupPct: 40 });
+  assert.notEqual(floors[0].sheoga.bundle.base, base, "deep copy, not a shared reference");
+  assert.ok(floors.slice(1).every((r) => r.sheoga.bundle === undefined), "only the first width line carries it");
+  assert.ok(rows.filter((r) => r.type === "misc").every((r) => !r.sheoga.bundle), "fee lines never carry it");
+  assert.ok(normBasketEntry({ kind: "bundle", ...floors[0].sheoga.bundle }), "the snap round-trips through normBasketEntry");
+});
+
 test("normBasketEntry: valid single/bundle pass; junk drops to null", () => {
   const s = normBasketEntry({ kind: "single", snap: { mode: "floor", cfg: { sp: "White Oak" } }, sf: 100 });
   assert.equal(s.kind, "single"); assert.ok(s.id && s.markupPct);

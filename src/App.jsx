@@ -24,7 +24,7 @@ import { seedFromQuery as wediSeed } from "./wediquery.js";
 // engine, adapter, and popup all stay inside the lazy chunk (ADR 0026/0032).
 import { seedFromQuery as schluterSeed } from "./schluterquery.js";
 import { STOCK_LOADING_MSG, TYPES, TLBL, underlayLabel, TYPE_ACCENT, ROW_WASH, TOTAL_WASH, JOINTS, colorsFor, ATT_BUCKET, TIER_COLOR, tierBadgeText, PROJECT_NAME_MAX, AUTO_KEEP, QUICK_SWEEP_DAYS } from "./uiconst.js";
-import { uid, money, sf1, miscQty, blobToDataURL, dataURLToBlob, wasteNote, newProduct, newArea, areaLabel, rowBlank, catSig, newProject, newPerson, newBuilder, normC, personData, quickAutoName, isRealProjectName, QUICK_DEFAULT_NAME } from "./model.js";
+import { uid, money, sf1, miscQty, blobToDataURL, dataURLToBlob, wasteNote, newProduct, newArea, areaLabel, rowBlank, catSig, newProject, newPerson, newBuilder, normC, personData, quickAutoName, isRealProjectName, QUICK_DEFAULT_NAME, stampKit, landKitLines, placedKits, removeKitLines } from "./model.js";
 import { lineTotal, printProduct, printAreaFloor, KSHORT, u1, orderEntryRow } from "./print.js";
 import { jobTotals } from "./jobtotals.js";
 import { OPTION_SLOTS, OPTION_COLOR, optionsUsed, bucketCats, scopedCats, optionTitle, optionShort, duplicateInto, compareOptionsPatch } from "./options.js";
@@ -800,34 +800,28 @@ export default function App({ user, onSignOut }) {
     ]);
     updArea(aid, { products });
   };
-  // Append moved Sheoga lines as new product rows at the end of an area — used
-  // by basket "Move", which must apply lines AND clear the basket in ONE
+  // Append moved configurator lines as new product rows at the end of an area —
+  // used by basket "Move", which must apply lines AND clear the basket in ONE
   // updateProject (two calls would clobber via the non-functional setter).
-  const appendSheogaLines = (categories, aid, lines) => categories.map((a) =>
-    a.id === aid ? { ...a, products: [...a.products, ...lines.map((patch) => ({ ...newProduct(), ...patch }))] } : a);
-  // Sheoga configurator add (issue 023): the main line fills the row the popup
-  // was opened from and each vendor-fee line lands as its own new row after it,
-  // mirroring addStockProducts. Payloads come from sheoga.js lineItems() —
-  // snapshot rule, nothing reprices later.
+  // Vendor-generic (issue 023/066/097 all move through this): lines arrive
+  // stamped per basket entry (moveBasketEntries); stampKit here is the
+  // idempotent backstop for any unstamped path.
+  const appendKitLines = (categories, aid, lines) => categories.map((a) =>
+    a.id === aid ? { ...a, products: [...a.products, ...stampKit(lines).map((patch) => ({ ...newProduct(), ...patch }))] } : a);
+  // One landing for all three configurators (issue 023 / 066 / 097): the anchor
+  // line (the one carrying the vendor's {mode,cfg} marker) fills the row the
+  // popup was opened from and every companion lands as its own new row after
+  // it, the whole emission stamped with one kitId; a reconfigure Add replaces
+  // the old kit's companion rows instead of stranding them (ADR 0035 — the
+  // rules, including the legacy fallback and the bundle-sibling guard, live in
+  // model.js landKitLines). Payloads come from each engine's lineItems() —
+  // snapshot rule, nothing reprices later (ADR 0003). One updateProject with
+  // the whole categories patch: group cleanup can reach other areas, and
+  // usedirectory's setter is non-functional.
   const addSheogaLines = (aid, pid, lines) => {
-    if (!lines.length) return;
-    const a = sel.categories.find((x) => x.id === aid);
-    if (!a || !a.products.some((p) => p.id === pid)) return;
-    const products = a.products.flatMap((p) => p.id !== pid ? [p] : [
-      { ...p, ...lines[0] },
-      ...lines.slice(1).map((patch) => ({ ...newProduct(), ...patch })),
-    ]);
-    updArea(aid, { products });
+    const next = landKitLines(sel.categories, aid, pid, lines);
+    if (next) updateProject(sel.id, { categories: next });
   };
-  // wedi configurator add (issue 066): identical shape — the pan (the anchor
-  // line, the one carrying wedi:{mode,cfg}) fills the row the popup was opened
-  // from and every companion lands as its own new row after it. Payloads come
-  // from wedi.js lineItems(); nothing reprices later (ADR 0003).
-  // …and the same landing for wedi (issue 066) and Schluter (issue 097): the
-  // anchor line (the one carrying the vendor's {mode,cfg} marker) fills the
-  // row the popup was opened from and every companion lands as its own new
-  // row after it. One helper, three configurators — nothing reprices later
-  // (ADR 0003).
   const addWediLines = (aid, pid, lines) => addSheogaLines(aid, pid, lines);
   const addSchluterLines = (aid, pid, lines) => addSheogaLines(aid, pid, lines);
   // Compare tab → two sibling option areas beside the host area, in ONE patch:
@@ -841,7 +835,8 @@ export default function App({ user, onSignOut }) {
   // into the first area of whichever project the salesperson picks in the
   // Apps-hub destination prompt (filling a blank adder row if there is one, else
   // appending). A blank adder row is the trailing empty row every area carries.
-  const applySheogaToFirstArea = (categories, lines) => {
+  const applySheogaToFirstArea = (categories, rawLines) => {
+    const lines = stampKit(rawLines);
     const cats = categories.length ? categories : [newArea()];
     return cats.map((cat, i) => {
       if (i !== 0) return cat;
@@ -879,7 +874,10 @@ export default function App({ user, onSignOut }) {
     const a = sel.categories.find((x) => x.id === aid);
     const i = a ? a.products.findIndex((x) => x.id === pid) : -1;
     if (i < 0) return;
-    const copy = { ...structuredClone(a.products[i]), id: uid() };
+    // kitId never copies: the duplicate sits directly above the original's
+    // companions, and a copied id would make reconfiguring the duplicate
+    // delete the original kit's rows (ADR 0035).
+    const copy = { ...structuredClone(a.products[i]), id: uid(), kitId: "" };
     updateProject(sel.id, { categories: sel.categories.map((c) => c.id !== aid ? c : { ...c, products: [...c.products.slice(0, i + 1), copy, ...c.products.slice(i + 1)] }) });
   };
 
@@ -2762,7 +2760,7 @@ export default function App({ user, onSignOut }) {
         return (
           <LazyBoundary>
           <Suspense fallback={null}>
-          <SheogaConfigurator seed={sheogaPop.seed}
+          <SheogaConfigurator key={sheogaPop.pid + ":" + (sheogaPop.n || 0)} seed={sheogaPop.seed}
             initialSf={num(row.qty) > 0 && row.qtyType === "sqft" ? num(row.qty) : 0}
             markupDefault={normPricing(settings.pricing).sheogaMarkupPct}
             ventMarkupDefault={normPricing(settings.pricing).sheogaVentMarkupPct}
@@ -2772,10 +2770,13 @@ export default function App({ user, onSignOut }) {
             onTierChange={(patch) => updateProject(sel.id, patch)}
             areaName={sel.categories.find((x) => x.id === sheogaPop.aid)?.name || "this area"}
             onMove={(lines) => addSheogaLines(sheogaPop.aid, sheogaPop.pid, lines)}
-            onMoveEntries={(lines, nextBasket) => updateProject(sel.id, { categories: appendSheogaLines(sel.categories, sheogaPop.aid, lines), sheogaBasket: nextBasket })}
+            onMoveEntries={(lines, nextBasket) => updateProject(sel.id, { categories: appendKitLines(sel.categories, sheogaPop.aid, lines), sheogaBasket: nextBasket })}
             onAdd={(lines) => { addSheogaLines(sheogaPop.aid, sheogaPop.pid, lines); setSheogaPop(null); setFocusQty(sheogaPop.pid); }}
             onConfigChange={(live) => { try { localStorage.setItem("ft-open-layer", JSON.stringify({ kind: "sheoga", aid: sheogaPop.aid, pid: sheogaPop.pid, seed: live })); } catch (x) { } }}
-            onClose={() => setSheogaPop(null)} />
+            onClose={() => setSheogaPop(null)}
+            placed={placedKits(sel.categories, "sheoga")}
+            onOpenPlaced={(k) => setSheogaPop({ aid: k.areaId, pid: k.rowId, seed: k.marker, n: (sheogaPop.n || 0) + 1 })}
+            onDeleteKit={(k) => { const next = removeKitLines(sel.categories, k.areaId, k.rowId); if (next) { updateProject(sel.id, { categories: next }); if (k.rowId === sheogaPop.pid) setSheogaPop(null); } }} />
           </Suspense>
           </LazyBoundary>
         );
@@ -2794,7 +2795,7 @@ export default function App({ user, onSignOut }) {
         return (
           <LazyBoundary>
           <Suspense fallback={null}>
-          <WediConfigurator seed={wediPop.seed}
+          <WediConfigurator key={wediPop.pid + ":" + (wediPop.n || 0)} seed={wediPop.seed}
             wediBuilderPct={normPricing(settings.pricing).wediBuilderPct}
             schluterBuilderPct={normPricing(settings.pricing).schluterBuilderPct}
             tier={{ tier: sel.priceTier || "retail", customPct: sel.customPct, builderPct: normPricing(settings.pricing).builderPct, salePct: normPricing(settings.pricing).salePct }}
@@ -2804,6 +2805,12 @@ export default function App({ user, onSignOut }) {
             stockRows={stockItems} bookStockReady={bookStockReady}
             books={books} loadBookItems={loadBookItems}
             mortars={settings.mortars} mortarDefault={settings.catalog?.defaults?.mortar || ""}
+            basket={sel.wediBasket || []}
+            onBasketChange={(next) => updateProject(sel.id, { wediBasket: next })}
+            onMoveEntries={(lines, nextBasket) => updateProject(sel.id, { categories: appendKitLines(sel.categories, wediPop.aid, lines), wediBasket: nextBasket })}
+            placed={placedKits(sel.categories, "wedi")}
+            onOpenPlaced={(k) => setWediPop({ aid: k.areaId, pid: k.rowId, seed: k.marker, n: (wediPop.n || 0) + 1 })}
+            onDeleteKit={(k) => { const next = removeKitLines(sel.categories, k.areaId, k.rowId); if (next) { updateProject(sel.id, { categories: next }); if (k.rowId === wediPop.pid) setWediPop(null); } }}
             onQuoteOptions={(p) => addCompareOptions(wediPop.aid, p)}
             onAdd={(lines) => { addWediLines(wediPop.aid, wediPop.pid, lines); setWediPop(null); setFocusQty(wediPop.pid); }}
             onConfigChange={(live) => { try { localStorage.setItem("ft-open-layer", JSON.stringify({ kind: "wedi", aid: wediPop.aid, pid: wediPop.pid, seed: live })); } catch (x) { } }}
@@ -2823,7 +2830,7 @@ export default function App({ user, onSignOut }) {
         return (
           <LazyBoundary>
           <Suspense fallback={null}>
-          <SchluterConfigurator seed={schluterPop.seed}
+          <SchluterConfigurator key={schluterPop.pid + ":" + (schluterPop.n || 0)} seed={schluterPop.seed}
             schluterBuilderPct={normPricing(settings.pricing).schluterBuilderPct}
             wediBuilderPct={normPricing(settings.pricing).wediBuilderPct}
             tier={{ tier: sel.priceTier || "retail", customPct: sel.customPct, builderPct: normPricing(settings.pricing).builderPct, salePct: normPricing(settings.pricing).salePct }}
@@ -2833,6 +2840,12 @@ export default function App({ user, onSignOut }) {
             stockRows={stockItems} bookStockReady={bookStockReady}
             books={books} loadBookItems={loadBookItems}
             mortars={settings.mortars} mortarDefault={settings.catalog?.defaults?.mortar || ""}
+            basket={sel.schluterBasket || []}
+            onBasketChange={(next) => updateProject(sel.id, { schluterBasket: next })}
+            onMoveEntries={(lines, nextBasket) => updateProject(sel.id, { categories: appendKitLines(sel.categories, schluterPop.aid, lines), schluterBasket: nextBasket })}
+            placed={placedKits(sel.categories, "schluter")}
+            onOpenPlaced={(k) => setSchluterPop({ aid: k.areaId, pid: k.rowId, seed: k.marker, n: (schluterPop.n || 0) + 1 })}
+            onDeleteKit={(k) => { const next = removeKitLines(sel.categories, k.areaId, k.rowId); if (next) { updateProject(sel.id, { categories: next }); if (k.rowId === schluterPop.pid) setSchluterPop(null); } }}
             onQuoteOptions={(p) => addCompareOptions(schluterPop.aid, p)}
             onAdd={(lines) => { addSchluterLines(schluterPop.aid, schluterPop.pid, lines); setSchluterPop(null); setFocusQty(schluterPop.pid); }}
             onConfigChange={(live) => { try { localStorage.setItem("ft-open-layer", JSON.stringify({ kind: "schluter", aid: schluterPop.aid, pid: schluterPop.pid, seed: live })); } catch (x) { } }}

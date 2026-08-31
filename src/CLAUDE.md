@@ -60,6 +60,26 @@ src/
   model.js          # job-model factories + normalizers: `uid`/`money`, `newProduct`/
                     # `newArea`/`newProject`, `normP`/`normA`/`normC`, `catSig`,
                     # `rowBlank`, `personData`… (model.test.js, their first tests)
+                    # + the configurator kit landing (ADR 0035): `stampKit`
+                    # (one shared kitId per emission, idempotent) and
+                    # `landKitLines` — the one rule all three configurators'
+                    # Adds land through (App.jsx addSheogaLines): anchor filled
+                    # in place, companions inserted after it, the OLD kit's
+                    # companions removed by kitId group (refused when the group
+                    # holds another cfg-bearing row — a Sheoga bundle sibling
+                    # or duplicated anchor is never deleted by editing its
+                    # neighbor — except by the bundle's OWN anchor: ownsGroup,
+                    # it takes the whole group), legacy kitId-less anchors
+                    # falling back to the contiguous same-vendor companion run
+                    # below the anchor;
+                    # removeKitLines (a placed kit's delete — anchor + the
+                    # same companion set) and placedKits (the derived
+                    # in-this-project list — a stamped bundle's siblings fold
+                    # under their anchor, legacy widths list singly)
+                    # ; normKitBasketEntry — the wedi/Schluter staged basket
+                    # entry (ADR 0035 step 3, engine-free on purpose: model.js
+                    # must never import wedi.js/schluter.js), snap = the
+                    # reconfigure marker
   print.js          # print/order math: `printProduct`, `orderLineCost`, `lineTotal`,
                     # `printAreaFloor`, `areaPrintLabel`, `orderEntryRow`,
                     # `ESTIMATE_PRINT_LAYOUT`… (print.test.js)
@@ -104,7 +124,10 @@ src/
                     # `NumIn` (round 6) — the commit-on-blur/Enter number field
                     # both vendor configurators mount (moved out of
                     # WediConfigurator.jsx): whole builds re-solve off these,
-                    # and a half-typed "4" of "48" is not a room
+                    # and a half-typed "4" of "48" is not a room, and
+                    # KitBasketPanel — the shared wedi/Schluter basket drawer
+                    # shell (ADR 0035 step 3, presentation-only view rows: the
+                    # two popups can't drift on the drawer either)
   search.jsx        # price-book search suite: `SkuPicker`, `StockSearch`,
                     # `FamilySearch`, hit rows, merged-results hooks
   grid.jsx          # selection-grid cells: `TypeSelect`, `GridPriceCell`,
@@ -449,7 +472,14 @@ src/
                     # the tier's color (sheoga.js tierSellOf/tierFeeOf). Display
                     # only: rows Add/Move land RETAIL, the job sheet's own lens
                     # reprices them (ADR 0018). Opened from the Apps hub instead,
-                    # the bar falls back to a local retail-seeded preview
+                    # the bar falls back to a local retail-seeded preview.
+                    # The basket drawer's second section, "In this project"
+                    # (ADR 0035 step 2), derives from placedKits — Reconfigure
+                    # retargets the popup onto that kit's anchor (App.jsx
+                    # remounts on key={pid} so the seed re-applies; a bundle
+                    # seed restores the whole multi-width build off
+                    # sheoga.bundle) and Remove deletes the kit's lines
+                    # through removeKitLines with an inline confirm
   wedi.js           # wedi shower-system configurator engine (issue 066): the
                     # opposite of Sheoga on both axes — every piece has a part
                     # number and wedi publishes retail, so nothing is marked up
@@ -507,8 +537,13 @@ src/
                     # frame of its metal, a tileable one can take any of the
                     # four so the chip opens a picker), `tierPrice`, `factoryKit`,
                     # and `lineItems` (build -> product rows; the pan anchors and
-                    # carries `product.wedi`, companions `wedi.part`). A
-                    # non-dimensional item keeps its pricelist CONTENTS as its
+                    # carries `product.wedi`, companions `wedi.part`).
+                    # `buildFromMarker` re-derives the billed kit from a saved
+                    # marker/staged entry (re-solving a custom cfg and
+                    # re-picking its option by id) so the basket drawer prices
+                    # staged and placed kits through the engine itself (ADR
+                    # 0035 step 3).
+                    # A non-dimensional item keeps its pricelist CONTENTS as its
                     # sizeText ("100 ct 1 5/8\" Screws…", "20 oz foil sausage",
                     # "2 per bag" — contentOf), so a Fastener Kit row says what
                     # one EA holds everywhere a size shows. Display names are a
@@ -657,7 +692,17 @@ src/
                     # retail-seeded preview and Add raises the hub's shared
                     # destination prompt (current project / new quick price);
                     # the hub gets the registry bag too (so Compare works
-                    # there) but no `onQuoteOptions` — there is no host area
+                    # there) but no `onQuoteOptions` — there is no host area.
+                    # A basket drawer (ADR 0035 step 3, the Sheoga idiom via
+                    # the shared KitBasketPanel): staged entries persist in
+                    # project.wediBasket ("Basket" beside Add), the derived
+                    # In-this-project section reconfigures/removes placed
+                    # kits (App remounts on a pid+nonce key so reconfiguring
+                    # the CURRENT kit re-seeds too), delete-on-move stands,
+                    # and a staged entry carries its `session` sibling
+                    # (qtyOv, the manual extras, the Fit flag) beside the
+                    # marker snap, so a staged-then-moved kit bills what was
+                    # on screen
   showerdraw.js     # the shared shower drawings' pure-geometry half — TopDown/
                     # Iso's constants and math, extracted out of
                     # WediConfigurator.jsx (issue 097, ADR 0033) so a second
@@ -875,7 +920,11 @@ src/
                     # goods. Geometry (the Iso/TopDown drawings) is
                     # deliberately NOT this module's concern — that mapping
                     # lives in schluterdraw.js, and every live row this
-                    # module sees crosses schluteradapter.js first
+                    # module sees crosses schluteradapter.js first.
+                    # `buildFromMarker` is the same rule over the LIVE catalog
+                    # (cfg.pick keeps the quoted tray; cfg.manual extras ride
+                    # along); the popup's drawer gates it on catReady and
+                    # applies its own board plan (ADR 0035 step 3)
   schluterfixture.js  # the 2026-08-20 stock-sheet/EFT snapshot schluter.js's
                     # tests are pinned against (schluter.test.js) — the ERP
                     # Vendor SKU Analysis + dealer-cost EFT the prototype was
@@ -1183,6 +1232,12 @@ src/
                     # (localStorage ft-schluter-starred, per-device) with
                     # its filter chip. Esc ladder rungs: payload →
                     # confirmKit → swap → picker → bench → wall → placing.
+                    # Same basket drawer (project.schluterBasket) — entries
+                    # wait FAINT on catReady before pricing (ADR 0032); a
+                    # staged snap is markCfg, so manual extras and the quoted
+                    # tray survive staging, and the entry's `session` sibling
+                    # (qtyOv + the Fit flag) rides beside it, so a
+                    # staged-then-moved kit bills what was on screen.
   schluterpreview.jsx  # dev-only harness (schluter-preview.html): the REAL
                     # SchluterConfigurator over the fixture pushed BACKWARDS
                     # through normOrderItem into live registry shape (shop
@@ -1196,7 +1251,9 @@ src/
                     # `wediBuilderPct` + a no-op `onQuoteOptions` too (phase 5),
                     # so the Compare tab shows both builder knobs and renders
                     # its quote-options footer — a footer that only exists when
-                    # the prop is given
+                    # the prop is given. Stateful cats/basket (ADR 0035 step 3)
+                    # so the drawer shots run the real landKitLines/
+                    # placedKits/removeKitLines paths.
   wedipreview.jsx   # dev-only harness (wedi-preview.html): the REAL
                     # WediConfigurator over the real engine, no Supabase and no
                     # App shell — the wedi half of the change-control preview
@@ -1206,7 +1263,15 @@ src/
                     # the wedi popup assembles the Schluter catalog itself
                     # (useSchluterCatalog) — without the bag that column is
                     # only ever "Loading the Schluter price books…". Same
-                    # no-op `onQuoteOptions`; not part of the app build
+                    # no-op `onQuoteOptions`; not part of the app build.
+                    # Stateful cats/basket (ADR 0035 step 3) so the drawer
+                    # shots run the real landKitLines/placedKits/
+                    # removeKitLines paths.
+  sheogapreview.jsx # dev-only harness (sheoga-preview.html): the REAL
+                    # SheogaConfigurator over local mock state, no Supabase —
+                    # preview proof for the ADR 0035 step 2 drawer; landing/
+                    # delete/reconfigure run the real model.js paths over
+                    # local state; not part of the app build
   comparekit.js     # one room priced in BOTH shower systems (phase 5,
                     # ADR 0034) — the first module allowed to import wedi.js
                     # and schluter.js together, and outside the compare chunk

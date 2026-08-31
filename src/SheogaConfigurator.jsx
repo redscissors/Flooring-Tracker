@@ -18,6 +18,7 @@ import {
   DEFAULT_MARKUP, DEFAULT_VENT_MARKUP, tierSellOf, tierFeeOf, cartonize, lineItems, frameLineal, SHEET_NOTE,
   redistributeShares, multiWidthBuild, multiWidthLineItems, normBasketEntry,
 } from "./sheoga.js";
+import { stampKit } from "./model.js";
 import { TIER_COLOR, tierBadgeText } from "./uiconst.js";
 
 const fm = (n) => "$" + n.toFixed(2);
@@ -1189,8 +1190,9 @@ function basketEntryView(entry, tierCtx = {}) {
   return { title: `${c ? (c.size ? c.size + " " : "") + (c.rest || c.desc) : "build"}`, meta: isEa ? `${c?.qty || 1} pcs` : `${entry.sf} sf`, price, subs: [], fees: [], lines: () => lineItems(entry.snap, { sf: entry.sf, markupPct: entry.markupPct }) };
 }
 
-function BasketPanel({ basket, sel, onToggle, onRemove, onSelectAll, onMove, onMoveAll, areaName, onClose, isWide, tierCtx, tierColor }) {
+function BasketPanel({ basket, sel, onToggle, onRemove, onSelectAll, onMove, onMoveAll, areaName, onClose, isWide, tierCtx, tierColor, placed = [], onEditPlaced, onDeletePlaced }) {
   const n = basket.length, selCount = basket.filter((b) => sel[b.id]).length;
+  const [armDel, setArmDel] = useState(null);
   return (
     <div className="flex flex-col h-full">
       {!isWide && <div className="mx-auto mt-2 h-1.5 w-10 rounded-full shrink-0" style={{ background: "var(--ft-border-strong, rgba(28,26,23,.25))" }} onClick={onClose} />}
@@ -1200,7 +1202,7 @@ function BasketPanel({ basket, sel, onToggle, onRemove, onSelectAll, onMove, onM
         <button onClick={onClose} className="ml-auto text-slate-400 hover:text-slate-600"><X size={16} /></button>
       </div>
       <div className="flex-1 overflow-auto p-3">
-        {n === 0 ? <div className="text-center text-xs font-semibold text-slate-400 py-10">Basket is empty. Build a config and "Add to basket".</div> :
+        {n === 0 && !placed.length ? <div className="text-center text-xs font-semibold text-slate-400 py-10">Basket is empty. Build a config and "Add to basket".</div> :
           basket.map((entry) => { const v = basketEntryView(entry, tierCtx); const on = !!sel[entry.id]; return (
             <div key={entry.id} className={`flex gap-2.5 items-start rounded-lg border p-2.5 mb-2 ${on ? "border-[color:var(--ft-brand)]" : "border-slate-200"}`}>
               <button onClick={() => onToggle(entry.id)} className={`w-[18px] h-[18px] mt-0.5 rounded-[5px] border flex items-center justify-center text-[11px] font-black text-white shrink-0 ${on ? "bg-[color:var(--ft-brand)] border-[color:var(--ft-brand)]" : "border-slate-300"}`}>{on ? "✓" : ""}</button>
@@ -1214,6 +1216,31 @@ function BasketPanel({ basket, sel, onToggle, onRemove, onSelectAll, onMove, onM
               <div className="flex flex-col items-end gap-1.5"><span className="font-extrabold tabular-nums text-[13px]" style={tierColor ? { color: tierColor } : undefined}>{fmInt(v.price)}</span><button onClick={() => onRemove(entry.id)} className="text-slate-400 hover:text-slate-600"><X size={14} /></button></div>
             </div>); })}
         {n > 0 && <div className="text-center pt-1"><button onClick={onSelectAll} className="text-[11px] font-bold underline underline-offset-2" style={{ color: "var(--ft-brand-deep)" }}>{selCount === n ? "Clear selection" : "Select all"}</button></div>}
+        {placed.length > 0 && <>
+          <div className="flex items-center gap-2 px-1 pt-3 pb-1.5">
+            <span className="text-[11px] font-extrabold uppercase tracking-wide text-slate-400">In this project</span>
+            <span className="text-[10px] text-slate-400 font-semibold">reconfigure to change — the lines follow</span>
+          </div>
+          {placed.map((k) => { const v = basketEntryView(k.entry, tierCtx); const arm = armDel === k.rowId; return (
+            <div key={k.rowId} className="rounded-lg border border-slate-200 p-2.5 mb-2">
+              <div className="flex gap-2.5 items-start">
+                <div className="flex-1 min-w-0">
+                  {k.entry.kind === "bundle" && <span className="inline-block text-[9px] font-extrabold uppercase tracking-wide text-[color:var(--ft-brand-deep)] mb-1">Multi-width bundle</span>}
+                  <div className="text-[13px] font-bold leading-tight">{v.title}</div>
+                  <div className="text-[11px] text-slate-500 font-semibold">{v.meta} · in <b>{k.areaName}</b></div>
+                </div>
+                <span className="font-extrabold tabular-nums text-[13px]" style={tierColor ? { color: tierColor } : undefined}>{fmInt(v.price)}</span>
+              </div>
+              <div className="flex items-center gap-2 pt-1.5">
+                <button onClick={() => onEditPlaced(k)} className="rounded-full border px-2 py-0.5 text-[11px] font-bold hover:bg-slate-50" style={{ borderColor: "var(--ft-brand)", color: "var(--ft-brand-deep)" }}>Reconfigure</button>
+                {arm ? <>
+                  <span className="text-[11px] font-semibold text-red-600">Remove this kit's lines?</span>
+                  <button onClick={() => { setArmDel(null); onDeletePlaced(k); }} className="rounded-full border border-red-300 text-red-600 px-2 py-0.5 text-[11px] font-bold hover:bg-red-50">Remove</button>
+                  <button onClick={() => setArmDel(null)} className="text-[11px] font-semibold text-slate-400">Keep</button>
+                </> : <button onClick={() => setArmDel(k.rowId)} className="ml-auto text-[11px] font-semibold text-slate-400 hover:text-slate-600">Remove…</button>}
+              </div>
+            </div>); })}
+        </>}
       </div>
       <div className="flex items-center gap-2 px-3 py-3 border-t border-slate-200">
         <span className="text-[11px] text-slate-500 font-semibold">{selCount} selected → <b>{areaName}</b></span>
@@ -1226,16 +1253,21 @@ function BasketPanel({ basket, sel, onToggle, onRemove, onSelectAll, onMove, onM
 
 // --- the popup ----------------------------------------------------------------
 
-export default function SheogaConfigurator({ seed, initialSf, markupDefault, ventMarkupDefault, basket, onBasketChange, onMove, onMoveEntries, onAdd, onClose, areaName, embedded = false, onConfigChange, tier, onTierChange }) {
-  const [mode, setMode] = useState(seed?.mode || "floor");
+export default function SheogaConfigurator({ seed, initialSf, markupDefault, ventMarkupDefault, basket, onBasketChange, onMove, onMoveEntries, onAdd, onClose, areaName, embedded = false, onConfigChange, tier, onTierChange, placed, onOpenPlaced, onDeleteKit }) {
+  // A bundle marker (sheoga.bundle on the first width line, ADR 0035 step 2)
+  // reopens the whole multi-width build, not the anchor's single width.
+  const bseed = seed?.bundle;
+  const seedMode = bseed?.base?.mode || seed?.mode;
+  const [mode, setMode] = useState(seedMode || "floor");
   const [cfgs, setCfgs] = useState(() => {
     const base = Object.fromEntries(MODES.map((m) => [m.id, defaultConfig(m.id)]));
-    if (seed?.mode && seed?.cfg) base[seed.mode] = { ...base[seed.mode], ...seed.cfg };
+    if (bseed?.base?.mode && bseed.base.cfg) base[bseed.base.mode] = { ...base[bseed.base.mode], ...bseed.base.cfg };
+    else if (seed?.mode && seed?.cfg) base[seed.mode] = { ...base[seed.mode], ...seed.cfg };
     return base;
   });
   // Flooring and vents/dampers carry separate markups (Settings → Price book).
   // The footer's markup box edits whichever applies to the active tab.
-  const [markup, setMarkup] = useState(markupDefault ?? DEFAULT_MARKUP);
+  const [markup, setMarkup] = useState(bseed?.markupPct ?? markupDefault ?? DEFAULT_MARKUP);
   const [ventMarkup, setVentMarkup] = useState(ventMarkupDefault ?? DEFAULT_VENT_MARKUP);
   const ventMode = mode === "vent" || mode === "damper";
   const activeMarkup = ventMode ? ventMarkup : markup;
@@ -1254,7 +1286,7 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
   const tierColor = TIER_COLOR[tierId]?.main;
   const tsell = (cost) => tierSellOf(cost, activeMarkup, tierId, pct);
   const tfee = (amt) => tierFeeOf(amt, tierId, pct);
-  const [sf, setSf] = useState(initialSf > 0 ? initialSf : 1);
+  const [sf, setSf] = useState(bseed?.sf > 0 ? bseed.sf : initialSf > 0 ? initialSf : 1);
   const [grid, setGrid] = useState(false);
   const isWide = useIsWide();
   const isGridWide = useIsGridWide();
@@ -1276,10 +1308,10 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
   useEffect(() => { onConfigChange?.({ mode, cfg: cfgs[mode] }); }, [mode, cfgs]);
   // The vent tab's "Copy floor" pulls from whichever floor tab (unfinished /
   // stocked / herringbone) the user last had open — seeded tab first.
-  const [floorSrc, setFloorSrc] = useState(seed?.mode === "stocked" || seed?.mode === "hb" ? seed.mode : "floor");
+  const [floorSrc, setFloorSrc] = useState(seedMode === "stocked" || seedMode === "hb" ? seedMode : "floor");
   // The herringbone tab copies from a real floor config, so it tracks the last-
   // open unfinished/stocked tab (never hb itself — that would be a no-op).
-  const [flatSrc, setFlatSrc] = useState(seed?.mode === "stocked" ? "stocked" : "floor");
+  const [flatSrc, setFlatSrc] = useState(seedMode === "stocked" ? "stocked" : "floor");
   const pickMode = (id) => { setMode(id); setMobileGrid(false); if (id === "floor" || id === "stocked" || id === "hb") setFloorSrc(id); if (id === "floor" || id === "stocked") setFlatSrc(id); };
   const copyFloorToVent = () => { const patch = ventFromFloor({ mode: floorSrc, cfg: cfgs[floorSrc] }); if (patch) set({ ...cfg, ...patch }); };
   const copyFloorToHb = () => {
@@ -1294,9 +1326,9 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
   // Multi-width entry (floor + stocked only): a job split across several plank
   // widths, sharing every other option. Lifted here so Task 9's MultiWidthCard
   // and both rails can read/write the same state.
-  const [multi, setMulti] = useState(false);
-  const [mwWidths, setMwWidths] = useState([3.25, 4.25, 5.25]);
-  const [mwShares, setMwShares] = useState(() => redistributeShares([3.25, 4.25, 5.25]));
+  const [multi, setMulti] = useState(!!bseed);
+  const [mwWidths, setMwWidths] = useState(() => (bseed ? bseed.widths.map((x) => x.w) : [3.25, 4.25, 5.25]));
+  const [mwShares, setMwShares] = useState(() => (bseed ? Object.fromEntries(bseed.widths.map((x) => [x.w, x.share ?? 0])) : redistributeShares([3.25, 4.25, 5.25])));
   const multiOk = mode === "floor" || mode === "stocked"; // multi-width only on width-run tabs
   useEffect(() => { if (!multiOk && multi) setMulti(false); }, [mode, multiOk, multi]);
   const widthShips = (w) => (mode === "stocked" ? !!calcStocked({ ...cfg, w }) : floorBase({ ...cfg, w }) != null);
@@ -1340,13 +1372,24 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
   const selectAllBasket = () => { const all = (basket || []).every((b) => basketSel[b.id]); const next = {}; (basket || []).forEach((b) => { next[b.id] = !all; }); setBasketSel(next); };
   const removeBasketEntry = (id) => onBasketChange((basket || []).filter((b) => b.id !== id));
   const moveBasketEntries = (entries) => {
-    const lines = entries.flatMap((e) => basketEntryView(e).lines());
+    // Stamped per entry BEFORE flattening: each basket entry is its own kit
+    // (ADR 0035), and the landing helper's idempotent restamp keeps these ids.
+    const lines = entries.flatMap((e) => stampKit(basketEntryView(e).lines()));
     const nextBasket = (basket || []).filter((b) => !entries.includes(b));
     onMoveEntries(lines, nextBasket);
     setBasketSel({});
   };
   const moveSelectedBasket = () => moveBasketEntries((basket || []).filter((b) => basketSel[b.id]));
   const moveAllBasket = () => moveBasketEntries([...(basket || [])]);
+  // Placed kits derive an entry-shaped view so basketEntryView prices them the
+  // same way it prices staged entries; sf follows the ROW's live qty, so a
+  // hand-stepped square footage shows in the drawer too.
+  const placedView = (placed || []).map((k) => {
+    const mp = parseFloat(k.markupPct);
+    return { ...k, entry: k.marker.bundle
+      ? { kind: "bundle", ...k.marker.bundle }
+      : { kind: "single", snap: { mode: k.marker.mode, cfg: k.marker.cfg }, sf: Math.max(1, parseFloat(k.qty) || 1), markupPct: Number.isFinite(mp) ? mp : activeMarkup } };
+  });
 
   const sfMode = !isEa && mode !== "vent" && mode !== "damper";
   // Herringbone with no length typed (and no legacy tier) isn't a dead combo —
@@ -1578,12 +1621,14 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
         {isWide && (<>
           <div className={`absolute inset-0 z-[55] transition-opacity ${basketOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`} style={{ background: "rgba(20,15,10,.4)" }} onClick={() => setBasketOpen(false)} />
           <div className={`absolute top-0 right-0 bottom-0 z-[56] w-[400px] bg-white border-l border-slate-300 shadow-2xl transition-transform ${basketOpen ? "translate-x-0" : "translate-x-full"}`}>
-            <BasketPanel basket={basket || []} sel={basketSel} onToggle={toggleBasketSel} onRemove={removeBasketEntry} onSelectAll={selectAllBasket} onMove={moveSelectedBasket} onMoveAll={moveAllBasket} areaName={areaName} tierCtx={{ tier: tierId, pct }} tierColor={tierColor} onClose={() => setBasketOpen(false)} isWide />
+            <BasketPanel basket={basket || []} sel={basketSel} onToggle={toggleBasketSel} onRemove={removeBasketEntry} onSelectAll={selectAllBasket} onMove={moveSelectedBasket} onMoveAll={moveAllBasket} areaName={areaName} tierCtx={{ tier: tierId, pct }} tierColor={tierColor} onClose={() => setBasketOpen(false)} isWide
+              placed={placedView} onEditPlaced={(k) => onOpenPlaced?.(k)} onDeletePlaced={(k) => onDeleteKit?.(k)} />
           </div>
         </>)}
         {!isWide && (
           <MobileBuildSheet open={basketOpen} onClose={() => setBasketOpen(false)}>
-            <BasketPanel basket={basket || []} sel={basketSel} onToggle={toggleBasketSel} onRemove={removeBasketEntry} onSelectAll={selectAllBasket} onMove={moveSelectedBasket} onMoveAll={moveAllBasket} areaName={areaName} tierCtx={{ tier: tierId, pct }} tierColor={tierColor} onClose={() => setBasketOpen(false)} isWide={false} />
+            <BasketPanel basket={basket || []} sel={basketSel} onToggle={toggleBasketSel} onRemove={removeBasketEntry} onSelectAll={selectAllBasket} onMove={moveSelectedBasket} onMoveAll={moveAllBasket} areaName={areaName} tierCtx={{ tier: tierId, pct }} tierColor={tierColor} onClose={() => setBasketOpen(false)} isWide={false}
+              placed={placedView} onEditPlaced={(k) => onOpenPlaced?.(k)} onDeletePlaced={(k) => onDeleteKit?.(k)} />
           </MobileBuildSheet>
         )}
       </div>

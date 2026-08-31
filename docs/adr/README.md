@@ -38,3 +38,4 @@ System-wide ADRs. Area-scoped ADRs live under `docs/<area>/adr/`.
 | [0032](0032-schluter-registry-driven-pricing.md) | Schluter configurator pricing is registry-driven, not transcribed: no embedded catalog, retail = 1.5 × cost, own `schluterBuilderPct` knob | Accepted | 2026-08-21 |
 | [0033](0033-shared-shower-drawing-module.md) | Shared shower drawing module (`showerdraw.js`/`.jsx`), extracted with a pixel-parity gate; never imports `wedi.js` | Accepted | 2026-08-21 |
 | [0034](0034-cross-vendor-compare.md) | Cross-vendor compare: one dual-engine module off every boot path, semantic category map, host build vs derived kit, options A/B in one patch | Accepted | 2026-08-21 |
+| [0035](0035-configurator-kit-instance-id.md) | Configurator kits carry a shared `kitId`; reconfigure replaces the kit group; the basket derives placed kits from the rows | Accepted | 2026-08-28 |

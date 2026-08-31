@@ -431,6 +431,68 @@ export function SourceSwitch({ source, onChange, title }) {
   );
 }
 
+// The wedi/Schluter basket drawer shell (ADR 0035 step 3) — one shared
+// presentation component so the two popups can't drift (the SourceSwitch
+// doctrine). Engine-free: callers hand it pre-priced view rows. Staged rows
+// carry checkboxes + Move (delete-on-move rides the caller's patch); placed
+// rows carry Reconfigure + the armed two-click Remove (the Sheoga idiom).
+const fmt$ = (n) => (n == null ? "—" : "$" + Math.round(n).toLocaleString());
+export function KitBasketPanel({ title = "Basket", staged = [], sel = {}, onToggle, onSelectAll, onRemove, onMove, onMoveAll, placed = [], onEditPlaced, onDeletePlaced, areaName, onClose, tierColor, emptyText = 'Basket is empty. Build a kit and click "Basket".' }) {
+  const n = staged.length, selCount = staged.filter((b) => sel[b.id]).length;
+  const [armDel, setArmDel] = useState(null);
+  return (
+    <div className="flex flex-col h-full" data-kit-basket>
+      <div className="flex items-center gap-2.5 px-4 py-3 border-b border-slate-200">
+        <span className="text-sm font-extrabold">{title}</span>
+        <span className="text-[11px] text-slate-400 font-semibold">{n} staged · saved with this job</span>
+        <button onClick={onClose} className="ml-auto text-slate-400 hover:text-slate-600"><X size={16} /></button>
+      </div>
+      <div className="flex-1 overflow-auto p-3">
+        {n === 0 && !placed.length ? <div className="text-center text-xs font-semibold text-slate-400 py-10">{emptyText}</div> :
+          staged.map((v) => { const on = !!sel[v.id]; return (
+            <div key={v.id} className={`flex gap-2.5 items-start rounded-lg border p-2.5 mb-2 ${on ? "border-[color:var(--ft-brand)]" : "border-slate-200"} ${v.faint ? "opacity-60" : ""}`}>
+              <button onClick={() => onToggle(v.id)} className={`w-[18px] h-[18px] mt-0.5 rounded-[5px] border flex items-center justify-center text-[11px] font-black text-white shrink-0 ${on ? "bg-[color:var(--ft-brand)] border-[color:var(--ft-brand)]" : "border-slate-300"}`}>{on ? "✓" : ""}</button>
+              <div className="flex-1 min-w-0">
+                <div className="text-[13px] font-bold leading-tight">{v.title}</div>
+                <div className="text-[11px] text-slate-500 font-semibold">{v.meta}</div>
+              </div>
+              <div className="flex flex-col items-end gap-1.5"><span className="font-extrabold tabular-nums text-[13px]" style={tierColor ? { color: tierColor } : undefined}>{fmt$(v.price)}</span><button onClick={() => onRemove(v.id)} className="text-slate-400 hover:text-slate-600"><X size={14} /></button></div>
+            </div>); })}
+        {n > 0 && <div className="text-center pt-1"><button onClick={onSelectAll} className="text-[11px] font-bold underline underline-offset-2" style={{ color: "var(--ft-brand-deep)" }}>{selCount === n ? "Clear selection" : "Select all"}</button></div>}
+        {placed.length > 0 && <>
+          <div className="flex items-center gap-2 px-1 pt-3 pb-1.5">
+            <span className="text-[11px] font-extrabold uppercase tracking-wide text-slate-400">In this project</span>
+            <span className="text-[10px] text-slate-400 font-semibold">reconfigure to change — the lines follow</span>
+          </div>
+          {placed.map((k) => { const arm = armDel === k.rowId; return (
+            <div key={k.rowId} className={`rounded-lg border border-slate-200 p-2.5 mb-2 ${k.faint ? "opacity-60" : ""}`}>
+              <div className="flex gap-2.5 items-start">
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13px] font-bold leading-tight">{k.title}</div>
+                  <div className="text-[11px] text-slate-500 font-semibold">{k.meta}{k.areaName ? <> · in <b>{k.areaName}</b></> : null}</div>
+                </div>
+                <span className="font-extrabold tabular-nums text-[13px]" style={tierColor ? { color: tierColor } : undefined}>{fmt$(k.price)}</span>
+              </div>
+              <div className="flex items-center gap-2 pt-1.5">
+                <button onClick={() => onEditPlaced(k)} className="rounded-full border px-2 py-0.5 text-[11px] font-bold hover:bg-slate-50" style={{ borderColor: "var(--ft-brand)", color: "var(--ft-brand-deep)" }}>Reconfigure</button>
+                {arm ? <>
+                  <span className="text-[11px] font-semibold text-red-600">Remove this kit's lines?</span>
+                  <button onClick={() => { setArmDel(null); onDeletePlaced(k); }} className="rounded-full border border-red-300 text-red-600 px-2 py-0.5 text-[11px] font-bold hover:bg-red-50">Remove</button>
+                  <button onClick={() => setArmDel(null)} className="text-[11px] font-semibold text-slate-400">Keep</button>
+                </> : <button onClick={() => setArmDel(k.rowId)} className="ml-auto text-[11px] font-semibold text-slate-400 hover:text-slate-600">Remove…</button>}
+              </div>
+            </div>); })}
+        </>}
+      </div>
+      {onMove && <div className="flex items-center gap-2 px-3 py-3 border-t border-slate-200">
+        <span className="text-[11px] text-slate-500 font-semibold">{selCount} selected → <b>{areaName}</b></span>
+        <button disabled={!n} onClick={onMoveAll} className="ml-auto rounded-md border border-slate-300 px-3 py-1.5 text-xs font-bold disabled:opacity-40">Move all</button>
+        <button disabled={!selCount} onClick={onMove} className="rounded-md bg-indigo-600 text-white px-3.5 py-1.5 text-xs font-bold disabled:opacity-40">Move {selCount} → {areaName}</button>
+      </div>}
+    </div>
+  );
+}
+
 // A number field that commits on blur/Enter rather than per keystroke — both
 // vendor configurators re-solve whole builds off these, and a half-typed "4"
 // of "48" is not a room (the wedi doctrine, shared here in round 6 so the

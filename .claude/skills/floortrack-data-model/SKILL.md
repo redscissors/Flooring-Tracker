@@ -62,7 +62,8 @@ Customer { id, name, address, phone, email, notes, createdAt,
            salesperson: { name, phone, email } | null,
            priceTier: "retail|builder|employee|sale|custom", customPct,
            printPricing: "full|unit|none", freight: bool,
-           optionNames: {A?..L?} }   // optionNames = quote-option labels (ADR 0031; slots A–L since 2026-08-26)
+           optionNames: {A?..L?},   // optionNames = quote-option labels (ADR 0031; slots A–L since 2026-08-26)
+           sheogaBasket: [], wediBasket: [], schluterBasket: [] }
            // freight = the job's freight master switch (ADR 0030), default ON
            // (an absent field is a job quoted before it existed). Off means no
            // freight line anywhere, whatever the rows say.
@@ -74,6 +75,25 @@ Customer { id, name, address, phone, email, notes, createdAt,
            // salesperson = snapshot of the CREATOR's profile (ADR 0008); the
            // estimate prints it (falling back to the signed-in profile when
            // null, i.e. pre-0008 records); editable via the header popover.
+           // *Basket = the configurators' STAGED (unplaced) kit entries
+           // (ADR 0035 steps 2–3) — the only basket state that persists;
+           // placed kits always derive from the anchor markers (placedKits).
+           // Sheoga entries: sheoga.js normBasketEntry (single | bundle).
+           // wedi/Schluter entries: model.js normKitBasketEntry —
+           // { id, kind: "kit", addedAt, snap: { mode, cfg }, session? },
+           // the snap being exactly the row marker Reconfigure reopens on.
+           // `session` is the OPTIONAL sibling (owner decision 2026-08-31):
+           // { qtyOv?, manual?, panelFit? } — the stepped quantities, the
+           // hand-added extras and the wall-panel Fit flag. They ride BESIDE
+           // the marker because the marker deliberately never carries session
+           // state, yet a staged entry still has to reproduce the build that
+           // was on screen: staging then moving must land exactly what "Add to
+           // product lines" would have landed. Written only when non-empty
+           // (panelFit only when false — true is the default), so an entry
+           // with nothing overridden serializes as it always did; read back as
+           // `session.panelFit !== false`. Schluter needs only qtyOv/panelFit,
+           // its markCfg already carrying manual/source/pick. A PLACED kit has
+           // no session — once landed the rows are the truth.
 Area     { id, name, option: ""|"A"…"L", products: Product[] }   // option = quote-option slot (ADR 0031, A–L since 2026-08-26); "" = shared base
 Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
            sku, L, W, thickness, sizeText, brandColor, priceSqft,
@@ -91,6 +111,7 @@ Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
            underlay:{checked,product,manual,install},
            attached:{ [categoryId]: {checked,product,manual} },
            freight: "" | "off",
+           kitId: "" | string,
            sheoga: { mode, cfg } | null,
            wedi: { mode, cfg } | { part: true } | null }
            // freight = the row's opt-OUT of its book's freight program
@@ -99,6 +120,21 @@ Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
            // the program existed is included too. The AMOUNT is never per row —
            // the vendor's minimum and pallet threshold are order-scoped, so
            // freightList charges each book once over every row that opted in.
+           // kitId = the kit-instance link (ADR 0035): one configurator
+           // emission (anchor + companions) lands with one shared kitId,
+           // stamped at landing time (model.js stampKit/landKitLines), so a
+           // reconfigure Add replaces the whole kit group and two same-vendor
+           // kits in one area stay tellable apart. "" on rows saved before it
+           // existed (reconfigure then falls back to consuming the contiguous
+           // companion run below the anchor) and on duplicated rows (a copied
+           // id would let the duplicate's reconfigure delete the original's
+           // rows). A multi-width bundle's first width line also carries
+           // `bundle: { base, widths, sf, markupPct }` inside its sheoga
+           // marker — the whole reopenable bundle snapshot (ADR 0035 step 2)
+           // — and that anchor owns its kitId group outright; the basket
+           // drawer's 'In this project' list derives from these markers
+           // (`placedKits`/`removeKitLines`, model.js), never from stored
+           // basket entries.
            // sheoga = the raw Sheoga-configurator configuration (issue 023)
            // snapshotted onto a row added from the configurator, so
            // "Reconfigure" reopens the popup pre-filled (src/sheoga.js
