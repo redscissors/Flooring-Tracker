@@ -1,6 +1,7 @@
 import { num } from "./catalog.js";
 import { normTier, normPrintPricing } from "./pricing.js";
 import { normBasketEntry } from "./sheoga.js";
+import { normDistance } from "./mapslookup.js";
 import { TYPES, TLBL } from "./uiconst.js";
 
 export const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
@@ -85,10 +86,10 @@ export const quickPrintName = (proj) => {
 // opts.waste seeds the job's waste rates from the shop default (Settings →
 // General). Both families start UNPRESSED: a new quote reads raw measured
 // footage until someone presses the waste they want ordered.
-export const newProject = (customerId = null, name = "New Project", opts = {}) => ({ id: uid(), customerId, name, address: "", phone: "", email: "", notes: "", createdAt: Date.now(), categories: opts.seedArea ? [newArea()] : [], versions: [], attachments: [], salesperson: null, priceTier: "retail", customPct: "", printPricing: "full", quick: !!opts.quick, freight: true, waste: { tile: opts.waste?.tile ?? 10, floor: opts.waste?.floor ?? 5, tileOn: false, floorOn: false }, sheogaBasket: [], wediBasket: [], schluterBasket: [], optionNames: {} });
+export const newProject = (customerId = null, name = "New Project", opts = {}) => ({ id: uid(), customerId, name, address: "", phone: "", email: "", notes: "", createdAt: Date.now(), categories: opts.seedArea ? [newArea()] : [], versions: [], attachments: [], salesperson: null, priceTier: "retail", customPct: "", printPricing: "full", quick: !!opts.quick, freight: true, waste: { tile: opts.waste?.tile ?? 10, floor: opts.waste?.floor ?? 5, tileOn: false, floorOn: false }, sheogaBasket: [], wediBasket: [], schluterBasket: [], optionNames: {}, distance: null });
 // A Customer is the person/account that owns many projects and holds contact
 // info once. A Builder is a canonical name-list a customer links to by id.
-export const newPerson = (name = "") => ({ id: uid(), builderId: null, name, phone: "", email: "", address: "", notes: "", createdAt: Date.now() });
+export const newPerson = (name = "") => ({ id: uid(), builderId: null, name, phone: "", email: "", address: "", notes: "", createdAt: Date.now(), distance: null });
 export const newBuilder = (name = "") => ({ id: uid(), name });
 
 // thickness/joint use || not ??: rows migrated from the artifact can hold ""
@@ -165,7 +166,7 @@ export const normKitBasketEntry = (e) => {
 };
 const normKitBasket = (v) => (Array.isArray(v) ? v.map(normKitBasketEntry).filter(Boolean) : []);
 
-export const normC = (c) => ({ ...c, customerId: c.customerId ?? null, createdAt: c.createdAt || Date.now(), quick: !!c.quick, freight: c.freight !== false, categories: (c.categories || []).map(normA), versions: c.versions || [], attachments: c.attachments || [], salesperson: c.salesperson || null, priceTier: normTier(c.priceTier), customPct: c.customPct ?? "", printPricing: normPrintPricing(c.printPricing), waste: normWasteJob(c.waste), sheogaBasket: (c.sheogaBasket || []).map(normBasketEntry).filter(Boolean), wediBasket: normKitBasket(c.wediBasket), schluterBasket: normKitBasket(c.schluterBasket), optionNames: (() => { const out = {}; const v = c.optionNames; if (v && typeof v === "object") for (const s of OPTION_SLOTS) { const n = typeof v[s] === "string" ? v[s].trim() : ""; if (n) out[s] = n; } return out; })() });
+export const normC = (c) => ({ ...c, customerId: c.customerId ?? null, createdAt: c.createdAt || Date.now(), quick: !!c.quick, freight: c.freight !== false, categories: (c.categories || []).map(normA), versions: c.versions || [], attachments: c.attachments || [], salesperson: c.salesperson || null, priceTier: normTier(c.priceTier), customPct: c.customPct ?? "", printPricing: normPrintPricing(c.printPricing), waste: normWasteJob(c.waste), sheogaBasket: (c.sheogaBasket || []).map(normBasketEntry).filter(Boolean), wediBasket: normKitBasket(c.wediBasket), schluterBasket: normKitBasket(c.schluterBasket), optionNames: (() => { const out = {}; const v = c.optionNames; if (v && typeof v === "object") for (const s of OPTION_SLOTS) { const n = typeof v[s] === "string" ? v[s].trim() : ""; if (n) out[s] = n; } return out; })(), distance: normDistance(c.distance) });
 
 // --- configurator kit landing (ADR 0035) ----------------------------------
 // One configurator emission (anchor + companions) is one KIT: every line lands
