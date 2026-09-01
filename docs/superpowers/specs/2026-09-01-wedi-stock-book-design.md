@@ -62,10 +62,13 @@ the file dropped on it like any ERP export.
 
 Two warnings the import raises, both benign here and both worth knowing:
 
-- *3 rows with a $0 price* — `29WEDIT` (a "Wedi" category placeholder), `1518104`,
-  `1518105`. `29WEDIT` is the row the transcription drops; 152 export rows → 151
-  catalog entries is exactly this one. The other two are live $0 rows on the sheet
-  and land as $0 lines, same as today.
+- *3 rows with a $0 price* — the wizard's own wording; what it actually flags is
+  $0 **cost**, not $0 retail. `29WEDIT` (a "Wedi" category placeholder) is the
+  one genuinely $0/$0 row, and the row the transcription drops; 152 export rows
+  → 151 catalog entries is exactly this one. `1518104`/`1518105` are $0-*cost*
+  samples that carry a real $100 retail, in both the export and the transcribed
+  table — they land at their normal $100 price, not as $0 lines. Confirmed with
+  the owner; see "Still open for the owner", #2.
 - *6 carton-sold rows carry no sf/ct in the description* — they would quote the
   carton price per piece **if picked through ordinary row search**. The configurator
   is unaffected: it prices per EA/BX off its own catalog, never per sf.
