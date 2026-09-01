@@ -72,7 +72,7 @@ Environment variables, never `netlify.toml`, which is committed).
 Requests and Compute Routes carry a 10,000-call free monthly allowance; the
 relay is shaped to stay on them:
 
-- **No Place Details call.** The stored address is one free-text string
+- **No Place Details call.** ~~Superseded by the 2026-09-01 amendment below.~~ The stored address is one free-text string
   (no city/state/zip breakout — a deliberate non-goal), so an autocomplete
   prediction's own text is the whole answer; there is nothing a Details call
   would add. This also means session tokens are unnecessary — session pricing
@@ -178,3 +178,44 @@ pressing Recheck) ever writes a new `distance`.
   prove the surrounding plumbing (parsing, debounce, staleness, UI states),
   not that Google answers these two exact request bodies the way the docs say
   it will.
+
+
+---
+
+## Amendment, 2026-09-01: Place Details, for the postal code
+
+**Status:** Accepted, same day, before merge.
+
+The owner ran the probe on the deploy preview: both Google calls answered 200,
+which is the first and only proof the request shapes above are right. The first
+real address typed then showed what no fixture had — **Autocomplete predictions
+carry no postal code.** Google omits postal codes and unit numbers from
+prediction text by design and documents Place Details, keyed by the prediction's
+`placeId`, as the way to a complete address. No amount of tuning the
+Autocomplete request produces a ZIP.
+
+The preview screenshots taken before merge showed ZIPs. They were invented
+fixture data, written by someone who could not call the API. That is the exact
+failure mode this ADR's last section warns about, arriving one day later.
+
+**Decision:** reverse the "no Place Details call" consequence. Picking a
+suggestion now resolves it through `op: "details"` and stores the returned
+`formattedAddress`.
+
+**What this costs.** A third Essentials-tier SKU, Place Details Essentials, with
+its own 10,000-call monthly free allowance. It fires **once per address picked**,
+never per keystroke, so the allowance is 10,000 picked addresses a month —
+further from this shop's volume than the Autocomplete allowance already was.
+Session tokens were added at the same time (a token is minted lazily on the first
+suggest of a burst and retired by the details call that ends it), which is
+Google's own pricing mechanism for exactly this pair.
+
+**What did not change.** No Geocoding call — Routes still takes the address
+string directly. The relay still returns raw envelopes and the browser still
+parses them. The key still lives only in the function.
+
+**The failure rule.** A picked suggestion fills the field with the prediction
+text immediately, then upgrades it when Details answers. A details failure
+leaves the prediction standing: a missing postal code is never worse than a pick
+that does nothing. The distance is measured against the address as it finally
+reads, so our own upgrade cannot trip the drift chip.

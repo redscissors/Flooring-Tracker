@@ -13,16 +13,26 @@ const METERS_PER_MILE = 1609.344;
 const key = (s) => String(s || "").trim().toLowerCase();
 
 // suggestions[].placePrediction.text is a LocalizedText ({ text }) in the
-// current API; tolerate a bare string too.
+// current API; tolerate a bare string too. The placeId rides along because
+// Autocomplete omits postal codes (and unit numbers) by design — a picked
+// suggestion is resolved through Place Details to get the complete address
+// (ADR 0036 amendment, verified against the live API 2026-09-01). A prediction
+// without one is still offered: its text alone is better than no suggestion.
 export const parseSuggestions = (json) => {
   const list = Array.isArray(json?.suggestions) ? json.suggestions : [];
   const out = [];
   for (const s of list) {
     const t = s?.placePrediction?.text;
-    const str = String((t && typeof t === "object" ? t.text : t) ?? "").trim();
-    if (str && !out.some((o) => key(o) === key(str))) out.push(str);
+    const text = String((t && typeof t === "object" ? t.text : t) ?? "").trim();
+    if (text && !out.some((o) => key(o.text) === key(text))) out.push({ text, placeId: String(s?.placePrediction?.placeId ?? "") });
   }
   return out;
+};
+
+// The complete address, postal code included — what Autocomplete could not give.
+export const parseDetails = (json) => {
+  const a = json?.formattedAddress;
+  return typeof a === "string" ? a.trim() : "";
 };
 
 // Routes answers duration as seconds with a trailing "s" ("1620s").

@@ -27,18 +27,29 @@ if (supabase) {
 // The relay, faked at the fetch boundary: everything above it — the hook, the
 // debounce, the parsers, the chips — is the real code the app ships.
 const ROUTE = { routes: [{ distanceMeters: 29610, duration: "1620s" }] };
+// No postal codes here: Autocomplete omits them, verified against the live API
+// 2026-09-01. DETAILS below is what supplies the ZIP when a suggestion is picked.
 const SUGGESTIONS = {
   suggestions: [
-    { placePrediction: { text: { text: "4905 Harris Rd, Broadview Heights, OH 44147, USA" } } },
-    { placePrediction: { text: { text: "4905 Harrison Ave, Cleveland, OH 44102, USA" } } },
-    { placePrediction: { text: { text: "4905 Harvard Ave, Newburgh Heights, OH 44105, USA" } } },
+    { placePrediction: { placeId: "ChIJharris", text: { text: "4905 Harris Rd, Broadview Heights, OH, USA" } } },
+    { placePrediction: { placeId: "ChIJharrison", text: { text: "4905 Harrison Ave, Cleveland, OH, USA" } } },
+    { placePrediction: { placeId: "ChIJharvard", text: { text: "4905 Harvard Ave, Newburgh Heights, OH, USA" } } },
   ],
+};
+
+// What Place Details returns per prediction — the complete address a picked
+// field ends up holding.
+const DETAILS = {
+  ChIJharris: "4905 Harris Rd, Broadview Heights, OH 44147, USA",
+  ChIJharrison: "4905 Harrison Ave, Cleveland, OH 44102, USA",
+  ChIJharvard: "4905 Harvard Ave, Newburgh Heights, OH 44105, USA",
 };
 
 let netMode = "ok"; // "ok" | "not-configured" | "over-quota" | "no-route"
 const reply = (body) => {
   if (netMode !== "ok" && netMode !== "no-route") return { error: netMode };
   if (body.op === "suggest") return SUGGESTIONS;
+  if (body.op === "details") return { formattedAddress: DETAILS[body.placeId] || "" };
   return netMode === "no-route" ? { error: "no-route" } : ROUTE;
 };
 

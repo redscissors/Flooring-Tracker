@@ -20,10 +20,25 @@ const PLACES = "https://places.googleapis.com/v1/places:autocomplete";
 const ROUTES = "https://routes.googleapis.com/directions/v2:computeRoutes";
 // Routes REJECTS a request without a field mask, and the mask is also what
 // keeps both calls on the cheap Essentials SKU — never widen these casually.
-const PLACES_MASK = "suggestions.placePrediction.text";
+// placeId rides along because Autocomplete omits postal codes by design; the
+// details op resolves a picked suggestion to its complete address.
+const PLACES_MASK = "suggestions.placePrediction.text,suggestions.placePrediction.placeId";
+const DETAILS = "https://places.googleapis.com/v1/places/";
+const DETAILS_MASK = "formattedAddress";
 const ROUTES_MASK = "routes.distanceMeters,routes.duration";
 
 const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+
+// Place Details is a GET with the id in the PATH — the only upstream call here
+// that isn't a POST. The id and token are regex-validated by relayProblems
+// before they ever reach this line, and encodeURIComponent is the second belt.
+const callGoogleGet = async (url, mask, key) => {
+  const res = await fetch(url, {
+    headers: { "X-Goog-Api-Key": key, "X-Goog-FieldMask": mask },
+    signal: AbortSignal.timeout(10000),
+  });
+  return { status: res.status, data: await res.json().catch(() => null) };
+};
 
 const callGoogle = async (url, mask, body, key) => {
   const res = await fetch(url, {
@@ -73,9 +88,20 @@ export default async function handler(req) {
     }
 
     if (body.op === "suggest") {
-      const { status, data } = await callGoogle(PLACES, PLACES_MASK, { input: String(body.input).trim(), regionCode: "US" }, key);
+      // The session token pairs this burst with its terminating details call
+      // for Google's session pricing; omitted when the caller sends none.
+      const req = { input: String(body.input).trim(), regionCode: "US" };
+      if (body.sessionToken) req.sessionToken = String(body.sessionToken);
+      const { status, data } = await callGoogle(PLACES, PLACES_MASK, req, key);
       if (status !== 200) return json(502, { error: upstreamError(status) });
       return json(200, { suggestions: data?.suggestions ?? [] });
+    }
+
+    if (body.op === "details") {
+      const q = body.sessionToken ? `?sessionToken=${encodeURIComponent(String(body.sessionToken))}` : "";
+      const { status, data } = await callGoogleGet(`${DETAILS}${encodeURIComponent(String(body.placeId).trim())}${q}`, DETAILS_MASK, key);
+      if (status !== 200) return json(502, { error: upstreamError(status) });
+      return json(200, data ?? {});
     }
 
     const { status, data } = await callGoogle(ROUTES, ROUTES_MASK, {

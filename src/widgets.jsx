@@ -6,7 +6,7 @@ import { money } from "./model.js";
 import { normName, matchName } from "./names.js";
 import { mapsUrl, cleanAddress } from "./address.js";
 import { escPush } from "./escstack.js";
-import { useAddressSuggest, fetchDistance } from "./usemapslookup.js";
+import { useAddressSuggest, fetchDistance, fetchPlaceDetails } from "./usemapslookup.js";
 import { MIN_SUGGEST, formatDist, distStale } from "./mapslookup.js";
 
 // Register onClose as the Escape action while `active` (escstack.js). Later
@@ -540,7 +540,7 @@ export const lookupErrText = (code) => LOOKUP_ERR[code] || (code ? "Address look
 export function AddressField({ value, onChange, inp, placeholder, autoFocus, ping, suggest = false, distance = null, shopAddress = "", onDistance }) {
   const ref = useRef(null);
   const [open, setOpen] = useState(false);
-  const { suggestions, err, ask, clear } = useAddressSuggest();
+  const { suggestions, err, ask, clear, takeToken } = useAddressSuggest();
   const [busy, setBusy] = useState(false);
   const [distErr, setDistErr] = useState("");
   const stale = distStale(distance, value, shopAddress);
@@ -585,7 +585,22 @@ export function AddressField({ value, onChange, inp, placeholder, autoFocus, pin
     setOpen(true);
   };
   const commit = () => { if (suggest) setTimeout(() => setOpen(false), 150); if (!distance || stale) measure(); };
-  const pick = (s) => { onChange(s); clear(); setOpen(false); if (shopAddress) measureAddr(s); };
+  // A prediction carries no postal code — Autocomplete omits them — so the pick
+  // fills the field with the prediction IMMEDIATELY, then upgrades it to the
+  // complete address once Place Details answers. The field is never blocked on
+  // the network, and a details failure simply leaves the prediction standing.
+  // takeToken() must run before clear(), which retires the session.
+  const pick = async (s) => {
+    const sessionToken = takeToken();
+    onChange(s.text);
+    clear();
+    setOpen(false);
+    const full = await fetchPlaceDetails(s.placeId, sessionToken);
+    if (full && full !== s.text) onChange(full);
+    // Measure the address as it will READ, so the stored distance's `to`
+    // matches the field and the drift chip doesn't fire on our own upgrade.
+    if (shopAddress) measureAddr(full || s.text);
+  };
 
   return (
     <div className="relative">
@@ -603,8 +618,8 @@ export function AddressField({ value, onChange, inp, placeholder, autoFocus, pin
           {err && err !== "not-configured"
             ? <div className="px-3 py-2 text-[12.5px] text-amber-800 bg-amber-50">{lookupErrText(err)}</div>
             : suggestions.map((s) => (
-              <div key={s} onMouseDown={(e) => { e.preventDefault(); pick(s); }}
-                className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer">{s}</div>
+              <div key={s.placeId || s.text} onMouseDown={(e) => { e.preventDefault(); pick(s); }}
+                className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer">{s.text}</div>
             ))}
         </div>
       )}

@@ -40,7 +40,7 @@ Both SKUs we use are Essentials:
 
 Two deliberate simplifications keep it to those two SKUs:
 
-- **No Place Details call.** Because the stored address is one free-text string,
+- **No Place Details call.** *(Superseded 2026-09-01 — see ADR 0036's amendment: predictions carry no postal code, so a picked suggestion is resolved through Place Details.)* Because the stored address is one free-text string,
   the autocomplete prediction's own text is the whole answer. This also means no
   session tokens: session pricing exists to discount an Autocomplete→Details
   pair, and we never make the second call.

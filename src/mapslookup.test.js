@@ -1,21 +1,28 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseSuggestions, parseDistance, formatDist, normDistance, distStale, shouldSuggest } from "./mapslookup.js";
+import { parseSuggestions, parseDetails, parseDistance, formatDist, normDistance, distStale, shouldSuggest } from "./mapslookup.js";
 
 // Places Autocomplete (New) wraps the prediction text in a LocalizedText
 // object; older/alternate shapes hand back a bare string. Accept both.
+// Note the predictions carry NO postal code: Autocomplete omits them by design,
+// which is why a picked suggestion is resolved through Place Details by placeId
+// (ADR 0036 amendment). The fixture reflects what Google actually returns.
 const AUTOCOMPLETE = {
   suggestions: [
-    { placePrediction: { text: { text: "4905 Harris Rd, Broadview Heights, OH 44147, USA" } } },
-    { placePrediction: { text: "5063 County Road 314, Millersburg, OH 44654, USA" } },
+    { placePrediction: { placeId: "ChIJharris", text: { text: "4905 Harris Rd, Broadview Heights, OH, USA" } } },
+    { placePrediction: { placeId: "ChIJcounty", text: "5063 County Road 314, Millersburg, OH, USA" } },
   ],
 };
 
-test("parseSuggestions reads both the LocalizedText and bare-string shapes", () => {
+test("parseSuggestions reads both the LocalizedText and bare-string shapes, keeping each placeId", () => {
   assert.deepEqual(parseSuggestions(AUTOCOMPLETE), [
-    "4905 Harris Rd, Broadview Heights, OH 44147, USA",
-    "5063 County Road 314, Millersburg, OH 44654, USA",
+    { text: "4905 Harris Rd, Broadview Heights, OH, USA", placeId: "ChIJharris" },
+    { text: "5063 County Road 314, Millersburg, OH, USA", placeId: "ChIJcounty" },
   ]);
+});
+
+test("parseSuggestions keeps a prediction that carries no placeId — the text is still usable", () => {
+  assert.deepEqual(parseSuggestions({ suggestions: [{ placePrediction: { text: { text: "A Rd" } } }] }), [{ text: "A Rd", placeId: "" }]);
 });
 
 test("parseSuggestions returns an empty list rather than throwing on junk", () => {
@@ -26,8 +33,20 @@ test("parseSuggestions returns an empty list rather than throwing on junk", () =
 });
 
 test("parseSuggestions drops duplicates and blanks", () => {
-  const dup = { suggestions: [{ placePrediction: { text: { text: "A" } } }, { placePrediction: { text: { text: " A " } } }, { placePrediction: { text: { text: "  " } } }] };
-  assert.deepEqual(parseSuggestions(dup), ["A"]);
+  const dup = { suggestions: [{ placePrediction: { placeId: "p1", text: { text: "A" } } }, { placePrediction: { placeId: "p2", text: { text: " A " } } }, { placePrediction: { text: { text: "  " } } }] };
+  assert.deepEqual(parseSuggestions(dup), [{ text: "A", placeId: "p1" }]);
+});
+
+// Place Details is what supplies the postal code the predictions leave out.
+test("parseDetails returns the complete formatted address", () => {
+  assert.equal(parseDetails({ formattedAddress: "4905 Harris Rd, Broadview Heights, OH 44147, USA" }), "4905 Harris Rd, Broadview Heights, OH 44147, USA");
+});
+
+test("parseDetails gives an empty string when the shape is not what we expect", () => {
+  assert.equal(parseDetails(null), "");
+  assert.equal(parseDetails({}), "");
+  assert.equal(parseDetails({ formattedAddress: 42 }), "");
+  assert.equal(parseDetails({ formattedAddress: "   " }), "");
 });
 
 test("parseDistance converts meters to miles and the duration string to minutes", () => {
