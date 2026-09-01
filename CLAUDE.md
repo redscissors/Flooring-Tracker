@@ -45,6 +45,12 @@ netlify/
                      # fetches a portal sheet from an allowlisted host and
                      # streams the bytes to the browser. FALLBACK relay — used
                      # when the Supabase Edge twin isn't deployed / reachable
+    maps.mjs         # Google Maps relay (ADR 0036): JWT-gated, holds
+                     # GOOGLE_MAPS_KEY, relays address-suggestion (Places
+                     # Autocomplete) and job-site-distance (Routes) calls —
+                     # the browser never sees the key. Also serves an
+                     # `op:"probe"` diagnostic, the one way to check the key
+                     # works (Settings → General → Test address lookup)
 supabase/
   schema.sql        # run once: app_data + customers + versions tables + RLS
   storage.sql       # run once: attachments bucket + storage policies
