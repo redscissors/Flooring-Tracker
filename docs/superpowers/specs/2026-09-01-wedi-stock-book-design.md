@@ -183,13 +183,16 @@ Nothing before step 3 touches quoting: until the book has rows, the engine runs 
 - **Any change to how wedi prices.** wedi publishes retail and the shop marks
   nothing up; the Builder × 0.82 rule is untouched.
 
-## Open questions for the owner
+## Answered
 
-1. **Book naming and kind.** Is one stock-kind book named "wedi" right, or does the
-   shop's existing naming convention want something else? The adapter finds the book
-   by kind + name/brand match (the Schluter pattern: `/schluter/i` on name or
-   `brandLabel`), so the name is load-bearing.
+1. **Book name — "wedi"** (owner, 2026-09-01). One stock-kind book. The adapter
+   therefore matches on `/wedi/i` against the book's name or `brandLabel`, mirroring
+   the Schluter pattern.
+
+## Still open for the owner
+
 2. **The two live $0 rows** (`1518104`, `1518105`). Are those genuinely $0, or a
-   sheet artifact worth fixing before import?
+   sheet artifact worth fixing before import? Not a blocker — they land as $0 lines
+   either way, the same as today — but worth knowing before the book is trusted.
 3. **Fallback lifetime.** Keep `WEDI_STOCK` as the empty-book fallback indefinitely,
    or plan its removal with 8b?
