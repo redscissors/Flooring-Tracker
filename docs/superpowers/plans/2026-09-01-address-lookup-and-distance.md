@@ -1090,6 +1090,79 @@ git commit -m "ADR 0036: the Maps relay, and why a measured distance is a snapsh
 
 ---
 
+### Task 11: The probe button in Settings
+
+**Plan defect, found 2026-09-01 after the owner set the key.** The spec promises
+"the owner clicks one button in Settings after setting the env var", and Task 3
+built the relay's `probe` op and Task 6 exported `probeMaps()` — but NO task ever
+wired a control to call them. The one mechanism designed to verify the unverifiable
+Google request shapes was unreachable from the app. This task closes that.
+
+**Files:**
+- Modify: `src/SettingsWorkspace.jsx` (General section, directly beneath the shop-address field from Task 4)
+
+**Interfaces:**
+- Consumes: `probeMaps()` from `src/usemapslookup.js` — resolves to `{ok, keyPresent, places, routes}` on success or `{error: "<code>"}`; `lookupErrText(code)` from `src/widgets.jsx`.
+- Produces: nothing other tasks consume.
+
+- [ ] **Step 1: Add the control**
+
+Beneath the shop-address `AddressField`, inside the same bordered block:
+
+```jsx
+              <div className="flex items-center gap-2 mt-2">
+                <button type="button" onClick={runProbe} disabled={probing}
+                  className="rounded-md border border-slate-200 px-2.5 py-1 text-[12px] font-semibold text-slate-500 hover:border-indigo-300 hover:text-indigo-700 disabled:opacity-40">
+                  {probing ? "Checking…" : "Test address lookup"}
+                </button>
+                {probe && <span className="text-[11px]" style={{ color: probe.ok ? "var(--ft-brand)" : "#b45309" }}>{probeText(probe)}</span>}
+              </div>
+```
+
+with, in the component:
+
+```jsx
+  const [probe, setProbe] = useState(null);
+  const [probing, setProbing] = useState(false);
+  const runProbe = async () => {
+    setProbing(true); setProbe(null);
+    try { setProbe(await probeMaps()); } finally { setProbing(false); }
+  };
+```
+
+and, beside the file's other module-level helpers:
+
+```jsx
+// What the relay's probe found, in words the owner can act on. Google answers 403
+// both for an over-quota key and for an API that was never enabled, so the two
+// statuses are reported separately rather than collapsed.
+const probeText = (p) => {
+  if (p?.error) return lookupErrText(p.error);
+  if (p?.ok) return "Working — Places and Routes both answered.";
+  const bad = [p?.places !== 200 && `Places ${p?.places}`, p?.routes !== 200 && `Routes ${p?.routes}`].filter(Boolean).join(", ");
+  return `Key is set, but ${bad || "an API"} did not answer 200 — check both APIs are enabled and the key is unrestricted for them.`;
+};
+```
+
+Import `probeMaps` from `./usemapslookup.js` and add `lookupErrText` to the existing `./widgets.jsx` import.
+
+- [ ] **Step 2: Verify**
+
+```bash
+npx eslint src/SettingsWorkspace.jsx     # expect no output
+npm test                                  # 0 fail
+VITE_SUPABASE_URL="https://mzftplcyfotlzolqeapl.supabase.co" VITE_SUPABASE_ANON_KEY="sb_publishable_oa96t2IYhNv_UE3nCx0LCw_s_amtTtO" npm run build
+```
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add src/SettingsWorkspace.jsx
+git commit -m "Settings: a button to test the address-lookup key"
+```
+
+---
+
 ## Handing it over
 
 The feature is **inert until the owner does five things**, and says so in the UI rather than looking broken:
