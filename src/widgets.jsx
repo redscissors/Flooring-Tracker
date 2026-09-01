@@ -7,6 +7,7 @@ import { normName, matchName } from "./names.js";
 import { mapsUrl, cleanAddress } from "./address.js";
 import { escPush } from "./escstack.js";
 import { useAddressSuggest } from "./usemapslookup.js";
+import { MIN_SUGGEST } from "./mapslookup.js";
 
 // Register onClose as the Escape action while `active` (escstack.js). Later
 // registrations sit above earlier ones, so the most recently opened layer
@@ -550,7 +551,9 @@ export function AddressField({ value, onChange, inp, placeholder, autoFocus, pin
 
   const type = (v) => {
     onChange(v);
-    if (suggest) { ask(v); setOpen(true); }
+    if (!suggest) return;
+    if (v.trim().length < MIN_SUGGEST) clear(); else ask(v);
+    setOpen(true);
   };
   const pick = (s) => { onChange(s); clear(); setOpen(false); };
 
