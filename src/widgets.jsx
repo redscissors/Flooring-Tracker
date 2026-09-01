@@ -1,9 +1,10 @@
 import { Component, useState, useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, User, Paperclip, X, Lock, LockOpen, Eye, EyeOff } from "lucide-react";
+import { ChevronDown, User, Paperclip, X, Lock, LockOpen, Eye, EyeOff, MapPin, ClipboardPaste } from "lucide-react";
 import { num } from "./catalog.js";
 import { money } from "./model.js";
 import { normName, matchName } from "./names.js";
+import { mapsUrl, cleanAddress } from "./address.js";
 import { escPush } from "./escstack.js";
 
 // Register onClose as the Escape action while `active` (escstack.js). Later
@@ -512,4 +513,30 @@ export function NumIn({ value, onCommit, ...rest }) {
     onChange={(e) => setDraft(e.target.value)}
     onBlur={() => { live.current = false; onCommit(draft); }}
     onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} />;
+}
+
+// The address field, with the two shortcuts that stand in for a typeahead:
+// open Maps seeded with what's typed, and paste back what you copied there.
+// Clipboard reads are gated by the browser (Firefox and Safari prompt; an
+// http origin refuses outright), so a refusal falls back to focusing the
+// field — the button is a convenience, never the only way in.
+const ADDR_BTN = "shrink-0 flex items-center justify-center rounded-md border border-slate-200 p-1.5 text-slate-400 hover:text-indigo-700 hover:border-indigo-300 transition";
+const PASTE_KEY = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || "") ? "⌘V" : "Ctrl+V";
+
+export function AddressField({ value, onChange, inp, placeholder, autoFocus, ping }) {
+  const ref = useRef(null);
+  const paste = async () => {
+    let text = "";
+    try { text = await navigator.clipboard.readText(); } catch { ref.current?.focus(); ping?.(`Press ${PASTE_KEY} to paste`); return; }
+    const clean = cleanAddress(text);
+    if (clean) onChange(clean); else ping?.("Nothing on the clipboard — copy the address from Maps first");
+  };
+  return (
+    <div className="flex items-center gap-1">
+      <input ref={ref} value={value || ""} autoFocus={autoFocus} placeholder={placeholder} className={inp} onChange={(e) => onChange(e.target.value)} />
+      <button type="button" title="Look up on Google Maps" className={ADDR_BTN}
+        onClick={() => window.open(mapsUrl(value), "_blank", "noopener,noreferrer")}><MapPin size={15} /></button>
+      <button type="button" title="Paste the address you copied" className={ADDR_BTN} onClick={paste}><ClipboardPaste size={15} /></button>
+    </div>
+  );
 }
