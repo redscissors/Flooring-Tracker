@@ -567,6 +567,8 @@ export default function App({ user, onSignOut }) {
     sampleRequests, hydrateSampleRequests, refreshSampleRequests,
     addSampleRequest, delSampleRequest, setSampleOrdered,
   } = useSamples({ user, profile, ping, flashSaved });
+  const openTodoCount = todos.filter((t) => !t.done).length;
+  const openClaudeCount = claudeIssues.filter((t) => !t.done).length;
   // Which Issues & To-Do tab is up; the sidebar button refreshes both lists.
   const [issuesTab, setIssuesTab] = useState("team");
   const openIssues = (tab) => { if (tab) setIssuesTab(tab); openTodos(); refreshClaudeIssues(); };
@@ -1438,10 +1440,14 @@ export default function App({ user, onSignOut }) {
             </div>
             <div className="flex gap-2">
               <button onClick={() => { setSettingsSection("materials"); setShowSettings(true); setSidebarOpen(false); }} className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm py-1.5 text-slate-600"><Settings size={15} /> Settings</button>
-              <button onClick={() => openIssues()} title="Team issues & to-do list — the clay count is the Claude issue bucket" className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm py-1.5 text-slate-600">
-                <ListTodo size={15} /> Issues
-                {todos.filter((t) => !t.done).length > 0 && <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-indigo-600 text-white text-[10px] font-semibold flex items-center justify-center">{todos.filter((t) => !t.done).length}</span>}
-                {claudeIssues.filter((t) => !t.done).length > 0 && <span className="min-w-[18px] h-[18px] px-1 rounded-full text-white text-[10px] font-semibold flex items-center justify-center gap-0.5" style={{ background: CLAUDE_CLAY }}><ClaudeMark size={8} />{claudeIssues.filter((t) => !t.done).length}</span>}
+              <button onClick={() => openIssues()} aria-label="Issues" title="Team issues & to-do list — the clay count is the Claude issue bucket" className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm py-1.5 text-slate-600">
+                {/* Icon + label + both counts is wider than half the 205px rail,
+                    and nothing inside a button shrinks — it used to spill past
+                    the rail's edge. The counts say "issues" well enough on
+                    their own, so the word steps aside while either is up. */}
+                <ListTodo size={15} />{openTodoCount + openClaudeCount === 0 && " Issues"}
+                {openTodoCount > 0 && <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-indigo-600 text-white text-[10px] font-semibold flex items-center justify-center">{openTodoCount}</span>}
+                {openClaudeCount > 0 && <span className="min-w-[18px] h-[18px] px-1 rounded-full text-white text-[10px] font-semibold flex items-center justify-center gap-0.5" style={{ background: CLAUDE_CLAY }}><ClaudeMark size={8} />{openClaudeCount}</span>}
               </button>
             </div>
           </div>
