@@ -8,6 +8,7 @@ import { DotMenu, Modal, HelpTip, AddressField, lookupErrText } from "./widgets.
 import { StockSearch, FamilySearch, SeriesSearch } from "./search.jsx";
 import { PriceBookLibrary } from "./pricebooklib.jsx";
 import { probeMaps } from "./usemapslookup.js";
+import { probeText } from "./probetext.js";
 
 // The shared grout/mortar catalog editor: a Company → Product tree. Each company
 // and product has an enabled checkbox (show/hide for the job dropdowns); a
@@ -164,15 +165,7 @@ function LinkMigration({ catalog, bookStock, books, onApply, onClose }) {
   );
 }
 
-// What the relay's probe found, in words the owner can act on. Google answers 403
-// both for an over-quota key and for an API that was never enabled, so the two
-// statuses are reported separately rather than collapsed.
-const probeText = (p) => {
-  if (p?.error) return lookupErrText(p.error);
-  if (p?.ok) return "Working — Places and Routes both answered.";
-  const bad = [p?.places !== 200 && `Places ${p?.places}`, p?.routes !== 200 && `Routes ${p?.routes}`].filter(Boolean).join(", ");
-  return `Key is set, but ${bad || "an API"} did not answer 200 — check both APIs are enabled and the key is unrestricted for them.`;
-};
+export { probeText };
 
 export default function SettingsWorkspace({ onClose, settings, setSettings, gFamilies, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, headerLayout, setHeaderLayout, profile, saveProfile, user, books, addBook, updateBook, confirmBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setBookItemIssue, addClaudeIssue, bookStock = {}, bookStockReady, refreshBookStock, initialSection, onSectionChange, ping }) {
   const catalog = settings.catalog;
@@ -892,7 +885,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
                   className="rounded-md border border-slate-200 px-2.5 py-1 text-[12px] font-semibold text-slate-500 hover:border-indigo-300 hover:text-indigo-700 disabled:opacity-40">
                   {probing ? "Checking…" : "Test address lookup"}
                 </button>
-                {probe && <span className="text-[11px]" style={{ color: probe.ok ? "var(--ft-brand)" : "#b45309" }}>{probeText(probe)}</span>}
+                {probe && <span className="text-[11px]" style={{ color: probe.ok ? "var(--ft-brand)" : "#b45309" }}>{probeText(probe, lookupErrText)}</span>}
               </div>
             </div>
             <div className="mt-8 pt-6 border-t border-slate-100">

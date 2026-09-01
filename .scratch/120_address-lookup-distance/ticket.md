@@ -150,3 +150,108 @@ Preview screenshots in this folder: `01-suggestions-open.png`,
 `04-not-configured.png`, `05-over-quota.png`, `06-no-route.png`
 (+ `06a-no-route-suggestions.png`), `07-suggestions-420.png`,
 `08-stale-distance-420.png`.
+
+---
+
+## Task 11 fix round 1, Finding 3 — the probe button's preview proof
+
+Task 11 added a "Test address lookup" button to Settings → General
+(`src/SettingsWorkspace.jsx`), wiring `probeMaps()` (already built, never
+called) to a control. It shipped with zero preview proof — Task 9's shots
+above predate this control entirely. This section adds it.
+
+### What's real, what's stubbed
+
+`.scratch/120_address-lookup-distance/settingsprobe.jsx` mounts the **real
+`SettingsWorkspace` component** (`initialSection="general"`) — not a
+reproduction. The button, `runProbe`, and `probeText` are all the real
+shipped code; only `window.fetch` for `/.netlify/functions/maps` is
+stubbed, keyed off a `probeMode` switch (`ok` / `not-configured` /
+`places-403` / `both-403` / `unauthorized`) driven by the `data-mode`
+buttons pinned at the top of the page, returning exactly the status/body
+shapes `netlify/functions/maps.mjs`'s real `probe` op returns for each
+case. `SettingsWorkspace`'s other ~35 props are stubbed with real
+production helpers where cheap and correct to do so, rather than ad hoc
+literals: `settings` comes from the real `normalizeSettings()`/`withDerived()`
+(`catalog.js`) so the catalog, waste, and pricing shapes are exactly what
+production seeds; `types`/`typeLabels` are the real `TYPES`/`TLBL`
+(`uiconst.js`); `ping` is the real `useToast()` hook. Everything else
+touching Materials/Price book/Backup (books, bookStock, gFamilies, the
+book-write callbacks) is a no-op or empty collection, since the General
+section never reads them — confirmed by reading the component: nothing
+above the section switch touches those props except default-safe
+`.length`/`.reduce` calls over empty arrays for the sidebar's per-section
+counts. This mounts cleanly with no `pageerror` (verified below), so this
+is the "mount the real panel" case, not the "reproduce the block" fallback.
+
+The session stub is the same as `preview.jsx` above (real Supabase env
+vars, `supabase.auth.getSession` stubbed to a fake token) — see that
+section's write-up; the same reasoning applies here since `probeMaps()`
+(`usemapslookup.js`) calls the identical `call()` helper.
+
+### Cards (`.scratch/120_address-lookup-distance/settingsprobe.jsx` / `shotprobe.mjs`)
+
+One real Settings panel, driven through all five relay replies by clicking
+the mode buttons then the real "Test address lookup" button:
+
+| # | Case | Relay reply the fake fetch returns | Shot |
+|---|---|---|---|
+| — | transient | (any mode, caught mid-flight) | `11-01-not-configured-checking.png` |
+| 1 | not configured | `503 {error:"not-configured"}` | `11-01-not-configured.png` |
+| 2 | working | `200 {ok:true, places:200, routes:200}` | `11-02-working.png` |
+| 3 | Places alone failing | `200 {ok:false, places:403, routes:200}` | `11-03-places-403.png` |
+| 4 | both failing | `200 {ok:false, places:403, routes:403}` | `11-04-both-403.png` |
+| 5 | other relay error | `401 {error:"unauthorized"}` | `11-05-unauthorized.png` |
+
+### What I saw, opening every screenshot
+
+- **`11-01-not-configured-checking.png`** — immediately after the click, the
+  button itself reads "Checking…" in muted gray and is visibly disabled
+  (dimmed) — the transient state renders, confirming the try/finally can't
+  strand it there.
+- **`11-01-not-configured.png`** — button back to "Test address lookup",
+  amber text beside it: **"Address lookup needs a Google key — see
+  Settings"** — `lookupErrText("not-configured")`'s real copy, byte-for-byte.
+- **`11-02-working.png`** — brand-green (`var(--ft-brand)`) text: **"Working
+  — Places and Routes both answered."**
+- **`11-03-places-403.png`** — amber text: **"Key is set, but Places 403 did
+  not answer 200 — the API may not be enabled, the key may be restricted
+  from it, or the quota/billing may be exhausted."** — names Places
+  specifically, not Routes; all three 403 causes named (Finding 1's fix).
+- **`11-04-both-403.png`** — amber text: **"Key is set, but Places 403,
+  Routes 403 did not answer 200 — the API may not be enabled, the key may
+  be restricted from it, or the quota/billing may be exhausted."** — both
+  APIs named when both fail.
+- **`11-05-unauthorized.png`** — amber text: **"Sign in again to use address
+  lookup"** — `lookupErrText`'s real copy for a code that isn't
+  not-configured/over-quota/no-route, confirming the fourth reporting case
+  (any other relay error) actually reaches the real function and renders.
+
+No `[pageerror]` lines in any run — only the same expected Google Fonts
+404/connection-reset noise as the Task 9 shots above.
+
+### Commands run
+
+```
+VITE_SUPABASE_URL="https://mzftplcyfotlzolqeapl.supabase.co" \
+VITE_SUPABASE_ANON_KEY="sb_publishable_oa96t2IYhNv_UE3nCx0LCw_s_amtTtO" \
+npx vite --port 5199 &
+sleep 4
+PLAYWRIGHT_LIB=<scratchpad>/node_modules/playwright-core \
+  node .scratch/120_address-lookup-distance/shotprobe.mjs
+# -> done, no [pageerror] lines
+npx eslint .scratch/120_address-lookup-distance/settingsprobe.jsx .scratch/120_address-lookup-distance/shotprobe.mjs
+# -> "File ignored because no matching configuration was supplied" (settingsprobe.jsx);
+#    shotprobe.mjs produced no output — same as the rest of .scratch/
+npx eslint src/SettingsWorkspace.jsx src/settingsprobe.test.js   # no output
+npm run lint 2>&1 | tail -20   # same 7 pre-existing errors, none new
+npm test   # 1259/1259 pass
+VITE_SUPABASE_URL=... VITE_SUPABASE_ANON_KEY=... npm run build   # succeeds
+```
+
+### Proof
+
+`11-01-not-configured-checking.png`, `11-01-not-configured.png`,
+`11-02-working.png`, `11-03-places-403.png`, `11-04-both-403.png`,
+`11-05-unauthorized.png` — plus the harness itself,
+`settingsprobe.jsx`/`settingsprobe.html`/`shotprobe.mjs`.
