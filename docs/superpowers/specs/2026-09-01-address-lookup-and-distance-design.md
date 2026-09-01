@@ -51,6 +51,22 @@ Two deliberate simplifications keep it to those two SKUs:
 It is the only thing that turns a runaway client loop into a broken feature
 rather than a bill.
 
+**Stay on pay-as-you-go; do not buy a subscription.** Since 3 November 2025
+Google's pricing page leads with flat-rate Subscriptions — Starter ~$100/mo,
+Essentials ~$275/mo, Pro ~$1,200/mo — which look, at a glance, like the price of
+entry. They are an optional alternative for high-volume users who want a
+predictable bill. Pay-as-you-go still exists and still carries the per-SKU free
+allowance above. Starter buys 50,000 calls for $100/mo against 10,000 free plus
+$5/1,000 on PAYG, so a subscription only starts to pay at roughly 20,000
+calls/month — an order of magnitude beyond this use. A billing account is still
+required at $0 usage.
+
+The authority on all of this is the owner's own Cloud Console billing page,
+which shows real usage against the free threshold; the numbers here were checked
+against Google's billing docs and independent 2026 breakdowns, but no agent
+working on this repo can reach `developers.google.com` (egress-blocked) or hold
+a key to measure with.
+
 ## Architecture
 
 ```
@@ -253,6 +269,8 @@ works exactly as it does today if every network call fails.
 3. Set a **daily quota cap** on both APIs.
 4. Netlify → Site configuration → Environment variables → `GOOGLE_MAPS_KEY`.
    Not `netlify.toml` — that file is committed to the repo.
+   (Removing this variable later is the kill switch: the feature goes inert with
+   a "needs a Google key" message, no code change and no app redeploy needed.)
 5. Redeploy, then Settings → General → set the shop address and hit the probe.
 
 Until step 4 is done the feature is inert and says so: no suggestions, and the
