@@ -43,11 +43,19 @@ export function usOf(row) {
  * stock-only entry `desc` is the SOLE dimension source — so this puts them
  * back. Order matters: dims() reads left to right, and the transcribed table
  * always led with the size.
+ *
+ * The coverage figure is re-appended LAST, after the size/thickness lead —
+ * makeEntry's subliner branch (wedi.js:4296-4298) matches
+ * /(\d+)\s*(?:sft|sf|ft2)\b/i against this same text, and dims() only takes
+ * its FIRST match (no `g` flag), which the leading size already satisfies —
+ * so a trailing "<n> SF" with no "x" beside it can never be mistaken for a
+ * second dimension pair.
  */
 export function descOf(row) {
   if (!row) return "";
   const lead = [row.size, row.thickness].filter(Boolean).join("x");
-  return [lead, row.description].filter(Boolean).join(" ").replace(/\s{2,}/g, " ").trim();
+  const cov = row.sfPerUnit > 0 ? `${row.sfPerUnit} SF` : "";
+  return [lead, row.description, cov].filter(Boolean).join(" ").replace(/\s{2,}/g, " ").trim();
 }
 
 /**

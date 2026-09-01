@@ -74,3 +74,12 @@ test("descOf: the dimensions the importer moved to size/thickness come back inli
   assert.match(panel, /5'/);
   assert.match(panel, /1\/2"/);
 });
+
+test("descOf: a row's sfPerUnit coverage comes back in a form makeEntry's sf regex matches", () => {
+  // 28954 carries sfPerUnit 322 (the importer split it out of the
+  // description); wedi.js:4296-4298 matches /(\d+)\s*(?:sft|sf|ft2)\b/i
+  // against desc to derive e.sf, so the figure has to survive the round trip.
+  const d = descOf(live().find((x) => x.sku === "28954"));
+  assert.match(d, /(\d+)\s*(?:sft|sf|ft2)\b/i);
+  assert.equal(d.match(/(\d+)\s*(?:sft|sf|ft2)\b/i)[1], "322");
+});
