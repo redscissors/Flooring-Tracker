@@ -48,6 +48,33 @@ test("isSpecialOrder: a wedi line splits on its SKU — stocked keys as stock, t
   assert.equal(isSpecialOrder({ wedi: { part: true }, sku: "05153", bookId: "bkWEDI" }, stockBookIds), false);
 });
 
+test("isSpecialOrder: the stock cache never re-adjudicates a configurator row", () => {
+  // The reported bug (owner 2026-09-01): a wedi line carries no bookId, so the
+  // hand-entered-row clause used to re-check its ERP code against the stock
+  // cache — and the shop has no wedi stock book, so every stocked wedi line
+  // flipped to special the moment the cache came up. The configurator already
+  // knows what it stocks; order entry must not second-guess it.
+  const cache = new Set(["05153", "SCH-KERDI-200"]);
+  assert.equal(isSpecialOrder({ wedi: { part: true }, sku: "47832" }, new Set(), cache), false);
+  assert.equal(isSpecialOrder({ wedi: { mode: "kit", cfg: {} }, sku: "47832" }, new Set(), cache), false);
+  // and the special-order half still files by description
+  assert.equal(isSpecialOrder({ wedi: { part: true }, sku: "" }, new Set(), cache), true);
+});
+
+test("isSpecialOrder: a Schluter line splits on its SKU, exactly as wedi's does", () => {
+  // The mirror bug found alongside it: there was no Schluter clause at all, so
+  // a special-order Schluter line (no shop code) matched nothing and fell
+  // through to "stock" — the dangerous direction, since the desk then keys a
+  // stock SKU the ERP's stock side does not hold.
+  const cache = new Set(["SCH-KERDI-200"]);
+  assert.equal(isSpecialOrder({ schluter: { part: true }, sku: "" }, new Set(), cache), true);
+  assert.equal(isSpecialOrder({ schluter: { mode: "kit", cfg: {} }, sku: "" }, new Set(), cache), true);
+  assert.equal(isSpecialOrder({ schluter: { part: true }, sku: "SCH-KERDI-200" }, new Set(), cache), false);
+  // a stocked Schluter code the cache has not heard of is still the
+  // configurator's call, not the cache's
+  assert.equal(isSpecialOrder({ schluter: { part: true }, sku: "SCH-DIL-8MM" }, new Set(), cache), false);
+});
+
 test("isSpecialOrder: every Sheoga line is special — the floor AND its fee lines", () => {
   // Custom colour on a small job drags two fees along; all three must file
   // together under Special order, or the fees strand in Stock as "no SKU".

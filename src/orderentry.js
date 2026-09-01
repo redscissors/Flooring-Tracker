@@ -9,24 +9,31 @@ import { fitDescription, textParts } from "./descfit.js";
 import { descParts } from "./sheoga.js";
 import { skuKeys } from "./orderbook.js";
 
-// Which section a product row belongs to. Four things make a line a special
-// order: it came from a price-book "order" book (bookId); it came from the
-// Sheoga configurator (sheoga — the floor line and its at-cost fee lines, which
-// carry the marker without a cfg); it came from the wedi configurator
-// (wedi) WITHOUT a SKU; or it is a bookless row whose SKU the stock cache
-// doesn't know (below). None of those is a stock SKU the shop holds.
+// Which section a product row belongs to — decided in three tiers, most
+// authoritative first, because the tiers disagree and an OR chain let the
+// weakest one win (owner 2026-09-01).
+//
+// 1. PROVENANCE. A price-book "order" book's row is a special order.
 // `stockBookIds` (a Set of stock-kind book ids) carves out the ERP stock
 // books' rows — they carry a bookId for provenance/drift but their SKUs are
 // the shop's own, so they file as stock lines (SKU ⇥ qty).
 //
-// wedi is the split case, because one configurator emits both kinds: the shop
-// stocks 151 wedi items and special-orders the rest off wedi's pricelist. A
-// stocked wedi line carries the shop's ERP sku and keys as stock like any
-// other; a special-order one has no shop code, so it goes by description —
-// which already leads with wedi's US-SKU (issue 066).
+// 2. THE CONFIGURATOR'S OWN VERDICT. Sheoga sells by description, so every
+// Sheoga line is special — the floor AND its at-cost fee lines, which carry
+// the marker without a cfg. wedi and Schluter each emit BOTH kinds from one
+// build, and each emits a shop code ONLY for an item the shop stocks
+// (`sku: e.stock ? e.erp : ""` in either engine's lineItems) — so the SKU on
+// the row IS the verdict, and tier 3 must never re-litigate it. It used to:
+// a configurator row carries no bookId, so the hand-entered rule below
+// re-checked its code against the stock cache, and since the shop has no wedi
+// stock book every stocked wedi line flipped to special the moment the cache
+// came up. Schluter had the mirror fault — no clause of its own at all, so a
+// special-order Schluter line matched nothing and fell through to "stock",
+// the dangerous direction: the desk then keys a stock SKU the ERP's stock
+// side doesn't hold.
 //
-// `stockSkus` (every stock-cache SKU in every skuKeys spelling, null until the
-// cache is up) closes the hand-entered gap (Marcus 2026-08-21): a row typed
+// 3. THE HAND-ENTERED GAP (Marcus 2026-08-21). `stockSkus` (every stock-cache
+// SKU in every skuKeys spelling, null until the cache is up): a row typed
 // straight onto the sheet has no bookId, but if its SKU isn't one the shop
 // stocks, pasting it as a stock SKU ⇥ qty line keys a code the ERP's stock
 // side doesn't hold — it's a special order that never went through a book.
@@ -34,8 +41,10 @@ import { skuKeys } from "./orderbook.js";
 // form of a stocked code ("KST965/810BF" vs the shop's re-lettered twin) still
 // files as stock. Without the set (cache not ready) behavior is unchanged.
 export const isSpecialOrder = (p, stockBookIds, stockSkus) =>
-  (!!p.bookId && !stockBookIds?.has(p.bookId)) || !!p.sheoga || (!!p.wedi && !p.sku)
-  || (!p.bookId && !!p.sku && !!stockSkus && !skuKeys(p.sku).some((k) => stockSkus.has(k)));
+  (!!p.bookId && !stockBookIds?.has(p.bookId)) ? true
+  : !!p.sheoga ? true
+  : (!!p.wedi || !!p.schluter) ? !p.sku
+  : (!p.bookId && !!p.sku && !!stockSkus && !skuKeys(p.sku).some((k) => stockSkus.has(k)));
 
 // What an order line with no quantity is keyed as. A zero is unusable at the
 // desk twice over: the ERP won't take a zero-quantity line at all, and the
