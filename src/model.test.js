@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normP, normA, normC, rowBlank, newProduct, newArea, newProject, areaLabel, money, catSig, quickAutoName, isQuickAutoName, isRealProjectName, QUICK_DEFAULT_NAME, stampKit, landKitLines, removeKitLines, placedKits, normKitBasketEntry, appendKitLines, moveKitEntries } from "./model.js";
+import { normP, normA, normC, rowBlank, newProduct, newArea, newProject, newPerson, areaLabel, money, catSig, quickAutoName, isQuickAutoName, isRealProjectName, QUICK_DEFAULT_NAME, stampKit, landKitLines, removeKitLines, placedKits, normKitBasketEntry, appendKitLines, moveKitEntries } from "./model.js";
 
 test("normP fills every field a grid row reads from a bare object", () => {
   const p = normP({ id: "x" });
@@ -426,4 +426,16 @@ test("appendKitLines: stamps each call as its own kit and leaves other areas alo
   assert.equal(next[1].products.length, 2);
   assert.ok(next[1].products[0].kitId);
   assert.equal(next[1].products[1].kitId, next[1].products[0].kitId);
+});
+
+test("a new project and a new person start with no measured distance", () => {
+  assert.equal(newProject().distance, null);
+  assert.equal(newPerson("Kathy").distance, null);
+});
+
+test("normC keeps a stored distance and drops a malformed one", () => {
+  const rec = { miles: 18.4, minutes: 27, from: "shop", to: "job", at: 5 };
+  assert.deepEqual(normC({ distance: rec }).distance, rec);
+  assert.equal(normC({ distance: { minutes: 27 } }).distance, null);
+  assert.equal(normC({}).distance, null);
 });
