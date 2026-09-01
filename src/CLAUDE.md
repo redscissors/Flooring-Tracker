@@ -335,12 +335,16 @@ src/
                     # book's item mark rides the apply as opts.claudeSkus since
                     # an added row doesn't exist to mark yet; a bundle carries
                     # earlier files' flags to the last file's apply.
-                    # A Rep tab (spec 2026-08-28, `RepCard`) sits last on
-                    # EVERY book kind (not gated behind `isOrder` like Markup/
-                    # Freight/Brand): the vendor sample-order contact
-                    # (book.data.rep {name, email}) the Samples panel's
-                    # "Email the rep" button addresses — no salesperson info,
-                    # samples ship straight to the customer
+                    # A Contacts tab (spec 2026-08-28, renamed + widened
+                    # 2026-09-01, `ContactsCard`) sits last on EVERY book kind
+                    # (not gated behind `isOrder` like Markup/Freight/Brand):
+                    # the vendor's TWO contacts — the rep (book.data.rep
+                    # {name, email}) and the sample-request address
+                    # (book.data.sampleContact {name, email}) for vendors whose
+                    # samples go to a company inbox rather than a person. One
+                    # Save writes both slots. `sampleContactFor` (samples.js)
+                    # picks which one the Samples panel emails; no salesperson
+                    # info, samples ship straight to the customer
   SettingsWorkspace.jsx  # the Settings workspace, now a `React.lazy` chunk (ADR 0026);
                     # `MATERIAL_CATEGORIES` lives here. Shrink-to-fit (issue 084,
                     # the wedi popup's rig): drawn at SETTINGS_DESIGN_W (1240)
@@ -1485,21 +1489,28 @@ src/
                     # header badge), `projectSampleTally` (a
                     # projectId→{need,ordered} Map — the browser column/
                     # filter's one shared roll-up),
-                    # and `repEmail`/`mailtoHref` (the vendor rep's email: item
+                    # `repEmail`/`mailtoHref` (the vendor email: item
                     # list + the CUSTOMER as ship-to — samples ship direct —
                     # and deliberately NO salesperson info, owner call
-                    # 2026-08-28). Split from samples.jsx so `node --test` can
+                    # 2026-08-28), and `sampleContactFor`/`contactLabel` (WHO
+                    # that email goes to: book.data.sampleContact wins when it
+                    # carries an email, book.data.rep is the fallback, null
+                    # when neither can be mailed — so a book whose rep IS the
+                    # samples contact needs nothing typed twice; the label
+                    # reads "Email {first name}", or "Email samples" for a
+                    # nameless company inbox). Split from samples.jsx so `node --test` can
                     # cover it (samples.test.js)
   samples.jsx       # the Samples panel (spec 2026-08-28) — this project's
                     # sample_requests, grouped by vendor via `sampleGroups`,
                     # in the same right-dock shell as order entry. Per-line
                     # two-way status toggle (To order ⇄ Ordered), per-vendor
-                    # "Mark all ordered" and an "Email the rep" mailto button
-                    # built from `repEmail`/`mailtoHref` (falls back to a
-                    # Copy-email button + a "No rep on file" hint pointing at
-                    # the book's Rep tab when the vendor has no email saved),
+                    # "Mark all ordered" and an "Email {contact}" mailto button
+                    # built from `repEmail`/`mailtoHref` + `contactLabel` (falls
+                    # back to a Copy-email button + a "No sample contact on
+                    # file" hint pointing at the book's Contacts tab when the
+                    # vendor has neither email saved),
                     # remove ×. Presentation only — contract is
-                    # `SamplesPanel({ name, requests, custInfo, repFor,
+                    # `SamplesPanel({ name, requests, custInfo, contactFor,
                     # onOrdered, onRemove, onClose })`: every write goes back
                     # through `onOrdered(ids, ordered)` — an ID LIST, so "Mark
                     # all ordered" is one write, never one per row (useSamples'

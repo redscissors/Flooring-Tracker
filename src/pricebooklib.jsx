@@ -1060,7 +1060,9 @@ export function BookDetail({ book, updateBook, confirmBook, delBook, onDeleted, 
   const frSummary = fr.mode === "program" ? `on${fr.destination ? ` — ${fr.destination}` : ""}` : "none";
   const brSummary = brandLabel || "none";
   const rep = book.data?.rep || {};
-  const repSummary = (rep.name || "").trim() || (rep.email || "").trim() || "none";
+  const sampleC = book.data?.sampleContact || {};
+  const who = (c) => (c.name || "").trim() || (c.email || "").trim();
+  const contactSummary = [who(rep), who(sampleC) && `samples: ${who(sampleC)}`].filter(Boolean).join(" · ") || "none";
 
   return (
     <div className="mt-3">
@@ -1102,7 +1104,7 @@ export function BookDetail({ book, updateBook, confirmBook, delBook, onDeleted, 
           {isOrder && <BookTab label="Markup" summary={mkSummary} tone={noMarkup ? "bad" : ""} active={tab === "markup"} onClick={() => setTab(tab === "markup" ? null : "markup")} />}
           {isOrder && <BookTab label="Freight" summary={frSummary} active={tab === "freight"} onClick={() => setTab(tab === "freight" ? null : "freight")} />}
           {isOrder && <BookTab label="Brand" summary={brSummary} active={tab === "brand"} onClick={() => setTab(tab === "brand" ? null : "brand")} />}
-          <BookTab label="Rep" summary={repSummary} active={tab === "rep"} onClick={() => setTab(tab === "rep" ? null : "rep")} />
+          <BookTab label="Contacts" summary={contactSummary} active={tab === "contacts"} onClick={() => setTab(tab === "contacts" ? null : "contacts")} />
         </div>
         {tab && (
           <div className="rounded-b-md px-4 pb-3" style={{ border: "1px solid var(--ft-border)", borderTop: "none", background: "var(--ft-card)" }}>
@@ -1127,8 +1129,8 @@ export function BookDetail({ book, updateBook, confirmBook, delBook, onDeleted, 
             {tab === "brand" && (
               <BrandCard book={book} items={items || []} onSave={(v) => updateBook(book.id, { dataPatch: { brandLabel: v } })} inp={inp} lbl={lbl} />
             )}
-            {tab === "rep" && (
-              <RepCard book={book} onSave={(v) => updateBook(book.id, { dataPatch: { rep: v } })} inp={inp} lbl={lbl} />
+            {tab === "contacts" && (
+              <ContactsCard book={book} onSave={(patch) => updateBook(book.id, { dataPatch: patch })} inp={inp} lbl={lbl} />
             )}
           </div>
         )}
@@ -1610,24 +1612,44 @@ export function BrandCard({ book, items, onSave, inp, lbl }) {   // exported for
   );
 }
 
-// The vendor's sample-order contact (spec 2026-08-28): who the Samples
-// panel's "Email the rep" addresses. Read live at email time, never
-// snapshotted into requests, so a rep change applies to every open request.
-export function RepCard({ book, onSave, inp, lbl }) {   // exported for the preview harness
-  const saved = book.data?.rep || {};
-  const [name, setName] = useState(saved.name || "");
-  const [email, setEmail] = useState(saved.email || "");
-  const dirty = name.trim() !== (saved.name || "") || email.trim() !== (saved.email || "");
+// The vendor's two contacts: the rep, and the sample-request address for
+// vendors whose samples go to a company inbox rather than a person (owner call
+// 2026-09-01). The Samples panel resolves one from the pair (sampleContactFor)
+// and reads it live at email time, never snapshotted into requests, so a
+// contact change applies to every open request.
+export function ContactsCard({ book, onSave, inp, lbl }) {   // exported for the preview harness
+  const rep = book.data?.rep || {};
+  const sample = book.data?.sampleContact || {};
+  const [form, setForm] = useState({
+    repName: rep.name || "", repEmail: rep.email || "",
+    sampleName: sample.name || "", sampleEmail: sample.email || "",
+  });
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const dirty = form.repName.trim() !== (rep.name || "") || form.repEmail.trim() !== (rep.email || "")
+    || form.sampleName.trim() !== (sample.name || "") || form.sampleEmail.trim() !== (sample.email || "");
+  const save = () => onSave({
+    rep: { name: form.repName.trim(), email: form.repEmail.trim() },
+    sampleContact: { name: form.sampleName.trim(), email: form.sampleEmail.trim() },
+  });
   return (
     <div className="pt-3 max-w-md">
+      <div className="ft-eyebrow text-[10px] tracking-[.12em] text-slate-500 mb-1.5">Rep</div>
       <div className="grid grid-cols-2 gap-3">
-        <div><label className={lbl}>Rep name</label><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Jeff Krejci" className={inp} /></div>
-        <div><label className={lbl}>Rep email</label><input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="rep@vendor.com" className={inp} /></div>
+        <div><label className={lbl}>Name</label><input value={form.repName} onChange={set("repName")} placeholder="Jeff Krejci" className={inp} /></div>
+        <div><label className={lbl}>Email</label><input value={form.repEmail} onChange={set("repEmail")} placeholder="rep@vendor.com" className={inp} /></div>
       </div>
-      <div className="mt-2 flex items-center gap-2">
-        <button disabled={!dirty} onClick={() => onSave({ name: name.trim(), email: email.trim() })}
+
+      <div className="ft-eyebrow text-[10px] tracking-[.12em] text-slate-500 mt-4 mb-1.5">Sample requests</div>
+      <div className="grid grid-cols-2 gap-3">
+        <div><label className={lbl}>Name or company</label><input value={form.sampleName} onChange={set("sampleName")} placeholder="Glazzio samples desk" className={inp} /></div>
+        <div><label className={lbl}>Email</label><input value={form.sampleEmail} onChange={set("sampleEmail")} placeholder="samples@vendor.com" className={inp} /></div>
+      </div>
+      <p className="text-[11px] text-slate-400 mt-1.5">Leave blank to send sample requests to the rep.</p>
+
+      <div className="mt-3 flex items-center gap-2">
+        <button disabled={!dirty} onClick={save}
           className="rounded-md bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 text-xs font-semibold disabled:opacity-40">Save</button>
-        <span className="text-[11px] text-slate-400">The Samples panel's "Email the rep" addresses this contact — samples ship to the customer, so this is just who gets the request.</span>
+        <span className="text-[11px] text-slate-400">The Samples panel emails this vendor here — samples ship to the customer, so this is just who gets the request.</span>
       </div>
     </div>
   );

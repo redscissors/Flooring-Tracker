@@ -62,6 +62,15 @@ sample_request row : { id (text pk), data: { status: "need"|"ordered",
                   // one source for the row icon, project panel, header badge,
                   // and the customer browser's samples column. Written only
                   // through useSamples (usesamples.js).
+                  // WHO the panel emails is NOT snapshotted here — it resolves
+                  // live from the book's two contact slots (Contacts tab,
+                  // owner call 2026-09-01): `price_books.data.sampleContact
+                  // { name, email }` (the vendor's sample-request address —
+                  // often a company inbox, and the name may be a company) wins
+                  // when it carries an email, else `price_books.data.rep
+                  // { name, email }`. Either slot may be absent or blank; both
+                  // are plain jsonb keys, so nothing to migrate. Resolved by
+                  // `sampleContactFor` (samples.js), never read ad hoc.
 
 Customer { id, name, address, phone, email, notes, createdAt,
            categories: Area[], attachments: Att[],

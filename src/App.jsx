@@ -9,7 +9,7 @@ import { pricedItem, orderPatch, orderDrift, rowCostSqft, skuKeys } from "./orde
 import { OrderEntryPanel } from "./orderentry.jsx";
 import { isSpecialOrder, nameBudget, orderQty } from "./orderentry.js";
 import { SamplesPanel } from "./samples.jsx";
-import { requestFrom, sampleCounts, projectSampleTally, SAMPLE_LABEL, SAMPLE_COLOR } from "./samples.js";
+import { requestFrom, sampleCounts, projectSampleTally, sampleContactFor, SAMPLE_LABEL, SAMPLE_COLOR } from "./samples.js";
 import { useSamples } from "./usesamples.js";
 import { tierView, tierUnitPrice, employeeNoCost, normPricing } from "./pricing.js";
 import { freightPrintRows, freightOrderRow, freightSummary, freightBookFor, rowFreightOn } from "./freight.js";
@@ -2944,7 +2944,7 @@ export default function App({ user, onSignOut }) {
         return (
           <SamplesPanel name={sel.name} requests={projSamples}
             custInfo={{ custName: cust?.name || sel.name || "", address: sel.address || cust?.address || "", phone: sel.phone || cust?.phone || "" }}
-            repFor={(g) => books.find((b) => b.id === g.bookId)?.data?.rep || null}
+            contactFor={(g) => sampleContactFor(books.find((b) => b.id === g.bookId)?.data)}
             onOrdered={setSampleOrdered} onRemove={delSampleRequest}
             onClose={() => setShowSamples(false)} />
         );
