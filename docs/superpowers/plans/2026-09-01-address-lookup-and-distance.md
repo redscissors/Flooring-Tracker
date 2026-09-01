@@ -334,7 +334,8 @@ git commit -m "Maps lookup: parse Google's answers, and know when a stored dista
 
 **Interfaces:**
 - Consumes: `relayProblems`, `MAX_INPUT` from `src/mapsrelay.js` (Task 1).
-- Produces: HTTP contract `POST /.netlify/functions/maps` — `{op:"suggest"|"distance"|"probe", ...}` in, `{suggestions}` / `{miles,minutes}` / `{ok,keyPresent,places,routes}` out, `{error:"<code>"}` on failure where code is one of `not-configured | unauthorized | bad-request | over-quota | no-route | upstream`.
+- Produces: HTTP contract `POST /.netlify/functions/maps` — `{op:"suggest"|"distance"|"probe", ...}` in; out is Google's **raw envelope**, `{suggestions:[…]}` or `{routes:[…]}` (or `{ok,keyPresent,places,routes}` for probe), and `{error:"<code>"}` on failure where code is one of `not-configured | unauthorized | bad-request | over-quota | no-route | upstream`.
+- The relay does NOT convert meters/seconds to miles/minutes. `parseDistance` and `parseSuggestions` (Task 2) do that browser-side, where they are unit-tested; moving the conversion into the function would duplicate tested logic into a file that has no test harness. Both ops are symmetric in this: raw envelope out, parsed by the caller.
 
 - [ ] **Step 1: Write the function**
 
