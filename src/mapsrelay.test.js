@@ -22,6 +22,14 @@ test("relayProblems caps input so a pasted page cannot be forwarded", () => {
   assert.equal(relayProblems({ op: "suggest", input: "x".repeat(MAX_INPUT + 1) }), "input too long");
 });
 
+test("relayProblems compares the TRIMMED length, matching shouldSuggest's gate", () => {
+  // 200 chars of content plus trailing whitespace: untrimmed length is over
+  // MAX_INPUT, but the trimmed value is what's actually sent upstream, and
+  // shouldSuggest (mapslookup.js) already let it through on that basis.
+  const padded = "x".repeat(MAX_INPUT) + "   ";
+  assert.equal(relayProblems({ op: "suggest", input: padded }), null);
+});
+
 test("relayProblems requires both ends of a distance request", () => {
   assert.equal(relayProblems({ op: "distance", destination: "b" }), "missing origin");
   assert.equal(relayProblems({ op: "distance", origin: "a" }), "missing destination");

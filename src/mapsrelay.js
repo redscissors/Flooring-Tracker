@@ -14,8 +14,9 @@ export function relayProblems(body) {
   if (!OPS.includes(op)) return "unknown op";
   if (op === "probe") return null;
   if (op === "suggest") {
-    if (clean(body.input).length < MIN_INPUT) return "input too short";
-    if (String(body.input ?? "").length > MAX_INPUT) return "input too long";
+    const input = clean(body.input);
+    if (input.length < MIN_INPUT) return "input too short";
+    if (input.length > MAX_INPUT) return "input too long";
     return null;
   }
   const origin = clean(body.origin), destination = clean(body.destination);

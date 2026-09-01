@@ -165,8 +165,6 @@ function LinkMigration({ catalog, bookStock, books, onApply, onClose }) {
   );
 }
 
-export { probeText };
-
 export default function SettingsWorkspace({ onClose, settings, setSettings, gFamilies, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, headerLayout, setHeaderLayout, profile, saveProfile, user, books, addBook, updateBook, confirmBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setBookItemIssue, addClaudeIssue, bookStock = {}, bookStockReady, refreshBookStock, initialSection, onSectionChange, ping }) {
   const catalog = settings.catalog;
   const onChange = (c) => setSettings({ catalog: c });
@@ -885,7 +883,9 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
                   className="rounded-md border border-slate-200 px-2.5 py-1 text-[12px] font-semibold text-slate-500 hover:border-indigo-300 hover:text-indigo-700 disabled:opacity-40">
                   {probing ? "Checking…" : "Test address lookup"}
                 </button>
-                {probe && <span className="text-[11px]" style={{ color: probe.ok ? "var(--ft-brand)" : "#b45309" }}>{probeText(probe, lookupErrText)}</span>}
+                {probe && (probe.ok
+                  ? <span className="text-[11px]" style={{ color: "var(--ft-brand)" }}>{probeText(probe, lookupErrText)}</span>
+                  : <span className="text-[11px] text-amber-600">{probeText(probe, lookupErrText)}</span>)}
               </div>
             </div>
             <div className="mt-8 pt-6 border-t border-slate-100">

@@ -117,7 +117,11 @@ the rules are unit-testable without invoking a function.
 The field masks are not optional politeness — Routes rejects a request without
 one, and the mask is what keeps both calls on the cheap Essentials SKU.
 
-**Responses.** `{ suggestions: string[] }` or `{ miles, minutes }`. Errors are a
+**Responses.** `{ suggestions: string[] }` for suggest; for distance, Google's
+Routes envelope forwarded largely verbatim (`routes`/`distanceMeters`/`duration`
+untouched) — the browser parses it into `{ miles, minutes }` client-side
+(`parseDistance`, `src/mapslookup.js`), so the parser stays unit-testable
+against committed fixture JSON without a function to invoke. Errors are a
 stable code the client renders, never a raw Google body:
 `not-configured` (no key in env), `unauthorized`, `bad-request`, `over-quota`,
 `no-route`, `upstream`.

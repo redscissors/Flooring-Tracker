@@ -544,6 +544,11 @@ export function AddressField({ value, onChange, inp, placeholder, autoFocus, pin
   const [busy, setBusy] = useState(false);
   const [distErr, setDistErr] = useState("");
   const stale = distStale(distance, value, shopAddress);
+  // Remembers the last origin|destination pair a measurement was attempted for
+  // (success or failure) so a lookup that failed (e.g. no-route) doesn't re-bill
+  // a fresh Routes call on every blur — distinct from the `stale`/`distance`
+  // guard in commit(), which only covers the already-succeeded case.
+  const lastAttempt = useRef("");
 
   const paste = async () => {
     let text = "";
@@ -555,6 +560,9 @@ export function AddressField({ value, onChange, inp, placeholder, autoFocus, pin
   const measureAddr = async (addr) => {
     const to = String(addr || "").trim();
     if (!shopAddress || !to || busy) return;
+    const attemptKey = `${shopAddress}|${to}`;
+    if (lastAttempt.current === attemptKey) return;
+    lastAttempt.current = attemptKey;
     setBusy(true); setDistErr("");
     try {
       const out = await fetchDistance(shopAddress, to);
@@ -567,6 +575,7 @@ export function AddressField({ value, onChange, inp, placeholder, autoFocus, pin
     }
   };
   const measure = () => measureAddr(value);
+  const recheck = () => { lastAttempt.current = ""; measureAddr(value); };
 
   const type = (v) => {
     onChange(v);
@@ -589,9 +598,9 @@ export function AddressField({ value, onChange, inp, placeholder, autoFocus, pin
           onClick={() => window.open(mapsUrl(value), "_blank", "noopener,noreferrer")}><MapPin size={15} /></button>
         <button type="button" title="Paste the address you copied" className={ADDR_BTN} onClick={paste}><ClipboardPaste size={15} /></button>
       </div>
-      {suggest && open && (suggestions.length > 0 || err) && (
+      {suggest && open && (suggestions.length > 0 || (err && err !== "not-configured")) && (
         <div className="absolute left-0 right-16 top-full mt-1 z-30 rounded-md border border-slate-200 bg-white shadow-lg overflow-hidden max-h-64 overflow-y-auto">
-          {err
+          {err && err !== "not-configured"
             ? <div className="px-3 py-2 text-[12.5px] text-amber-800 bg-amber-50">{lookupErrText(err)}</div>
             : suggestions.map((s) => (
               <div key={s} onMouseDown={(e) => { e.preventDefault(); pick(s); }}
@@ -606,7 +615,7 @@ export function AddressField({ value, onChange, inp, placeholder, autoFocus, pin
           {!busy && !distErr && distance && (stale ? (
             <>
               <span className="text-amber-600">Address changed since this was measured — {formatDist(distance)} from the shop</span>
-              <button tabIndex={-1} onClick={measure} title="Measure the distance to the address as it reads now"
+              <button tabIndex={-1} onClick={recheck} title="Measure the distance to the address as it reads now"
                 className="rounded-full border border-amber-300 text-amber-700 px-2 py-0.5 hover:bg-amber-50 font-medium">Recheck</button>
             </>
           ) : (
