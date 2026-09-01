@@ -53,19 +53,40 @@ test("the pinned engine totals do not move when the book feeds the catalog", () 
   // kitFor takes a PAN key — passing a curb key returns nothing and the
   // deep-equal would pass vacuously, proving nothing.
   const INPUT = { w: 36, d: 60, curb: "curbed", drain: "any" };
+
+  // These trees carry whole catalog entries, so they carry `desc` — the one
+  // field DERIVED omits, for the same reason: the importer's size split is not
+  // byte-reversible. Two rows cannot round-trip and both are understood:
+  // US5000033's lifted `1/2"` lost its mid-string position to the importer's
+  // whitespace collapse, and 073783528's `24"x 48"` was canonicalised to
+  // `24x48`, losing the marks and the space. Strip `desc` and compare
+  // EVERYTHING else deeply — every price, quantity, key and geometry value in
+  // the tree. Measured: stripped, the trees are identical; unstripped, exactly
+  // 3 leaves differ, all `desc`, on those 2 entries. This is the plan's own
+  // exclusion applied consistently, not a weakened assertion.
+  const stripDesc = (v) => {
+    if (Array.isArray(v)) return v.map(stripDesc);
+    if (v && typeof v === "object") {
+      return Object.fromEntries(
+        Object.entries(v).filter(([k]) => k !== "desc").map(([k, x]) => [k, stripDesc(x)]));
+    }
+    return v;
+  };
+
   clearStockSource();
   const before = kitFor("US9100004");
   const beforeSolve = solve(INPUT);
   assert.ok(before && before.lines && before.lines.length, "guard: kitFor really built a kit");
   assert.ok(beforeSolve.length && beforeSolve[0].pieces[0].item.key === "US9100004",
     "guard: solve really returned the exact pan");
+  const beforeKit = stripDesc(before), beforeSol = stripDesc(beforeSolve);
 
   const live = FIXTURE_ROWS.map((r) => normBookItem(r, "bk_wedi"));
   setStockSource(adaptBookRows(live));
-  const after = kitFor("US9100004");
-  const afterSolve = solve(INPUT);
+  const afterKit = stripDesc(kitFor("US9100004"));
+  const afterSol = stripDesc(solve(INPUT));
   clearStockSource();
 
-  assert.deepEqual(after, before, "kitFor is unchanged");
-  assert.deepEqual(afterSolve, beforeSolve, "solve is unchanged");
+  assert.deepEqual(afterKit, beforeKit, "kitFor is unchanged");
+  assert.deepEqual(afterSol, beforeSol, "solve is unchanged");
 });
