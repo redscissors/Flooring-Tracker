@@ -9,6 +9,7 @@ import {
   normBench, benchFootprint, benchLines, benchPanRoom, benchPanPlan, smallerPanFor, benchPremades,
   BENCH_H, BENCH_DEPTH, BENCH_CORNER_LEG,
   curbWidth, curbInsets, applyCurbInset, CURB_LAP, benchWallShadowSf,
+  setStockSource, clearStockSource, stockSourceIsBook,
 } from "./wedi.js";
 
 // Ported whole from the prototype's self-test
@@ -1227,4 +1228,35 @@ test("buildFromMarker: junk is null, never a throw", () => {
   assert.equal(buildFromMarker(null), null);
   assert.equal(buildFromMarker({ mode: "kit", cfg: {} }), null);
   assert.equal(buildFromMarker({ mode: "kit", cfg: { panKey: "no-such-pan" } }), null);
+});
+
+test("wedi stock source: nothing installed means the transcribed table, unchanged", () => {
+  clearStockSource();
+  assert.equal(stockSourceIsBook(), false);
+  assert.equal(catalog().filter((e) => e.stock).length, 151);
+});
+
+test("wedi stock source: installing rows swaps the source and rebuilds the index", () => {
+  clearStockSource();
+  // Two probes, chosen deliberately. US5000032 (drain wrench) is one of the 46
+  // stock rows with NO pricelist twin, so pulling it from the stock source
+  // removes it from the catalog entirely. US5000009 DOES have a twin
+  // (WEDI_SO, wedi.js:3571 "wedi® Washer Master Pack") — it must survive the
+  // swap as a special-order entry, which is how this test proves the
+  // pricelist half is untouched. Asserting null for US5000009 would be wrong.
+  assert.equal(item("US5000032").stock, true, "stock-only row starts stocked");
+  assert.equal(item("US5000009").stock, true, "twinned row starts merged as stock");
+
+  setStockSource([{ erp: "99999", desc: "Test Only Widget", cost: 1, retail: 2, unit: "EA", us: "US9999999" }]);
+  assert.equal(stockSourceIsBook(), true);
+  assert.equal(catalog().filter((e) => e.stock).length, 1);
+  assert.ok(item("US9999999"), "the installed row is indexed");
+  assert.equal(item("US5000032"), null, "a stock-only transcribed row is gone");
+  assert.equal(item("US5000009").stock, false,
+    "a twinned row survives as special-order only — WEDI_SO is untouched by the swap");
+
+  clearStockSource();
+  assert.equal(stockSourceIsBook(), false);
+  assert.equal(catalog().filter((e) => e.stock).length, 151, "clearing restores the fallback");
+  assert.equal(item("US5000032").stock, true, "and the index rebuilds with it");
 });
