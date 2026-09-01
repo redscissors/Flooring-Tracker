@@ -91,6 +91,7 @@ driven end to end:
 | `wedi-4-payload-update.png` | payload modal retitled, "Add as a new kit" beside "Update 9 rows" |
 | `wedi-5-after-move-one-kit.png` | after moving the update: ONE placed kit, not two |
 | `schluter-1..3` | the same three, Schluter side |
+| `hub-move-destination.png` | the Apps hub's Move still commits one kit (9 lines) through the flattened groups — the hub has no row context, so its entries never carry a target |
 
 Measured, not eyeballed: the primary button box is 128×44 in both modes, so
 the label change shifts no layout. "Placed kits after moving the update: 1"
