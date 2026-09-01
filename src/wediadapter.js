@@ -6,6 +6,8 @@
 // `desc`. Everything the engine reads crosses this file; nothing else in the
 // popup touches a raw book row.
 
+import { inch } from "./wedi.js";
+
 /**
  * The wedi US-SKU for one live row.
  *
@@ -33,6 +35,35 @@ export function usOf(row) {
   return codes.find((c) => /^US\d+$/i.test(c)) || codes[0] || "";
 }
 
+/** The engine's own fraction vocabulary, hyphenated the way both sheets print a
+ * mixed number — "5-3/4", "3/16". */
+function spell(n) {
+  return inch(n).replace(" ", "-");
+}
+
+/**
+ * The size cell, back in the units the vendor printed it in.
+ *
+ * The importer's `size` keeps a foot mark where the vendor used one ("3'x5'",
+ * "39\"x98'") but renders an unmarked L×W as bare decimals ("24x48", "4x8"),
+ * and dims() resolves that missing unit itself — unit-less values read as feet
+ * only when every one of them is ≤ 12. So an all-integer bare size is left
+ * exactly as it came: marking it would override that rule and shrink the 4x8
+ * vapor panel from a sheet to an 8-inch chip.
+ *
+ * A NON-integer bare size is the one lossy case. dimVal flattens the fraction
+ * the sheet printed — "3/16\"x5/32\"" → "0.1875x0.15625", "32\"x5-3/4\"" →
+ * "32x5.75" — and a fractional dimension is never feet, so nothing is ambiguous
+ * about restoring both the fraction and the inch mark. Left bare, dims() sees
+ * 0.1875 ≤ 12 and reads the seal trowel as feet, inflating it to 2 1/4".
+ */
+function sizeOf(size) {
+  const s = String(size == null ? "" : size);
+  const m = /^(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)$/.exec(s);
+  if (!m || (Number.isInteger(+m[1]) && Number.isInteger(+m[2]))) return s;
+  return spell(+m[1]) + '"x' + spell(+m[2]) + '"';
+}
+
 /**
  * A description with the dimensions inline, the way makeEntry expects them.
  *
@@ -48,14 +79,29 @@ export function usOf(row) {
  * makeEntry's subliner branch (wedi.js:4296-4298) matches
  * /(\d+)\s*(?:sft|sf|ft2)\b/i against this same text, and dims() only takes
  * its FIRST match (no `g` flag), which the leading size already satisfies —
- * so a trailing "<n> SF" with no "x" beside it can never be mistaken for a
- * second dimension pair.
+ * so a trailing "<n>sf" with no "x" beside it can never be mistaken for a
+ * second dimension pair. It is spelled the workbook's way ("106sf") because on
+ * a row with no pricelist twin this text IS the display name.
  */
 export function descOf(row) {
   if (!row) return "";
-  const lead = [row.size, row.thickness].filter(Boolean).join("x");
-  const cov = row.sfPerUnit > 0 ? `${row.sfPerUnit} SF` : "";
-  return [lead, row.description, cov].filter(Boolean).join(" ").replace(/\s{2,}/g, " ").trim();
+  const size = sizeOf(row.size);
+  let desc = String(row.description == null ? "" : row.description);
+  let thick = row.thickness || "";
+  // splitSizeFromDescription takes the FIRST inch-marked fraction anywhere in
+  // the string, so what it lifted as `thickness` is not always the size's third
+  // dimension. When it came out of a hyphenated figure — a channel length
+  // "27-1/2\"", a slope range "1-1/2\" to 2\"" — the residue is left holding the
+  // dangling hyphen, and that is the tell: the fraction goes back THERE.
+  // Re-leading with it instead hands dims() a third value and files a channel
+  // length or a slope range as a board thickness.
+  if (thick && /\d-(?=\s|$)/.test(desc)) {
+    desc = desc.replace(/(\d)-(?=\s|$)/, "$1-" + thick);
+    thick = "";
+  }
+  const lead = [size, thick].filter(Boolean).join("x");
+  const cov = row.sfPerUnit > 0 ? `${row.sfPerUnit}sf` : "";
+  return [lead, desc, cov].filter(Boolean).join(" ").replace(/\s{2,}/g, " ").trim();
 }
 
 /**
