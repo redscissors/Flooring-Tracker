@@ -225,7 +225,15 @@ src/
                     # `custSamples`/`filterBySamples` (spec 2026-08-28) roll a
                     # customer's projects up against the sample_requests tally
                     # Map (App's `projectSampleTally(sampleRequests)`) for the
-                    # browser's samples column and filter
+                    # browser's samples column and filter.
+                    # `stripOpenDefault`/`normPanelH`/`clampPanelH` + STRIP_H/
+                    # LINES_H/PANEL_MIN (2026-09-01) are the two side panels'
+                    # sizing rules: the strip opens WITH the browser (the quick
+                    # prices are what it's opened for) unless a saved choice or
+                    # an empty unfiled folder says otherwise, and a drag may
+                    # never shrink a panel below one row or grow it past 60% of
+                    # the overlay — the minimum outranking the maximum on a
+                    # short window
   CustomerBrowser.jsx  # the customer browser, a `React.lazy` chunk (ADR 0026):
                     # near-fullscreen ERP-style directory grid — dense customer
                     # rows grouped by salesman over a bottom project-lines panel —
@@ -236,7 +244,20 @@ src/
                     # moss "M ordered", shared with the unfiled strips and the
                     # project-lines panel) and a Samples filter button
                     # (open = customer has any need>0) beside the salesperson
-                    # box, over the same rows/strips it narrows
+                    # box, over the same rows/strips it narrows.
+                    # The Estimates & drafts strip and the project-lines panel
+                    # are both DRAG-SIZED (2026-09-01): each carries a
+                    # `ResizeHandle` on its open edge (pointer capture, so a
+                    # fast drag can't outrun it; the start height measured off
+                    # the live panel, so one still at its content-sized default
+                    # resizes from where it actually is), and a double-click
+                    # hands the panel back to that default. The strip also now
+                    # opens BY DEFAULT at ~3 quick prices tall — the team comes
+                    # here to check them, and the toggle still hides it. The
+                    # toggle state and both heights ride `initialPanels` /
+                    # `onPanels` up to App's `saveUiPref({ browserPanels })`,
+                    # the same per-user `ui` blob as the column order; a
+                    # committed size saves once per drag, on release
   EstimatePrint.jsx # `EstimatePaper` (+ `PRINT_DASH`) — the print/Preview-tab "paper", one
                     # component behind both call sites so they can never drift. STATIC import only:
                     # `window.print()` fires right after the print-mode render, so a `React.lazy`
@@ -1500,7 +1521,10 @@ src/
                     # CustomerBrowser instead, over a second sample-less
                     # customer (Task 8 preview proof — the samples column/
                     # filter's mock state), fed `sampleTally={projectSampleTally(SEED)}`
-                    # so the filter visibly narrows the grid
+                    # so the filter visibly narrows the grid, five unfiled
+                    # projects so the default-open strip has three quick prices
+                    # to show with the next peeking, and stateful `panels` so a
+                    # drag round-trips the real initialPanels/onPanels contract
   vendorfetch.js    # vendor sheet fetch (ADR 0019): portal-link parse/validate,
                     # bookmarklet source + clipboard hand-off (copies a marked
                     # base64 payload — HANDOFF_MARK/stripHandoffMark — that the

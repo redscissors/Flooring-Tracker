@@ -186,3 +186,33 @@ export const shortDate = (ms) => {
   const d = new Date(ms);
   return `${d.getMonth() + 1}/${d.getDate()}/${String(d.getFullYear()).slice(2)}`;
 };
+
+// The browser's two side panels — the Estimates & drafts strip above the grid
+// and the selected customer's project lines below it. Both open content-sized
+// up to a default cap and are then dragged to any height, which saves per user
+// (ui.browserPanels) beside the column order.
+//
+// STRIP_H fits the Quick prices band plus about three rows, with the next row
+// half-showing so the list reads as scrollable: the team's live quick prices
+// are what the browser is opened for, and three is what "did I already price
+// this?" needs answered without a click.
+export const STRIP_H = 132;
+export const LINES_H = 300;
+export const PANEL_MIN = 64;
+const PANEL_MAX_FRAC = 0.6;
+
+// A saved height, or null for "no stored size — use the content-sized default".
+export const normPanelH = (saved) => (typeof saved === "number" && Number.isFinite(saved) && saved > 0 ? saved : null);
+
+// A drag can ask for anything; a panel may never swallow the grid, and may
+// never shrink below the handle's own reach. The minimum outranks the maximum
+// on a short window, where 60% is smaller than one row.
+export const clampPanelH = (px, viewportH) => {
+  const max = Number.isFinite(viewportH) && viewportH > 0 ? Math.max(PANEL_MIN, viewportH * PANEL_MAX_FRAC) : Infinity;
+  return Math.min(Math.max(px, PANEL_MIN), max);
+};
+
+// The strip opens by default (the quick prices are the point), the saved
+// choice overrides that, and an empty folder overrides both — there is no
+// strip to show when nothing is unfiled.
+export const stripOpenDefault = (saved, unfiledCount) => unfiledCount > 0 && (saved === undefined || saved === null ? true : !!saved);

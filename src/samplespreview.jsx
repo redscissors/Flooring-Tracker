@@ -43,12 +43,23 @@ const BROWSER_PROJECTS = [
   { id: "c1", customerId: "k1", name: "Marsh — whole first floor", quick: false, createdAt: Date.now(), updatedAt: Date.now(), salesperson: { name: "Dana" } },
   { id: "c9", customerId: "k1", name: "Marsh — basement", quick: false, createdAt: Date.now(), updatedAt: Date.now() },
   { id: "c10", customerId: "k2", name: "Price — kitchen", quick: false, createdAt: Date.now(), updatedAt: Date.now() },
+  // Five unfiled projects, so the default-open strip shows its three quick
+  // prices with the next row peeking — and the drag has something to reveal.
+  { id: "q1", customerId: null, name: "Q-Marazzi Rice-8/28", quick: true, projectNo: 241, createdAt: Date.now() - 3600000, updatedAt: Date.now() - 3600000, salesperson: { name: "Marcus" } },
+  { id: "q2", customerId: null, name: "Quick price", quick: true, createdAt: Date.now() - 2 * 86400000, updatedAt: Date.now() - 86400000, salesperson: { name: "Dana" } },
+  { id: "q3", customerId: null, name: "Q-Sheoga White Oak-8/26", quick: true, projectNo: 239, createdAt: Date.now() - 6 * 86400000, updatedAt: Date.now() - 5 * 86400000, salesperson: { name: "Marcus" } },
+  { id: "q4", customerId: null, name: "Q-Glazzio Kessel-8/22", quick: true, createdAt: Date.now() - 10 * 86400000, updatedAt: Date.now() - 9 * 86400000 },
+  { id: "u1", customerId: null, name: "Shell — spec house lot 14", quick: false, projectNo: 236, createdAt: Date.now() - 14 * 86400000, updatedAt: Date.now() - 12 * 86400000, salesperson: { name: "Dana" } },
 ];
 
 function BrowserHarness() {
+  // Stateful panels: the dragged heights and the strip toggle round-trip
+  // through the same onPanels/initialPanels contract App.jsx saves with.
+  const [panels, setPanels] = useState({});
   return (
     <CustomerBrowser people={BROWSER_PEOPLE} projects={BROWSER_PROJECTS} builders={[]}
       myName="" sampleTally={projectSampleTally(SEED)}
+      initialPanels={panels} onPanels={(patch) => setPanels((p) => ({ ...p, ...patch }))}
       onColOrder={() => {}} onClose={() => {}}
       onOpenCustomer={() => {}} onOpenProject={() => {}}
       onNewCustomer={() => {}} onNewProject={() => {}} />

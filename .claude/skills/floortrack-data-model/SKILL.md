@@ -10,9 +10,15 @@ shared; the per-user `app_data.data` jsonb blob now holds only that user's
 `profile` (settings moved to the shared record, ADR 0002).
 
 ```
-app_data.data : { profile: { name, phone, email } }   // per user; stamped onto each
+app_data.data : { profile: { name, phone, email },    // per user; stamped onto each
                                                       // NEW project as its salesperson
                                                       // snapshot (ADR 0008)
+                  ui: { browserCols: string[],        // per-user UI prefs, written
+                        browserPanels: {              // only through saveUiPref
+                          strip: bool,                // (best-effort, never toasts):
+                          stripH: number|null,        // the customer browser's column
+                          linesH: number|null } } }   // order + its two side panels'
+                                                      // shown/dragged heights
 
 customers row : { id (text), owner_id (uuid, nullable "created by"),
                   data: Customer, created_at, updated_at,

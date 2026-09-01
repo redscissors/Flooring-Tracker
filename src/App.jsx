@@ -2643,6 +2643,8 @@ export default function App({ user, onSignOut }) {
           sampleTally={sampleTally}
           initialCols={appBlobRef.current?.ui?.browserCols}
           onColOrder={(order) => saveUiPref({ browserCols: order })}
+          initialPanels={appBlobRef.current?.ui?.browserPanels}
+          onPanels={(patch) => saveUiPref({ browserPanels: { ...(appBlobRef.current?.ui?.browserPanels || {}), ...patch } })}
           onClose={() => setShowBrowser(false)}
           onOpenCustomer={(id) => { setSelId(null); setSelCustId(id); setShowBrowser(false); }}
           onOpenProject={(id) => { pickProject(id); setShowBrowser(false); }}
