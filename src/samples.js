@@ -93,6 +93,24 @@ export const projectSampleTally = (requests) => {
   return m;
 };
 
+// Who a sample request is emailed to. A book carries two contacts (owner call
+// 2026-09-01): the rep, and a separate sample-request address for vendors whose
+// samples go to a company inbox rather than a person. The samples address wins
+// when it can be mailed; the rep is the fallback, so a book where they are the
+// same person needs nothing typed twice.
+export const sampleContactFor = (bookData) => {
+  for (const [from, c] of [["sample", bookData?.sampleContact], ["rep", bookData?.rep]]) {
+    const email = str(c?.email).trim();
+    if (email) return { name: str(c?.name).trim(), email, from };
+  }
+  return null;
+};
+
+export const contactLabel = (contact) => {
+  const first = str(contact?.name).trim().split(/\s+/)[0];
+  return first ? `Email ${first}` : "Email samples";
+};
+
 // The rep email. Ship-to is the CUSTOMER (samples ship direct — owner call),
 // read live from the project by the caller. No salesperson info (owner call
 // 2026-08-28).
