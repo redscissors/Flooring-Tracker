@@ -360,7 +360,7 @@ git commit -m "feat: wediadapter maps live book rows into makeEntry's stockRow s
 - Produces:
   - `setStockSource(rows)` — install live rows; clears the memo.
   - `clearStockSource()` — revert to `WEDI_STOCK`; clears the memo.
-  - `stockSourceIsBook() -> boolean` — for the UI marker (Task 6).
+  - `stockSourceIsBook() -> boolean` — the seam's test affordance, so Task 3's tests can assert installer state without reaching into module internals. **Task 6 does not use it** — the popup reads `onBook` from the hook, which is reactive; a module getter read during render would not re-render on a swap.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -534,14 +534,22 @@ test("every stock entry still classifies — nothing falls into misc", () => {
 });
 
 test("the pinned engine totals do not move when the book feeds the catalog", () => {
+  // Key and input copied verbatim from the pinned tests (wedi.test.js:498):
+  // US9100004 is the 36×60 pan that solve() returns as the exact match.
+  // kitFor takes a PAN key — passing a curb key returns nothing and the
+  // deep-equal would pass vacuously, proving nothing.
+  const INPUT = { w: 36, d: 60, curb: "curbed", drain: "any" };
   clearStockSource();
-  const before = kitFor("US3000039", {});
-  const beforeSolve = solve({ w: 60, d: 38, drain: "center" });
+  const before = kitFor("US9100004");
+  const beforeSolve = solve(INPUT);
+  assert.ok(before && before.lines && before.lines.length, "guard: kitFor really built a kit");
+  assert.ok(beforeSolve.length && beforeSolve[0].pieces[0].item.key === "US9100004",
+    "guard: solve really returned the exact pan");
 
   const live = FIXTURE_ROWS.map((r) => normBookItem(r, "bk_wedi"));
   setStockSource(adaptBookRows(live));
-  const after = kitFor("US3000039", {});
-  const afterSolve = solve({ w: 60, d: 38, drain: "center" });
+  const after = kitFor("US9100004");
+  const afterSolve = solve(INPUT);
   clearStockSource();
 
   assert.deepEqual(after, before, "kitFor is unchanged");
@@ -745,16 +753,19 @@ and remove `catalog` from the `./wedi.js` import list at `:18-25` — `item`, `g
 
 - [ ] **Step 2: Hold the render until the catalog is ready**
 
-Immediately after the hook call, before any use of `cat`:
+**The guard goes immediately before the component's final JSX `return (` — currently `src/WediConfigurator.jsx:2426` — NOT next to the hook call.** Four hooks run after the catalog seam (`:1308`, `:1317`, `:1344`, `:1347`). An early return at `:1306` would skip them on the not-ready render and React would throw "Rendered fewer hooks than expected". Every hook must run on every render; only the JSX is withheld.
 
 ```js
   // Never render a catalog we aren't sure of: with a wedi book present but its
   // rows not in, quoting from WEDI_STOCK would silently price at the last
-  // transcription and resurrect retired items (owner, 2026-09-01).
+  // transcription and resurrect retired items (owner, 2026-09-01). Placed
+  // after every hook — see the four useMemos above — so hook order is stable.
   if (!catReady) return null;
+
+  return (
 ```
 
-Match the surrounding early-return style; if the component has no other early return, place it after all hooks so hook order stays stable.
+Verify before committing: no `use*(` call appears between this guard and the end of the component.
 
 - [ ] **Step 3: Make the fallback visible**
 
