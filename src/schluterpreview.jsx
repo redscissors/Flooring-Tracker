@@ -17,7 +17,7 @@ import "./index.css";
 import SchluterConfigurator from "./SchluterConfigurator.jsx";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
 import { normOrderItem } from "./orderbook.js";
-import { newProduct, newArea, landKitLines, removeKitLines, placedKits } from "./model.js";
+import { newProduct, newArea, landKitLines, appendKitLines, moveKitEntries, placedKits, removeKitLines } from "./model.js";
 
 const stockRows = FIXTURE_ITEMS.filter((i) => i.stock).map((i) => normOrderItem({
   sku: i.erp || i.sku, bookId: "bk_stock", description: i.name, vendorSkus: i.erp ? [i.sku] : [],
@@ -51,6 +51,7 @@ function Harness() {
   const [basket, setBasket] = useState([]);
   const [pop, setPop] = useState({ aid: null, pid: null, seed: null, n: 0 });
   const aid = pop.aid || cats[0].id, pid = pop.pid || cats[0].products.at(-1).id;
+  const row = cats.find((a) => a.id === aid)?.products.find((p2) => p2.id === pid);
   return (
     <SchluterConfigurator key={pid + ":" + pop.n} seed={pop.seed}
       schluterBuilderPct={8}
@@ -68,7 +69,9 @@ function Harness() {
       onOpenPlaced={(k) => setPop((p) => ({ aid: k.areaId, pid: k.rowId, seed: k.marker, n: p.n + 1 }))}
       onDeleteKit={(k) => setCats((c) => removeKitLines(c, k.areaId, k.rowId) || c)}
       onAdd={(lines) => setCats((c) => { const withRow = c.map((a) => (a.id === aid && !a.products.some((x) => x.id === pid) ? { ...a, products: [...a.products, { ...newProduct(), id: pid }] } : a)); return landKitLines(withRow, aid, pid, lines) || withRow; })}
-      onMoveEntries={(lines, nextBasket) => { setCats((c) => c.map((a) => (a.id === aid ? { ...a, products: [...a.products, ...lines.map((p2) => ({ ...newProduct(), ...p2 }))] } : a))); setBasket(nextBasket); }}
+      editing={row?.schluter?.cfg && !row.schluter.part ? { areaId: aid, rowId: pid, kitId: row.kitId || "" } : null}
+      onAddNew={(lines) => setCats((c) => appendKitLines(c, aid, lines))}
+      onMoveEntries={(groups, nextBasket) => { setCats((c) => moveKitEntries(c, aid, groups).categories); setBasket(nextBasket); }}
       onQuoteOptions={(p) => console.log("onQuoteOptions", p)}
       onClose={() => console.log("close")} onConfigChange={() => {}}
     />

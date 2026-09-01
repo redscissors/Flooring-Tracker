@@ -76,10 +76,24 @@ src/
                     # same companion set) and placedKits (the derived
                     # in-this-project list — a stamped bundle's siblings fold
                     # under their anchor, legacy widths list singly)
+                    # ; appendKitLines (a kit's lines as fresh rows at the
+                    # end of an area — its own kitId per call) and
+                    # moveKitEntries (the basket "Move" landing, ADR 0035
+                    # amendment 2026-09-01): staged entries land in ONE pass
+                    # over the accumulating categories, a TARGETED entry
+                    # replacing that kit through landKitLines while the rest
+                    # append — returns { categories, stranded }, stranded
+                    # counting targets that no longer point at the kit that was
+                    # staged (row gone, or now another kit's), which append
+                    # instead, because clobbering whatever took the row's place
+                    # is worse than a duplicate the salesperson can see
                     # ; normKitBasketEntry — the wedi/Schluter staged basket
                     # entry (ADR 0035 step 3, engine-free on purpose: model.js
                     # must never import wedi.js/schluter.js), snap = the
-                    # reconfigure marker
+                    # reconfigure marker, plus the optional `target`
+                    # {areaId, rowId, kitId} an entry staged from a reconfigure
+                    # carries (normKitTarget — both ids or nothing; kitId is
+                    # the move-time staleness check)
   print.js          # print/order math: `printProduct`, `orderLineCost`, `lineTotal`,
                     # `printAreaFloor`, `areaPrintLabel`, `orderEntryRow`,
                     # `ESTIMATE_PRINT_LAYOUT`… (print.test.js)

@@ -143,11 +143,24 @@ const normKitSession = (s) => {
   if (s.panelFit === false) out.panelFit = false;
   return Object.keys(out).length ? out : undefined;
 };
+// Where a staged entry lands, when it is an UPDATE to a kit already on the job
+// rather than a new one. Both ids or nothing: a half-stored target has nothing
+// to land on. `kitId` is optional — a legacy anchor saved before ADR 0035 has
+// none — and doubles as the staleness check at move time (moveKitEntries).
+const normKitTarget = (t) => {
+  if (!t || typeof t !== "object") return undefined;
+  const areaId = typeof t.areaId === "string" ? t.areaId.trim() : "";
+  const rowId = typeof t.rowId === "string" ? t.rowId.trim() : "";
+  if (!areaId || !rowId) return undefined;
+  return { areaId, rowId, kitId: typeof t.kitId === "string" ? t.kitId : "" };
+};
 export const normKitBasketEntry = (e) => {
   if (!e || typeof e !== "object" || !e.snap || typeof e.snap !== "object" || !e.snap.cfg || typeof e.snap.cfg !== "object") return null;
   const out = { id: e.id || uid(), kind: "kit", addedAt: e.addedAt || Date.now(), snap: { mode: typeof e.snap.mode === "string" ? e.snap.mode : "custom", cfg: e.snap.cfg } };
   const session = normKitSession(e.session);
   if (session) out.session = session;
+  const target = normKitTarget(e.target);
+  if (target) out.target = target;
   return out;
 };
 const normKitBasket = (v) => (Array.isArray(v) ? v.map(normKitBasketEntry).filter(Boolean) : []);
@@ -212,6 +225,45 @@ export const landKitLines = (categories, aid, pid, lines) => {
     if (p.id === pid) return [{ ...p, ...stamped[0] }, ...stamped.slice(1).map((patch) => ({ ...newProduct(), ...patch }))];
     return remove.has(p.id) ? [] : [p];
   }) }));
+};
+// Append a kit's lines as fresh rows at the end of an area — the landing for
+// an emission that isn't updating anything. Its own kitId per call, so two
+// entries moved in one click stay two kits.
+export const appendKitLines = (categories, aid, lines) => {
+  const stamped = stampKit(lines);
+  return (categories || []).map((a) => (a.id === aid
+    ? { ...a, products: [...a.products, ...stamped.map((patch) => ({ ...newProduct(), ...patch }))] }
+    : a));
+};
+// Land staged basket entries in ONE pass over the accumulating categories (the
+// caller writes a single patch — usedirectory's setter is non-functional, so
+// two updateProject calls in a tick clobber each other).
+//
+// An entry staged from a reconfigure carries a `target`, so it REPLACES that
+// kit's lines through landKitLines instead of appending a second copy of the
+// same shower — the whole point of the amendment: updating a placed kit used
+// to mean staging a new one and hand-deleting the old.
+//
+// The target is honoured only while it still points at the kit that was
+// staged. If the row is gone, or now belongs to a different kit, the lines
+// APPEND and the entry counts as `stranded` for the caller to report: landing
+// on whatever took the row's place would silently clobber a kit nobody asked
+// to touch, which is worse than a duplicate the salesperson can see and
+// delete.
+export const moveKitEntries = (categories, aid, groups) => {
+  let cats = categories || [];
+  let stranded = 0;
+  for (const g of groups || []) {
+    const lines = stampKit(g?.lines || []);
+    if (!lines.length) continue;
+    const t = g.target;
+    const row = t && cats.find((c) => c.id === t.areaId)?.products.find((p) => p.id === t.rowId);
+    const next = row && (!t.kitId || row.kitId === t.kitId) ? landKitLines(cats, t.areaId, t.rowId, lines) : null;
+    if (next) { cats = next; continue; }
+    if (t) stranded++;
+    cats = appendKitLines(cats, aid, lines);
+  }
+  return { categories: cats, stranded };
 };
 // Delete a placed kit: the anchor row plus everything kitCompanionIds says is
 // its — the basket drawer's "Remove" (ADR 0035 step 2). Null when the anchor

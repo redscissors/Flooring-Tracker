@@ -24,7 +24,7 @@ import {
   BENCH_CORNER_LBL, buildFromMarker,
 } from "./wedi.js";
 import { TopDown, Iso, railSplit, RAIL_DESIGN_W, curbHeight } from "./showerdraw.jsx";
-import { stampKit, normKitBasketEntry } from "./model.js";
+import { normKitBasketEntry } from "./model.js";
 
 // The Compare tab drags in comparekit → BOTH engines' tables, so it stays its
 // own chunk behind this popup's own lazy boundary (ADR 0026).
@@ -560,7 +560,7 @@ function seedState(seed) {
 
 export default function WediConfigurator({ seed, tier, onTierChange, wediBuilderPct, schluterBuilderPct,
   stockRows, bookStockReady, books, loadBookItems, mortars, mortarDefault,
-  onAdd, basket, onBasketChange, onMoveEntries, placed, onOpenPlaced, onDeleteKit,
+  onAdd, onAddNew, editing = null, basket, onBasketChange, onMoveEntries, placed, onOpenPlaced, onDeleteKit,
   onQuoteOptions, onClose, areaName, projectName, onConfigChange, embedded = false }) {
   const init = useRef(null);
   if (!init.current) init.current = seedState(seed);
@@ -1341,7 +1341,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
   // The `|| {}` is the staged fork: a truthy session makes the entry read its
   // OWN Fit flag, where the placed fork (entryView(k.marker)) follows the live
   // toggle. An entry saved without a session must still take the staged path.
-  const stagedViews = useMemo(() => (basket || []).map((e) => ({ id: e.id, ...entryView(e.snap, e.session || {}) })),
+  const stagedViews = useMemo(() => (basket || []).map((e) => ({ id: e.id, target: e.target, ...entryView(e.snap, e.session || {}) })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [basket, tierId, customPct, salePct, bPct]);
   const placedViews = useMemo(() => (placed || []).map((k) => ({ ...k, ...entryView(k.marker) })),
@@ -1352,18 +1352,27 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     const entry = normKitBasketEntry({
       addedAt: Date.now(), snap: { mode: build.mode, cfg: JSON.parse(JSON.stringify(build.cfg)) },
       session: { qtyOv: { ...qtyOv }, manual: manual.map((m) => ({ ...m })), panelFit },
+      target: editing || undefined,
     });
-    if (entry) { onBasketChange([...(basket || []), entry]); setBasketOpen(true); say("Staged in the basket — saved with this job"); }
+    if (!entry) return;
+    // One pending update per kit: staging a second edit of the same kit
+    // REPLACES the first, or moving both would land one on top of the other.
+    const rest = entry.target ? (basket || []).filter((b) => b.target?.rowId !== entry.target.rowId) : (basket || []);
+    onBasketChange([...rest, entry]);
+    setBasketOpen(true);
+    say(entry.target ? "Update staged — moving it replaces this kit's lines" : "Staged in the basket — saved with this job");
   };
   const moveEntries = (ids) => {
     const picked = (basket || []).filter((b) => ids.includes(b.id));
     const views = picked.map((e) => stagedViews.find((v) => v.id === e.id)).filter((v) => v && v.lines);
     if (!onMoveEntries) return;
     if (!views.length) { say("Nothing to move — the catalog no longer knows these kits"); return; }
-    // Stamped per entry BEFORE flattening: each staged entry is its own kit
-    // (its own kitId group) even when several move in one click.
-    const lines = views.flatMap((v) => stampKit(v.lines()));
-    onMoveEntries(lines, (basket || []).filter((b) => !ids.includes(b.id) || !views.some((v) => v.id === b.id)));
+    // Each staged entry is its own kit (its own kitId group) even when several
+    // move in one click; a targeted entry carries where it lands, so
+    // moveKitEntries replaces that kit instead of appending a second copy.
+    const byId = new Map(picked.map((e) => [e.id, e]));
+    const groups = views.map((v) => ({ lines: v.lines(), target: byId.get(v.id)?.target }));
+    onMoveEntries(groups, (basket || []).filter((b) => !ids.includes(b.id) || !views.some((v) => v.id === b.id)));
     setBasketSel({});
   };
 
@@ -1943,7 +1952,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
               : <><Eye size={11} /> cost &amp; margin</>}
           </button>
           <div className="btnrow">
-            <button className="wbtn primary" onClick={() => setPayload(rows)} data-wedi-add><Plus size={13} /> Add to product lines</button>
+            <button className="wbtn primary" onClick={() => setPayload(rows)} data-wedi-add><Plus size={13} /> {editing ? "Update this kit" : "Add to product lines"}</button>
             {onBasketChange && <button className="wbtn" onClick={addToBasket} data-wedi-add-basket><Plus size={13} /> Basket</button>}
             <button className="wbtn" disabled={!diag} onClick={() => setPrinting(true)}><Printer size={13} /> Print layout</button>
             <button className="wbtn" onClick={copyList}><Copy size={13} /> Order entry</button>
@@ -2292,8 +2301,8 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
       <div className="wedi-pop w-full max-w-[900px] max-h-[82vh] flex flex-col rounded-xl overflow-hidden shadow-2xl"
         style={{ background: "var(--ft-cream)" }} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2.5 px-4 py-3 border-b" style={{ borderColor: "var(--ft-border-strong)" }}>
-          <div className="text-sm font-extrabold">Add to product lines — the payload</div>
-          <div className="text-[11px] font-semibold text-slate-500">{payload.length} rows land on the job sheet{areaName ? " in " + areaName : ""}</div>
+          <div className="text-sm font-extrabold">{editing ? "Update this kit — the payload" : "Add to product lines — the payload"}</div>
+          <div className="text-[11px] font-semibold text-slate-500">{payload.length} rows {editing ? "replace this kit's lines" : "land on the job sheet"}{areaName ? " in " + areaName : ""}</div>
           <button className="xbtn ml-auto" onClick={() => setPayload(null)}><X size={15} /></button>
         </div>
         <div className="flex-1 overflow-y-auto px-4 py-3">
@@ -2327,9 +2336,15 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
         <div className="flex items-center gap-2 px-4 py-3 border-t" style={{ borderColor: "var(--ft-border-strong)", background: "var(--ft-sand)" }}>
           <span className="text-[11px] font-semibold text-slate-500">Quantities and prices stay editable on the row afterwards.</span>
           <button className="wbtn" style={{ flex: "none", padding: "8px 14px" }} onClick={() => setPayload(null)}>Cancel</button>
+          {editing && onAddNew && (
+            <button className="wbtn" style={{ flex: "none", padding: "8px 14px" }} data-wedi-addnew
+              onClick={() => { setPayload(null); onAddNew(payload); }}>
+              <Plus size={13} /> Add as a new kit
+            </button>
+          )}
           <button className="wbtn primary" style={{ flex: "none", padding: "8px 16px" }} data-wedi-confirm
             onClick={() => { setPayload(null); onAdd(payload); }}>
-            <Plus size={13} /> Add {payload.length} row{payload.length === 1 ? "" : "s"}
+            <Plus size={13} /> {editing ? "Update" : "Add"} {payload.length} row{payload.length === 1 ? "" : "s"}
           </button>
         </div>
       </div>

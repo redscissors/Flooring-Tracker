@@ -41,6 +41,43 @@ are the truth — this ADR's derive-live rule — so the "In this project" figur
 stays a marker-derived recipe price and reads the popup's live settings, not a
 frozen session.
 
+## Amendment 2026-09-01 — a staged entry can target the kit it updates
+
+Step 3 left one gap the owner hit immediately: reconfiguring a placed kit and then
+staging the edit produced a SECOND kit. "Add to product lines" replaced in place
+(`landKitLines`), but the basket lane never could — `addToBasket` stamped a fresh
+entry with no memory of where it came from, and Move always appended. Updating a
+placed kit therefore meant building a new one and hand-deleting the old, which is
+exactly the stranded-companion chore this ADR was written to end.
+
+Two changes close it, both confined to the landing seams:
+
+1. **The commit button says which it does.** A popup opened on an anchor already
+   carrying that vendor's cfg is in EDITING mode — derived in App.jsx from the live
+   row, never a flag the caller has to keep in sync — and its primary button reads
+   "Update this kit" over "Add to product lines", with the payload modal retitled to
+   match and an "Add as a new kit" escape hatch beside the confirm. The behavior was
+   already replacement; only the label was lying.
+2. **A staged entry carries an optional `target` `{areaId, rowId, kitId}`**, stamped
+   when it is staged from a reconfigure. `moveKitEntries` (model.js) then routes each
+   entry — targeted ones through `landKitLines`, the rest through `appendKitLines` —
+   in ONE pass over the accumulating categories, so the caller still writes a single
+   patch.
+
+The target is honoured only while it still points at the kit that was staged. A row
+that is gone, or that now belongs to a different kit, falls back to appending and is
+counted as `stranded` for the caller to report: landing on whatever took the row's
+place would silently clobber a kit nobody asked to touch, which is worse than a
+duplicate the salesperson can see and delete. `kitId` is the staleness check and is
+optional, since a legacy anchor has none.
+
+Staging a second edit of the same kit REPLACES the first pending entry rather than
+queueing both — two entries targeting one row would land one on top of the other,
+and "the pending update to this kit" is the only thing that reading makes sense of.
+
+The scope boundary is unchanged: only staged entries persist, placed kits are still
+derived live from the rows.
+
 ## Consequences
 
 - **Replacement rules.** With a `kitId` on the reconfigured anchor, every row sharing
