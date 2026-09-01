@@ -119,6 +119,19 @@ test("orderEntryRow: a carton line still leads with CT — the one keyed-in-bund
   assert.equal(orderEntryRow(sh, s, "Kitchen", 0, new Set()).tag, "");
 });
 
+test("orderEntryRow: a row snapshotted with an SF U/M keys cartons, not square feet", () => {
+  // Marcus 2026-08-31 (Catch Ivory Glossy, "sold as carton of 12.15 sf"): the
+  // pick took the book's price basis as the sell unit, so the panel keyed 13
+  // CARTONS as "13 SF" — 145 sq ft short — and its coverage read "12.15 SF/SF".
+  const p = { ...newProduct(), type: "tile", L: "3", W: "12", qty: "140", priceSqft: "5.2", cartonSf: "12.15", cartonUnit: "SF", sku: "F14CATCIV0312P", brandColor: "Catch Ivory Glossy" };
+  const r = orderEntryRow(p, s, "Area 1", 0, new Set());
+  assert.equal(r.unitCode, "CT");
+  assert.equal(r.qtyText, "13 CT");
+  assert.equal(r.coverage, "12.15 SF/CT");
+  assert.equal(r.tag, "CT", "the bundle tag the desk needs, withheld while the unit read SF");
+  assert.equal(printProduct(p, s).qtyText, "13 ct");
+});
+
 // The 8/26 Glazzio sheet-mosaic flags: a sheet line keys in sheets, reads its
 // nominal size (exact dims on hover via sizeTrue), and its coverage is exact —
 // never rounded to one decimal.

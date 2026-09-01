@@ -14,7 +14,7 @@ import { queryHit as schluterQueryHit, parseQuery as schluterParseQuery, querySu
 import { STOCK_LOADING_MSG, skuSearchable, TYPES, TLBL, underlayLabel, TYPE_ACCENT, JOINTS, colorsFor, TIER_COLOR } from "./uiconst.js";
 import { money, sf1, miscQty, rowBlank } from "./model.js";
 import { lineTotal, printProduct, KSHORT } from "./print.js";
-import { unitCode } from "./units.js";
+import { unitCode, bundleUnit } from "./units.js";
 import { MARKUP_PRESETS, unitMargin, editCost, editMarkup, editPrice } from "./costentry.js";
 import { FitSelect, useEscClose } from "./widgets.jsx";
 import { ClaudeMark } from "./claudeflag.jsx";
@@ -399,12 +399,12 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutS
           {p.type !== "misc" && p.qtyType === "sqft" ? (
             <div className="relative">
               <input type="number" inputMode="decimal" value={p.cartonSf} onChange={(e) => onPatch({ cartonSf: e.target.value })} placeholder="—" className={fi + " text-right ft-mono pr-12"} title="Sq ft per carton/sheet — filled from the price book when the SKU has one. With this set, quantities and totals are figured by whole cartons." />
-              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[8.5px] font-bold" style={{ color: "var(--ft-muted)" }}>SF/{String(p.cartonUnit || "CT").toUpperCase()}</span>
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[8.5px] font-bold" style={{ color: "var(--ft-muted)" }}>SF/{bundleUnit(p.cartonUnit).toUpperCase()}</span>
             </div>
           ) : p.type === "misc" ? (
             <div className="relative">
               <input type="number" inputMode="decimal" value={p.cartonPc} onChange={(e) => onPatch({ cartonPc: e.target.value })} placeholder="—" className={fi + " text-right ft-mono pr-12"} title="Pieces per carton — with this set, pieces needed round up to whole cartons." />
-              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[8.5px] font-bold" style={{ color: "var(--ft-muted)" }}>PC/{String(p.cartonUnit || "CT").toUpperCase()}</span>
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[8.5px] font-bold" style={{ color: "var(--ft-muted)" }}>PC/{bundleUnit(p.cartonUnit).toUpperCase()}</span>
             </div>
           ) : (
             <div className={fi + " flex items-center justify-end"} style={{ color: "var(--ft-faint)" }}>—</div>

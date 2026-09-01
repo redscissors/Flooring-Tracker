@@ -132,6 +132,17 @@ test("a new collection clears the previous collection's size", () => {
   assert.equal(bySku(res, "SOR34MORH")[4], '3/4" x3 1/4", 4" x RL — 6\' or 7\'');
 });
 
+// Marcus 2026-08-31 (Tarkett Slim Trim - P29, "it does not show trim size
+// length"): the length is printed once, in the molding COLUMN HEADER, and both
+// OVF parsers threw it away with the rest of the annotation. It is the only
+// size a trim row has — Mannington already reads its 94" the same way.
+test("a molding carries the length its column header prints", () => {
+  const sn = bySku(parse(), "AV75OBALSN");
+  assert.equal(sn[4], '82"', 'STAIR NOSING 82" — the length, not the label');
+  assert.match(sn[1], /Stair Nose/);
+  assert.doesNotMatch(sn[1], /82/, "the label itself stays clean");
+});
+
 test("trims fan out priced per piece and stamped with the parent floor", () => {
   const sn = bySku(parse(), "AV75OBALSN");
   assert.equal(sn[9], "trim");
@@ -341,6 +352,14 @@ test("moldings fan out per design row, priced per piece, stamped with the floor"
   assert.match(qr[1], /Quarter Round/);
   assert.match(qr[1], /fits 270311021/);
   assert.equal(tkTrims(res).length, 15); // 5 per priced design row × 3 (FlexGen has none)
+});
+
+test("a Tarkett molding carries the length its column header prints", () => {
+  const res = tkParse();
+  assert.equal(bySku(res, "335013221")[4], '94"');           // Quarter Round (94")
+  assert.equal(bySku(res, "335015025")[4], '94"');           // Slim Trim - P29 (94") — the flagged molding
+  assert.match(bySku(res, "335015025")[1], /Slim Trim - P29/);
+  assert.doesNotMatch(bySku(res, "335015025")[1], /94/);
 });
 
 test("a FlexGen-style block emits floor-only rows; N/A moldings price null", () => {

@@ -64,8 +64,9 @@ const looksPrice = (s) => { const v = str(s); return v === "N/A" || v === "NA" |
 
 const BRAND = "Hallmark";
 
-// Trim/molding header label → the molding name we store. The size annotation
-// (82", 94", 74.75") varies per collection and carries no product meaning.
+// Trim/molding header label → the molding name we store. The length annotation
+// (82", 94", 74.75") varies per collection, so it is not part of the name — it
+// is read out separately by trimLength and stored as the row's size.
 const TRIM_LABELS = [
   [/STAIR|STAIRNOSE/, "Stair Nose"],
   [/T[-\s]?MOLD/, "T-Mold"],
@@ -74,6 +75,16 @@ const TRIM_LABELS = [
   [/END\s*CAP/, "End Cap"],
 ];
 const trimLabelFor = (label) => { for (const [re, name] of TRIM_LABELS) if (re.test(label)) return name; return null; };
+
+// The molding length the same header prints ("STAIR NOSING 82\"" → 82"; the
+// Tarkett sheet parenthesizes it, "Slim Trim - P29 (94\")" → 94"). It is the
+// one size a trim row has — the grid's size columns belong to the floor — and
+// dropping it left the desk ordering a stick whose length the quote never
+// states (Marcus 2026-08-31); Mannington's trims have carried theirs since
+// ADR 0012. The inch mark is required, unlike the PDF parser's bare-number
+// fallback: these sheets are spreadsheet cells, so the mark is always there,
+// and a bare 2-3 digit run would read the "29" out of a part code like P29.
+const trimLength = (label) => { const m = str(label).match(/(\d{2,3}(?:\.\d+)?)\s*["”″]/); return m ? `${m[1]}"` : ""; };
 
 // Collection type from its banner text; the whole "wood" book carries one
 // laminate (Crescendo) and one vinyl (Courtier PVP) collection.
@@ -131,7 +142,7 @@ function parseHeader(row) {
     else if (/OLD\s*ITEM/.test(label)) h.oldCol = c;
     else if (/^ITEM/.test(label)) h.floorCol = c;
     else if (/TOUCH/.test(label)) h.touchCol = c;
-    else { const t = trimLabelFor(label); if (t) h.trims.push({ col: c, label: t }); }
+    else { const t = trimLabelFor(label); if (t) h.trims.push({ col: c, label: t, size: trimLength(label) }); }
   }
   return h;
 }
@@ -184,8 +195,9 @@ export function parseHallmark(rows, name = "Hallmark price list") {
       for (const t of header.trims) {
         const tsku = str(row[t.col]);
         if (!looksSku(tsku)) continue;
-        const rec = trims.get(tsku) || { sku: tsku, label: t.label, price: trimPrices[t.col] ?? null, fits: new Set(), names: new Set() };
+        const rec = trims.get(tsku) || { sku: tsku, label: t.label, size: t.size, price: trimPrices[t.col] ?? null, fits: new Set(), names: new Set() };
         if (rec.price == null && trimPrices[t.col] != null) rec.price = trimPrices[t.col];
+        if (!rec.size && t.size) rec.size = t.size;
         rec.fits.add(floorSku);
         if (label) rec.names.add(label);
         trims.set(tsku, rec);
@@ -232,7 +244,7 @@ export function parseHallmark(rows, name = "Hallmark price list") {
     const fits = [...t.fits].sort();
     const parent = [...t.names][0] || "";
     const desc = [parent ? `${parent} — ${t.label}` : t.label, fits.length && `· fits ${fits.join(" ")}`].filter(Boolean).join(" ");
-    out.push([t.sku, desc, "", "", "", "", t.price != null ? String(t.price) : "", "EA", "", "trim", BRAND, fits.join(" "), ""]);
+    out.push([t.sku, desc, "", "", t.size || "", "", t.price != null ? String(t.price) : "", "EA", "", "trim", BRAND, fits.join(" "), ""]);
   }
 
   if (!flooring.length) warnings.push("No Hallmark product rows were recognized — is this the OVF Hallmark price sheet?");
@@ -291,7 +303,8 @@ const tkCollection = (s) =>
   str(s).replace(/[™®]/g, "").replace(/\s*\d+(?:\.\d+)?\s*["″”]?\s*x\s*\d+(?:\.\d+)?\s*["″”]?\s*(?:planks?|tiles?)\s*$/i, "").replace(/\s+/g, " ").trim();
 
 // Molding column label → the name we store ("Quarter Round (94\")" → "Quarter
-// Round"); the length annotation carries no product meaning.
+// Round"); the length inside the parentheses is the row's size, read out by
+// trimLength rather than dropped.
 const tkTrimLabel = (s) => str(s).replace(/\([^)]*\)/g, " ").replace(/["″”]/g, " ").replace(/\s+/g, " ").trim();
 
 export function parseTarkett(rows, name = "Tarkett price list") {
@@ -337,7 +350,7 @@ export function parseTarkett(rows, name = "Tarkett price list") {
         const label = str(row[c]);
         if (!label) continue;
         if (/item/i.test(label)) header.itemCol = c;
-        else if (c > 1) header.trims.push({ col: c, label: tkTrimLabel(label) });
+        else if (c > 1) header.trims.push({ col: c, label: tkTrimLabel(label), size: trimLength(label) });
       }
       continue;
     }
@@ -378,8 +391,9 @@ export function parseTarkett(rows, name = "Tarkett price list") {
       for (const t of header.trims) {
         const tsku = str(row[t.col]);
         if (!looksNumSku(tsku)) continue;
-        const rec = trims.get(tsku) || { sku: tsku, label: t.label, price: trimPrices[t.col] ?? null, fits: new Set(), names: new Set() };
+        const rec = trims.get(tsku) || { sku: tsku, label: t.label, size: t.size, price: trimPrices[t.col] ?? null, fits: new Set(), names: new Set() };
         if (rec.price == null && trimPrices[t.col] != null) rec.price = trimPrices[t.col];
+        if (!rec.size && t.size) rec.size = t.size;
         rec.fits.add(floorSku);
         if (c0) rec.names.add(c0);
         trims.set(tsku, rec);
@@ -412,7 +426,7 @@ export function parseTarkett(rows, name = "Tarkett price list") {
     const fits = [...t.fits].sort();
     const parent = [...t.names][0] || "";
     const desc = [parent ? `${parent} — ${t.label}` : t.label, fits.length && `· fits ${fits.join(" ")}`].filter(Boolean).join(" ");
-    out.push([t.sku, desc, "", "", "", "", t.price != null ? String(t.price) : "", "EA", "", "trim", TK_BRAND, fits.join(" ")]);
+    out.push([t.sku, desc, "", "", t.size || "", "", t.price != null ? String(t.price) : "", "EA", "", "trim", TK_BRAND, fits.join(" ")]);
   }
 
   if (!flooring.length) warnings.push("No Tarkett product rows were recognized — is this the OVF Tarkett LVT price sheet?");
