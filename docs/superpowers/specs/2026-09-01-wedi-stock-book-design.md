@@ -1,8 +1,12 @@
 # wedi's stock side comes from a registry price book (8a)
 
-Date: 2026-09-01 · Status: Draft, awaiting owner review
-Scope: a new stock-kind price book for wedi, a new `src/wediadapter.js`, and the
-seam in `wedi.js` where `WEDI_STOCK` feeds `makeEntry`.
+Date: 2026-09-01 · Status: Implemented on branch `wedi-stock-book-118`;
+open question 3 (fallback lifetime) still with the owner
+Scope: a new stock-kind price book for wedi, a new `src/wediadapter.js`, the
+`src/usewedicatalog.js` hook that gates it and is the sole caller of
+`setStockSource`/`clearStockSource`, the `WediConfigurator.jsx` wiring that
+consumes the hook, and the seam in `wedi.js` where `WEDI_STOCK` feeds
+`makeEntry`.
 Related: ADR 0032 (Schluter is registry-driven — this is the same move for wedi's
 stock half), ADR 0009 (price book registry), ADR 0025/0027 (re-import, diff, drift),
 ADR 0003 (rows are snapshots), issue 066 (the transcribed engine), issue 080 (the
