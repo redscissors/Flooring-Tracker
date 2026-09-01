@@ -22,7 +22,12 @@ const call = async (body, signal) => {
   const problem = relayProblems(body);
   if (problem) return { error: "bad-request" };
   if (!supabase) return { error: "unauthorized" };
-  const { data: { session } = {} } = await supabase.auth.getSession();
+  let session;
+  try {
+    ({ data: { session } = {} } = await supabase.auth.getSession());
+  } catch {
+    return { error: "unauthorized" };
+  }
   if (!session?.access_token) return { error: "unauthorized" };
   let res;
   try {

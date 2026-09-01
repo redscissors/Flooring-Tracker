@@ -556,15 +556,21 @@ export function AddressField({ value, onChange, inp, placeholder, autoFocus, pin
     const to = String(addr || "").trim();
     if (!shopAddress || !to || busy) return;
     setBusy(true); setDistErr("");
-    const out = await fetchDistance(shopAddress, to);
-    setBusy(false);
-    if (out?.error) { setDistErr(out.error); return; }
-    onDistance?.({ ...out, from: shopAddress, to, at: Date.now() });
+    try {
+      const out = await fetchDistance(shopAddress, to);
+      if (out?.error) { setDistErr(out.error); return; }
+      onDistance?.({ ...out, from: shopAddress, to, at: Date.now() });
+    } catch {
+      setDistErr("upstream");
+    } finally {
+      setBusy(false);
+    }
   };
   const measure = () => measureAddr(value);
 
   const type = (v) => {
     onChange(v);
+    setDistErr("");
     if (!suggest) return;
     if (v.trim().length < MIN_SUGGEST) clear(); else ask(v);
     setOpen(true);
