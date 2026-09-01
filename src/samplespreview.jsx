@@ -9,13 +9,15 @@ import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import { SamplesPanel } from "./samples.jsx";
-import { requestFrom, projectSampleTally } from "./samples.js";
+import { requestFrom, projectSampleTally, sampleContactFor } from "./samples.js";
 import { normA } from "./model.js";
 import CustomerBrowser from "./CustomerBrowser.jsx";
 
 const BOOKS = [
   { id: "bkGlz", kind: "order", name: "Glazzio EFT", data: { brandLabel: "Glazzio", rep: { name: "Jeff Krejci", email: "jeff@glazzio.example" } } },
-  { id: "bkGlati", kind: "stock", name: "GLATI stock", data: {} },
+  // A separate samples address (no rep) — the company-inbox case the
+  // Contacts tab exists for; Glazzio above exercises the rep fallback.
+  { id: "bkGlati", kind: "stock", name: "GLATI stock", data: { sampleContact: { name: "", email: "samples@glati.example" } } },
 ];
 const PROJECT = { id: "c1", name: "Marsh — whole first floor", address: "214 Old Mill Rd, Chagrin Falls", phone: "(555) 210-0114" };
 const area = (id, name) => normA({ id, name, products: [{}] });
@@ -61,7 +63,7 @@ function Harness() {
   return (
     <SamplesPanel name={PROJECT.name} requests={reqs}
       custInfo={{ custName: "Kathy Marsh", address: PROJECT.address, phone: PROJECT.phone }}
-      repFor={(g) => BOOKS.find((b) => b.id === g.bookId)?.data?.rep || null}
+      contactFor={(g) => sampleContactFor(BOOKS.find((b) => b.id === g.bookId)?.data)}
       onOrdered={(ids, ordered) => setReqs((prev) => prev.map((r) => ids.includes(r.id) ? { ...r, status: ordered ? "ordered" : "need", orderedBy: ordered ? "Dana" : "", orderedAt: ordered ? Date.now() : null } : r))}
       onRemove={(id) => setReqs((prev) => prev.filter((r) => r.id !== id))}
       onClose={() => {}} />

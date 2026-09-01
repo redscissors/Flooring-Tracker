@@ -1,12 +1,13 @@
 // The Samples panel — this project's sample requests, grouped by vendor,
-// ordered by EMAILING each vendor's rep (owner call: samples ship direct to
+// ordered by EMAILING each vendor's sample contact — its rep, or the separate
+// samples address when it has one (owner call: samples ship direct to
 // the customer; the email body carries the item list + the customer ship-to
 // and NO salesperson info). Presentation only: writes go back through
 // onOrdered/onRemove into useSamples. Same right-dock shell as order entry.
 
 import { X, Layers, Mail } from "lucide-react";
 import { CopyBtn } from "./orderentry.jsx";
-import { sampleGroups, repEmail, mailtoHref, SAMPLE_LABEL, SAMPLE_CHIP, SAMPLE_COLOR, SAMPLE_STATUSES } from "./samples.js";
+import { sampleGroups, repEmail, mailtoHref, contactLabel, SAMPLE_LABEL, SAMPLE_CHIP, SAMPLE_COLOR, SAMPLE_STATUSES } from "./samples.js";
 
 const dateShort = (at) => (at ? new Date(at).toLocaleDateString(undefined, { month: "numeric", day: "numeric" }) : "");
 
@@ -24,9 +25,9 @@ function StatusSeg({ status, onPick }) {
   );
 }
 
-function VendorGroup({ g, custInfo, rep, onOrdered, onRemove }) {
+function VendorGroup({ g, custInfo, contact, onOrdered, onRemove }) {
   const need = g.rows.filter((r) => r.status === "need");
-  const mail = repEmail({ rows: g.rows, ...custInfo, repName: rep?.name || "" });
+  const mail = repEmail({ rows: g.rows, ...custInfo, repName: contact?.name || "" });
   return (
     <section>
       <div className="flex items-center justify-between mb-2 gap-2">
@@ -39,18 +40,18 @@ function VendorGroup({ g, custInfo, rep, onOrdered, onRemove }) {
               Mark all ordered
             </button>
           )}
-          {rep?.email && (
-            <a href={mailtoHref(rep.email, mail.subject, mail.body)}
-              title={`Opens your mail program addressed to ${rep.email}:\n\n${mail.body}`}
+          {contact?.email && (
+            <a href={mailtoHref(contact.email, mail.subject, mail.body)}
+              title={`Opens your mail program addressed to ${contact.email}:\n\n${mail.body}`}
               className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] font-semibold bg-indigo-600 hover:bg-indigo-700 text-white">
-              <Mail size={13} /> Email {rep.name ? rep.name.trim().split(/\s+/)[0] : "the rep"}
+              <Mail size={13} /> {contactLabel(contact)}
             </a>
           )}
           <CopyBtn text={mail.body} label="Copy email" />
         </div>
       </div>
-      {!rep?.email && g.bookId && (
-        <p className="text-[10.5px] text-slate-400 -mt-1 mb-1.5">No rep on file — add name &amp; email on this vendor's book page (Rep tab) to send with one click.</p>
+      {!contact?.email && g.bookId && (
+        <p className="text-[10.5px] text-slate-400 -mt-1 mb-1.5">No sample contact on file — add a rep or samples email on this vendor's book page (Contacts tab) to send with one click.</p>
       )}
       <div className="rounded-lg border border-slate-200 divide-y divide-slate-100">
         {g.rows.map((r, i) => (
@@ -74,7 +75,7 @@ function VendorGroup({ g, custInfo, rep, onOrdered, onRemove }) {
   );
 }
 
-export function SamplesPanel({ name, requests, custInfo, repFor, onOrdered, onRemove, onClose }) {
+export function SamplesPanel({ name, requests, custInfo, contactFor, onOrdered, onRemove, onClose }) {
   const groups = sampleGroups(requests);
   return (
     <div className="print:hidden fixed inset-0 z-50 flex justify-end" style={{ background: "rgba(20,15,10,.4)" }} onClick={onClose}>
@@ -94,9 +95,9 @@ export function SamplesPanel({ name, requests, custInfo, repFor, onOrdered, onRe
           ) : (
             <>
               {!custInfo.address && (
-                <p className="text-[11px]" style={{ color: "#b45309" }}>No ship-to address on this project — the rep email will have nowhere to send the samples. Add the project (or customer) address first.</p>
+                <p className="text-[11px]" style={{ color: "#b45309" }}>No ship-to address on this project — the sample email will have nowhere to send the samples. Add the project (or customer) address first.</p>
               )}
-              {groups.map((g) => <VendorGroup key={g.key} g={g} custInfo={custInfo} rep={repFor(g)} onOrdered={onOrdered} onRemove={onRemove} />)}
+              {groups.map((g) => <VendorGroup key={g.key} g={g} custInfo={custInfo} contact={contactFor(g)} onOrdered={onOrdered} onRemove={onRemove} />)}
               <p className="text-[11px] text-slate-400">
                 Samples ship straight to the customer — the email carries their name and the project address. After sending, <b>Mark all ordered</b>; statuses are shared, so the whole team sees what's in flight.
               </p>

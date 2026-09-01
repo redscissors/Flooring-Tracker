@@ -50,7 +50,7 @@ const BOOKS = [
   // The brand-box demo (2026-08-18): an order book whose sheet carries no brand
   // column, a few real-shaped items, so the Brand tab and the table's landed
   // names can be exercised live.
-  { id: "glz", kind: "order", name: "Glazzio Tile", active: true, data: { markups: { default: 50 }, lastImport: { at: Date.now() - 20 * DAY, by: "Sam", count: 4 } } },
+  { id: "glz", kind: "order", name: "Glazzio Tile", active: true, data: { markups: { default: 50 }, rep: { name: "Jeff Krejci", email: "jeff@glazzio.example" }, sampleContact: { name: "Glazzio samples desk", email: "samples@glazzio.example" }, lastImport: { at: Date.now() - 20 * DAY, by: "Sam", count: 4 } } },
   // Past the 120-day default, so the stale flag + the Confirm-current card
   // (Source drawer) can be exercised live.
   { id: "old", kind: "order", name: "Emser — West", active: true, data: { markups: { default: 45 }, lastImport: { at: Date.now() - 140 * DAY, by: "Sam", count: 96 } } },
