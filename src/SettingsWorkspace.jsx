@@ -867,7 +867,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
             <div className="mt-8 pt-6 border-t border-slate-100">
               <label className={lbl + " mb-2"}>Shop address <HelpTip className="align-middle" w={300} tip="Where job distance is measured from. Team-wide — one address, so a distance means the same thing whoever looked it up. Leave blank to turn job distance off." /></label>
               <div className="max-w-xl">
-                <AddressField value={settings.shop?.address || ""} onChange={(v) => setSettings({ shop: { address: v } })} inp={inp} placeholder="Shop address…" ping={ping} />
+                <AddressField suggest value={settings.shop?.address || ""} onChange={(v) => setSettings({ shop: { address: v } })} inp={inp} placeholder="Shop address…" ping={ping} />
               </div>
               <div className="text-[11px] text-slate-400 mt-1">Job distance is internal — it never prints on an estimate.</div>
             </div>

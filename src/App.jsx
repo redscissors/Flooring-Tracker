@@ -1485,7 +1485,7 @@ export default function App({ user, onSignOut }) {
                     <div className="mt-3">
                       {custChip === "phone" && <><label className={lbl}>Phone</label><input autoFocus value={selCust.phone} onChange={(e) => updatePerson(selCust.id, { phone: e.target.value })} className={inp} /></>}
                       {custChip === "email" && <><label className={lbl}>Email</label><input autoFocus value={selCust.email} onChange={(e) => updatePerson(selCust.id, { email: e.target.value })} className={inp} /></>}
-                      {custChip === "address" && <><label className={lbl}>Mailing address</label><AddressField autoFocus value={selCust.address} onChange={(v) => updatePerson(selCust.id, { address: v })} inp={inp} ping={ping} /></>}
+                      {custChip === "address" && <><label className={lbl}>Mailing address</label><AddressField autoFocus suggest value={selCust.address} onChange={(v) => updatePerson(selCust.id, { address: v })} inp={inp} ping={ping} /></>}
                       {custChip === "builder" && <><label className={lbl}>Builder</label><BuilderCombo value={selCust.builderId} builders={data.builders} inp={inp} onSelect={(bid) => updatePerson(selCust.id, { builderId: bid })} onAddBuilder={(name) => addBuilderFor(selCust.id, name)} /></>}
                       {custChip === "notes" && <><label className={lbl}>Customer notes</label><textarea autoFocus value={selCust.notes} onChange={(e) => updatePerson(selCust.id, { notes: e.target.value })} rows={2} className={inp} /></>}
                     </div>
@@ -1607,7 +1607,7 @@ export default function App({ user, onSignOut }) {
                       </>}>
                       <div className="space-y-3">
                         <div><label className={lbl}>Project name</label><input value={sel.name} maxLength={PROJECT_NAME_MAX} onChange={(e) => updateProject(sel.id, { name: e.target.value })} placeholder="Project name" className={inp} /></div>
-                        <div><label className={lbl}>Project address</label><AddressField value={sel.address} onChange={(v) => updateProject(sel.id, { address: v })} placeholder="Project address…" inp={inp} ping={ping} /></div>
+                        <div><label className={lbl}>Project address</label><AddressField suggest value={sel.address} onChange={(v) => updateProject(sel.id, { address: v })} placeholder="Project address…" inp={inp} ping={ping} /></div>
                         <div>
                           <label className={lbl}>Price tier</label>
                           <SegBar value={sel.priceTier || "retail"} inputValue={sel.customPct}
@@ -2962,7 +2962,7 @@ export default function App({ user, onSignOut }) {
                 <div><label className={lbl}>Phone</label><input value={c.phone} onChange={(e) => updatePerson(c.id, { phone: e.target.value })} className={inp} /></div>
                 <div><label className={lbl}>Email</label><input value={c.email} onChange={(e) => updatePerson(c.id, { email: e.target.value })} className={inp} /></div>
               </div>
-              <div><label className={lbl}>Mailing address</label><AddressField value={c.address} onChange={(v) => updatePerson(c.id, { address: v })} inp={inp} ping={ping} /></div>
+              <div><label className={lbl}>Mailing address</label><AddressField suggest value={c.address} onChange={(v) => updatePerson(c.id, { address: v })} inp={inp} ping={ping} /></div>
               <div><label className={lbl}>Builder</label><BuilderCombo value={c.builderId} builders={data.builders} inp={inp} onSelect={(bid) => updatePerson(c.id, { builderId: bid })} onAddBuilder={(name) => addBuilderFor(c.id, name)} /></div>
               <div><label className={lbl}>Customer notes</label><textarea value={c.notes} onChange={(e) => updatePerson(c.id, { notes: e.target.value })} rows={2} className={inp} /></div>
             </div>

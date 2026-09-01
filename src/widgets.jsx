@@ -6,6 +6,7 @@ import { money } from "./model.js";
 import { normName, matchName } from "./names.js";
 import { mapsUrl, cleanAddress } from "./address.js";
 import { escPush } from "./escstack.js";
+import { useAddressSuggest } from "./usemapslookup.js";
 
 // Register onClose as the Escape action while `active` (escstack.js). Later
 // registrations sit above earlier ones, so the most recently opened layer
@@ -523,20 +524,57 @@ export function NumIn({ value, onCommit, ...rest }) {
 const ADDR_BTN = "shrink-0 flex items-center justify-center rounded-md border border-slate-200 p-1.5 text-slate-400 hover:text-indigo-700 hover:border-indigo-300 transition";
 const PASTE_KEY = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || "") ? "⌘V" : "Ctrl+V";
 
-export function AddressField({ value, onChange, inp, placeholder, autoFocus, ping }) {
+// Why a lookup failed, in words the salesperson can act on. An unmapped code
+// must still say something — silence reads as "no results", which is the one
+// thing this must never be mistaken for.
+const LOOKUP_ERR = {
+  "not-configured": "Address lookup needs a Google key — see Settings",
+  "over-quota": "Address lookup unavailable — daily limit reached",
+  "no-route": "Couldn't find a route to that address",
+  unauthorized: "Sign in again to use address lookup",
+  offline: "Couldn't reach the lookup service",
+};
+export const lookupErrText = (code) => LOOKUP_ERR[code] || (code ? "Address lookup is unavailable right now" : "");
+
+export function AddressField({ value, onChange, inp, placeholder, autoFocus, ping, suggest = false }) {
   const ref = useRef(null);
+  const [open, setOpen] = useState(false);
+  const { suggestions, err, ask, clear } = useAddressSuggest();
+
   const paste = async () => {
     let text = "";
     try { text = await navigator.clipboard.readText(); } catch { ref.current?.focus(); ping?.(`Press ${PASTE_KEY} to paste`); return; }
     const clean = cleanAddress(text);
-    if (clean) onChange(clean); else ping?.("Nothing on the clipboard — copy the address from Maps first");
+    if (clean) { onChange(clean); clear(); setOpen(false); } else ping?.("Nothing on the clipboard — copy the address from Maps first");
   };
+
+  const type = (v) => {
+    onChange(v);
+    if (suggest) { ask(v); setOpen(true); }
+  };
+  const pick = (s) => { onChange(s); clear(); setOpen(false); };
+
   return (
-    <div className="flex items-center gap-1">
-      <input ref={ref} value={value || ""} autoFocus={autoFocus} placeholder={placeholder} className={inp} onChange={(e) => onChange(e.target.value)} />
-      <button type="button" title="Look up on Google Maps" className={ADDR_BTN}
-        onClick={() => window.open(mapsUrl(value), "_blank", "noopener,noreferrer")}><MapPin size={15} /></button>
-      <button type="button" title="Paste the address you copied" className={ADDR_BTN} onClick={paste}><ClipboardPaste size={15} /></button>
+    <div className="relative">
+      <div className="flex items-center gap-1">
+        <input ref={ref} value={value || ""} autoFocus={autoFocus} placeholder={placeholder} className={inp}
+          onChange={(e) => type(e.target.value)}
+          onFocus={() => suggest && setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 150)} />
+        <button type="button" title="Look up on Google Maps" className={ADDR_BTN}
+          onClick={() => window.open(mapsUrl(value), "_blank", "noopener,noreferrer")}><MapPin size={15} /></button>
+        <button type="button" title="Paste the address you copied" className={ADDR_BTN} onClick={paste}><ClipboardPaste size={15} /></button>
+      </div>
+      {suggest && open && (suggestions.length > 0 || err) && (
+        <div className="absolute left-0 right-16 top-full mt-1 z-30 rounded-md border border-slate-200 bg-white shadow-lg overflow-hidden max-h-64 overflow-y-auto">
+          {err
+            ? <div className="px-3 py-2 text-[12.5px] text-amber-800 bg-amber-50">{lookupErrText(err)}</div>
+            : suggestions.map((s) => (
+              <div key={s} onMouseDown={(e) => { e.preventDefault(); pick(s); }}
+                className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer">{s}</div>
+            ))}
+        </div>
+      )}
     </div>
   );
 }
