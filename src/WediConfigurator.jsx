@@ -16,7 +16,7 @@ import { X, Plus, Printer, Copy, Eye } from "lucide-react";
 import { useEscClose, SourceSwitch, NumIn, KitBasketPanel } from "./widgets.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
-  catalog, item, group, pans, curbs, kitFor, solve, figureConsumables, panelPlan,
+  item, group, pans, curbs, kitFor, solve, figureConsumables, panelPlan,
   expandWallFaces, WALL_THICK, curbWidth, curbInsets, applyCurbInset, openCorners, curbRuns, CORNER_CUT, BROWSE_SECTIONS, sectionHit,
   tierPrice, lineItems, coverFrames, inch, round2, TIERS, SKU, MODULE_DEPTH, MODEXT_DEPTH,
   FINISHES, GROUP_LABEL, BUILDER_MULT, SO_MIN_NET,
@@ -25,6 +25,7 @@ import {
 } from "./wedi.js";
 import { TopDown, Iso, railSplit, RAIL_DESIGN_W, curbHeight } from "./showerdraw.jsx";
 import { normKitBasketEntry } from "./model.js";
+import { useWediCatalog } from "./usewedicatalog.js";
 
 // The Compare tab drags in comparekit → BOTH engines' tables, so it stays its
 // own chunk behind this popup's own lazy boundary (ADR 0026).
@@ -1301,7 +1302,7 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walls, extraWalls, wallH, wallFlip, panelFit, opts.sealantForm, tierId, customPct, salePct, bPct]);
 
-  const cat = catalog();
+  const { cat, catReady, onBook } = useWediCatalog({ stockRows, bookStockReady, books, loadBookItems });
   const nStock = useMemo(() => cat.filter((e) => e.stock).length, [cat]);
 
   // --- totals ---------------------------------------------------------------
@@ -2405,7 +2406,8 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
   const TAB_DEFS = [
     ["kits", "Kits", pans().length + " pans"],
     ["custom", "Custom shower", "solver"],
-    ["browse", "Browse", nStock + " stock · " + (cat.length - nStock) + " SO"],
+    ["browse", "Browse", nStock + " stock · " + (cat.length - nStock) + " SO"
+      + (onBook ? "" : " · transcribed table")],
     ["compare", "Compare", "wedi ⇄ Schluter"],
   ];
 
@@ -2422,6 +2424,12 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
         areaName={areaName} onQuoteOptions={onQuoteOptions} />
     </Suspense>
   );
+
+  // Never render a catalog we aren't sure of: with a wedi book present but its
+  // rows not in, quoting from WEDI_STOCK would silently price at the last
+  // transcription and resurrect retired items (owner, 2026-09-01). Placed
+  // after every hook — see the four useMemos above — so hook order is stable.
+  if (!catReady) return null;
 
   return (
     // Embedded (the Apps hub, like Sheoga): no backdrop or fixed overlay — the
