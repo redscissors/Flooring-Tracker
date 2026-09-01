@@ -67,8 +67,9 @@ Two warnings the import raises, both benign here and both worth knowing:
   one genuinely $0/$0 row, and the row the transcription drops; 152 export rows
   → 151 catalog entries is exactly this one. `1518104`/`1518105` are $0-*cost*
   samples that carry a real $100 retail, in both the export and the transcribed
-  table — they land at their normal $100 price, not as $0 lines. Confirmed with
-  the owner; see "Still open for the owner", #2.
+  table — they land at their normal $100 price, not as $0 lines. Measured
+  against the workbook and `WEDI_STOCK`, which agree; see "Still open for the
+  owner", #2.
 - *6 carton-sold rows carry no sf/ct in the description* — they would quote the
   carton price per piece **if picked through ordinary row search**. The configurator
   is unaffected: it prices per EA/BX off its own catalog, never per sf.
@@ -247,10 +248,11 @@ Nothing before step 3 touches quoting: until the book has rows, the engine runs 
 
 ## Still open for the owner
 
-2. **Answered (2026-09-01).** `1518104`/`1518105` are *samples* — "Wedi S-Dry
-   Mini Shower Base Sample" and "Wedi S-Dry Sample" — at $0 cost and $100
-   retail, in both the export and the transcribed table. The import warning
-   says "$0 price" but flags $0 *cost*. Deliberate, not a sheet artifact;
+2. **Resolved by measurement (2026-09-01).** `1518104`/`1518105` are *samples*
+   — "Wedi S-Dry Mini Shower Base Sample" and "Wedi S-Dry Sample" — at $0 cost
+   and $100 retail, in both the export and the transcribed table. The import
+   warning says "$0 price" but flags $0 *cost*. The export and `WEDI_STOCK`
+   agree on both rows, so this reads as deliberate, not a sheet artifact;
    nothing to fix before import. Only `29WEDIT` is genuinely $0/$0, and it is a
    custom-item placeholder that the adapter drops.
 3. **Fallback lifetime.** Keep `WEDI_STOCK` as the empty-book fallback indefinitely,
