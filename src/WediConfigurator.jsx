@@ -559,7 +559,81 @@ function seedState(seed) {
   return s;
 }
 
-export default function WediConfigurator({ seed, tier, onTierChange, wediBuilderPct, schluterBuilderPct,
+// The gate shell — the popup's own frame around a one-line status, shown while
+// the wedi book is still on the wire and when its fetch failed.
+//
+// Non-embedded it keeps the fixed overlay backdrop. The old `return null` did
+// not: during the load the popup rendered literally nothing, so clicks fell
+// straight through to the app underneath a "modal" the user had just opened.
+function WediGate({ embedded, onClose, children }) {
+  return (
+    <div className={embedded
+        ? "relative flex-1 min-h-0 flex flex-col overflow-auto"
+        : "print:hidden fixed inset-0 z-[70] flex items-start justify-center overflow-auto p-4"}
+      style={embedded ? undefined : { background: "rgba(20,15,10,.55)" }} onClick={embedded ? undefined : onClose}>
+      <div className={"relative w-full flex flex-col overflow-hidden " + (embedded
+          ? "flex-1 min-h-0"
+          : "max-w-[540px] rounded-xl border shadow-2xl mt-[12vh]")}
+        style={{ background: "var(--ft-cream)", borderColor: "var(--ft-border-strong)" }}
+        onClick={embedded ? undefined : (e) => e.stopPropagation()} data-wedi-gate>
+        <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: "var(--ft-border-strong)" }}>
+          <div className="min-w-0">
+            <div className="text-[9.5px] font-extrabold uppercase tracking-[.14em]" style={{ color: "var(--ft-faint)" }}>Vendor configurator</div>
+            <div className="text-[14px] font-extrabold">wedi shower systems</div>
+          </div>
+          {!embedded && <button className="ml-auto w-[26px] h-[26px] rounded-md border flex items-center justify-center"
+            style={{ borderColor: "var(--ft-border)", background: "var(--ft-card)", color: "var(--ft-muted)" }}
+            onClick={onClose} title="Close"><X size={15} /></button>}
+        </div>
+        <div className="px-4 py-6 text-[12.5px] leading-[1.6]" style={{ color: "var(--ft-muted)" }}>{children}</div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The popup is TWO components on purpose, and the split is load-bearing.
+ *
+ * Every price this popup shows comes out of wedi.js's module-level catalog, and
+ * which vintage that catalog holds is decided by useWediCatalog's install. A
+ * single component could not get that ordering right: React memoizes ACROSS
+ * renders, so any `useMemo` reading the engine that ran once before the book
+ * was installed keeps handing back its fallback-derived value forever — the
+ * hook's own position in the file makes no difference, because the stale cache
+ * outlives the render that made it. That was live: with a book present, render
+ * 1 built `build`/`kitTotals`/`diag`/`curb`/`frameOpts` against WEDI_STOCK,
+ * `catReady` was false so the component returned null (which does NOT unmount,
+ * so the caches survived), and render 2 reused every one of them while the
+ * caption said "on the book".
+ *
+ * So the wrapper holds exactly one hook — trivially stable hook order — and the
+ * body only ever MOUNTS with the source already installed. A body memo cannot
+ * see an uninstalled source because the body does not exist until it is
+ * installed, and if readiness is ever lost the body unmounts and its caches go
+ * with it.
+ */
+export default function WediConfigurator(props) {
+  const { cat, catReady, onBook, bookError, retryBook } = useWediCatalog(props);
+  if (!catReady) {
+    return (
+      <WediGate embedded={props.embedded} onClose={props.onClose}>
+        {bookError ? (<>
+          <div className="font-bold mb-1.5" style={{ color: "var(--ft-text)" }}>Couldn&rsquo;t load the wedi price book.</div>
+          <p>The configurator prices off the live book, so it will not open on the transcribed
+            table behind your back — that would quote last year&rsquo;s prices without looking wrong.
+            Check the connection and try again.</p>
+          <button className="mt-3 rounded-md border px-3 py-1.5 text-[11.5px] font-extrabold"
+            style={{ borderColor: "var(--ft-brand)", background: "var(--ft-brand)", color: "#fff" }}
+            onClick={retryBook} data-wedi-retry>Try again</button>
+        </>) : <>Loading the wedi price book&hellip;</>}
+      </WediGate>
+    );
+  }
+  return <WediConfiguratorBody {...props} cat={cat} onBook={onBook} />;
+}
+
+function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schluterBuilderPct,
+  cat, onBook,
   stockRows, bookStockReady, books, loadBookItems, mortars, mortarDefault,
   onAdd, onAddNew, editing = null, basket, onBasketChange, onMoveEntries, placed, onOpenPlaced, onDeleteKit,
   onQuoteOptions, onClose, areaName, projectName, onConfigChange, embedded = false }) {
@@ -1302,7 +1376,6 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walls, extraWalls, wallH, wallFlip, panelFit, opts.sealantForm, tierId, customPct, salePct, bPct]);
 
-  const { cat, catReady, onBook } = useWediCatalog({ stockRows, bookStockReady, books, loadBookItems });
   const nStock = useMemo(() => cat.filter((e) => e.stock).length, [cat]);
 
   // --- totals ---------------------------------------------------------------
@@ -2425,12 +2498,10 @@ export default function WediConfigurator({ seed, tier, onTierChange, wediBuilder
     </Suspense>
   );
 
-  // Never render a catalog we aren't sure of: with a wedi book present but its
-  // rows not in, quoting from WEDI_STOCK would silently price at the last
-  // transcription and resurrect retired items (owner, 2026-09-01). Placed
-  // after every hook — see the four useMemos above — so hook order is stable.
-  if (!catReady) return null;
-
+  // No readiness guard here any more, and there must never be one again: this
+  // body only MOUNTS once WediConfigurator's hook has installed the source it
+  // is about to read (see the comment on that wrapper). A guard here would
+  // mean rendering nothing while the memos above kept a fallback-derived cache.
   return (
     // Embedded (the Apps hub, like Sheoga): no backdrop or fixed overlay — the
     // hub's main column is the frame; the outer scroll keeps the 1120px body

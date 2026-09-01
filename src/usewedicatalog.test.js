@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { pickWediBooks, foldBookLists, gateOf } from "./usewedicatalog.js";
+import { pickWediBooks, foldBookLists, gateOf, bookErrorOf } from "./usewedicatalog.js";
 
 test("pickWediBooks: stock-kind, active, word-matching wedi on name or brandLabel", () => {
   const books = [
@@ -60,4 +60,22 @@ test("gateOf: the three states, and the two ways a stale fallback used to slip t
   // fall back AND drop the marker, never fly onBook over the transcribed table.
   assert.deepEqual(g({ targetIds: "a", loadedIds: "a", rows: [{}, {}], adapted: [] }),
     { catReady: true, onBook: false });
+});
+
+// The failed-fetch signal. Before it existed, a failed fetch and a fetch still
+// in flight were the same state, `catReady:false` — and the popup's answer to
+// both was `return null`: nothing on screen, forever, with no diagnostic.
+test("bookErrorOf: a settled failure is distinguishable from still waiting", () => {
+  // a settled fetch that came back empty-handed — offer the retry
+  assert.equal(bookErrorOf({ targetIds: "a", loadedIds: "a", err: true }), true);
+
+  // still in flight: nothing loaded for this id-set yet
+  assert.equal(bookErrorOf({ targetIds: "a", loadedIds: null, err: false }), false);
+  // a book exists but no loader has arrived — ordinary waiting, NOT a failure,
+  // even though the hook writes rows:null for it exactly as a failure does
+  assert.equal(bookErrorOf({ targetIds: "a", loadedIds: "a", err: false }), false);
+  // a failure recorded against a PREVIOUS book set says nothing about this one
+  assert.equal(bookErrorOf({ targetIds: "b", loadedIds: "a", err: true }), false);
+  // no book at all can't fail — the fallback is legitimate there
+  assert.equal(bookErrorOf({ targetIds: "", loadedIds: "", err: true }), false);
 });
