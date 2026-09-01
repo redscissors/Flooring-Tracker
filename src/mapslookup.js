@@ -6,6 +6,8 @@
 // wrong must come back empty and be REPORTED by the caller, never throw and
 // never look like "no results".
 
+import { MAX_INPUT } from './mapsrelay.js';
+
 export const MIN_SUGGEST = 4;
 const METERS_PER_MILE = 1609.344;
 const key = (s) => String(s || "").trim().toLowerCase();
@@ -56,5 +58,5 @@ export const distStale = (rec, address, shopAddress) =>
 
 export const shouldSuggest = (input, last) => {
   const q = String(input || "").trim();
-  return q.length >= MIN_SUGGEST && q !== String(last || "").trim();
+  return q.length >= MIN_SUGGEST && q.length <= MAX_INPUT && q !== String(last || "").trim();
 };

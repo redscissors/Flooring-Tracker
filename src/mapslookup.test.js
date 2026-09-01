@@ -88,3 +88,9 @@ test("shouldSuggest gates on length and on the input actually having changed", (
   assert.equal(shouldSuggest(" 4905 ", "4905"), false);
   assert.equal(shouldSuggest("4905 H", "4905"), true);
 });
+test("shouldSuggest rejects input over 200 characters; accepts exactly 200", () => {
+  const input200 = "a".repeat(200);
+  const input201 = "a".repeat(201);
+  assert.equal(shouldSuggest(input200, ""), true);
+  assert.equal(shouldSuggest(input201, ""), false);
+});
