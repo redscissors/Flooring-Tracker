@@ -15,9 +15,10 @@ const AUTOCOMPLETE = {
 };
 
 test("parseSuggestions reads both the LocalizedText and bare-string shapes, keeping each placeId", () => {
+  // The country tail is dropped here too — see the dropCountry tests below.
   assert.deepEqual(parseSuggestions(AUTOCOMPLETE), [
-    { text: "4905 Harris Rd, Broadview Heights, OH, USA", placeId: "ChIJharris" },
-    { text: "5063 County Road 314, Millersburg, OH, USA", placeId: "ChIJcounty" },
+    { text: "4905 Harris Rd, Broadview Heights, OH", placeId: "ChIJharris" },
+    { text: "5063 County Road 314, Millersburg, OH", placeId: "ChIJcounty" },
   ]);
 });
 
@@ -38,8 +39,8 @@ test("parseSuggestions drops duplicates and blanks", () => {
 });
 
 // Place Details is what supplies the postal code the predictions leave out.
-test("parseDetails returns the complete formatted address", () => {
-  assert.equal(parseDetails({ formattedAddress: "4905 Harris Rd, Broadview Heights, OH 44147, USA" }), "4905 Harris Rd, Broadview Heights, OH 44147, USA");
+test("parseDetails returns the complete formatted address, ending at the ZIP", () => {
+  assert.equal(parseDetails({ formattedAddress: "4905 Harris Rd, Broadview Heights, OH 44147, USA" }), "4905 Harris Rd, Broadview Heights, OH 44147");
 });
 
 test("parseDetails gives an empty string when the shape is not what we expect", () => {
@@ -112,4 +113,27 @@ test("shouldSuggest rejects input over 200 characters; accepts exactly 200", () 
   const input201 = "a".repeat(201);
   assert.equal(shouldSuggest(input200, ""), true);
   assert.equal(shouldSuggest(input201, ""), false);
+});
+
+// Google appends the country to every result. The shop quotes US jobs only, so
+// it is noise on an estimate — an address should end at the ZIP (owner,
+// 2026-09-01). Stripped in BOTH parsers so the dropdown matches what a pick lands.
+test("parseDetails drops a trailing USA so the address ends at the ZIP", () => {
+  assert.equal(parseDetails({ formattedAddress: "4905 Harris Rd, Broadview Heights, OH 44147, USA" }), "4905 Harris Rd, Broadview Heights, OH 44147");
+  assert.equal(parseDetails({ formattedAddress: "4905 Harris Rd, Broadview Heights, OH 44147, United States" }), "4905 Harris Rd, Broadview Heights, OH 44147");
+  assert.equal(parseDetails({ formattedAddress: "1 Shop St, Akron, OH 44301, usa" }), "1 Shop St, Akron, OH 44301");
+});
+
+test("parseSuggestions drops it too, so the list reads like what gets stored", () => {
+  const j = { suggestions: [{ placePrediction: { placeId: "p", text: { text: "4905 Harris Rd, Broadview Heights, OH, USA" } } }] };
+  assert.deepEqual(parseSuggestions(j), [{ text: "4905 Harris Rd, Broadview Heights, OH", placeId: "p" }]);
+});
+
+// Only a comma-separated country tail goes. A street or place whose name merely
+// contains those letters is left alone, and a genuinely foreign address keeps
+// its country because there the country is information, not noise.
+test("dropping the country is conservative", () => {
+  assert.equal(parseDetails({ formattedAddress: "12 Usa Ridge Rd, Akron, OH 44301" }), "12 Usa Ridge Rd, Akron, OH 44301");
+  assert.equal(parseDetails({ formattedAddress: "100 Main St USA" }), "100 Main St USA");
+  assert.equal(parseDetails({ formattedAddress: "55 King St W, Toronto, ON M5X 1A9, Canada" }), "55 King St W, Toronto, ON M5X 1A9, Canada");
 });

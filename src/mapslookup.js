@@ -9,6 +9,13 @@
 import { MAX_INPUT } from './mapsrelay.js';
 
 export const MIN_SUGGEST = 4;
+// Google appends the country to every result. The shop quotes US jobs only, so
+// on an estimate it is noise — an address should end at the ZIP (owner,
+// 2026-09-01). Deliberately narrow: only a COMMA-separated US country tail
+// goes, so "12 Usa Ridge Rd" keeps its street name and a genuinely foreign
+// address keeps its country, where the country is information rather than noise.
+const COUNTRY_TAIL = /,\s*(?:USA|United States(?: of America)?)\.?\s*$/i;
+const dropCountry = (s) => String(s || "").replace(COUNTRY_TAIL, "").trim();
 const METERS_PER_MILE = 1609.344;
 const key = (s) => String(s || "").trim().toLowerCase();
 
@@ -24,7 +31,8 @@ export const parseSuggestions = (json) => {
   for (const s of list) {
     const t = s?.placePrediction?.text;
     const text = String((t && typeof t === "object" ? t.text : t) ?? "").trim();
-    if (text && !out.some((o) => key(o.text) === key(text))) out.push({ text, placeId: String(s?.placePrediction?.placeId ?? "") });
+    const clean = dropCountry(text);
+    if (clean && !out.some((o) => key(o.text) === key(clean))) out.push({ text: clean, placeId: String(s?.placePrediction?.placeId ?? "") });
   }
   return out;
 };
@@ -32,7 +40,7 @@ export const parseSuggestions = (json) => {
 // The complete address, postal code included — what Autocomplete could not give.
 export const parseDetails = (json) => {
   const a = json?.formattedAddress;
-  return typeof a === "string" ? a.trim() : "";
+  return typeof a === "string" ? dropCountry(a) : "";
 };
 
 // Routes answers duration as seconds with a trailing "s" ("1620s").

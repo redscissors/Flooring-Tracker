@@ -219,3 +219,11 @@ text immediately, then upgrades it when Details answers. A details failure
 leaves the prediction standing: a missing postal code is never worse than a pick
 that does nothing. The distance is measured against the address as it finally
 reads, so our own upgrade cannot trip the drift chip.
+
+**The country tail is dropped** (owner, same day). Google appends "USA" to every
+result; the shop quotes US jobs only, so on an estimate it is noise and an
+address should end at the ZIP. `dropCountry` is deliberately narrow — it takes
+only a COMMA-separated US country tail, so a street named "Usa Ridge Rd" keeps
+its name and a genuinely foreign address keeps its country, where the country is
+information rather than noise. Applied in BOTH parsers, so the dropdown reads
+exactly like what a pick stores.
