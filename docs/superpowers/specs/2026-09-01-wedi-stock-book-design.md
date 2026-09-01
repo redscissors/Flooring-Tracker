@@ -160,15 +160,27 @@ change:
 > today's `WEDI_STOCK` catalog — entry for entry, field for field.
 
 **Except `desc`.** The mapped importer always runs `splitSizeFromDescription`
-(`pricebook.js:532`) and reassigns the description to the stripped name, moving
-leading dimensions into `size`/`thickness`/`sfPerUnit`; 105 of 151 descriptions
-differ as a result, and disabling `leadWidthSize`/`sfFromDescription` is worse —
-the dimensions are then captured nowhere. Since `makeEntry` parses `w`/`d`/`t`
-back out of `desc`, the adapter reconstructs it (`descOf`). Equality is
-therefore asserted on every *derived* field — `key, us, erp, stock, name, group,
-sub, w, d, t, sf, len, finish, drain, channel, cost, retail, unit, sizeText` —
-which is the set a quote actually depends on. Prices remain exactly equal: zero
-drift across all 151 rows.
+(`pricebook.js:532`), moving leading dimensions out of the description into
+`size`/`thickness`/`sfPerUnit` before the adapter ever sees the row — measured
+against the raw importer output, **105 of 151** descriptions already differ
+from the transcribed text as a direct result. (A coincidence worth naming so a
+future reader doesn't mistake it for a relationship: 105 is also the count of
+stock rows with a pricelist twin, task 4's report — the two figures are
+unrelated.) That gap is exactly why `descOf` exists: since `makeEntry` parses
+`w`/`d`/`t` back out of `desc`, the adapter puts the lifted dimensions back in.
+Reconstruction closes most of the gap but not all of it — measured against the
+post-`descOf` text, **25 of 151** still differ, because
+`splitSizeFromDescription`'s split is not byte-reversible. Turning the
+importer's extraction off instead — disabling `leadWidthSize`/
+`sfFromDescription` — was tried at design time and found worse: 84 differ AND
+the dimensions are then captured nowhere. Nothing in the repo reruns that
+scenario, so the 84 is a one-off design-time measurement, not a number a test
+confirms; the qualitative half — that disabling extraction loses the
+dimensions entirely — is the part that stands on its own regardless. Equality
+is therefore asserted on every *derived* field — `key, us, erp, stock, name,
+group, sub, w, d, t, sf, len, finish, drain, channel, cost, retail, unit,
+sizeText` — which is the set a quote actually depends on. Prices remain
+exactly equal: zero drift across all 151 rows.
 
 Concretely:
 
