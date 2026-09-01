@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { normBookItem } from "./orderbook.js";
 import { FIXTURE_ROWS } from "./wedifixture.js";
 import { usOf, descOf, adaptRow, adaptBookRows } from "./wediadapter.js";
+import { dims } from "./wedi.js";
 
 const live = () => FIXTURE_ROWS.map((r) => normBookItem(r, "bk_wedi"));
 
@@ -82,4 +83,70 @@ test("descOf: a row's sfPerUnit coverage comes back in a form makeEntry's sf reg
   const d = descOf(live().find((x) => x.sku === "28954"));
   assert.match(d, /(\d+)\s*(?:sft|sf|ft2)\b/i);
   assert.equal(d.match(/(\d+)\s*(?:sft|sf|ft2)\b/i)[1], "322");
+});
+
+// ---------------------------------------------------------------------------
+// descOf's two reconstruction heuristics, as unit contracts.
+//
+// The 151-row equivalence pin (wediequivalence.test.js) proves these are right
+// for TODAY's export. descOf runs on every future one, so the rules are pinned
+// directly too — synthetic rows, because these are contracts about the rule,
+// not facts about the fixture.
+// ---------------------------------------------------------------------------
+
+test("descOf/sizeOf: an all-integer bare size stays bare — dims() owns the feet-or-inches call", () => {
+  // The importer renders an unmarked L×W as bare decimals, and dims() reads a
+  // wholly unit-less group as FEET when every value is ≤ 12. The 4x8 vapor
+  // sheet depends on that: marking it would shrink a 4'x8' panel to 4"x8".
+  const d = descOf({ size: "4x8", description: "Wedi Vapor 85 - Vaporproof Building Panel" });
+  assert.equal(d, "4x8 Wedi Vapor 85 - Vaporproof Building Panel");
+  assert.deepEqual(dims(d), [48, 96]);
+  // Bigger integers are unambiguous either way and are still left alone.
+  assert.equal(descOf({ size: "24x48", description: "Wedi Pan Extension" }), "24x48 Wedi Pan Extension");
+});
+
+test("descOf/sizeOf: a non-integer bare size gets its fraction and inch mark back", () => {
+  // dimVal flattens the sheet's fraction to a decimal and drops the marks. A
+  // fractional dimension is never feet, so restoring both is unambiguous —
+  // and necessary: left bare, dims() sees 0.1875 ≤ 12 and reads FEET.
+  assert.deepEqual(dims("0.1875x0.15625 Wedi S-Dry Seal Trowel"), [2.25, 1.875]);
+  const d = descOf({ size: "0.1875x0.15625", description: "Wedi S-Dry Seal Trowel" });
+  assert.equal(d, '3/16"x5/32" Wedi S-Dry Seal Trowel');
+  assert.deepEqual(dims(d), [0.1875, 0.15625]);
+  // A mixed number is hyphenated the way both sheets print one.
+  assert.equal(descOf({ size: "32x5.75", description: "Wedi Riolito Neo" }), '32"x5-3/4" Wedi Riolito Neo');
+});
+
+test("descOf: a lone dangling hyphen takes the lifted fraction back, wherever it sits", () => {
+  // splitSizeFromDescription lifts the first inch-marked fraction ANYWHERE, so
+  // it is not always the size's third dimension. Trailing site:
+  const chan = descOf({ size: "32x5.75", thickness: '1/2"', description: "Wedi Riolito Neo - Drain Channel 27-" });
+  assert.equal(chan, '32"x5-3/4" Wedi Riolito Neo - Drain Channel 27-1/2"');
+  // …and the channel length must NOT come back as a third dimension.
+  assert.deepEqual(dims(chan), [32, 5.75]);
+  // Mid-string site — a slope range, not a thickness:
+  const ext = descOf({ size: "24x48", thickness: '1/2"', description: 'Wedi Pan Extension - 073783528 1- to 2" slope' });
+  assert.equal(ext, '24x48 Wedi Pan Extension - 073783528 1-1/2" to 2" slope');
+  assert.deepEqual(dims(ext), [24, 48]);
+});
+
+test("descOf: an AMBIGUOUS residue does not reattach — the thickness stays in the lead", () => {
+  // Two dangling hyphens and no way to tell which one the fraction came out
+  // of. Guessing would move a genuine board thickness into the display string
+  // and drop `t` (and sizeText with it) — so the rule bails to the older,
+  // known lead-thickness behavior instead.
+  const d = descOf({ size: "4'x8'", thickness: '1/2"', description: "Wedi Building Panel - Type 3- and Type 7- runs" });
+  assert.equal(d, `4'x8'x1/2" Wedi Building Panel - Type 3- and Type 7- runs`);
+  // The thickness survives as a real third dimension, which is the whole point.
+  assert.deepEqual(dims(d), [48, 96, 0.5]);
+  // And nothing was silently glued to either candidate.
+  assert.equal(/3-1\/2|7-1\/2/.test(d), false);
+});
+
+test("descOf: the reattached thickness is inserted literally, never as a replacement pattern", () => {
+  // `thick` is data off a vendor row. Through String.replace's replacement
+  // string a "$" in it would be read as a group reference; the rule uses a
+  // replace function so it cannot be.
+  assert.equal(descOf({ thickness: "$&", description: "Widget 1-" }), "Widget 1-$&");
+  assert.equal(descOf({ thickness: "$1", description: "Widget 1-" }), "Widget 1-$1");
 });

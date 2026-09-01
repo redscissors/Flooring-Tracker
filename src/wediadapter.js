@@ -65,6 +65,15 @@ function sizeOf(size) {
 }
 
 /**
+ * A digit immediately followed by a hyphen at a word end — what
+ * splitSizeFromDescription leaves behind when it lifts a fraction out of a
+ * hyphenated figure. One source, two uses: `HYPHEN_SITES` counts the
+ * candidates, `HYPHEN_SITE` reattaches to the single one.
+ */
+const HYPHEN_SITE = /\d-(?=\s|$)/;
+const HYPHEN_SITES = new RegExp(HYPHEN_SITE.source, "g");
+
+/**
  * A description with the dimensions inline, the way makeEntry expects them.
  *
  * The mapped importer always runs splitSizeFromDescription (pricebook.js:532)
@@ -91,12 +100,26 @@ export function descOf(row) {
   // splitSizeFromDescription takes the FIRST inch-marked fraction anywhere in
   // the string, so what it lifted as `thickness` is not always the size's third
   // dimension. When it came out of a hyphenated figure — a channel length
-  // "27-1/2\"", a slope range "1-1/2\" to 2\"" — the residue is left holding the
-  // dangling hyphen, and that is the tell: the fraction goes back THERE.
-  // Re-leading with it instead hands dims() a third value and files a channel
-  // length or a slope range as a board thickness.
-  if (thick && /\d-(?=\s|$)/.test(desc)) {
-    desc = desc.replace(/(\d)-(?=\s|$)/, "$1-" + thick);
+  // "27-1/2\"", a slope range "1-1/2\" to 2\"" — the residue is left holding a
+  // dangling hyphen and the fraction belongs back THERE: re-leading with it
+  // hands dims() a third value and files a channel length as a board thickness.
+  //
+  // INVARIANT: this fires ONLY when the residue names the site unambiguously —
+  // exactly one dangling hyphen. Knowing the importer lifted the first fraction
+  // of the ORIGINAL string does not say which of several dangling hyphens in
+  // the RESIDUE it came out of, and this runs on vendor exports nobody has read
+  // yet. A wrong guess is silent geometry corruption: a row carrying a genuine
+  // leading board thickness AND one coincidental digit-hyphen would have its
+  // `t` moved into the display string, taking `sizeText` with it. Two or more
+  // candidates therefore fall back to the lead — the older, known behavior —
+  // rather than a coin flip.
+  //
+  // Reattachment goes through a replace FUNCTION on purpose: `thick` is data
+  // off a vendor row, and a "$" in it would be read as a pattern reference in a
+  // string replacement.
+  const sites = desc.match(HYPHEN_SITES);
+  if (thick && sites && sites.length === 1) {
+    desc = desc.replace(HYPHEN_SITE, (m) => m + thick);
     thick = "";
   }
   const lead = [size, thick].filter(Boolean).join("x");
