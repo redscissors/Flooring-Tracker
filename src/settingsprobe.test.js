@@ -47,3 +47,31 @@ test("probeText: Routes alone failing — names Routes and its status, not Place
 test("probeText: an unmapped relay error code still says something", () => {
   assert.equal(probeText({ error: "some-unmapped-code" }, errText), "Address lookup is unavailable right now");
 });
+
+// The probe is the one tool built to answer "is the key reaching the function",
+// so a missing key must come back in its OWN vocabulary — keyPresent:false —
+// rather than as the generic not-configured every other op returns. The relay
+// special-cases probe for exactly this reason (netlify/functions/maps.mjs).
+test("probeText: nothing reached the function — names the three Netlify causes", () => {
+  assert.equal(
+    probeText({ ok: false, keyPresent: false, keyLen: 0 }, errText),
+    "No key reached the function — GOOGLE_MAPS_KEY is unset or empty for this deploy. Check it covers all deploy contexts, includes the Functions scope, and is not marked \"Contains secret values\", then redeploy.",
+  );
+});
+
+// A truncated or partly-pasted key is otherwise indistinguishable from a
+// disabled API — both surface as a Google 4xx. The character count is the only
+// thing that separates them, and it never reveals the key itself.
+test("probeText: a set key reports its length, so a truncated paste is visible", () => {
+  assert.equal(
+    probeText({ ok: false, keyPresent: true, keyLen: 12, places: 400, routes: 400 }, errText),
+    "Key is set (12 chars), but Places 400, Routes 400 did not answer 200 — the API may not be enabled, the key may be restricted from it, or the quota/billing may be exhausted.",
+  );
+});
+
+test("probeText: without a length it still reads correctly", () => {
+  assert.equal(
+    probeText({ ok: false, keyPresent: true, places: 403, routes: 200 }, errText),
+    "Key is set, but Places 403 did not answer 200 — the API may not be enabled, the key may be restricted from it, or the quota/billing may be exhausted.",
+  );
+});

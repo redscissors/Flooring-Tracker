@@ -52,16 +52,24 @@ export default async function handler(req) {
   try { body = await req.json(); } catch { return json(400, { error: "bad-request" }); }
   if (relayProblems(body)) return json(400, { error: "bad-request" });
 
-  const key = process.env.GOOGLE_MAPS_KEY;
-  if (!key) return json(503, { error: "not-configured" });
+  // Trimmed: a value pasted with stray whitespace is a missing key, not a key
+  // that fails at Google with a confusing 400.
+  const key = (process.env.GOOGLE_MAPS_KEY || "").trim();
+  // The probe exists to answer "is the key reaching this function", so it must
+  // report a missing key in its OWN terms below — handing it the same generic
+  // not-configured as every other op leaves the one diagnostic tool unable to
+  // diagnose the one thing it was built for.
+  if (!key && body.op !== "probe") return json(503, { error: "not-configured" });
 
   try {
     if (body.op === "probe") {
       // Diagnostic for the owner after setting the env var: does each API
       // answer a trivial call? Never echoes the key or any address.
+      if (!key) return json(200, { ok: false, keyPresent: false, keyLen: 0 });
       const p = await callGoogle(PLACES, PLACES_MASK, { input: "1600 Amphitheatre" }, key);
       const r = await callGoogle(ROUTES, ROUTES_MASK, { origin: { address: "Cleveland OH" }, destination: { address: "Akron OH" }, travelMode: "DRIVE" }, key);
-      return json(200, { ok: p.status === 200 && r.status === 200, keyPresent: true, places: p.status, routes: r.status });
+      // keyLen is a character count, never any part of the value.
+      return json(200, { ok: p.status === 200 && r.status === 200, keyPresent: true, keyLen: key.length, places: p.status, routes: r.status });
     }
 
     if (body.op === "suggest") {

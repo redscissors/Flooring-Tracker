@@ -12,6 +12,13 @@
 export const probeText = (p, errText) => {
   if (p?.error) return errText(p.error);
   if (p?.ok) return "Working — Places and Routes both answered.";
+  // Nothing reached process.env. Every cause is on the Netlify side, so name
+  // the three that actually produce this — a variable can look correctly set
+  // in the dashboard and still not reach a function.
+  if (p?.keyPresent === false) return 'No key reached the function — GOOGLE_MAPS_KEY is unset or empty for this deploy. Check it covers all deploy contexts, includes the Functions scope, and is not marked "Contains secret values", then redeploy.';
   const bad = [p?.places !== 200 && `Places ${p?.places}`, p?.routes !== 200 && `Routes ${p?.routes}`].filter(Boolean).join(", ");
-  return `Key is set, but ${bad} did not answer 200 — the API may not be enabled, the key may be restricted from it, or the quota/billing may be exhausted.`;
+  // The character count, never the value: a truncated paste and a disabled API
+  // both surface as a Google 4xx, and the length is what separates them.
+  const len = Number.isFinite(p?.keyLen) && p.keyLen > 0 ? ` (${p.keyLen} chars)` : "";
+  return `Key is set${len}, but ${bad} did not answer 200 — the API may not be enabled, the key may be restricted from it, or the quota/billing may be exhausted.`;
 };
