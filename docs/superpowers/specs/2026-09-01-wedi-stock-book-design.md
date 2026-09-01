@@ -78,10 +78,25 @@ Two warnings the import raises, both benign here and both worth knowing:
    sources and merges them, so this is a seam that exists rather than one being cut:
    the pricelist keeps feeding `soRow` from the transcribed table, untouched.
 
-3. **`WEDI_STOCK` stays in the file as the fallback**, used when the book is absent
-   or its rows haven't loaded. The engine must never go inert because a book is
-   missing — unlike Schluter, wedi has a working table to fall back on, and throwing
-   it away on day one converts a pricing improvement into an outage risk.
+3. **`WEDI_STOCK` stays in the file as the fallback.** The engine must never go
+   inert because a book is missing — unlike Schluter, wedi has a working table
+   to fall back on, and throwing it away on day one converts a pricing
+   improvement into an outage risk. The owner tightened when the fallback
+   fires (2026-09-01): "absent" and "present but not yet loaded" are different
+   situations, and only the first one is safe to substitute for.
+
+   | situation | behavior |
+   |---|---|
+   | No wedi book exists | fall back to `WEDI_STOCK`, `catReady: true`, `onBook: false`, Browse caption says "transcribed table" |
+   | A book exists, rows not loaded or the fetch failed | `catReady: false` — wait, never substitute the table |
+   | A book exists with rows | install them, `onBook: true` |
+
+   A present-but-unloaded book must never fall back, because that silently
+   quotes stale prices and resurrects discontinued items — the opposite of the
+   safety the fallback exists to provide. A book whose rows all fail to adapt
+   counts as an *empty* book — fallback plus `onBook: false` — which is exactly
+   this decision's original intent: until the book has rows, the engine runs on
+   `WEDI_STOCK` exactly as it does today.
 
 4. **Nothing else in `wedi.js` moves.** `classify`, `kitFor`, `solve`, `panelPlan`,
    the bench and curb geometry, `lineItems` — all unchanged. The pinned engine tests
@@ -95,12 +110,11 @@ in `vendorSkus`. The adapter must recover it, and the rule below reproduces the
 hand-transcribed `us` for **all 151 entries**, verified against the real workbook:
 
 ```js
-const FIX = { US50000005: "US5000005" };   // the one eight-digit typo in the export
-const usOf = (row) => {
-  const codes = [supplierProdCode, mfgProductCode].filter((c) => c && c !== row.sku);
-  const us = codes.find((c) => /^US\d+$/i.test(c)) || codes[0] || "";
-  return FIX[us] || us;
-};
+export function usOf(row) {
+  if (!row) return "";
+  const codes = (row.vendorSkus || []).filter((c) => c && c !== row.sku);
+  return codes.find((c) => /^US\d+$/i.test(c)) || codes[0] || "";
+}
 ```
 
 Three things it encodes, each earned from the data rather than assumed:
@@ -110,14 +124,19 @@ Three things it encodes, each earned from the data rather than assumed:
   the Mfg column win there.
 - **A `US`-shaped code beats a numeric article code.** `29075`/`29076` carry an
   article number in Supplier (`075100050`) and the real US-SKU in Mfg (`US9330001`).
-  Without this preference both would take the article number.
-- **One documented fixup.** `28954` reads `US50000005` in *both* vendor columns;
-  the real part number has seven digits, and the transcription corrected it
-  silently. Confirmed against the pricelist workbook, which knows `US5000005` and
-  does not know `US50000005`. A fixup table, not a clever normalization: a
-  digit-dropping rule that can invent codes is worse than three characters of
-  explicit data, and the baseline test below fails loudly if a future export
-  changes it.
+  Without this preference both would take the article number. This also has to hold
+  regardless of which vendor column a code arrived in: `normFits` sorts
+  `vendorSkus`, so column order does not survive normalization and the rule must
+  never depend on it.
+- **No fixup.** `28954` reads `US50000005` in both vendor columns, and
+  `WEDI_STOCK` records `us: "US50000005"` — the transcription did *not* correct
+  it, and `wedi.js:4339` carries compensating index code that depends on the
+  ten-digit spelling. An earlier draft of this spec prescribed a `FIX` table
+  mapping it to `US5000005`; that was drawn from `WEDI_SO`, the *pricelist*
+  table, which does use the seven-digit form. Applying it to the stock half
+  re-keys the entry and fails this spec's own equality test on exactly one row.
+  Verified 2026-09-01: with no fixup, the rule reproduces all 151 transcribed
+  `us` values.
 
 Note what the rule is *not*: for the seven rows whose vendor code is a nine-digit
 article number (`095225053`, `676800061`, …), the transcribed table uses that number
@@ -135,6 +154,17 @@ change:
 
 > Built against this workbook, the adapter's catalog must be **identical** to
 > today's `WEDI_STOCK` catalog — entry for entry, field for field.
+
+**Except `desc`.** The mapped importer always runs `splitSizeFromDescription`
+(`pricebook.js:532`) and reassigns the description to the stripped name, moving
+leading dimensions into `size`/`thickness`/`sfPerUnit`; 105 of 151 descriptions
+differ as a result, and disabling `leadWidthSize`/`sfFromDescription` is worse —
+the dimensions are then captured nowhere. Since `makeEntry` parses `w`/`d`/`t`
+back out of `desc`, the adapter reconstructs it (`descOf`). Equality is
+therefore asserted on every *derived* field — `key, us, erp, stock, name, group,
+sub, w, d, t, sf, len, finish, drain, channel, cost, retail, unit, sizeText` —
+which is the set a quote actually depends on. Prices remain exactly equal: zero
+drift across all 151 rows.
 
 Concretely:
 
@@ -173,6 +203,13 @@ Nothing before step 3 touches quoting: until the book has rows, the engine runs 
   disagree once a new sheet is imported. That is intended — the book wins, the table
   is only the empty-book fallback — but it means the fallback must never be read
   when the book has rows, and the tests must cover the empty-book path explicitly.
+- **The book does not extend the catalog.** `classify` is a hardcoded grammar of
+  `US…` codes (`wedi.js:4042-4072`). A new wedi part number the grammar doesn't
+  know is priced and searchable but files as `misc`, so the solver won't build
+  with it and it lands in no browse section. The book ends *price*
+  re-transcription, not *catalog* re-transcription; a new product line still
+  needs its code added by hand. The equivalence suite's misc assertion is how
+  this surfaces.
 
 ## Out of scope
 
@@ -191,8 +228,11 @@ Nothing before step 3 touches quoting: until the book has rows, the engine runs 
 
 ## Still open for the owner
 
-2. **The two live $0 rows** (`1518104`, `1518105`). Are those genuinely $0, or a
-   sheet artifact worth fixing before import? Not a blocker — they land as $0 lines
-   either way, the same as today — but worth knowing before the book is trusted.
+2. **Answered (2026-09-01).** `1518104`/`1518105` are *samples* — "Wedi S-Dry
+   Mini Shower Base Sample" and "Wedi S-Dry Sample" — at $0 cost and $100
+   retail, in both the export and the transcribed table. The import warning
+   says "$0 price" but flags $0 *cost*. Deliberate, not a sheet artifact;
+   nothing to fix before import. Only `29WEDIT` is genuinely $0/$0, and it is a
+   custom-item placeholder that the adapter drops.
 3. **Fallback lifetime.** Keep `WEDI_STOCK` as the empty-book fallback indefinitely,
    or plan its removal with 8b?
