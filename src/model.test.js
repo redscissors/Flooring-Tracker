@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normP, normA, normC, rowBlank, newProduct, newArea, newProject, areaLabel, money, catSig, quickAutoName, isQuickAutoName, isRealProjectName, QUICK_DEFAULT_NAME, stampKit, landKitLines, removeKitLines, placedKits, normKitBasketEntry } from "./model.js";
+import { normP, normA, normC, rowBlank, newProduct, newArea, newProject, areaLabel, money, catSig, quickAutoName, isQuickAutoName, isRealProjectName, QUICK_DEFAULT_NAME, stampKit, landKitLines, removeKitLines, placedKits, normKitBasketEntry, appendKitLines, moveKitEntries } from "./model.js";
 
 test("normP fills every field a grid row reads from a bare object", () => {
   const p = normP({ id: "x" });
@@ -356,4 +356,74 @@ test("normC: wediBasket/schluterBasket normalize, drop junk, default empty (ADR 
   const p = newProject();
   assert.deepEqual(p.wediBasket, []);
   assert.deepEqual(p.schluterBasket, []);
+});
+
+test("normKitBasketEntry: an entry staged from a reconfigure carries its target", () => {
+  const e = normKitBasketEntry({ snap: { mode: "kit", cfg: { panKey: "X" } },
+    target: { areaId: "a1", rowId: "r1", kitId: "K" } });
+  assert.deepEqual(e.target, { areaId: "a1", rowId: "r1", kitId: "K" });
+  // kitId is optional — a legacy anchor has none
+  assert.deepEqual(normKitBasketEntry({ snap: { mode: "kit", cfg: {} }, target: { areaId: "a1", rowId: "r1" } }).target,
+    { areaId: "a1", rowId: "r1", kitId: "" });
+  // junk targets are dropped, never half-stored: without both ids there is
+  // nothing to land on
+  for (const junk of [null, 7, "x", {}, { areaId: "a1" }, { rowId: "r1" }, { areaId: "", rowId: "r1" }])
+    assert.ok(!("target" in normKitBasketEntry({ snap: { mode: "kit", cfg: {} }, target: junk })), JSON.stringify(junk));
+});
+
+test("moveKitEntries: a targeted entry replaces its kit, an untargeted one appends", () => {
+  const anchor = wediAnchor({ kitId: "K" });
+  const comp = { ...newProduct(), kitId: "K", wedi: { part: true } };
+  const cats = [{ ...newArea(), products: [anchor, comp] }];
+  const { categories, stranded } = moveKitEntries(cats, cats[0].id, [
+    { lines: wediLines(), target: { areaId: cats[0].id, rowId: anchor.id, kitId: "K" } },
+    { lines: wediLines() },
+  ]);
+  const ps = categories[0].products;
+  assert.equal(stranded, 0);
+  assert.equal(ps[0].id, anchor.id, "the targeted kit is updated in place");
+  assert.equal(ps[0].brandColor, "wedi — pan B");
+  assert.equal(ps.length, 4, "2 replaced rows + 2 appended, the old companion gone");
+  assert.equal(ps[2].kitId, ps[3].kitId, "the appended entry is its own kit");
+  assert.notEqual(ps[2].kitId, ps[0].kitId);
+});
+
+test("moveKitEntries: a stale target appends instead of clobbering, and says so", () => {
+  const cats = [{ ...newArea(), products: [newProduct()] }];
+  // the row was deleted since staging
+  const gone = moveKitEntries(cats, cats[0].id, [{ lines: wediLines(), target: { areaId: cats[0].id, rowId: "ghost" } }]);
+  assert.equal(gone.stranded, 1);
+  assert.equal(gone.categories[0].products.length, 3, "the lines still land, appended");
+  // the row is still there but now belongs to a DIFFERENT kit — never clobber it
+  const anchor = wediAnchor({ kitId: "K2" });
+  const cats2 = [{ ...newArea(), products: [anchor] }];
+  const moved = moveKitEntries(cats2, cats2[0].id, [
+    { lines: wediLines(), target: { areaId: cats2[0].id, rowId: anchor.id, kitId: "K" } }]);
+  assert.equal(moved.stranded, 1);
+  assert.equal(moved.categories[0].products[0].kitId, "K2", "the standing kit is untouched");
+  assert.equal(moved.categories[0].products.length, 3);
+});
+
+test("moveKitEntries: entries land in one pass over the accumulating categories", () => {
+  const a1 = wediAnchor({ kitId: "K1" });
+  const a2 = wediAnchor({ kitId: "K2" });
+  const cats = [{ ...newArea(), products: [a1, a2] }];
+  const { categories, stranded } = moveKitEntries(cats, cats[0].id, [
+    { lines: wediLines(), target: { areaId: cats[0].id, rowId: a1.id, kitId: "K1" } },
+    { lines: wediLines(), target: { areaId: cats[0].id, rowId: a2.id, kitId: "K2" } },
+  ]);
+  assert.equal(stranded, 0);
+  const ps = categories[0].products;
+  assert.equal(ps.filter((x) => x.brandColor === "wedi — pan B").length, 2, "both kits updated");
+  assert.equal(ps.length, 4, "two anchors + one companion each");
+});
+
+test("appendKitLines: stamps each call as its own kit and leaves other areas alone", () => {
+  const a1 = { ...newArea(), products: [newProduct()] };
+  const a2 = { ...newArea(), products: [] };
+  const next = appendKitLines([a1, a2], a2.id, wediLines());
+  assert.equal(next[0].products.length, 1, "the untouched area stands");
+  assert.equal(next[1].products.length, 2);
+  assert.ok(next[1].products[0].kitId);
+  assert.equal(next[1].products[1].kitId, next[1].products[0].kitId);
 });

@@ -76,10 +76,24 @@ src/
                     # same companion set) and placedKits (the derived
                     # in-this-project list — a stamped bundle's siblings fold
                     # under their anchor, legacy widths list singly)
+                    # ; appendKitLines (a kit's lines as fresh rows at the
+                    # end of an area — its own kitId per call) and
+                    # moveKitEntries (the basket "Move" landing, ADR 0035
+                    # amendment 2026-09-01): staged entries land in ONE pass
+                    # over the accumulating categories, a TARGETED entry
+                    # replacing that kit through landKitLines while the rest
+                    # append — returns { categories, stranded }, stranded
+                    # counting targets that no longer point at the kit that was
+                    # staged (row gone, or now another kit's), which append
+                    # instead, because clobbering whatever took the row's place
+                    # is worse than a duplicate the salesperson can see
                     # ; normKitBasketEntry — the wedi/Schluter staged basket
                     # entry (ADR 0035 step 3, engine-free on purpose: model.js
                     # must never import wedi.js/schluter.js), snap = the
-                    # reconfigure marker
+                    # reconfigure marker, plus the optional `target`
+                    # {areaId, rowId, kitId} an entry staged from a reconfigure
+                    # carries (normKitTarget — both ids or nothing; kitId is
+                    # the move-time staleness check)
   print.js          # print/order math: `printProduct`, `orderLineCost`, `lineTotal`,
                     # `printAreaFloor`, `areaPrintLabel`, `orderEntryRow`,
                     # `ESTIMATE_PRINT_LAYOUT`… (print.test.js)
@@ -1349,13 +1363,28 @@ src/
                     # (brand, "Collection" — owner 2026-08-26) can drop WITHOUT
                     # the "+": the marker appears only when identity text was
                     # actually cut, reported as `cut` for the panel's amber note
-  orderentry.js     # "Copy for order entry" pure logic: `isSpecialOrder` (a row
-                    # is a special order when it carries a price-book `bookId` OR
-                    # a `sheoga` marker — Sheoga floors AND their at-cost fee
-                    # lines, which carry `sheoga` with no `cfg` — OR, with the
-                    # stock cache up, no bookId and a SKU the shop doesn't stock
-                    # in any skuKeys spelling: a hand-entered vendor line can't
-                    # key as stock SKU ⇥ qty — Marcus 2026-08-21), plus
+  orderentry.js     # "Copy for order entry" pure logic: `isSpecialOrder` —
+                    # three tiers, most authoritative first, because they
+                    # disagree and the old OR chain let the weakest win (owner
+                    # 2026-09-01). (1) PROVENANCE: an "order" book's `bookId`
+                    # is special; a stock-kind book's is not. (2) THE
+                    # CONFIGURATOR'S VERDICT: every `sheoga` line is special
+                    # (Sheoga sells by description — floors AND their at-cost
+                    # fee lines, which carry the marker with no `cfg`), while a
+                    # `wedi`/`schluter` line splits on its SKU, because either
+                    # engine emits a shop code ONLY for a stocked item
+                    # (`sku: e.stock ? e.erp : ""`) — so the SKU IS the verdict
+                    # and tier 3 must not re-litigate it. It used to: a
+                    # configurator row has no bookId, so tier 3 re-checked its
+                    # code against the stock cache and — the shop having no wedi
+                    # stock book — flipped every stocked wedi line to special
+                    # once the cache came up; Schluter had the mirror fault, no
+                    # clause at all, so its special-order lines fell through to
+                    # "stock" (the dangerous direction: the desk keys a stock
+                    # SKU the ERP's stock side doesn't hold). (3) THE
+                    # HAND-ENTERED GAP: with the stock cache up, a bookless row
+                    # whose SKU the shop doesn't stock in any skuKeys spelling
+                    # can't key as stock SKU ⇥ qty — Marcus 2026-08-21. Plus
                     # `orderDescription` (the row -> descfit ladder, flowing
                     # unit · size · product · SKU · coverage; a Sheoga row
                     # abbreviates losslessly off `sheoga.descParts` and keeps a

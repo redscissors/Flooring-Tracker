@@ -24,7 +24,7 @@ import { seedFromQuery as wediSeed } from "./wediquery.js";
 // engine, adapter, and popup all stay inside the lazy chunk (ADR 0026/0032).
 import { seedFromQuery as schluterSeed } from "./schluterquery.js";
 import { STOCK_LOADING_MSG, TYPES, TLBL, underlayLabel, TYPE_ACCENT, ROW_WASH, TOTAL_WASH, JOINTS, colorsFor, ATT_BUCKET, TIER_COLOR, tierBadgeText, PROJECT_NAME_MAX, AUTO_KEEP, QUICK_SWEEP_DAYS } from "./uiconst.js";
-import { uid, money, sf1, miscQty, blobToDataURL, dataURLToBlob, wasteNote, newProduct, newArea, areaLabel, rowBlank, catSig, newProject, newPerson, newBuilder, normC, personData, quickAutoName, isRealProjectName, QUICK_DEFAULT_NAME, stampKit, landKitLines, placedKits, removeKitLines } from "./model.js";
+import { uid, money, sf1, miscQty, blobToDataURL, dataURLToBlob, wasteNote, newProduct, newArea, areaLabel, rowBlank, catSig, newProject, newPerson, newBuilder, normC, personData, quickAutoName, isRealProjectName, QUICK_DEFAULT_NAME, stampKit, landKitLines, appendKitLines, moveKitEntries, placedKits, removeKitLines } from "./model.js";
 import { lineTotal, printProduct, printAreaFloor, KSHORT, u1, orderEntryRow } from "./print.js";
 import { jobTotals } from "./jobtotals.js";
 import { OPTION_SLOTS, OPTION_COLOR, optionsUsed, bucketCats, scopedCats, optionTitle, optionShort, duplicateInto, compareOptionsPatch } from "./options.js";
@@ -800,14 +800,6 @@ export default function App({ user, onSignOut }) {
     ]);
     updArea(aid, { products });
   };
-  // Append moved configurator lines as new product rows at the end of an area —
-  // used by basket "Move", which must apply lines AND clear the basket in ONE
-  // updateProject (two calls would clobber via the non-functional setter).
-  // Vendor-generic (issue 023/066/097 all move through this): lines arrive
-  // stamped per basket entry (moveBasketEntries); stampKit here is the
-  // idempotent backstop for any unstamped path.
-  const appendKitLines = (categories, aid, lines) => categories.map((a) =>
-    a.id === aid ? { ...a, products: [...a.products, ...stampKit(lines).map((patch) => ({ ...newProduct(), ...patch }))] } : a);
   // One landing for all three configurators (issue 023 / 066 / 097): the anchor
   // line (the one carrying the vendor's {mode,cfg} marker) fills the row the
   // popup was opened from and every companion lands as its own new row after
@@ -2807,12 +2799,19 @@ export default function App({ user, onSignOut }) {
             mortars={settings.mortars} mortarDefault={settings.catalog?.defaults?.mortar || ""}
             basket={sel.wediBasket || []}
             onBasketChange={(next) => updateProject(sel.id, { wediBasket: next })}
-            onMoveEntries={(lines, nextBasket) => updateProject(sel.id, { categories: appendKitLines(sel.categories, wediPop.aid, lines), wediBasket: nextBasket })}
+            onMoveEntries={(groups, nextBasket) => {
+              const moved = moveKitEntries(sel.categories, wediPop.aid, groups);
+              updateProject(sel.id, { categories: moved.categories, wediBasket: nextBasket });
+              if (moved.stranded) ping(moved.stranded === 1 ? "That kit is no longer in the project — its lines were added instead"
+                : moved.stranded + " kits are no longer in the project — their lines were added instead");
+            }}
             placed={placedKits(sel.categories, "wedi")}
             onOpenPlaced={(k) => setWediPop({ aid: k.areaId, pid: k.rowId, seed: k.marker, n: (wediPop.n || 0) + 1 })}
             onDeleteKit={(k) => { const next = removeKitLines(sel.categories, k.areaId, k.rowId); if (next) { updateProject(sel.id, { categories: next }); if (k.rowId === wediPop.pid) setWediPop(null); } }}
             onQuoteOptions={(p) => addCompareOptions(wediPop.aid, p)}
+            editing={row.wedi?.cfg && !row.wedi.part ? { areaId: wediPop.aid, rowId: wediPop.pid, kitId: row.kitId || "" } : null}
             onAdd={(lines) => { addWediLines(wediPop.aid, wediPop.pid, lines); setWediPop(null); setFocusQty(wediPop.pid); }}
+            onAddNew={(lines) => { updateProject(sel.id, { categories: appendKitLines(sel.categories, wediPop.aid, lines) }); setWediPop(null); }}
             onConfigChange={(live) => { try { localStorage.setItem("ft-open-layer", JSON.stringify({ kind: "wedi", aid: wediPop.aid, pid: wediPop.pid, seed: live })); } catch (x) { } }}
             onClose={() => setWediPop(null)} />
           </Suspense>
@@ -2842,12 +2841,19 @@ export default function App({ user, onSignOut }) {
             mortars={settings.mortars} mortarDefault={settings.catalog?.defaults?.mortar || ""}
             basket={sel.schluterBasket || []}
             onBasketChange={(next) => updateProject(sel.id, { schluterBasket: next })}
-            onMoveEntries={(lines, nextBasket) => updateProject(sel.id, { categories: appendKitLines(sel.categories, schluterPop.aid, lines), schluterBasket: nextBasket })}
+            onMoveEntries={(groups, nextBasket) => {
+              const moved = moveKitEntries(sel.categories, schluterPop.aid, groups);
+              updateProject(sel.id, { categories: moved.categories, schluterBasket: nextBasket });
+              if (moved.stranded) ping(moved.stranded === 1 ? "That kit is no longer in the project — its lines were added instead"
+                : moved.stranded + " kits are no longer in the project — their lines were added instead");
+            }}
             placed={placedKits(sel.categories, "schluter")}
             onOpenPlaced={(k) => setSchluterPop({ aid: k.areaId, pid: k.rowId, seed: k.marker, n: (schluterPop.n || 0) + 1 })}
             onDeleteKit={(k) => { const next = removeKitLines(sel.categories, k.areaId, k.rowId); if (next) { updateProject(sel.id, { categories: next }); if (k.rowId === schluterPop.pid) setSchluterPop(null); } }}
             onQuoteOptions={(p) => addCompareOptions(schluterPop.aid, p)}
+            editing={row.schluter?.cfg && !row.schluter.part ? { areaId: schluterPop.aid, rowId: schluterPop.pid, kitId: row.kitId || "" } : null}
             onAdd={(lines) => { addSchluterLines(schluterPop.aid, schluterPop.pid, lines); setSchluterPop(null); setFocusQty(schluterPop.pid); }}
+            onAddNew={(lines) => { updateProject(sel.id, { categories: appendKitLines(sel.categories, schluterPop.aid, lines) }); setSchluterPop(null); }}
             onConfigChange={(live) => { try { localStorage.setItem("ft-open-layer", JSON.stringify({ kind: "schluter", aid: schluterPop.aid, pid: schluterPop.pid, seed: live })); } catch (x) { } }}
             onClose={() => setSchluterPop(null)} />
           </Suspense>

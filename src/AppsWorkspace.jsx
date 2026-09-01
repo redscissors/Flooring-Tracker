@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { X, Search, Plus, Trash2, Printer, Eye, EyeOff, GripVertical, ChevronLeft } from "lucide-react";
 import { LABEL_FIELDS, KIND_OF, VARIANT_KEYS, newDraftFromPreset, normPreset, stockToLabelFields, perLetterSheet, sheetsForLabels, labelCardHTML, clampSize, isKeimHeader, isSpacer, clampSpace, newSpacerLine } from "./labels.js";
 import { searchStock } from "./stock.js";
+import { stampKit } from "./model.js";
 import SheogaConfigurator from "./SheogaConfigurator.jsx";
 import keimLogo from "./assets/keim-logo-ink.png";
 
@@ -494,7 +495,7 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
                 mortars={wedi.mortars} mortarDefault={wedi.mortarDefault}
                 basket={wediBasket}
                 onBasketChange={setWediBasket}
-                onMoveEntries={(lines, nextBasket) => requestCommit("wedi", wedi, lines, nextBasket)}
+                onMoveEntries={(groups, nextBasket) => requestCommit("wedi", wedi, groups.flatMap((g) => stampKit(g.lines)), nextBasket)}
                 onAdd={(lines) => requestCommit("wedi", wedi, lines, null)}
                 onClose={() => { if (!pendingRef.current) setApp("labels"); }}
               />
@@ -513,7 +514,7 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
                 mortars={schluter.mortars} mortarDefault={schluter.mortarDefault}
                 basket={schluterBasket}
                 onBasketChange={setSchluterBasket}
-                onMoveEntries={(lines, nextBasket) => requestCommit("schluter", schluter, lines, nextBasket)}
+                onMoveEntries={(groups, nextBasket) => requestCommit("schluter", schluter, groups.flatMap((g) => stampKit(g.lines)), nextBasket)}
                 onAdd={(lines) => requestCommit("schluter", schluter, lines, null)}
                 onClose={() => { if (!pendingRef.current) setApp("labels"); }}
               />

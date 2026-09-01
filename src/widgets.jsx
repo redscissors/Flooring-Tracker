@@ -454,7 +454,13 @@ export function KitBasketPanel({ title = "Basket", staged = [], sel = {}, onTogg
               <button onClick={() => onToggle(v.id)} className={`w-[18px] h-[18px] mt-0.5 rounded-[5px] border flex items-center justify-center text-[11px] font-black text-white shrink-0 ${on ? "bg-[color:var(--ft-brand)] border-[color:var(--ft-brand)]" : "border-slate-300"}`}>{on ? "✓" : ""}</button>
               <div className="flex-1 min-w-0">
                 <div className="text-[13px] font-bold leading-tight">{v.title}</div>
-                <div className="text-[11px] text-slate-500 font-semibold">{v.meta}</div>
+                <div className="text-[11px] text-slate-500 font-semibold">
+                  {/* A targeted entry REPLACES a kit already on the job — it has
+                      to read differently from one that adds a second shower. */}
+                  {v.target && <span className="mr-1.5 rounded-full px-1.5 py-px text-[10px] font-extrabold uppercase tracking-wide"
+                    style={{ background: "var(--ft-brand)", color: "#fff" }}>Update</span>}
+                  {v.meta}
+                </div>
               </div>
               <div className="flex flex-col items-end gap-1.5"><span className="font-extrabold tabular-nums text-[13px]" style={tierColor ? { color: tierColor } : undefined}>{fmt$(v.price)}</span><button onClick={() => onRemove(v.id)} className="text-slate-400 hover:text-slate-600"><X size={14} /></button></div>
             </div>); })}
