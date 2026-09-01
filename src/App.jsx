@@ -2661,7 +2661,7 @@ export default function App({ user, onSignOut }) {
         <Suspense fallback={null}>
         <SettingsWorkspace onClose={() => setShowSettings(false)}
           initialSection={settingsSection} onSectionChange={setSettingsSection}
-          settings={settings} setSettings={setSettings} gFamilies={gFamilies}
+          settings={settings} setSettings={setSettings} gFamilies={gFamilies} ping={ping}
           exportBackup={exportBackup} importBackup={importBackup} fileRef={fileRef}
           inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} theme={theme} setTheme={setTheme} headerLayout={headerLayout} setHeaderLayout={setHeaderLayout}
           profile={profile} saveProfile={saveProfile} user={user}

@@ -4,7 +4,7 @@ import { offeredGrouts, offeredMortars, isOffered, setCatalogDefault, isDuplicat
 import { stockBaseCompanion } from "./stock.js";
 import { deriveSeriesRule, matchRule, parseColorToken, normBookFamily, familyWarnings, linkedItemState, proposeLinks, applyProposals, looksLikeBase } from "./booklink.js";
 import { uid } from "./model.js";
-import { DotMenu, Modal, HelpTip } from "./widgets.jsx";
+import { DotMenu, Modal, HelpTip, AddressField } from "./widgets.jsx";
 import { StockSearch, FamilySearch, SeriesSearch } from "./search.jsx";
 import { PriceBookLibrary } from "./pricebooklib.jsx";
 
@@ -163,7 +163,7 @@ function LinkMigration({ catalog, bookStock, books, onApply, onClose }) {
   );
 }
 
-export default function SettingsWorkspace({ onClose, settings, setSettings, gFamilies, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, headerLayout, setHeaderLayout, profile, saveProfile, user, books, addBook, updateBook, confirmBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setBookItemIssue, addClaudeIssue, bookStock = {}, bookStockReady, refreshBookStock, initialSection, onSectionChange }) {
+export default function SettingsWorkspace({ onClose, settings, setSettings, gFamilies, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, headerLayout, setHeaderLayout, profile, saveProfile, user, books, addBook, updateBook, confirmBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setBookItemIssue, addClaudeIssue, bookStock = {}, bookStockReady, refreshBookStock, initialSection, onSectionChange, ping }) {
   const catalog = settings.catalog;
   const onChange = (c) => setSettings({ catalog: c });
   // initialSection/onSectionChange: the refresh-restore hooks (App's
@@ -863,6 +863,13 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
               <div><label className={lbl}>Tile waste (%)</label><input type="number" value={settings.waste.tile} onChange={(e) => setSettings({ waste: { ...settings.waste, tile: e.target.value } })} className={inp + " w-28"} /></div>
               <div><label className={lbl}>Flooring waste (%)</label><input type="number" value={settings.waste.floor} onChange={(e) => setSettings({ waste: { ...settings.waste, floor: e.target.value } })} className={inp + " w-28"} /><div className="text-[11px] text-slate-400 mt-1">Hardwood, vinyl, laminate, carpet</div></div>
               <div className="text-[11px] text-slate-400 self-end pb-1 max-w-[15rem]">The rates a new project starts with. Each job carries its own waste from there — changing these never touches a project that already exists.</div>
+            </div>
+            <div className="mt-8 pt-6 border-t border-slate-100">
+              <label className={lbl + " mb-2"}>Shop address <HelpTip className="align-middle" w={300} tip="Where job distance is measured from. Team-wide — one address, so a distance means the same thing whoever looked it up. Leave blank to turn job distance off." /></label>
+              <div className="max-w-xl">
+                <AddressField value={settings.shop?.address || ""} onChange={(v) => setSettings({ shop: { address: v } })} inp={inp} placeholder="Shop address…" ping={ping} />
+              </div>
+              <div className="text-[11px] text-slate-400 mt-1">Job distance is internal — it never prints on an estimate.</div>
             </div>
             <div className="mt-8 pt-6 border-t border-slate-100">
               <label className={lbl + " mb-2"}>Appearance <HelpTip className="align-middle" tip="Applies on this device only. The printed estimate stays on white paper." /></label>

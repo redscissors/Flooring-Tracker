@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULTS, GROUTS, MORTARS, mergeSettings, seedCatalog, resolveCatalog, normalizeSettings, normalizeCatalog, normWaste, wasteFor, projWaste, withProjWaste, serializeSettings, groutExact, mortarExact, getGrout, getGroutBase, groutBaseList, getMortar, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredUnderlayments, catalogHasSeedUnderlayments, materialWarnings, addCategory, updateCategory, isDuplicateCategoryName, removeCategory, isDuplicateAttachedName, offeredAttached, offeredCategories, getAttached, attachedList } from "./catalog.js";
+import { DEFAULTS, GROUTS, MORTARS, mergeSettings, seedCatalog, resolveCatalog, normalizeSettings, normalizeCatalog, normWaste, wasteFor, projWaste, withProjWaste, serializeSettings, groutExact, mortarExact, getGrout, getGroutBase, groutBaseList, getMortar, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredUnderlayments, catalogHasSeedUnderlayments, materialWarnings, addCategory, updateCategory, isDuplicateCategoryName, removeCategory, isDuplicateAttachedName, offeredAttached, offeredCategories, getAttached, attachedList, normShop } from "./catalog.js";
 import { BUILTIN_IDS } from "./labels.js";
 
 // A fully-checked tile selection used by the math tests.
@@ -1355,4 +1355,21 @@ test("qtyDrift: an uncomputable or zero auto quantity is not an offer", () => {
 // a disagreement worth surfacing.
 test("qtyDrift: a deliberate zero override still drifts", () => {
   assert.deepEqual(qtyDrift("0", 8), { auto: 8, have: 0 });
+});
+
+test("normShop keeps a trimmed address and vanishes when blank", () => {
+  assert.deepEqual(normShop({ address: "  1 Shop St, Akron OH " }), { address: "1 Shop St, Akron OH" });
+  assert.equal(normShop({ address: "   " }), undefined);
+  assert.equal(normShop({}), undefined);
+  assert.equal(normShop(null), undefined);
+});
+
+test("normShop caps a runaway address", () => {
+  assert.equal(normShop({ address: "x".repeat(500) }).address.length, 200);
+});
+
+test("settings round-trip carries the shop address, and omits the key entirely without one", () => {
+  const withShop = serializeSettings(normalizeSettings({ shop: { address: "1 Shop St" } }));
+  assert.deepEqual(withShop.shop, { address: "1 Shop St" });
+  assert.equal("shop" in serializeSettings(normalizeSettings({})), false);
 });
