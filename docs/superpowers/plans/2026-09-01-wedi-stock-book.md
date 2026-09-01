@@ -645,19 +645,66 @@ Create `src/usewedicatalog.test.js`:
 ```js
 import test from "node:test";
 import assert from "node:assert/strict";
-import { pickWediBooks } from "./usewedicatalog.js";
+import { pickWediBooks, foldBookLists, gateOf } from "./usewedicatalog.js";
 
-test("pickWediBooks: stock-kind, active, matching /wedi/i on name or brandLabel", () => {
+test("pickWediBooks: stock-kind, active, word-matching wedi on name or brandLabel", () => {
   const books = [
     { id: "a", kind: "stock", name: "wedi", active: true },
     { id: "b", kind: "stock", name: "Schluter", active: true },
     { id: "c", kind: "order", name: "wedi pricelist", active: true },
     { id: "d", kind: "stock", name: "retired wedi", active: false },
     { id: "e", kind: "stock", name: "", data: { brandLabel: "WEDI" }, active: true },
+    { id: "f", kind: "stock", name: "Swedish oak" },              // substring, NOT a wedi book
+    { id: "g", kind: "stock", name: "wedi extras" },               // active undefined = active
   ];
-  assert.deepEqual(pickWediBooks(books), ["a", "e"]);
+  assert.deepEqual(pickWediBooks(books), ["a", "e", "g"]);
   assert.deepEqual(pickWediBooks([]), []);
   assert.deepEqual(pickWediBooks(null), []);
+});
+
+test("foldBookLists: any failed fetch nulls the whole result", () => {
+  const row = (sku, extra) => ({ sku, ...extra });
+  assert.deepEqual(foldBookLists([[row("1")], [row("2")]]).map((r) => r.sku), ["1", "2"]);
+  assert.equal(foldBookLists([[row("1")], null]), null, "one failure closes the gate");
+  assert.equal(foldBookLists([undefined]), null, "an undefined list is a failure too");
+  assert.equal(foldBookLists(null), null);
+  assert.deepEqual(foldBookLists([[]]), [], "an empty book folds to [], not null");
+  assert.deepEqual(
+    foldBookLists([[row("1", { active: false }), row("2", { disabled: true }), row("3")]])
+      .map((r) => r.sku), ["3"], "inactive and disabled rows drop out");
+});
+
+// The gate's transition table. Reading the hook was not enough to catch two
+// stale-pricing bugs in an earlier draft, so the arithmetic is pinned here.
+test("gateOf: the three states, and the two ways a stale fallback used to slip through", () => {
+  const g = (o) => gateOf({ bookStockReady: true, ...o });
+
+  // 1. no book at all — fallback is legitimate, and it is ready immediately
+  assert.deepEqual(g({ targetIds: "", loadedIds: "", rows: [], adapted: null }),
+    { catReady: true, onBook: false });
+
+  // 2. book exists, rows not in yet — WAIT, never substitute the table
+  assert.deepEqual(g({ targetIds: "a", loadedIds: "a", rows: null, adapted: null }),
+    { catReady: false, onBook: false });
+  // ...and the boot cache is not up yet
+  assert.deepEqual(gateOf({ targetIds: "a", bookStockReady: false, loadedIds: "a", rows: [{}], adapted: [{}] }),
+    { catReady: false, onBook: false });
+
+  // 3. book with rows — install
+  assert.deepEqual(g({ targetIds: "a", loadedIds: "a", rows: [{}], adapted: [{}] }),
+    { catReady: true, onBook: true });
+
+  // REGRESSION A: rows left over from a PREVIOUS id-set (including the [] written
+  // when there was no book yet) must not satisfy the gate for a new book.
+  assert.deepEqual(g({ targetIds: "a", loadedIds: "", rows: [], adapted: null }),
+    { catReady: false, onBook: false });
+  assert.deepEqual(g({ targetIds: "b", loadedIds: "a", rows: [{}], adapted: [{}] }),
+    { catReady: false, onBook: false });
+
+  // REGRESSION B: a book whose rows all fail to adapt is an EMPTY book — it must
+  // fall back AND drop the marker, never fly onBook over the transcribed table.
+  assert.deepEqual(g({ targetIds: "a", loadedIds: "a", rows: [{}, {}], adapted: [] }),
+    { catReady: true, onBook: false });
 });
 ```
 
@@ -687,16 +734,52 @@ import { useEffect, useMemo, useState } from "react";
 import { adaptBookRows } from "./wediadapter.js";
 import { catalog, setStockSource, clearStockSource } from "./wedi.js";
 
-/** Ids of the active stock-kind books that say wedi. */
+/**
+ * Ids of the active stock-kind books that say wedi.
+ *
+ * `\b`-anchored: an unanchored /wedi/i matches "Swedish", and a "Swedish oak"
+ * stock book would then be selected, adapt to zero rows, and (before the
+ * gate below was fixed) fly an on-the-book marker over the fallback table.
+ */
 export function pickWediBooks(books) {
   return (books || [])
     .filter((b) => b.kind === "stock" && b.active !== false
-      && /wedi/i.test((b.name || "") + " " + ((b.data && b.data.brandLabel) || "")))
+      && /\bwedi\b/i.test((b.name || "") + " " + ((b.data && b.data.brandLabel) || "")))
     .map((b) => b.id);
 }
 
+/** Fold per-book fetch results into rows, or null when ANY fetch failed. */
+export function foldBookLists(lists) {
+  if (!lists || lists.some((l) => l === null || l === undefined)) return null;
+  return lists.flat().filter((it) => it.active !== false && !it.disabled);
+}
+
+/**
+ * The gate, extracted as a pure function so its transition table can be unit
+ * tested without a React renderer. Two subtleties, each of which was a live
+ * stale-pricing bug in an earlier draft:
+ *
+ * - `loadedIds` must equal `targetIds`. Rows fetched for a previous book set —
+ *   including the `[]` written when there was no book yet — must never satisfy
+ *   the gate for a new one. Books metadata hydrating AFTER this popup mounts is
+ *   the ordinary path, not a rare race.
+ * - `onBook` keys off `adapted`, the POST-adapter rows, because that is what
+ *   gets installed. A book whose rows all lack a wedi part number adapts to
+ *   `[]`, and `setStockSource([])` collapses to the fallback — so gating on the
+ *   pre-adapter count would fly an on-the-book marker over the transcribed
+ *   table. A book that adapts to nothing is an empty book.
+ */
+export function gateOf({ targetIds, bookStockReady, loadedIds, rows, adapted }) {
+  if (!targetIds) return { catReady: true, onBook: false };   // no book — fallback is legitimate
+  const fresh = loadedIds === targetIds;
+  const catReady = !!bookStockReady && fresh && rows !== null;
+  return { catReady, onBook: catReady && !!(adapted && adapted.length) };
+}
+
 export function useWediCatalog({ stockRows, bookStockReady, books, loadBookItems }) {
-  const [bookRows, setBookRows] = useState(null);
+  // The rows AND the id-set they were fetched for travel together — that
+  // pairing is what makes a stale result detectable at render time.
+  const [loaded, setLoaded] = useState({ ids: null, rows: null });
   const targetIds = pickWediBooks(books).join("|");
 
   // Keyed on the matching book ids, not run-once: an open-layer restore can
@@ -705,36 +788,35 @@ export function useWediCatalog({ stockRows, bookStockReady, books, loadBookItems
   useEffect(() => {
     let alive = true;
     const ids = targetIds ? targetIds.split("|") : [];
-    if (!ids.length) { setBookRows([]); return; }         // no book — fallback is legitimate
-    if (!loadBookItems) { setBookRows(null); return; }     // book exists, no loader — WAIT
+    if (!ids.length) { setLoaded({ ids: targetIds, rows: [] }); return; }
+    if (!loadBookItems) { setLoaded({ ids: targetIds, rows: null }); return; }  // book, no loader — WAIT
     Promise.all(ids.map((id) => loadBookItems(id).catch(() => null)))
-      .then((lists) => {
-        if (!alive) return;
-        // A failed fetch is null, NOT []. Falling back on a failure is exactly
-        // the stale-pricing hazard this gate exists to prevent.
-        setBookRows(lists.some((l) => l === null) ? null
-          : lists.flat().filter((it) => it.active !== false && !it.disabled));
-      });
+      // A failed fetch is null, NOT []. Falling back on a failure is exactly
+      // the stale-pricing hazard this gate exists to prevent, and one failure
+      // among several nulls the whole result: a partial catalog is a book
+      // missing SKUs, which quotes wrong without looking wrong.
+      .then((lists) => { if (alive) setLoaded({ ids: targetIds, rows: foldBookLists(lists) }); })
+      .catch(() => { if (alive) setLoaded({ ids: targetIds, rows: null }); });
     return () => { alive = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [targetIds]);
+  }, [targetIds, loadBookItems]);
 
-  const hasBook = !!targetIds;
-  // With a book, wait for its rows AND the boot cache. Without one, ready now.
-  const catReady = hasBook ? (!!bookStockReady && bookRows !== null) : true;
-  const onBook = hasBook && catReady && !!(bookRows && bookRows.length);
+  const adapted = useMemo(() => (loaded.rows ? adaptBookRows(loaded.rows) : null), [loaded.rows]);
+  const { catReady, onBook } = gateOf({
+    targetIds, bookStockReady, loadedIds: loaded.ids, rows: loaded.rows, adapted,
+  });
 
   const cat = useMemo(() => {
     if (!catReady) return [];
-    if (onBook) setStockSource(adaptBookRows(bookRows));
+    if (onBook) setStockSource(adapted);
     else clearStockSource();
     return catalog();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [catReady, onBook, bookRows, stockRows]);
+  }, [catReady, onBook, adapted]);
 
   return { cat, catReady, onBook };
 }
 ```
+
+Note `stockRows` stays in the signature for symmetry with `useSchluterCatalog` but is deliberately **not** a memo dependency — the wedi catalog is built from the book's rows, not the boot cache, so depending on it forced a full `buildCatalog()` on every boot-cache change for no semantic gain.
 
 - [ ] **Step 4: Run the tests**
 
