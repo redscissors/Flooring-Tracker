@@ -1,9 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normBookItem } from "./orderbook.js";
+import { normBookItem, bookItemData } from "./orderbook.js";
 import { FIXTURE_ROWS } from "./wedifixture.js";
-import { adaptBookRows } from "./wediadapter.js";
-import { catalog, setStockSource, clearStockSource, kitFor, solve, figureConsumables, SKU } from "./wedi.js";
+import { adaptBookRows, adaptSoRows } from "./wediadapter.js";
+import { catalog, setStockSource, clearStockSource, kitFor, solve, figureConsumables, SKU,
+  setSoSource, clearSoSource, missingRequiredParts, item } from "./wedi.js";
+import { parseMapped } from "./pricebook.js";
+import { PRICELIST_SHEETS } from "./wedipricelistfixture.js";
+import { parseWediPricelist } from "./wedibook.js";
 
 // The zero-drift baseline (spec, "Verification"). Every cost and every retail
 // in the export matches the transcribed table to the cent, so any difference
@@ -128,4 +132,145 @@ test("a book that drops hardcoded SKUs never yields a line with no item", () => 
   assert.equal(kitFor("US9100004").lines.every((l) => l.item), true,
     "no kit line carries a null item");
   clearStockSource();
+});
+
+// ---- the pricelist half (spec 2026-09-02, 8b) --------------------------------
+
+const liveSo = () => {
+  const p = parseWediPricelist(PRICELIST_SHEETS);
+  const { items } = parseMapped(p.rows, p.mapping);
+  return items.map((it) => normBookItem({ sku: it.sku, active: true, data: bookItemData(it) }, "bk_wedi_so"));
+};
+const liveStock = () => FIXTURE_ROWS.map((r) => normBookItem(r, "bk_wedi"));
+const clearBoth = () => { clearStockSource(); clearSoSource(); };
+const byKey = (list) => Object.fromEntries(list.map((e) => [e.key, e]));
+
+// The stock half compares DERIVED (desc excluded, see above). The pricelist
+// half adds the four fields that come straight off a soRow and ARE
+// byte-reproducible — the measurement walk found zero drift on them.
+const SO_DERIVED = [...DERIVED, "section", "size", "soRetail", "soNet"];
+const pickSo = (e) => Object.fromEntries(SO_DERIVED.map((k) => [k, e[k]]));
+
+// Spec decision 9: where the parser deliberately differs from the
+// transcription, measured row by row. `details` on ten rows — eight where
+// the sheet's captioned "Additional Details" column carries text the
+// transcription's fixed column 4 never saw, two where the transcription
+// hand-edited the sheet's wording. One of the eight moves a derived field:
+// unitOf() reads "per box", so the sausage gun becomes BX. Anything not in
+// this table that differs is a parser bug.
+const PINNED_DETAILS = {
+  US5000085: "1 Kit",
+  US5000013: "12 per case, full cases only",
+  US5000088: "12 per case, full cases only",
+  US5000010: "20 per case, full cases only",
+  US5000083: "20 per case, full cases only",
+  US5000019: "1 per box",
+  US5000020: "sold in increments of 10 pcs.",
+  US5000044: "25 pcs/case, full cases only",
+  US3000001: "Suspended Seat",
+  US3000002: "Suspended Seat",
+};
+const PINNED_UNIT = { US5000019: "BX" };
+
+// The S-Dry parts the engine never priced from a pricelist. 32 of the 36 are
+// stocked (they twin a WEDI_STOCK entry — see the twinning test below); these
+// four are the only new special-order entries.
+const NEW_SO_ONLY = ["US8076001", "US9476013", "US9476014", "US9476015"];
+
+test("pricelist half: the book-fed special-order entries equal the transcribed ones, entry for entry", () => {
+  clearBoth();
+  const fromTable = catalog().filter((e) => !e.stock);
+  assert.equal(fromTable.length, 118, "118 special-order-only entries from the table");
+
+  setSoSource(adaptSoRows(liveSo()));
+  const fromBook = byKey(catalog().filter((e) => !e.stock));
+  clearBoth();
+
+  assert.deepEqual(Object.keys(fromBook).filter((k) => !fromTable.some((e) => e.key === k)).sort(), NEW_SO_ONLY.slice().sort(),
+    "the only additions are the four S-Dry parts the shop does not stock");
+
+  const expected = fromTable.map((e) => {
+    const x = pickSo(e);
+    if (PINNED_UNIT[e.key]) x.unit = PINNED_UNIT[e.key];
+    return x;
+  });
+  const actual = fromTable.map((e) => pickSo(fromBook[e.key]));
+  assert.deepEqual(actual, expected);
+
+  // details, separately, against the allow-list
+  for (const e of fromTable) {
+    const want = e.key in PINNED_DETAILS ? PINNED_DETAILS[e.key] : e.details;
+    assert.equal(fromBook[e.key].details, want, `details on ${e.key}`);
+  }
+});
+
+test("pricelist half: every entry classifies with both books installed — nothing falls into misc", () => {
+  clearBoth();
+  setStockSource(adaptBookRows(liveStock()));
+  setSoSource(adaptSoRows(liveSo()));
+  const all = catalog();
+  assert.equal(all.length, 273, "151 stock + 122 special order");
+  assert.deepEqual(all.filter((e) => e.group === "misc").map((e) => e.us + " " + e.name), []);
+  // The S-Dry line files under its own section by classify's existing rule.
+  const sdry = all.filter((e) => /^US\d\d76\d{3}$/.test(e.us));
+  assert.ok(sdry.length >= 36, "guard: the S-Dry codes are in the catalog");
+  assert.equal(sdry.every((e) => e.group === "sdry" || (e.group === "pan" && e.sub === "sdry")), true);
+  clearBoth();
+});
+
+// Spec decision 8, measured: 34 stock entries — the two SS27/SS43 linear
+// cover frames and 32 S-Dry parts the shop stocks — gain a pricelist twin
+// they never had, and makeEntry names a twinned entry from the pricelist.
+// Every OTHER stock entry is identical to the table on every derived field.
+// The twinned 34 may differ ONLY in the fields a soRow feeds. A difference in
+// any other field (w, d, t, drain, channel, cost, retail…) is a finding to
+// report to the owner, never a key to add to this list.
+const NEW_TWINS = ["676800061", "676800064",
+  "US5076009", "US5076008", "US9176001", "US9176002", "US9176003", "US9176004",
+  "US2076001", "US2076002", "US3076003", "US3076001", "US3076002",
+  "US1076002", "US1076006", "US1076001", "US1076003", "US1076005", "US1076007", "US1076004", "US1076008",
+  "US9476016", "US9476011", "US9476012", "US9476006",
+  "US5076011", "US5076010", "US5076007", "US5076002", "US5076001", "US5076005", "US5076004", "US5076003", "US5076006"];
+const TWIN_MAY_DIFFER = new Set(["name", "section", "size", "details", "soRetail", "soNet", "sizeText"]);
+
+test("stock half: with both books installed, only the 34 newly twinned entries change, and only where a soRow feeds them", () => {
+  clearBoth();
+  setStockSource(adaptBookRows(liveStock()));
+  const stockOnly = byKey(catalog().filter((e) => e.stock));
+  setSoSource(adaptSoRows(liveSo()));
+  const both = byKey(catalog().filter((e) => e.stock));
+  clearBoth();
+
+  assert.deepEqual(Object.keys(both).sort(), Object.keys(stockOnly).sort(), "the stock half has the same keys");
+  const FIELDS = [...SO_DERIVED, "details"];
+  const changed = [];
+  for (const k of Object.keys(stockOnly)) {
+    const diff = FIELDS.filter((f) => JSON.stringify(stockOnly[k][f]) !== JSON.stringify(both[k][f]));
+    if (diff.length) changed.push([k, diff]);
+  }
+  assert.deepEqual(changed.map(([k]) => k).sort(), NEW_TWINS.slice().sort(), "exactly the pinned keys changed");
+  for (const [k, diff] of changed) {
+    const outside = diff.filter((f) => !TWIN_MAY_DIFFER.has(f));
+    assert.deepEqual(outside, [], `${k} changed outside the soRow-fed fields: ${outside.join(", ")} — report this, do not allow-list it`);
+  }
+});
+
+test("the pinned engine totals do not move with BOTH books feeding the catalog", () => {
+  const INPUT = { w: 36, d: 60, curb: "curbed", drain: "any" };
+  const stripDesc = (v) => {
+    if (Array.isArray(v)) return v.map(stripDesc);
+    if (v && typeof v === "object") {
+      return Object.fromEntries(Object.entries(v).filter(([k]) => k !== "desc").map(([k, x]) => [k, stripDesc(x)]));
+    }
+    return v;
+  };
+  clearBoth();
+  const beforeKit = stripDesc(kitFor("US9100004")), beforeSol = stripDesc(solve(INPUT));
+  assert.ok(beforeKit && beforeKit.lines.length, "guard: a kit was built");
+  setStockSource(adaptBookRows(liveStock()));
+  setSoSource(adaptSoRows(liveSo()));
+  const afterKit = stripDesc(kitFor("US9100004")), afterSol = stripDesc(solve(INPUT));
+  clearBoth();
+  assert.deepEqual(afterKit, beforeKit, "kitFor is unchanged");
+  assert.deepEqual(afterSol, beforeSol, "solve is unchanged");
 });
