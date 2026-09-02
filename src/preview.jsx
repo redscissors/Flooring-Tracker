@@ -87,6 +87,7 @@ function Harness() {
         <Case label="tabs folded — a healthy book (the default)" book={BOOK} source={[SHEET]} />
         <Case label="a fetched sheet awaiting review — opens on Source" book={{ ...BOOK, id: "vtc2" }} source={[SHEET]} pending />
         <Case label="no markup set — opens on Markup, selling at cost" book={{ ...BOOK, id: "vtc3", name: "Virginia Tile — Anatolia (new)", data: { lastImport: BOOK.data.lastImport } }} />
+        <Case label="a book that publishes its own retail (wedi, ADR 0038) — no markup, not flagged" book={{ ...BOOK, id: "wedi", name: "wedi", data: { lastImport: BOOK.data.lastImport, mapping: { columns: { 0: "sku", 1: "description", 2: "size", 3: "note", 4: "price", 5: "cost", 6: "section", 7: "vendorSku" }, groupBy: "section" } } }} />
       </div>
     </div>
   );

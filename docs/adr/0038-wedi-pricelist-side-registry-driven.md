@@ -115,3 +115,14 @@ into decisions 5 and 6 below.
   identical whether the engine reads the tables or both books, and the two
   named geometry oddities (`US5076011`, `US1076001`–`08`) are prose the owner
   can correct on the item, not a defect in the parse rule.
+
+## Amendment 2026-09-02 — the book carries no markup, and is not flagged for it
+
+The wedi book showed the library's red "no markup — sells at cost" state, and
+the owner asked to fill the markup in. Nothing reads it: `pricedItem` passes a
+row's own `price` through, so a rate on this book would change no price.
+`bookPublishesPrice` (a book whose saved mapping maps a `price` column) now
+exempts the book from `bookNoMarkup`, and its Markup tab says so instead of
+asking for a number. Sell stays wedi's published retail; cost stays the
+distributor net; Builder stays `wediBuilderPct` in the configurator.
+
