@@ -15,7 +15,7 @@ import { parseOvf } from "./ovfbook.js";
 import { parseEmser } from "./emserbook.js";
 import { parseMirage } from "./miragebook.js";
 import { parseWediPricelist } from "./wedibook.js";
-import { normBookItem, bookItemData, bookRowPreview, diffBookItems, forceDiff, changedFieldBits, markupGroups, editedInDiff, bookStaleness, bookFreshAt, bookNoMarkup, DEFAULT_STALE_DAYS, itemProblems, supersedePairs, itemFlags, flagReviewBySku } from "./orderbook.js";
+import { normBookItem, bookItemData, bookRowPreview, diffBookItems, forceDiff, changedFieldBits, markupGroups, editedInDiff, bookStaleness, bookFreshAt, bookNoMarkup, bookPublishesPrice, DEFAULT_STALE_DAYS, itemProblems, supersedePairs, itemFlags, flagReviewBySku } from "./orderbook.js";
 import { normPricing } from "./pricing.js";
 import { BOOK_VERSION_KEEP } from "./uiconst.js";
 import { money } from "./model.js";
@@ -1056,6 +1056,7 @@ export function BookDetail({ book, updateBook, confirmBook, delBook, onDeleted, 
   const axisLabel = (f) => (GROUP_AXES.find(([k]) => k === f) || [])[1] || f;
   const overrides = Object.keys(markups?.byGroup || {}).length;
   const mkSummary = noMarkup ? "none — sells at cost"
+    : bookPublishesPrice(book) ? "none — vendor publishes retail"
     : `${num(markups?.default) || 0}%${markups?.groupBy ? ` · by ${axisLabel(markups.groupBy)}` : ""}${overrides ? ` · ${overrides} override${overrides === 1 ? "" : "s"}` : ""}`;
   const fr = normFreight(book.data?.freight);
   const frSummary = fr.mode === "program" ? `on${fr.destination ? ` — ${fr.destination}` : ""}` : "none";
@@ -1417,6 +1418,21 @@ export function MarkupEditor({ book, items, onSave, inp, lbl, embedded }) {   //
   // Read off the draft, not the saved book, so typing a rate clears the warning
   // as soon as it commits and re-raises it the moment the last rate goes back to 0.
   const noMarkup = bookNoMarkup({ kind: "order", data: { markups: { default: num(def), trim: String(trim).trim() === "" ? null : num(trim), byGroup } } });
+
+  // wedi's sheet carries its own retail (ADR 0038): pricedItem passes it
+  // through untouched, so a rate typed here would be a number nothing reads.
+  if (bookPublishesPrice(book)) {
+    return (
+      <div className={embedded ? "pt-3" : "mt-4 border border-slate-100 rounded-lg p-3"}>
+        <div className="flex items-center gap-2 flex-wrap">
+          {!embedded && <Percent size={14} className="text-slate-400" />}
+          {!embedded && <span className="text-sm font-medium">Markup</span>}
+          <span className="text-[11px] text-slate-400">selling price = the vendor's published retail</span>
+        </div>
+        <p className="mt-1.5 text-[11.5px] text-slate-500 max-w-xl">No markup applies to this book. Its price sheet carries the vendor's own retail on every row, so a pick sells at that retail and the cost column is the distributor's net — nothing sells at cost. A markup typed here would not change any price.</p>
+      </div>
+    );
+  }
 
   // Border and ink only, no red fill: the panel's own controls and notes are
   // slate-inked, and the dark theme leaves a red-50 surface light while

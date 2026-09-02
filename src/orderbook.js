@@ -957,13 +957,23 @@ export function markupGroups(items, markups) {
 
 // --- a book with no markup ---------------------------------------------------
 
+// An order book whose sheet carries the vendor's own selling price (wedi's
+// published retail, ADR 0038): pricedItem passes a row's price straight
+// through, so no markup is ever applied and none is missing. Read off the saved
+// mapping, the one piece of metadata that says the sheet has a price column.
+export function bookPublishesPrice(book) {
+  if (!book || book.kind !== "order") return false;
+  return Object.values(book.data?.mapping?.columns || {}).includes("price");
+}
+
 // An order book whose config carries no rate at all sells the vendor's cost as
 // the selling price — every pick from it quotes the job at cost. Read off the
 // book's metadata alone (the library board's rows never load items), so any
 // rate the config holds counts: the default, the trim rate, and each per-group
-// override. Stock books price off their own sheet and are never flagged.
+// override. Stock books price off their own sheet and are never flagged, and
+// neither is a book that publishes its own retail.
 export function bookNoMarkup(book) {
-  if (!book || book.kind !== "order") return false;
+  if (!book || book.kind !== "order" || bookPublishesPrice(book)) return false;
   const m = book.data?.markups || {};
   const rates = [m.default, m.trim, ...Object.values(m.byGroup || {})];
   return !rates.some((r) => (numOr(r, 0) || 0) !== 0);

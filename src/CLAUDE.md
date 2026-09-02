@@ -425,7 +425,10 @@ src/
                     # series-rule + color-token parsing, family resolution + projection into
                     # stock-shaped items, import-time sync, migration link proposals
   orderbook.js      # special-order ("order") book helpers (ADR 0009): item shape,
-                    # cost/markup/sell, pick snapshot, drift, import diff
+                    # cost/markup/sell (`bookNoMarkup` — the sells-at-cost red —
+                    # skips a book `bookPublishesPrice` says maps a `price`
+                    # column: wedi publishes retail, so no markup applies and
+                    # none is missing), pick snapshot, drift, import diff
                     # (BOOK_FIELDS — tracking stock-kind `price` too, so a
                     # retail-only re-export still upserts — with changedFieldBits
                     # for the wizard's what-moved lines), and the

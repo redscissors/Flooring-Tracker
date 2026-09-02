@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   normOrderItem, normBookItem, bookItemData, costSqft, resolveMarkup, sellPrice,
   pricedItem, orderPatch, orderDrift, bookRowPreview, mergeSearch, markupGroups, diffBookItems, forceDiff, editedInDiff,
-  bookStaleness, bookFreshAt, bookNoMarkup, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, unitComboWarnings,
+  bookStaleness, bookFreshAt, bookNoMarkup, bookPublishesPrice, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, unitComboWarnings,
   itemProblems, supersedePairs, rowAdvisories, importSanityWarnings, classifyTrim, itemFlags,
   flagReviewed, flagReviewBySku, trimsForFloor, sameProduct, collapseCopies, rankMerged, skuKeys,
   BOOK_FIELDS, BOOK_FIELD_LABELS, changedFieldBits,
@@ -1288,4 +1288,19 @@ test("bookRowPreview wears the brand label too — the table shows what a pick l
   const item = oi({ sku: "GLZ3", type: "tile", size: "12X24", cost: 31, sfPerUnit: 15.5, unit: "CT", description: "Reverso Beige" });
   assert.equal(bookRowPreview(item, { default: 50 }, "Glazzio").name, "Glazzio Reverso Beige");
   assert.equal(bookRowPreview(item, { default: 50 }).name, "Reverso Beige");
+});
+
+test("bookPublishesPrice: a book whose saved mapping carries the vendor's own selling price", () => {
+  const wedi = { id: "w", kind: "order", data: { mapping: { columns: { 0: "sku", 4: "price", 5: "cost" } } } };
+  assert.equal(bookPublishesPrice(wedi), true);
+  assert.equal(bookPublishesPrice(ob({ default: 45 })), false);                       // no mapping at all
+  assert.equal(bookPublishesPrice({ kind: "order", data: { mapping: { columns: { 0: "sku", 6: "cost" } } } }), false);
+  assert.equal(bookPublishesPrice({ kind: "stock", data: { mapping: { columns: { 0: "sku", 4: "price" } } } }), false);
+  assert.equal(bookPublishesPrice(null), false);
+});
+
+test("bookNoMarkup: a book that publishes retail never sells at cost, markup or not (wedi, ADR 0038)", () => {
+  const wedi = { id: "w", kind: "order", data: { mapping: { columns: { 0: "sku", 4: "price", 5: "cost" } } } };
+  assert.equal(bookNoMarkup(wedi), false);
+  assert.equal(bookNoMarkup({ ...wedi, data: { ...wedi.data, markups: { default: 0 } } }), false);
 });
