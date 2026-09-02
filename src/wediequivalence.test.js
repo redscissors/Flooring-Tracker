@@ -233,6 +233,42 @@ const NEW_TWINS = ["676800061", "676800064",
   "US5076011", "US5076010", "US5076007", "US5076002", "US5076001", "US5076005", "US5076004", "US5076003", "US5076006"];
 const TWIN_MAY_DIFFER = new Set(["name", "section", "size", "details", "soRetail", "soNet", "sizeText"]);
 
+// Spec decision 9, measured (fix round 1): 9 of PINNED_DETAILS' keys are ALSO
+// existing stock+SO twins from BEFORE 8b (via the WEDI_SO fallback table),
+// not new under decision 8 — swapping that fallback for the live book surfaces
+// the same transcription difference on their `details` (and, where the entry
+// carries no dimensions of its own, `sizeText`, which derives from details).
+const PINNED_DETAILS_STOCK_KEYS = ["US3000001", "US3000002", "US5000010", "US5000013",
+  "US5000019", "US5000020", "US5000044", "US5000083", "US5000085"];
+
+// The closed key set: NEW_TWINS (decision 8) plus PINNED_DETAILS_STOCK_KEYS
+// (decision 9) — the only stock entries a soRow is allowed to change at all.
+const ALL_CHANGED_KEYS = [...NEW_TWINS, ...PINNED_DETAILS_STOCK_KEYS];
+
+// Spec decision 8, measured (fix round 1): 13 of the 34 NEW_TWINS keys had NO
+// dimensions at all before their pricelist twin arrived — the stock table
+// alone gives makeEntry nothing to parse w/d/t out of — and gain them here,
+// null -> the exact value below (copied verbatim from the measurement, not
+// rounded). Two parse sources, left as measured, never "fixed": US5076011's
+// size cell reads "...Powder - 2 x 16 oz. bags..." -> w:2, d:16; the S-Dry
+// drain covers' size cells carry wedi's own typo `3/3/4"` -> d:1.
+const GEOMETRY_GAINS = {
+  "676800061": { w: 28, d: 2.5625, t: 0.25 },
+  "676800064": { w: 43.78125, d: 2.5625, t: 0.25 },
+  US3076001: { w: 4.5, d: 72, t: 3.5 },
+  US3076002: { w: 3.5, d: 72, t: 2 },
+  US1076001: { w: 3.75, d: 1 },
+  US1076002: { w: 3.75, d: 1 },
+  US1076003: { w: 3.75, d: 1 },
+  US1076004: { w: 3.75, d: 1 },
+  US1076005: { w: 3.75, d: 1 },
+  US1076006: { w: 3.75, d: 1 },
+  US1076007: { w: 3.75, d: 1 },
+  US1076008: { w: 3.75, d: 1 },
+  US5076011: { w: 2, d: 16 },
+};
+const GEO_FIELDS = ["w", "d", "t", "len", "sf", "channel"];
+
 test("stock half: with both books installed, only the 34 newly twinned entries change, and only where a soRow feeds them", () => {
   clearBoth();
   setStockSource(adaptBookRows(liveStock()));
@@ -248,28 +284,53 @@ test("stock half: with both books installed, only the 34 newly twinned entries c
     const diff = FIELDS.filter((f) => JSON.stringify(stockOnly[k][f]) !== JSON.stringify(both[k][f]));
     if (diff.length) changed.push([k, diff]);
   }
-  assert.deepEqual(changed.map(([k]) => k).sort(), NEW_TWINS.slice().sort(), "exactly the pinned keys changed");
+  assert.deepEqual(changed.map(([k]) => k).sort(), ALL_CHANGED_KEYS.slice().sort(),
+    "exactly the pinned keys changed: 34 new twins (decision 8) + 9 pre-existing stock twins whose details text differs (decision 9)");
+
   for (const [k, diff] of changed) {
-    const outside = diff.filter((f) => !TWIN_MAY_DIFFER.has(f));
+    if (PINNED_DETAILS_STOCK_KEYS.includes(k)) {
+      const allowed = new Set(["details"]);
+      if (both[k].w == null && both[k].d == null) allowed.add("sizeText");
+      const outside = diff.filter((f) => !allowed.has(f));
+      assert.deepEqual(outside, [], `${k} changed outside details/sizeText: ${outside.join(", ")} — report this, do not allow-list it`);
+      assert.equal(both[k].details, PINNED_DETAILS[k], `details on ${k}`);
+      continue;
+    }
+
+    // k is a NEW_TWINS key: TWIN_MAY_DIFFER as before, plus geometry fields —
+    // but only where a field genuinely GAINED a value (null -> non-null).
+    const outside = diff.filter((f) => !TWIN_MAY_DIFFER.has(f) && !GEO_FIELDS.includes(f));
     assert.deepEqual(outside, [], `${k} changed outside the soRow-fed fields: ${outside.join(", ")} — report this, do not allow-list it`);
+
+    const geoDiff = diff.filter((f) => GEO_FIELDS.includes(f));
+    if (!geoDiff.length) continue;
+    const gains = GEOMETRY_GAINS[k];
+    assert.ok(gains, `${k} changed geometry (${geoDiff.join(", ")}) but is not in GEOMETRY_GAINS — report this, do not allow-list it`);
+    for (const f of geoDiff) {
+      assert.equal(stockOnly[k][f], null, `${k}.${f} was not null before the twin arrived — a non-null value changed to a different value, report this`);
+      assert.equal(both[k][f], gains[f], `${k}.${f}'s after-value does not match the pinned GEOMETRY_GAINS measurement`);
+    }
   }
 });
 
 test("the pinned engine totals do not move with BOTH books feeding the catalog", () => {
   const INPUT = { w: 36, d: 60, curb: "curbed", drain: "any" };
-  const stripDesc = (v) => {
-    if (Array.isArray(v)) return v.map(stripDesc);
+  // `details` is decision 9's pinned text on two consumable items in this
+  // kit (US5000010 sausage, US5000044 trowel) — not a price or a quantity.
+  // Strip it beside `desc`; everything else in the trees is still deep-compared.
+  const stripVolatile = (v) => {
+    if (Array.isArray(v)) return v.map(stripVolatile);
     if (v && typeof v === "object") {
-      return Object.fromEntries(Object.entries(v).filter(([k]) => k !== "desc").map(([k, x]) => [k, stripDesc(x)]));
+      return Object.fromEntries(Object.entries(v).filter(([k]) => k !== "desc" && k !== "details").map(([k, x]) => [k, stripVolatile(x)]));
     }
     return v;
   };
   clearBoth();
-  const beforeKit = stripDesc(kitFor("US9100004")), beforeSol = stripDesc(solve(INPUT));
+  const beforeKit = stripVolatile(kitFor("US9100004")), beforeSol = stripVolatile(solve(INPUT));
   assert.ok(beforeKit && beforeKit.lines.length, "guard: a kit was built");
   setStockSource(adaptBookRows(liveStock()));
   setSoSource(adaptSoRows(liveSo()));
-  const afterKit = stripDesc(kitFor("US9100004")), afterSol = stripDesc(solve(INPUT));
+  const afterKit = stripVolatile(kitFor("US9100004")), afterSol = stripVolatile(solve(INPUT));
   clearBoth();
   assert.deepEqual(afterKit, beforeKit, "kitFor is unchanged");
   assert.deepEqual(afterSol, beforeSol, "solve is unchanged");
