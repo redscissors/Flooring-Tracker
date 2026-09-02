@@ -5143,8 +5143,11 @@ export function kitFor(panKey, opts) {
 
   // --- walls -----------------------------------------------------------------
   const sheets = panel && panel.sf ? Math.ceil(panelSf / panel.sf) : 0;
-  push(lines, panel, sheets, "walls",
+  // A live book can drop the default panel; the floor in usewedicatalog.js
+  // refuses such a book, and this is the belt to that brace.
+  if (panel) push(lines, panel, sheets, "walls",
     round2(panelSf) + " sf of wall — " + (panel.sf || 0) + " sf/sheet", true);
+  else hints.push("no-panel");
 
   // --- benches ---------------------------------------------------------------
   const bl = benchLines(benches, roomDims, panel);
@@ -5176,8 +5179,9 @@ export function kitFor(panKey, opts) {
     const ch = pan.channel || (option && option.drain && option.drain.len) || 0;
     cover = linearCoverFor(ch, opts.coverFinish || "SS");
   } else cover = item(SKU.coverSS);
-  push(lines, cover, 1, "drain", "", true);
-  const frame = opts.coverFrame ? coverFrameFor(cover, opts.coverFrame === true ? null : opts.coverFrame) : null;
+  if (cover) push(lines, cover, 1, "drain", "", true);
+  else hints.push("no-cover");
+  const frame = cover && opts.coverFrame ? coverFrameFor(cover, opts.coverFrame === true ? null : opts.coverFrame) : null;
   if (frame) push(lines, frame, 1, "drain", "trim ring around the cover", true);
 
   // --- curbless waterproofing ------------------------------------------------

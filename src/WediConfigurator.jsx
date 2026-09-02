@@ -2006,6 +2006,12 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
           {build.hints.includes("small-order") && (
             <div className="whint">Special-order net {fm(build.soNet)} runs under wedi's $500 minimum — 10% small-order handling applies</div>
           )}
+          {build.hints.includes("no-panel") && (
+            <div className="whint">No wedi building panel in the price book — wall sheets were not priced. Re-import the book, or pick a panel by hand.</div>
+          )}
+          {build.hints.includes("no-cover") && (
+            <div className="whint">No drain cover in the price book — the drain line was left off. Re-import the book, or pick a cover by hand.</div>
+          )}
 
         </div>
 

@@ -4,7 +4,7 @@ import { normBookItem, bookItemData } from "./orderbook.js";
 import { FIXTURE_ROWS } from "./wedifixture.js";
 import { adaptBookRows, adaptSoRows } from "./wediadapter.js";
 import { catalog, setStockSource, clearStockSource, kitFor, solve, figureConsumables, SKU,
-  setSoSource, clearSoSource } from "./wedi.js";
+  setSoSource, clearSoSource, item } from "./wedi.js";
 import { parseMapped } from "./pricebook.js";
 import { PRICELIST_SHEETS } from "./wedipricelistfixture.js";
 import { parseWediPricelist } from "./wedibook.js";
@@ -366,4 +366,32 @@ test("the pinned engine totals do not move with BOTH books feeding the catalog",
   clearBoth();
   assert.deepEqual(afterKit, beforeKit, "kitFor is unchanged");
   assert.deepEqual(afterSol, beforeSol, "solve is unchanged");
+});
+
+// The guards (spec decision 6). The hook's floor refuses a book missing a
+// SKU.* constant, so this cannot happen through the popup — but the installers
+// are module-level and a future caller might not go through the hook. Force
+// both sources in without the parts and the kit must degrade, not throw.
+test("kitFor degrades with a hint, never a TypeError, when the building panel or the cover is in no source", () => {
+  clearBoth();
+  const noPanel = (rows) => rows.filter((r) => r.us !== SKU.panelDefault);
+  setStockSource(noPanel(adaptBookRows(liveStock())));
+  setSoSource(noPanel(adaptSoRows(liveSo())));
+  assert.equal(item(SKU.panelDefault), null, "guard: the panel is really gone from both sources");
+  let kit;
+  assert.doesNotThrow(() => { kit = kitFor("US9100004"); });
+  assert.ok(kit && kit.lines.length, "the kit still builds");
+  assert.equal(kit.lines.every((l) => l.item), true, "no line carries a null item");
+  assert.equal(kit.lines.some((l) => l.group === "walls"), false, "no wall sheets were priced off nothing");
+  assert.ok(kit.hints.includes("no-panel"));
+  clearBoth();
+
+  const noCover = (rows) => rows.filter((r) => r.us !== SKU.coverSS);
+  setStockSource(noCover(adaptBookRows(liveStock())));
+  setSoSource(noCover(adaptSoRows(liveSo())));
+  assert.equal(item(SKU.coverSS), null);
+  assert.doesNotThrow(() => { kit = kitFor("US9100004"); });
+  assert.equal(kit.lines.every((l) => l.item), true);
+  assert.ok(kit.hints.includes("no-cover"));
+  clearBoth();
 });
