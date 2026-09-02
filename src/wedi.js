@@ -6092,7 +6092,61 @@ export function lineItems(build, opts) {
       costSqft: String(round2(e.cost)),
       markupPct: "",
       tierPrice: String(round2(e.retail * mult)),
-      wedi: anchor ? mark : { part: true },
+      wedi: anchor ? { ...mark, key: e.key } : { part: e.key },
     };
   });
 }
+
+// Which catalog entry a placed project row is: the key its marker carries
+// (lineItems stamps every line since 2026-09-02), else the shop number a
+// stocked line lands as its sku, else the US code a special-order line leads
+// its name with — the two legacy `part: true` shapes. Null for a row that is
+// not a wedi kit line at all (a searched-in row has no marker).
+export function rowItemKey(row) {
+  const m = row && row.wedi;
+  if (!m) return null;
+  const direct = typeof m.part === "string" ? m.part : typeof m.key === "string" ? m.key : "";
+  const e = (direct && item(direct)) || (row.sku && item(String(row.sku))) || null;
+  if (e) return e.key;
+  const us = /^wedi (US\d+) —/.exec(String(row.brandColor || ""));
+  const e2 = us && item(us[1]);
+  return e2 ? e2.key : null;
+}
+
+// The session a placed kit's rows imply, so Reconfigure reopens on what the
+// sheet says rather than the recipe's figures (owner 2026-09-02): `lines` is
+// the kit rebuilt from its marker with the default session applied, `rows`
+// the kit's rows (model.js kitRows). A line whose rows total differently takes
+// that total as its override, a line with no row left steps to 0, and a row
+// the build doesn't produce is a manual extra. A blank qty is "not said" —
+// never a zero. Rows resolving to no entry are ignored, and when none resolve
+// the session stays empty rather than zeroing the whole kit.
+export function sessionFromRows(lines, rows) {
+  const qtyOv = {}, manual = [];
+  const totals = new Map();
+  let matched = 0;
+  for (const r of rows || []) {
+    const key = rowItemKey(r);
+    if (!key) continue;
+    matched++;
+    if (String(r.qty ?? "").trim() === "") continue;
+    totals.set(key, (totals.get(key) || 0) + (Number(r.qty) || 0));
+  }
+  if (!matched) return { qtyOv, manual };
+  const want = new Map(), auto = new Map();
+  for (const l of lines || []) {
+    const key = l.item && l.item.key;
+    if (!key) continue;
+    want.set(key, (want.get(key) || 0) + l.qty);
+    if (l.auto !== false) auto.set(key, true);
+  }
+  for (const [key, w] of want) {
+    const have = totals.has(key) ? totals.get(key) : matchedKeys(rows).has(key) ? null : 0;
+    if (have == null || have === w) continue;
+    if (auto.get(key)) qtyOv[key] = have;
+    else if (have > w) manual.push({ key, qty: have - w });
+  }
+  for (const [key, q] of totals) if (!want.has(key) && q > 0) manual.push({ key, qty: q });
+  return { qtyOv, manual };
+}
+const matchedKeys = (rows) => new Set((rows || []).map(rowItemKey).filter(Boolean));

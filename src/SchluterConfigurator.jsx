@@ -15,7 +15,7 @@ import { useEscClose, SourceSwitch, NumIn, KitBasketPanel, KitOverwriteConfirm }
 import { TIER_COLOR } from "./uiconst.js";
 import {
   trayCandidates, pickRolls, buildKit, tierPrice, lineItems, orderCopyLines, normBench, benchTrayRoom,
-  boardPlan, expandBoardFaces, wallArea, halfBoardPool, buildFromMarker,
+  boardPlan, expandBoardFaces, wallArea, halfBoardPool, buildFromMarker, ovKey, sessionFromRows,
 } from "./schluter.js";
 import { mortarItemFrom, MORTAR_BED_SF_PER_BAG } from "./schluteradapter.js";
 import { useSchluterCatalog } from "./useschlutercatalog.js";
@@ -442,7 +442,7 @@ function seedState(seed) {
 }
 
 export default function SchluterConfigurator({
-  seed, tier, onTierChange, schluterBuilderPct, wediBuilderPct, onAdd, onAddNew, editing = null,
+  seed, tier, onTierChange, schluterBuilderPct, wediBuilderPct, onAdd, onAddNew, editing = null, editRows = null,
   basket, onBasketChange, onMoveEntries, placed, onOpenPlaced, onDeleteKit,
   onClose, areaName, projectName,
   onConfigChange, onQuoteOptions, embedded = false,
@@ -717,7 +717,6 @@ export default function SchluterConfigurator({
     return out;
   };
 
-  const ovKey = (l) => l.g + "|" + (l.item.sku || l.item.name);
   // a stepped quantity keeps winning over the recipe's figure while the
   // line survives; stepped to 0 the line leaves the bill (the wedi rule).
   // The basket drawer runs it too, so a staged entry prices the build that
@@ -737,6 +736,24 @@ export default function SchluterConfigurator({
     return b;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cfg, cat, source, pickCand, manual, qtyOv, plan]);
+  // A Reconfigure opens on what the sheet says (owner 2026-09-02, the wedi
+  // rule): the placed rows are the truth once a kit lands, so a quantity
+  // typed on a row — or stepped here before Add — is the session this
+  // reopens with. Derived once the catalog is up, off the marker rebuilt the
+  // way the basket drawer prices a placed kit (default session, Fit on).
+  const rowsSeeded = useRef(false);
+  useEffect(() => {
+    if (rowsSeeded.current || !editing || !editRows?.length || !seed?.cfg?.w || !catReady || !cat.length) return;
+    rowsSeeded.current = true;
+    const b = buildFromMarker(seed, cat);
+    if (!b) return;
+    const c2 = seed.cfg;
+    const lines = applyBoardPlan(b.lines, c2, c2.wallSys === "board" ? boardPlan(expandBoardFaces(c2), cat, { source: c2.source === "stock" ? "stock" : "all" }) : null);
+    const s = sessionFromRows(lines, editRows, cat);
+    if (Object.keys(s.qtyOv).length) setQtyOv(s.qtyOv);
+    if (s.manual.length) setManual((m) => [...m, ...s.manual]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catReady, cat]);
   const mode = kitPick && !manual.length && !benches.length && !liveXwalls.length && !cfg.drainX && !cfg.drainY
     && !(cfg.corners || []).length && !cfg.maxIn && !cfg.ramp && !cfg.swaps ? "kit" : "custom";
   // the saved marker records the PICKED tray too — Reconfigure must reopen on

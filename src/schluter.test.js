@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
-import { classify, catalogOf, trayCandidates, pickRolls, pickFrom, buildKit, buildFromMarker, linesTotal, tierPrice, lineItems, orderCopyLines, entryOpening, openRuns, boardPlan, boardSheets, expandBoardFaces, normBench, benchTrayRoom } from "./schluter.js";
+import { ovKey, rowItemEntry, sessionFromRows, classify, catalogOf, trayCandidates, pickRolls, pickFrom, buildKit, buildFromMarker, linesTotal, tierPrice, lineItems, orderCopyLines, entryOpening, openRuns, boardPlan, boardSheets, expandBoardFaces, normBench, benchTrayRoom } from "./schluter.js";
 
 const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -439,7 +439,8 @@ test("lineItems: wedi-shaped (build, opts) with build.mode and the vendor lead",
   const rows = lineItems(build, {});
   assert.equal(rows[0].schluter.mode, "kit");
   assert.equal(rows[0].schluter.cfg.w, 60);
-  assert.ok(rows.slice(1).every((r) => r.schluter.part));
+  assert.ok(rows.slice(1).every((r, i) => r.schluter.part === build.lines.filter((l) => !l.noteOnly)[i + 1].item.sku));
+  assert.equal(rows[0].schluter.key, build.lines[0].item.sku);
   // mode defaults to custom when the build doesn't carry one
   assert.equal(lineItems({ lines: build.lines, cfg: c }, {})[0].schluter.mode, "custom");
   // fixture names already lead with a Schluter family word — no doubled lead
@@ -854,4 +855,28 @@ test("buildFromMarker: no room, no catalog, junk — all null, never a throw", (
   assert.equal(buildFromMarker(null, CAT), null);
   assert.equal(buildFromMarker({ mode: "kit", cfg: { w: 0, d: 60 } }, CAT), null);
   assert.equal(buildFromMarker({ mode: "kit", cfg: cfg({ walls: [] }) }, []), null);
+});
+
+
+// --- reconfigure reads the placed rows (owner 2026-09-02) --------------------
+
+test("sessionFromRows: a sheet-edited quantity reopens as the override; a missing line steps to 0; a stray row is a manual extra", () => {
+  const c = cfg({});
+  const build = buildKit(c, CAT, { source: "all" });
+  const bill = build.lines.filter((l) => !l.noteOnly);
+  const rows = lineItems({ ...build, cfg: c }, {});
+  const [first, second, third] = bill;
+  assert.equal(rowItemEntry(rows[1], CAT).sku, second.item.sku);
+  assert.equal(rowItemEntry({ ...rows[1], schluter: { part: true } }, CAT)?.sku, second.item.stock ? second.item.sku : undefined, "a legacy row resolves by its shop number only when stocked");
+  assert.equal(rowItemEntry({ sku: second.item.sku }, CAT), null, "a searched-in row with no marker is not a kit line");
+  const edited = rows.map((r) => (r.schluter.part === second.item.sku ? { ...r, qty: String(second.qty + 3) } : r))
+    .filter((r) => r.schluter.part !== third.item.sku);
+  const strayKey = CAT.find((e) => !bill.some((l) => l.item.sku === e.sku)).sku;
+  const s = sessionFromRows(bill, [...edited, { schluter: { part: strayKey }, qty: "2" }], CAT);
+  assert.equal(s.qtyOv[ovKey(first)], undefined);
+  assert.equal(s.qtyOv[ovKey(second)], second.qty + 3);
+  assert.equal(s.qtyOv[ovKey(third)], 0);
+  assert.deepEqual(s.manual, [{ sku: strayKey, qty: 2 }]);
+  assert.deepEqual(sessionFromRows(bill, [{ schluter: { part: true }, sku: "", qty: "1" }], CAT), { qtyOv: {}, manual: [] });
+  assert.deepEqual(sessionFromRows(bill, rows.map((r) => ({ ...r, qty: "" })), CAT), { qtyOv: {}, manual: [] });
 });

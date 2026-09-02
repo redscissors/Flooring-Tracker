@@ -266,6 +266,18 @@ export const moveKitEntries = (categories, aid, groups) => {
   }
   return { categories: cats, stranded };
 };
+// The rows a placed kit IS — its anchor and the companions kitCompanionIds
+// gives it, sheet order — the same set landing replaces and Remove deletes,
+// so Reconfigure reads exactly the lines it is about to overwrite. A row the
+// salesperson searched in by hand carries no marker and no kitId, so it never
+// folds into a neighbouring shower. Null when the anchor is gone.
+export const kitRows = (categories, aid, pid) => {
+  const a = (categories || []).find((x) => x.id === aid);
+  const anchor = a?.products.find((p) => p.id === pid);
+  if (!anchor) return null;
+  const ids = kitCompanionIds(categories, a, anchor, vendorOf(anchor));
+  return [anchor, ...categories.flatMap((c) => c.products.filter((p) => ids.has(p.id)))];
+};
 // Delete a placed kit: the anchor row plus everything kitCompanionIds says is
 // its — the basket drawer's "Remove" (ADR 0035 step 2). Null when the anchor
 // is already gone.

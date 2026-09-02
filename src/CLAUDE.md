@@ -73,7 +73,11 @@ src/
                     # falling back to the contiguous same-vendor companion run
                     # below the anchor;
                     # removeKitLines (a placed kit's delete — anchor + the
-                    # same companion set) and placedKits (the derived
+                    # same companion set), kitRows (the rows a placed kit IS
+                    # — anchor + that same set, what Reconfigure reads so a
+                    # sheet-typed qty reopens as the override; a searched-in
+                    # row has no marker/kitId so it never folds into a
+                    # neighbouring shower) and placedKits (the derived
                     # in-this-project list — a stamped bundle's siblings fold
                     # under their anchor, legacy widths list singly)
                     # ; appendKitLines (a kit's lines as fresh rows at the
@@ -149,6 +153,8 @@ src/
                     # two popups can't drift on the drawer either)
   search.jsx        # price-book search suite: `SkuPicker`, `StockSearch`,
                     # `FamilySearch`, hit rows, merged-results hooks
+                    # (useMergedResults hands rankMerged the WHOLE stock
+                    # cache as its twin index, not just the matches)
   grid.jsx          # selection-grid cells: `TypeSelect`, `GridPriceCell`,
                     # `GridSizeInput`, `GridProductBox`, `GridOmniSearch`
   mobile.jsx        # mobile sheets: `MobileSheet`, `MobileSearchSheet`,
@@ -426,7 +432,14 @@ src/
                     # the EFT writes SLRKST965810BF for the stocked
                     # KST965/810BF), `mergeSearch` (a stock twin outranks its
                     # order copy, colliding on any skuKeys spelling of the stock
-                    # row's sku or its sheet-stated vendorSkus) and
+                    # row's sku or its sheet-stated vendorSkus against the
+                    # order row's sku or ITS vendorSkus; the third argument
+                    # is the whole stock cache — a live twin the typed words
+                    # missed is surfaced into the stock list in the order
+                    # row's place, `matchedAs` carrying that row so
+                    # rankMerged ranks it as the hit it stands in for — ADR
+                    # 0009 amendment 2026-09-02, the 3'x5' wedi panel that
+                    # filed as special order) and
                     # `collapseCopies`/`sameProduct`
                     # (one product carried by two order books shows once, the
                     # cheapest, when the descriptions corroborate the SKU match;
@@ -586,7 +599,12 @@ src/
                     # marker/staged entry (re-solving a custom cfg and
                     # re-picking its option by id) so the basket drawer prices
                     # staged and placed kits through the engine itself (ADR
-                    # 0035 step 3).
+                    # 0035 step 3). `lineItems` stamps every line's catalog
+                    # key (anchor `key`, companion `part: key` — legacy rows
+                    # carry `part: true`) and `rowItemKey`/`sessionFromRows`
+                    # read the placed rows back into a session (qtyOv +
+                    # manual) so Reconfigure reopens on what the sheet says
+                    # (ADR 0035 amendment 2026-09-02).
                     # A non-dimensional item keeps its pricelist CONTENTS as its
                     # sizeText ("100 ct 1 5/8\" Screws…", "20 oz foil sausage",
                     # "2 per bag" — contentOf), so a Fastener Kit row says what
@@ -896,7 +914,11 @@ src/
                     # and a staged entry carries its `session` sibling
                     # (qtyOv, the manual extras, the Fit flag) beside the
                     # marker snap, so a staged-then-moved kit bills what was
-                    # on screen
+                    # on screen. A Reconfigure gets `editRows` (App: kitRows
+                    # of the anchor) and seeds qtyOv/manual from them once
+                    # on mount (sessionFromRows over the marker rebuilt with
+                    # the default session), so a quantity typed on the sheet
+                    # reopens as the override, not the recipe's figure
   showerdraw.js     # the shared shower drawings' pure-geometry half — TopDown/
                     # Iso's constants and math, extracted out of
                     # WediConfigurator.jsx (issue 097, ADR 0033) so a second
@@ -1234,8 +1256,16 @@ src/
                     # LAZY-CHUNK-ONLY: imports schluteradapter.js, so it must
                     # never be pulled onto the boot path — only a
                     # `React.lazy` popup may import it
+                    # `lineItems` stamps every line's sku (anchor `key`,
+                    # companion `part: sku`; legacy `part: true`), and
+                    # `ovKey`/`rowItemEntry`/`sessionFromRows` read placed
+                    # rows back into the popup's session for Reconfigure
+                    # (the wedi rule, ADR 0035 amendment 2026-09-02)
   SchluterConfigurator.jsx  # the Schluter popup, a `React.lazy` chunk (ADR
                     # 0026) — the React port of the approved prototype
+                    # (`editRows` — the kit's rows from App via kitRows —
+                    # seed qtyOv/manual once the catalog is up, through
+                    # schluter.js sessionFromRows: the wedi rule)
                     # (.scratch/097, P1/P2), wedi's sibling over the same
                     # shell idioms (incl. the 2026-09-02 pair: Stock only by
                     # default, and KitOverwriteConfirm's keepAdded / newShower
