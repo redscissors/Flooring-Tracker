@@ -23,9 +23,12 @@ import { probeText } from "./probetext.js";
 // content and chip default are team-editable. Custom add-on categories
 // join this list in a later PR.
 const MATERIAL_CATEGORIES = [
-  { id: "grout", label: "Grout", kind: "grouts", icon: Paintbrush, applies: "Tile", math: "Volumetric — scales with tile size, joint & thickness" },
-  { id: "mortar", label: "Mortar", kind: "mortars", icon: Package, applies: "Tile", math: "Tiered coverage by the tile's longest side" },
-  { id: "underlay", label: "Underlayment", kind: "underlayments", icon: Layers, applies: "Per product — the flooring-type chips on each product", math: "Flat sq ft coverage · optional install materials" },
+  { id: "grout", label: "Grout", kind: "grouts", icon: Paintbrush, applies: "Tile", math: "Volumetric — scales with tile size, joint & thickness",
+    mathTip: <>Each grout's <b>Cov. sq ft/unit</b> is the manufacturer's coverage for a <b>12×12 tile, 3/8" thick, 1/8" joint</b>. The row's actual tile size, thickness and joint width change how much grout the joints hold, so coverage is rescaled by that volume ratio. Then <b>sq ft × (1 + waste%) ÷ coverage</b>, rounded up to whole units — the exact figure shows beside the rounded order.</> },
+  { id: "mortar", label: "Mortar", kind: "mortars", icon: Package, applies: "Tile", math: "Tiered coverage by the tile's longest side",
+    mathTip: <>Each mortar has three coverages by the tile's longest side: <b>under 8"</b>, <b>8–15"</b> and <b>over 15"</b>. Then <b>sq ft × (1 + waste%) ÷ coverage</b>, rounded up to whole units.</> },
+  { id: "underlay", label: "Underlayment", kind: "underlayments", icon: Layers, applies: "Per product — the flooring-type chips on each product", math: "Flat sq ft coverage · optional install materials",
+    mathTip: <>One unit covers a set sq ft. <b>Sq ft × (1 + waste%) ÷ coverage</b>, rounded up to whole units. Install materials use their own coverage the same way.</> },
 ];
 
 // Shrink-to-fit (the wedi popup's rig; issue 074's shrink-don't-squeeze
@@ -431,7 +434,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
         <h2 className="ft-serif text-3xl leading-tight mt-1 flex items-center gap-2.5"><Icon size={22} className="text-slate-400" /> {meta.label} <Lock size={14} className="text-slate-300" /></h2>
         <div className="mt-5 space-y-2 text-sm">
           <div className="flex gap-2"><span className="w-24 shrink-0 text-[11px] uppercase tracking-wide text-slate-400 pt-0.5">Applies to</span><span className="text-slate-500">{meta.applies}</span></div>
-          <div className="flex gap-2"><span className="w-24 shrink-0 text-[11px] uppercase tracking-wide text-slate-400 pt-0.5">Quantity</span><span className="text-slate-500">{meta.math}</span></div>
+          <div className="flex gap-2"><span className="w-24 shrink-0 text-[11px] uppercase tracking-wide text-slate-400 pt-0.5">Quantity</span><span className="text-slate-500">{meta.math} <HelpTip className="align-middle" w={300} tip={meta.mathTip} /></span></div>
         </div>
         <div className="mt-6 max-w-xs">
           <label className={lbl}>Default product <HelpTip className="align-middle" tip={cat === "underlay" ? "Pre-selected when a row's underlayment chip is turned on." : "New tile rows start with this product."} /></label>
@@ -557,7 +560,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
           <div className="w-24">{txtField("Unit", g.unit, (v) => setProduct(co.id, "grouts", g.id, { unit: v }))}</div>
           <div className="w-28">{numField("$/unit", g.price, (v) => setProduct(co.id, "grouts", g.id, { price: v }))}</div>
           <div className="w-36">{txtField("SKU", g.sku || "", (v) => setProduct(co.id, "grouts", g.id, { sku: v }))}</div>
-          <HelpTip className="pb-2.5" tip={<>Coverage is calibrated here — the book doesn't carry one. Grout scales for tile size, joint and thickness from the 12×12×3/8" / 1/8" baseline.</>} />
+          <HelpTip className="pb-2.5" w={300} tip={<>Coverage is calibrated here — the book doesn't carry one. Enter the manufacturer's sq ft per unit for a <b>12×12 tile, 3/8" thick, 1/8" joint</b> (the baseline on the bag's coverage chart). Each job row rescales it for its own tile size, joint and thickness, then divides the row's sq ft plus waste by that coverage and rounds up.</>} />
         </div>
         <div className="mt-6 flex items-baseline justify-between gap-3">
           <div className="font-medium text-sm">Colors &amp; SKUs</div>
@@ -808,7 +811,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
               <button onClick={openNewCategory} className="w-full flex items-center gap-1.5 text-xs rounded-md border border-dashed border-slate-300 px-2 py-1.5 text-slate-500 hover:bg-slate-50 mt-1"><Plus size={12} /> New category</button>
             </div>
             <div className="w-72 shrink-0 border-r border-slate-200 overflow-y-auto py-2">
-              <p className="px-3 pb-1.5 text-[11px] text-slate-400">Uncheck a company or product to hide it from the job dropdowns — it stays stored, and jobs that already use it are unaffected.</p>
+              <div className="px-3 pb-1 flex justify-end"><HelpTip w={260} tip="Uncheck a company or product to hide it from the job dropdowns — it stays stored, and jobs that already use it are unaffected." /></div>
               {catalog.companies.filter(inSection).map((co) => (
                 <div key={co.id} className="mb-1">
                   {companyHeader(co)}
