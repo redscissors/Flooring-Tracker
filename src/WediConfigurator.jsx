@@ -613,7 +613,7 @@ function WediGate({ embedded, onClose, children }) {
  * with it.
  */
 export default function WediConfigurator(props) {
-  const { cat, catReady, onBook, bookError, retryBook } = useWediCatalog(props);
+  const { cat, catReady, caption, bookError, retryBook } = useWediCatalog(props);
   if (!catReady) {
     return (
       <WediGate embedded={props.embedded} onClose={props.onClose}>
@@ -629,11 +629,11 @@ export default function WediConfigurator(props) {
       </WediGate>
     );
   }
-  return <WediConfiguratorBody {...props} cat={cat} onBook={onBook} />;
+  return <WediConfiguratorBody {...props} cat={cat} caption={caption} />;
 }
 
 function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schluterBuilderPct,
-  cat, onBook,
+  cat, caption,
   stockRows, bookStockReady, books, loadBookItems, mortars, mortarDefault,
   onAdd, onAddNew, editing = null, basket, onBasketChange, onMoveEntries, placed, onOpenPlaced, onDeleteKit,
   onQuoteOptions, onClose, areaName, projectName, onConfigChange, embedded = false }) {
@@ -2486,7 +2486,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     ["kits", "Kits", pans().length + " pans"],
     ["custom", "Custom shower", "solver"],
     ["browse", "Browse", nStock + " stock · " + (cat.length - nStock) + " SO"
-      + (onBook ? "" : " · transcribed table")],
+      + caption],
     ["compare", "Compare", "wedi ⇄ Schluter"],
   ];
 
