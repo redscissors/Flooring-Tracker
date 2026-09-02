@@ -4,7 +4,7 @@ import { normBookItem, bookItemData } from "./orderbook.js";
 import { FIXTURE_ROWS } from "./wedifixture.js";
 import { adaptBookRows, adaptSoRows } from "./wediadapter.js";
 import { catalog, setStockSource, clearStockSource, kitFor, solve, figureConsumables, SKU,
-  setSoSource, clearSoSource, missingRequiredParts, item } from "./wedi.js";
+  setSoSource, clearSoSource } from "./wedi.js";
 import { parseMapped } from "./pricebook.js";
 import { PRICELIST_SHEETS } from "./wedipricelistfixture.js";
 import { parseWediPricelist } from "./wedibook.js";
@@ -269,13 +269,17 @@ const GEOMETRY_GAINS = {
 };
 const GEO_FIELDS = ["w", "d", "t", "len", "sf", "channel"];
 
-// Spec decision 8, measured (fix round 2): US3076003 is the one exception —
-// makeEntry's "extension" branch normalizes orientation for every S-Dry
-// extension ("the two sheets print these both ways round…, so normalize: w
-// is the run, d the depth it adds" — wedi.js's own comment on that branch),
-// and the entry classifies "sdry", so the solver never reads its w/d. The
-// swap is a display convention, not a measurement moving — kept OUT of
-// GEOMETRY_GAINS on purpose; any OTHER non-null geometry change still fails.
+// Spec decision 8, measured (fix round 3 — corrects a wrong rationale
+// committed in round 2): US3076003 is the one exception. classify()'s FIRST
+// rule (/^US\d\d76\d{3}$/) returns ["sdry", ""] for it, so makeEntry's
+// "extension" branch (the orientation-normalizing one) never runs for this
+// entry at all — it falls to the generic else-branch, and board() just keeps
+// whatever order the source text's numbers came in. The swap is simply that
+// the ERP description prints "24x48" and the pricelist prints "48 in. x 24
+// in.", with nothing reconciling them. It's display-only because "sdry"-group
+// entries are excluded from group("pan") entirely, so pans()/solve() never
+// see them (wedi.js:4408-4410) — kept OUT of GEOMETRY_GAINS on purpose; any
+// OTHER non-null geometry change still fails.
 const GEOMETRY_TRANSPOSED = {
   US3076003: { before: { w: 24, d: 48 }, after: { w: 48, d: 24 } },
 };
@@ -324,8 +328,8 @@ test("stock half: with both books installed, only the 34 newly twinned entries c
         assert.equal(stockOnly[k][f], before[f], `${k}.${f} before-value does not match the pinned GEOMETRY_TRANSPOSED measurement`);
         assert.equal(both[k][f], after[f], `${k}.${f} after-value does not match the pinned GEOMETRY_TRANSPOSED measurement`);
       }
-      const sortedBefore = Object.keys(before).map((f) => before[f]).sort((a, b) => a - b);
-      const sortedAfter = Object.keys(before).map((f) => after[f]).sort((a, b) => a - b);
+      const sortedBefore = Object.keys(before).map((f) => stockOnly[k][f]).sort((a, b) => a - b);
+      const sortedAfter = Object.keys(before).map((f) => both[k][f]).sort((a, b) => a - b);
       assert.deepEqual(sortedAfter, sortedBefore, `${k}'s transposed fields are not the same two numbers swapped — report this`);
       continue;
     }
