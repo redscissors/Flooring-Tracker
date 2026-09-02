@@ -9,6 +9,7 @@ import { normLabelPresets, customLabelPresets } from "./labels.js";
 import { normLink, normBookFamily } from "./booklink.js";
 import { normQuickMarkups } from "./costentry.js";
 import { DEFAULT_DESC_LIMIT } from "./descfit.js";
+import { bundleUnit } from "./units.js";
 
 export const GROUTS = ["PermaColor Select", "SpectraLOCK 1", "SpectraLOCK PRO", "CEG-Lite", "Tec Power Grout"];
 export const MORTARS = ["ProLite", "AcrylPro", "Schluter All Set"];
@@ -207,7 +208,10 @@ export function cartonExact(p, s) {
 export function getCarton(p, s) {
   if (p.type === "misc" || p.qtyType !== "sqft") return null;
   const per = num(p.cartonSf); if (!per) return null;
-  const unit = String(p.cartonUnit || "CT").toLowerCase();
+  // Read through bundleUnit, not straight off the row: rows picked before
+  // 2026-08-31 carry the book's price basis here ("SF"), and the count is of
+  // cartons whatever word was snapshotted.
+  const unit = bundleUnit(p.cartonUnit).toLowerCase();
   if (p.cartonManual !== "" && p.cartonManual != null) { const v = num(p.cartonManual); return { exact: v, order: v, sf: per, unit }; }
   const ex = cartonExact(p, s); if (ex == null) return null;
   return { exact: ex, order: ceilQty(ex), sf: per, unit };
@@ -222,7 +226,7 @@ export function getCarton(p, s) {
 export function getPieceCarton(p) {
   if (p.type !== "misc") return null;
   const per = num(p.cartonPc); if (!per) return null;
-  const unit = String(p.cartonUnit || "CT").toLowerCase();
+  const unit = bundleUnit(p.cartonUnit).toLowerCase();
   if (p.cartonManual !== "" && p.cartonManual != null) { const v = num(p.cartonManual); return { need: v * per, cartons: v, pieces: v * per, per, unit }; }
   // Blank qty bills one piece, matching the flat-misc convention (miscQty).
   const need = p.qtyType === "count" && String(p.qty ?? "").trim() !== "" ? num(p.qty) : 1;

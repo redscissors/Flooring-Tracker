@@ -32,7 +32,13 @@ src/
                     # roll → "RL"), `unitNoun` (3, "rl" → "rolls"), `isRollUnit`.
                     # One table so a unit reads the same in the grid, the print,
                     # and the order panel; a unit the table doesn't know falls
-                    # through as the vendor's own code rather than a wrong "EA"
+                    # through as the vendor's own code rather than a wrong "EA".
+                    # `isMeasureUnit`/`bundleUnit` (2026-08-31) hold the other
+                    # half: SF/LF/SY MEASURE material, they never bundle it, so
+                    # a book whose one U/M column is its price basis can't name
+                    # the carton a coverage counts — read through bundleUnit
+                    # (stockPatch at the pick, getCarton/getPieceCarton on the
+                    # row, so lines saved before the rule heal on read)
                     # (units.test.js)
   costentry.js      # hand-entered cost on a product row (2026-07-26): the price
                     # cell's cost → markup → price popup. `MARKUP_PRESETS`

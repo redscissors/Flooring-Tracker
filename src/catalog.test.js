@@ -287,6 +287,20 @@ test("getCarton: an exact carton count doesn't over-order from float noise", () 
   assert.equal(C.order, 10);
 });
 
+test("getCarton: a row snapshotted with a measure U/M still counts cartons", () => {
+  // Already-saved rows carry whatever the pick wrote, and picks from an
+  // SF-priced book wrote cartonUnit "SF" — coverage read "12.15 SF/SF" and 13
+  // cartons keyed as "13 SF" (Marcus 2026-08-31). Healed on read: nothing about
+  // the math moves, only the word the count is in.
+  const s = normalizeSettings(undefined);
+  const C = getCarton(tile({ qty: "140", cartonSf: "12.15", cartonUnit: "SF", cartonManual: "" }), s);
+  assert.equal(C.order, Math.ceil(140 * 1.1 / 12.15));
+  assert.equal(C.sf, 12.15);
+  assert.equal(C.unit, "ct");
+  // A real bundling unit is still the row's own.
+  assert.equal(getCarton(tile({ qty: "140", cartonSf: "1.06", cartonUnit: "SH", cartonManual: "" }), s).unit, "sh");
+});
+
 test("getPieceCarton: pieces needed round up to whole cartons, billed per piece (ADR 0013 amendment)", () => {
   // Bullnose, 8 pcs/carton: 14 pieces needed → 2 cartons = 16 pieces billed.
   const p = tile({ type: "misc", qtyType: "count", qty: "14", cartonPc: "8", cartonUnit: "CT", cartonManual: "" });

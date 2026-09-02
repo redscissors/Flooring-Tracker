@@ -5,7 +5,7 @@
 // product row (snapshot, ADR 0003); nothing here resolves at calculation
 // time, so estimates keep the price they were quoted at. The row remembers
 // its `sku`, which lets the UI flag price drift and offer a refresh.
-import { unitCode } from "./units.js";
+import { unitCode, bundleUnit } from "./units.js";
 
 const str = (v) => (v == null ? "" : String(v).trim());
 const round2 = (n) => Math.round(n * 100) / 100;
@@ -345,8 +345,10 @@ export function stockPatch(item, product) {
       // alike, ADR 0014); only the DEFAULT flips on sheet goods: a mosaic with
       // a sheet size and no stated unit is sold by the sheet, and labeling it
       // CT keys cartons at the desk for a thing that ships in sheets (the
-      // Glazzio CLNL289 flag, Marcus 2026-08-26).
-      patch.cartonUnit = orderUnit || (item.sheetSize ? "SH" : "CT");
+      // Glazzio CLNL289 flag, Marcus 2026-08-26). A book whose one U/M column
+      // is the PRICE basis states a measure here (SF) — bundleUnit refuses it,
+      // since square feet bundle nothing (Marcus 2026-08-31).
+      patch.cartonUnit = bundleUnit(orderUnit, item.sheetSize ? "SH" : "CT");
     }
     if (item.type === "tile") {
       if (item.sheetSize) {

@@ -57,3 +57,17 @@ export const unitNoun = (n, u) => {
 // covers so many square feet — but it holds no countable pieces, so it is
 // deliberately neither isPieceUnit nor isCartonUnit (stock.js).
 export const isRollUnit = (u) => key(u) === "rl";
+
+// A unit that MEASURES material — square feet, linear feet, square yards — as
+// opposed to one that BUNDLES it into something you order. The distinction
+// matters because a book's single U/M column is usually the basis the vendor
+// PRICES in, and stock.js reads that same column as the sell unit.
+const MEASURE_RE = /^(sf|sft|sqft|sqfeet|squarefoot|squarefeet|lf|lft|lnft|linft|sy|syd|sqyd|squareyard|squareyards|yd|yds|yard|yards|in|inch|inches|ft|foot|feet|m|m2|sqm|sm)$/;
+export const isMeasureUnit = (u) => MEASURE_RE.test(clean(u));
+
+// The unit a carton/sheet coverage is counted in. A measure can't bundle
+// anything: left alone, a tile from an SF-priced book reads "12.15 SF/SF" and
+// keys its 13 CARTONS to the desk as "13 SF" — 145 sq ft nobody ordered
+// (Marcus 2026-08-31, the Catch Ivory Glossy line). Every other spelling —
+// CT, SH, RL, a vendor's own word — passes through untouched.
+export const bundleUnit = (u, fallback = "CT") => (clean(u) && !isMeasureUnit(u) ? String(u).trim() : fallback);

@@ -44,7 +44,7 @@ import { useOrderSearch } from "./useordersearch.js";
 import { useTrims } from "./usetrims.js";
 import { seedTrimPlan, applyTrimPlan, existingTrimRows, mergeTrimOptions, vendorKeys } from "./trims.js";
 import TrimsPopup from "./TrimsPopup.jsx";
-import { unitCode, unitNoun } from "./units.js";
+import { unitCode, unitNoun, bundleUnit } from "./units.js";
 import { useTodos } from "./usetodos.js";
 import { useClaudeIssues } from "./useclaudeissues.js";
 import { jobSource } from "./claudeissues.js";
@@ -2062,10 +2062,10 @@ export default function App({ user, onSignOut }) {
                               <div style={{ ...gridCell, fontSize: 9.5 }} className="ft-mono">
                                 {p.type !== "misc" && p.qtyType === "sqft" ? (<>
                                   <input tabIndex={p.sku ? -1 : 0} type="number" value={p.cartonSf} onChange={(e) => updProduct(a.id, p.id, { cartonSf: e.target.value })} data-c="cov" className="ft-cell text-right" style={{ flex: 1, minWidth: 0, padding: "6px 2px" }} placeholder="—" title="Sq ft per carton/sheet — filled from the price book when the SKU has one. With this set, quantities and totals are figured by whole cartons." />
-                                  {num(p.cartonSf) > 0 && p.cartonUnit && <span className="shrink-0 pr-0.5" style={{ fontSize: 6.5, letterSpacing: "-0.02em", color: "var(--ft-muted)" }}>SF/{String(p.cartonUnit).toUpperCase()}</span>}
+                                  {num(p.cartonSf) > 0 && p.cartonUnit && <span className="shrink-0 pr-0.5" style={{ fontSize: 6.5, letterSpacing: "-0.02em", color: "var(--ft-muted)" }}>SF/{bundleUnit(p.cartonUnit).toUpperCase()}</span>}
                                 </>) : p.type === "misc" ? (<>
                                   <input tabIndex={p.sku ? -1 : 0} type="number" value={p.cartonPc} onChange={(e) => updProduct(a.id, p.id, { cartonPc: e.target.value })} data-c="cov" className="ft-cell text-right" style={{ flex: 1, minWidth: 0, padding: "6px 2px" }} placeholder="—" title="Pieces per carton — filled from the price book when the SKU is sold by the carton only. With this set, pieces needed round up to whole cartons." />
-                                  {num(p.cartonPc) > 0 && <span className="shrink-0 pr-0.5" style={{ fontSize: 6.5, letterSpacing: "-0.02em", color: "var(--ft-muted)" }}>PC/{String(p.cartonUnit || "CT").toUpperCase()}</span>}
+                                  {num(p.cartonPc) > 0 && <span className="shrink-0 pr-0.5" style={{ fontSize: 6.5, letterSpacing: "-0.02em", color: "var(--ft-muted)" }}>PC/{bundleUnit(p.cartonUnit).toUpperCase()}</span>}
                                 </>) : <span className="px-2" style={{ color: "var(--ft-faint)" }}>—</span>}
                               </div>
                               <div style={gridCell}>

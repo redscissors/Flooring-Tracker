@@ -215,6 +215,20 @@ test("a sheet mosaic with no stated unit defaults to SH, never CT (the CLNL289 f
   assert.equal(stockPatch(tile, {}).cartonUnit, "CT");
 });
 
+test("an SF U/M never names the bundle its coverage counts (the Catch Ivory Glossy flag)", () => {
+  // The book prices this 3x12 by the square foot and states 12.15 SF per
+  // carton, and its only U/M column is that price basis — so the pick used to
+  // snapshot cartonUnit "SF". The row then read "12.15 SF/SF" and keyed its 13
+  // CARTONS to the desk as "13 SF" (Marcus 2026-08-31).
+  const it = { sku: "F14CATCIV0312P", type: "tile", unit: "SF", sfPerUnit: 12.15, priceSqft: 5.2, size: "3x12" };
+  const patch = stockPatch(it, {});
+  assert.equal(patch.cartonSf, "12.15");
+  assert.equal(patch.cartonUnit, "CT");
+  // Sheet goods keep their own default rather than borrowing the price basis.
+  const sheet = { sku: "SHEETSF", type: "tile", unit: "SF", sheetSize: "12x12", sfPerUnit: 1.06, priceSqft: 28.72 };
+  assert.equal(stockPatch(sheet, {}).cartonUnit, "SH");
+});
+
 test("a loose piece-sold tile with no sheet (a per-piece bullnose w/ coverage) still orders exact area", () => {
   // The looseOrder path is unchanged for genuine loose pieces: no sheetSize, so a
   // PC No-Broken unit keeps its exact-area ordering (no carton/sheet rounding).
