@@ -1,9 +1,7 @@
 # wedi's pricelist side from a registry price book (8b)
 
-- **Status:** Approved by the owner 2026-09-02; plan at
-  `docs/superpowers/plans/2026-09-02-wedi-pricelist-book.md`. Amended the same
-  day from the planning measurements: decision 1's `details` fallback,
-  decision 8 (34 twinned entries, not two), decision 9's pinned list.
+- **Status:** Implemented on PR #355 (plan
+  `docs/superpowers/plans/2026-09-02-wedi-pricelist-book.md`); ADR 0038.
 - **Date:** 2026-09-02
 - **Builds on:** spec 8a (`2026-09-01-wedi-stock-book-design.md`) and ADR 0037,
   which moved wedi's stock half onto a registry book and left `WEDI_SO`

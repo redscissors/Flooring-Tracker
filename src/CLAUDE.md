@@ -614,9 +614,32 @@ src/
                     # re-assert effect reads. WEDI_STOCK stays as the
                     # no-book fallback until 8b (never delete it — the
                     # engine must not go inert because a book is missing).
-                    # A PRICELIST update is still a re-transcription of this
-                    # one file; a stock-price update is now an import
+                    # The PRICELIST half followed in 8b (ADR 0038):
+                    # `buildCatalog` reads `SO_SRC || WEDI_SO`,
+                    # `setSoSource`/`clearSoSource` twin the stock
+                    # installers, `stockSourceIs`/`soSourceIs` are identity
+                    # getters for the hook's re-assert, and
+                    # `missingRequiredParts()` is the plausibility floor.
+                    # `kitFor` no longer dereferences a missing panel or
+                    # cover — it hints `no-panel`/`no-cover`.
+                    # Both halves are now imports; the tables are fallbacks
+                    # only, removable together in a later PR.
                     # (wedi.test.js, wediequivalence.test.js)
+  wedibook.js       # wedi distribution pricelist parser (ADR 0038, 8b): a
+                    # section-table state machine (ovfbook.js's parseSundries
+                    # shape) that flattens the "wedi Fundo" and "wedi S-Dry"
+                    # sheets to the canonical { name, rows, mapping, warnings }
+                    # the wizard consumes. Section-title rows re-map the
+                    # columns (layouts change mid-sheet); product rows match
+                    # /^(US\d{7,9}|\d{9})\*?$/ (the asterisk is a footnote
+                    # mark); size/details follow the section's captions with
+                    # the two measured positional fallbacks; discount is the
+                    # caption's "(less N%)" and is NOT mapped onto the item
+                    # (nothing reads it). Other sheets are skipped BY NAME
+                    # with a warning so a re-format fails loudly. Fundo wins a
+                    # part priced on two sheets (US5076012). Detector
+                    # isWediPricelist → fileFormat tag "wedi-pricelist" →
+                    # an order-kind book (wedibook.test.js)
   wedifixture.js    # the 2026-09-01 wedi stock-export snapshot, as
                     # `price_book_items` rows (sku + active + the jsonb data
                     # payload) — schluterfixture.js's opposite number, but
@@ -629,6 +652,13 @@ src/
                     # this file. GENERATED — regenerate with
                     # `.scratch/119_wedi-stock-book/tools/gen-fixture.mjs`
                     # over the owner's workbook, never by hand
+  wedipricelistfixture.js  # the 2026-09-02 wedi distribution pricelist as the
+                    # RAW sheet grid readXlsxSheets hands the wizard — parser
+                    # INPUT, not output, so wedibook.test.js is not circular.
+                    # 5 sheets / 602 rows; production never reads it.
+                    # GENERATED — `.scratch/120_wedi-pricelist-book/tools/
+                    # dump-pricelist.mjs` (over the workbook, or --from-json
+                    # over the committed snapshot)
   wediadapter.js    # the registry→engine adapter for wedi's stock half (ADR
                     # 0036) — schluteradapter.js's opposite number, and the
                     # only file that sees a raw book row. `usOf` recovers the
@@ -660,6 +690,10 @@ src/
                     # and it bails to the lead, because guessing relocates a
                     # real board thickness. `adaptBookRows` drops rows with
                     # no derivable `us` (exactly the placeholder)
+                    # The pricelist half (8b): `adaptSoRow`/`adaptSoRows` map
+                    # an order-item row straight back to makeEntry's soRow —
+                    # sku/description/size/note/price/cost/section/
+                    # vendorSkus[0] — with `discount: null`.
   usewedicatalog.js # `useWediCatalog` — the registry→catalog assembly and,
                     # more importantly, the GATE (ADR 0037).
                     # useschlutercatalog.js's opposite number with three
@@ -700,6 +734,11 @@ src/
                     # LAZY-CHUNK-ONLY: imports wediadapter.js and wedi.js,
                     # so only a React.lazy surface may reach it — today
                     # WediConfigurator.jsx and CompareTab.jsx
+                    # The pricelist half (ADR 0038, 8b): it now runs two
+                    # halves (`pickWediSoBooks`, `useHalf`), installs through
+                    # `installSources` (which applies the floor and refuses
+                    # the pricelist first), and returns `onBook: {stock, so}`
+                    # plus `caption` (`fallbackCaption`).
   wediquery.js      # the wedi search-entry recognizer — the BOOT half of issue
                     # 066: `queryHit`/`parseQuery`/`querySummary`/`seedFromQuery`
                     # over ~30 trade words and a size regex, so the pinned "Vendor

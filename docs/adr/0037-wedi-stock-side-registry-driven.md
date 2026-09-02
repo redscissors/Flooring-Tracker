@@ -65,10 +65,15 @@ hand-transcribed `us` values with no fixup table.
    outage risk. `WEDI_STOCK` is only removable once the pricelist half (8b)
    also moves and the fallback has no remaining job; deleting it now is
    explicitly out of scope.
+
+   *Amended 2026-09-02 (ADR 0038): 8b landed and kept both tables as
+   fallbacks; their removal is a later PR.*
 3. **The pricelist half stays transcribed.** `WEDI_SO` and `makeEntry`'s
    `soRow` merge are untouched. This is a genuine, deliberate split, not a
    phase boundary that happened to land here: the stock export is a clean
    mapped-import shape today, the pricelist is not, and 8b is its own spec.
+
+   *Superseded 2026-09-02 by ADR 0038.*
 4. **The fallback is gated and visible, not implicit.** `wedi.js` gains three
    exports — `setStockSource`, `clearStockSource`, `stockSourceIsBook` — and
    `buildCatalog` reads `STOCK_SRC || WEDI_STOCK`. The gate itself

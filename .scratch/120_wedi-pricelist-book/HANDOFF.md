@@ -99,3 +99,11 @@ From the 8a ledger and the final review:
 - No UI or print change merges without preview proof.
 - The pinned tests in `src/wedi.test.js` are the sheet's own numbers — changing
   one means a sheet was re-transcribed, not a bug fixed.
+
+## Progress
+
+Plan `docs/superpowers/plans/2026-09-02-wedi-pricelist-book.md` executed, all
+nine tasks done: fixture, parser, wizard detection, engine source/floor,
+equivalence tests, `kitFor` null guards, the gating hook, the Browse caption
+and preview proof, and this decision record (ADR 0038). PR #355. Status stays
+`ready-for-agent` until the owner merges #355; they flip it to `done` then.
