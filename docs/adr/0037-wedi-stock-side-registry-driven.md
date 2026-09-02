@@ -1,4 +1,4 @@
-# ADR 0036 — wedi's stock side is registry-driven, not transcribed
+# ADR 0037 — wedi's stock side is registry-driven, not transcribed
 
 - **Status:** Accepted
 - **Date:** 2026-09-01

@@ -572,7 +572,7 @@ src/
                     # 12\" x 8\"" as sizeText (vendor-name parse, 4\" flange
                     # fallback) — all derived in makeEntry, so a pricelist
                     # re-transcription keeps every treatment.
-                    # The STOCK half is no longer transcribed (ADR 0036,
+                    # The STOCK half is no longer transcribed (ADR 0037,
                     # 2026-09-01): `buildCatalog` reads `STOCK_SRC ||
                     # WEDI_STOCK`, and `setStockSource`/`clearStockSource`
                     # swap it, clearing BOTH memos (CAT and INDEX — INDEX is
@@ -636,7 +636,7 @@ src/
                     # real board thickness. `adaptBookRows` drops rows with
                     # no derivable `us` (exactly the placeholder)
   usewedicatalog.js # `useWediCatalog` — the registry→catalog assembly and,
-                    # more importantly, the GATE (ADR 0036).
+                    # more importantly, the GATE (ADR 0037).
                     # useschlutercatalog.js's opposite number with three
                     # deliberate differences: it matches `kind === "stock"`
                     # (Schluter matches "order"), it has no dropStockTwins

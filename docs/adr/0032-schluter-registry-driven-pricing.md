@@ -63,7 +63,7 @@ up).
    it to registry rows is out of scope here. A reader comparing the two files
    should not read the difference as an oversight.
 
-   **Superseded in part by ADR 0036 (2026-09-01):** wedi's *stock* half is
+   **Superseded in part by ADR 0037 (2026-09-01):** wedi's *stock* half is
    now registry-driven too, at the owner's request. The divergence this
    consequence describes now applies only to wedi's pricelist half, which
    remains transcribed until 8b.

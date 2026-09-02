@@ -54,7 +54,7 @@ These three findings were measured against `WEDI 1.xlsx` and the committed `WEDI
 | `src/wedi.js` | **Modify.** Parameterize `buildCatalog`; add `setStockSource`/`clearStockSource`/`stockSourceIsBook`. Nothing else. |
 | `src/usewedicatalog.js` | **Create.** LAZY-CHUNK-ONLY hook: book discovery, row fetch, the three-way gate, the install. |
 | `src/WediConfigurator.jsx` | **Modify.** Call the hook; gate on readiness; show the fallback marker. |
-| `docs/adr/0036-wedi-stock-side-registry-driven.md` | **Create.** Records the move. |
+| `docs/adr/0037-wedi-stock-side-registry-driven.md` | **Create.** Records the move. |
 | `docs/adr/0032-schluter-registry-driven-pricing.md` | **Modify.** Superseded-by note on consequence 3. |
 | `docs/superpowers/specs/2026-09-01-wedi-stock-book-design.md` | **Modify.** The three corrections above. |
 
@@ -931,7 +931,7 @@ git commit -m "feat: the wedi popup reads the live book, and says when it doesn'
 
 **Files:**
 - Modify: `docs/superpowers/specs/2026-09-01-wedi-stock-book-design.md`
-- Create: `docs/adr/0036-wedi-stock-side-registry-driven.md`
+- Create: `docs/adr/0037-wedi-stock-side-registry-driven.md`
 - Modify: `docs/adr/0032-schluter-registry-driven-pricing.md`
 
 - [ ] **Step 1: Correct the spec's `us` derivation section**
@@ -960,21 +960,21 @@ Add a new consequence:
 
 > - **The book does not extend the catalog.** `classify` is a hardcoded grammar of `US…` codes (`wedi.js:4060-4071`). A new wedi part number the grammar doesn't know is priced and searchable but files as `misc`, so the solver won't build with it and it lands in no browse section. The book ends *price* re-transcription, not *catalog* re-transcription; a new product line still needs its code added by hand. The equivalence suite's misc assertion is how this surfaces.
 
-- [ ] **Step 4: Write ADR 0036**
+- [ ] **Step 4: Write ADR 0037**
 
-Create `docs/adr/0036-wedi-stock-side-registry-driven.md` following the house format (`# ADR 0036 — …`, Status/Date/Scope/Related, Context, Decision, Consequences). Record: the stock half is registry-driven as of this change; `WEDI_STOCK` remains as the no-book fallback and is only removable once 8b lands; the pricelist half stays transcribed; the fallback is gated and visible; and the module-level source is shared engine-wide, so `useWediCatalog` is the only permitted installer.
+Create `docs/adr/0037-wedi-stock-side-registry-driven.md` following the house format (`# ADR 0037 — …`, Status/Date/Scope/Related, Context, Decision, Consequences). Record: the stock half is registry-driven as of this change; `WEDI_STOCK` remains as the no-book fallback and is only removable once 8b lands; the pricelist half stays transcribed; the fallback is gated and visible; and the module-level source is shared engine-wide, so `useWediCatalog` is the only permitted installer.
 
 - [ ] **Step 5: Amend ADR 0032**
 
 In `docs/adr/0032-schluter-registry-driven-pricing.md`, append to consequence 3 (line 59):
 
-> **Superseded in part by ADR 0036 (2026-09-01):** wedi's *stock* half is now registry-driven too, at the owner's request. The divergence this consequence describes now applies only to wedi's pricelist half, which remains transcribed until 8b.
+> **Superseded in part by ADR 0037 (2026-09-01):** wedi's *stock* half is now registry-driven too, at the owner's request. The divergence this consequence describes now applies only to wedi's pricelist half, which remains transcribed until 8b.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add docs/superpowers/specs/2026-09-01-wedi-stock-book-design.md docs/adr/0036-wedi-stock-side-registry-driven.md docs/adr/0032-schluter-registry-driven-pricing.md
-git commit -m "docs: correct the 8a spec's us rule and acceptance test, add ADR 0036"
+git add docs/superpowers/specs/2026-09-01-wedi-stock-book-design.md docs/adr/0037-wedi-stock-side-registry-driven.md docs/adr/0032-schluter-registry-driven-pricing.md
+git commit -m "docs: correct the 8a spec's us rule and acceptance test, add ADR 0037"
 ```
 
 ---
