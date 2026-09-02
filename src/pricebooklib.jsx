@@ -14,6 +14,7 @@ import { isInterfacePriceList, parseInterfacePages } from "./interfacebook.js";
 import { parseOvf } from "./ovfbook.js";
 import { parseEmser } from "./emserbook.js";
 import { parseMirage } from "./miragebook.js";
+import { parseWediPricelist } from "./wedibook.js";
 import { normBookItem, bookItemData, bookRowPreview, diffBookItems, forceDiff, changedFieldBits, markupGroups, editedInDiff, bookStaleness, bookFreshAt, bookNoMarkup, DEFAULT_STALE_DAYS, itemProblems, supersedePairs, itemFlags, flagReviewBySku } from "./orderbook.js";
 import { normPricing } from "./pricing.js";
 import { BOOK_VERSION_KEEP } from "./uiconst.js";
@@ -1868,6 +1869,18 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
       if (emser) {
         setSheets([{ name: emser.name, rows: emser.rows }]);
         applyDetected({ sheet: emser.name, ...emser.mapping });
+        setReading(false);
+        return;
+      }
+      // wedi's distribution pricelist (8b, src/wedibook.js): five formatted
+      // sheets whose column layouts change mid-sheet. Its parser flattens the
+      // two in-scope sheets to one canonical sheet, like the OVF and Emser
+      // forks above.
+      const wedi = parseWediPricelist(parsed, (file?.name || book.name || "book").replace(/\.xlsx?$/i, ""));
+      if (wedi) {
+        setSheets([{ name: wedi.name, rows: wedi.rows }]);
+        setSrcWarn(wedi.warnings || []);
+        applyDetected({ sheet: wedi.name, ...wedi.mapping });
         setReading(false);
         return;
       }
