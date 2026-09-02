@@ -6,6 +6,7 @@
 // hands the import wizard, and nothing interpreted.
 //
 //   node .scratch/120_wedi-pricelist-book/tools/dump-pricelist.mjs "<path to the pricelist .xlsx>"
+//   node .scratch/120_wedi-pricelist-book/tools/dump-pricelist.mjs --from-json
 import { createRequire } from "module";
 import fs from "fs";
 import path from "path";
@@ -13,20 +14,43 @@ const require = createRequire(import.meta.url);
 const XLSX = require("xlsx");
 
 const file = process.argv[2];
-if (!file) { console.error("usage: dump-pricelist.mjs <workbook.xlsx>"); process.exit(1); }
-
+if (!file) { console.error("usage: dump-pricelist.mjs <workbook.xlsx>   |   dump-pricelist.mjs --from-json"); process.exit(1); }
+let sheets;
+if (file === "--from-json") {
+  // No workbook in this environment (a cloud container): rebuild the module from the committed snapshot.
+  sheets = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, "../pricelist-sheets.json"), "utf8"));
+  writeFixture(sheets);
+  console.error("wrote src/wedipricelistfixture.js from pricelist-sheets.json");
+  process.exit(0);
+}
 const wb = XLSX.read(fs.readFileSync(file), { type: "buffer" });
 // Mirrors src/fileread.js exactly EXCEPT blankrows:false — a formatted vendor
 // sheet is mostly empty rows, and the parser keys on the rows that carry data.
 // If 8b turns out to need the blank runs (they may separate sections), set
 // this back to the reader's own shape and regenerate.
-const sheets = wb.SheetNames.map((name) => ({
+sheets = wb.SheetNames.map((name) => ({
   name,
   rows: XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: null, blankrows: false }),
 }));
 
 const out = path.resolve(import.meta.dirname, "../pricelist-sheets.json");
 fs.writeFileSync(out, JSON.stringify(sheets, null, 1));
+writeFixture(sheets);
 console.error(`sheets: ${sheets.length}`);
 sheets.forEach((s) => console.error(`   ${JSON.stringify(s.name)} rows: ${s.rows.length}`));
-console.error(`wrote ${out} (${(fs.statSync(out).size / 1024).toFixed(0)} KB)`);
+console.error(`wrote ${out} (${(fs.statSync(out).size / 1024).toFixed(0)} KB) and src/wedipricelistfixture.js`);
+
+// The same grid as a module, one sheet row per line so a re-dump diffs by row.
+// Parser INPUT, never output — that is what keeps wedibook.test.js honest.
+export function writeFixture(sheets) {
+  const body = sheets.map((s) =>
+    ` { name: ${JSON.stringify(s.name)}, rows: [\n` + s.rows.map((r) => "  " + JSON.stringify(r)).join(",\n") + "\n ] }").join(",\n");
+  const header = `// test fixture — the ${new Date().toISOString().slice(0, 10)} wedi distribution pricelist,\n`
+    + "// as the raw sheet grid readXlsxSheets hands the import wizard (blank rows\n"
+    + "// dropped, nothing interpreted). Parser INPUT for wedibook.test.js — a fixture\n"
+    + "// of parser OUTPUT would make the parser's tests circular. Production never\n"
+    + "// reads this file. GENERATED — regenerate with\n"
+    + "// .scratch/120_wedi-pricelist-book/tools/dump-pricelist.mjs over the owner's workbook.\n\n"
+    + "export const PRICELIST_SHEETS = [\n";
+  fs.writeFileSync(path.resolve(import.meta.dirname, "../../../src/wedipricelistfixture.js"), header + body + "\n];\n");
+}
