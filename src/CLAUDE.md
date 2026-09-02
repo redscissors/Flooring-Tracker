@@ -596,8 +596,110 @@ src/
                     # the second line), niches by their EXTERIOR with "interior
                     # 12\" x 8\"" as sizeText (vendor-name parse, 4\" flange
                     # fallback) — all derived in makeEntry, so a pricelist
-                    # re-transcription keeps every treatment. A pricelist
-                    # update is a re-transcription of this one file (wedi.test.js)
+                    # re-transcription keeps every treatment.
+                    # The STOCK half is no longer transcribed (ADR 0037,
+                    # 2026-09-01): `buildCatalog` reads `STOCK_SRC ||
+                    # WEDI_STOCK`, and `setStockSource`/`clearStockSource`
+                    # swap it, clearing BOTH memos (CAT and INDEX — INDEX is
+                    # a side effect of buildCatalog, not a separate
+                    # derivation) so `catalog`/`item`/`group`/`pans` all
+                    # follow without changing their signatures. This is
+                    # module-level state SHARED BY EVERY wedi.js CONSUMER —
+                    # including comparekit.js, which the Schluter popup's
+                    # Compare tab reaches — so ONLY usewedicatalog.js may
+                    # call the installers, and any surface that reads the
+                    # catalog must go through that hook first or it reads
+                    # whatever the last caller installed.
+                    # `stockSourceIsBook()` is the getter the hook's
+                    # re-assert effect reads. WEDI_STOCK stays as the
+                    # no-book fallback until 8b (never delete it — the
+                    # engine must not go inert because a book is missing).
+                    # A PRICELIST update is still a re-transcription of this
+                    # one file; a stock-price update is now an import
+                    # (wedi.test.js, wediequivalence.test.js)
+  wedifixture.js    # the 2026-09-01 wedi stock-export snapshot, as
+                    # `price_book_items` rows (sku + active + the jsonb data
+                    # payload) — schluterfixture.js's opposite number, but
+                    # stored in LIVE REGISTRY shape rather than engine shape,
+                    # so the adapter is exercised on real import output
+                    # instead of hand-shaped literals. 152 rows: the whole
+                    # export including the `29WEDIT` custom-item placeholder
+                    # the adapter drops, because a fixture pre-filtered to
+                    # 151 could not prove the drop. Production NEVER reads
+                    # this file. GENERATED — regenerate with
+                    # `.scratch/119_wedi-stock-book/tools/gen-fixture.mjs`
+                    # over the owner's workbook, never by hand
+  wediadapter.js    # the registry→engine adapter for wedi's stock half (ADR
+                    # 0036) — schluteradapter.js's opposite number, and the
+                    # only file that sees a raw book row. `usOf` recovers the
+                    # wedi US-SKU from `vendorSkus`: the row's own sku is
+                    # excluded (two rows repeat it in a vendor column), a
+                    # `US`-shaped code beats a numeric article number. That
+                    # PREFERENCE is order-independent; the remaining fallback
+                    # is not — it takes codes[0] as given, and is stable only
+                    # because normFits SORTED vendorSkus upstream (column
+                    # order does not survive normalization). 7 rows use the
+                    # fallback, 0 have two non-US candidates; a future row
+                    # with two article numbers would key on whichever sorts
+                    # first, which wediadapter.test.js pins deliberately
+                    # rather than leaving to be discovered. NO fixup table: 28954 reads
+                    # US50000005 in the export AND in WEDI_STOCK, and
+                    # wedi.js's index-compensation line depends on the
+                    # ten-digit spelling; "correcting" it re-keys the entry
+                    # and breaks item("US50000005"). `descOf` puts back what
+                    # the importer took out — splitSizeFromDescription
+                    # (pricebook.js) always runs and moves leading dimensions
+                    # into size/thickness/sfPerUnit, while makeEntry parses
+                    # w/d/t back out of `desc`, which for a stock-only entry
+                    # is the SOLE dimension source. Two heuristics earned
+                    # from the data: inch marks are restored only on a
+                    # NON-INTEGER bare size (restoring them always shrinks
+                    # the 4x8 vapor sheet to an 8-inch chip), and a lifted
+                    # fraction is re-attached at its dangling hyphen ONLY
+                    # when exactly one candidate site exists — two or more
+                    # and it bails to the lead, because guessing relocates a
+                    # real board thickness. `adaptBookRows` drops rows with
+                    # no derivable `us` (exactly the placeholder)
+  usewedicatalog.js # `useWediCatalog` — the registry→catalog assembly and,
+                    # more importantly, the GATE (ADR 0037).
+                    # useschlutercatalog.js's opposite number with three
+                    # deliberate differences: it matches `kind === "stock"`
+                    # (Schluter matches "order"), it has no dropStockTwins
+                    # step, and it owns a fallback Schluter has no equivalent
+                    # of. The spec originally said fall back when the book
+                    # "is absent OR its rows haven't loaded"; the owner
+                    # split those (2026-09-01) because they are different
+                    # situations — no book means fall back to WEDI_STOCK
+                    # with `onBook: false` and a visible "· transcribed
+                    # table" marker, while a book present but NOT LOADED (or
+                    # whose fetch failed) means WAIT, never substitute: a
+                    # slow or failed fetch would otherwise quote last year's
+                    # prices and resurrect retired items with nothing on
+                    # screen saying so. A failed fetch resolves to `null`,
+                    # NOT `[]` — the inverse of useschlutercatalog's
+                    # `.catch(() => [])` — and one failure among several
+                    # books nulls the whole result, because a partial
+                    # catalog is a book missing SKUs, which quotes wrong
+                    # without looking wrong. `gateOf` and `foldBookLists`
+                    # are exported as PURE functions so the transition table
+                    # is unit-testable without a React renderer; reading the
+                    # hook did not catch two stale-pricing bugs that the
+                    # table pins as named regressions. Two subtleties both
+                    # of which were live bugs: rows travel WITH the id-set
+                    # they were fetched for (`loaded.ids === targetIds`),
+                    # because the `[]` written when there was no book yet is
+                    # otherwise indistinguishable from an empty book once
+                    # one arrives — and books hydrating after the popup
+                    # mounts is ordinary, not a rare race; and `onBook` keys
+                    # off the POST-adapter rows, because a book whose rows
+                    # carry no wedi part numbers adapts to `[]`, which
+                    # `setStockSource` collapses to the fallback, so gating
+                    # on the pre-adapter count flies an on-the-book marker
+                    # over the transcribed table. `pickWediBooks` is
+                    # `\b`-anchored — unanchored /wedi/i matches "Swedish".
+                    # LAZY-CHUNK-ONLY: imports wediadapter.js and wedi.js,
+                    # so only a React.lazy surface may reach it — today
+                    # WediConfigurator.jsx and CompareTab.jsx
   wediquery.js      # the wedi search-entry recognizer — the BOOT half of issue
                     # 066: `queryHit`/`parseQuery`/`querySummary`/`seedFromQuery`
                     # over ~30 trade words and a size regex, so the pinned "Vendor
