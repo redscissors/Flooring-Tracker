@@ -159,6 +159,11 @@ Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
            // the ANCHOR line only (the pan): { mode, cfg } re-lands the whole
            // kit through wedi.js kitFor, so "wedi — reconfigure" replaces the
            // kit's lines. Every companion line carries { part: true } instead.
+           // Its cfg also carries `source` ("stock"|"all", 2026-09-02) — the
+           // Stock only / Full catalog switch the kit was built under, read
+           // back on reopen (the Schluter marker's existing rule); absent on
+           // older markers, which reopen on the full catalog. Both popups open
+           // Stock only by default.
            // attached = add-on material categories (ADR 0016, PR 3): one entry
            // per custom category, keyed by the category id, resolved by NAME at
            // calc time (mortar convention, no snapshot). getAttached does the

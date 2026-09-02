@@ -78,6 +78,42 @@ and "the pending update to this kit" is the only thing that reading makes sense 
 The scope boundary is unchanged: only staged entries persist, placed kits are still
 derived live from the rows.
 
+## Amendment 2026-09-02 — the kit-card confirm has three ways forward; "New shower" detaches the popup
+
+Both popups already asked before a kit card wiped customized work, but the only
+answers were keep or overwrite, and the owner's real cases were neither: the room's
+work (typed and turned-off walls, extra walls, corners, wall height, benches, add-on
+chips, hand-added lines, on Schluter also the drain position, mortar, ramp and tile)
+usually belongs to the ROOM and should ride onto the next kit, and a second kit card
+was sometimes the START OF ANOTHER SHOWER, not an edit of this one. The confirm is now
+one shared component (`KitOverwriteConfirm`, widgets.jsx — the SourceSwitch doctrine,
+so wedi and Schluter cannot drift) with Overwrite, **Keep what I added**, **New
+shower**, and Cancel.
+
+*Keep what I added* carries the room's work and drops what belonged to the old kit's
+parts — stepped quantities and part swaps — because those were decisions about lines
+the new kit does not have. A typed wall length that only matched the old kit's auto
+geometry clears and follows the new kit (wedi's existing refit rule, mirrored on
+Schluter against the old tray's dims); "Max — curb inside" resets because a kit's size
+IS its pan/tray size.
+
+*New shower* parks the standing build in the basket (as an UPDATE of the kit the popup
+was opened on, if any — the 2026-09-01 target — else as a new entry) and then
+**detaches** the popup from that kit: from then on the primary button reads "Add to
+product lines" and lands through the append path, and Basket stages a new entry
+rather than another update of the same row. Without the detach, a second shower staged
+from a Reconfigure would replace the pending update (the 2026-09-01 one-pending-update
+rule) and land on top of the first kit — the trap behind the 2026-09-02 report that
+wedi "could not add more than one shower". The detach is popup-session state, not a
+flag on any row: `editing` is still derived from the live row in App.jsx.
+
+Alongside, both popups now open **Stock only** by default (owner ask). That made the
+wedi marker's "session state, never persisted" rule for the source untenable: a kit
+built from the full catalog would reopen under Stock only and degrade. The wedi marker
+therefore carries `cfg.source` and its seed reads it back — the rule Schluter already
+had. A marker saved before the field existed reopens on the Full catalog, since it was
+built with everything on offer.
+
 ## Consequences
 
 - **Replacement rules.** With a `kitId` on the reconfigured anchor, every row sharing

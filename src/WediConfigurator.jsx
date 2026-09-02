@@ -13,7 +13,7 @@
 import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Plus, Printer, Copy, Eye } from "lucide-react";
-import { useEscClose, SourceSwitch, NumIn, KitBasketPanel } from "./widgets.jsx";
+import { useEscClose, SourceSwitch, NumIn, KitBasketPanel, KitOverwriteConfirm } from "./widgets.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
   item, group, pans, curbs, kitFor, solve, figureConsumables, panelPlan,
@@ -520,11 +520,15 @@ function seedState(seed) {
   const s = {
     tab: "kits", inp: { ...DEF_INP }, q: "", panKey: null, opts: { ...DEF_OPTS },
     addons: [], benches: [], walls: DEF_WALLS.map((w) => ({ ...w })), extraWalls: [], wallH: 96, wallSeq: 0,
-    corners: { bl: false, br: false, fl: false, fr: false }, solveInput: null, maxIn: false, tileT: "",
+    corners: { bl: false, br: false, fl: false, fr: false }, solveInput: null, maxIn: false, tileT: "", source: "stock",
   };
   if (!seed) return s;
   const cfg = seed.cfg;
   if (cfg && cfg.panKey) {
+    // A saved kit reopens under the catalog it was built from; a marker from
+    // before `source` was stamped (2026-09-02) was built with everything on
+    // offer, so it reopens on the full catalog rather than degrading.
+    s.source = cfg.source === "stock" ? "stock" : "all";
     s.maxIn = !!cfg.maxIn;
     s.tileT = +cfg.tileT > 0 ? String(+cfg.tileT) : "";
     s.tab = seed.mode === "custom" ? "custom" : seed.mode === "browse" ? "browse" : "kits";
@@ -755,10 +759,12 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   const [showMargin, setShowMargin] = useState(false);
 
   // --- source: the shared Stock only / Full catalog switch (phase 4) --------
-  // Session state, never persisted into product.wedi — the switch constrains
-  // what the solver and the choice lists OFFER; a line already in the build
-  // stays flagged SO rather than being removed (the P2 doctrine).
-  const [source, setSource] = useState("all");
+  // Stock only by default (owner 2026-09-02); the switch constrains what the
+  // solver and the choice lists OFFER, and a line already in the build stays
+  // flagged SO rather than being removed (the P2 doctrine). The marker
+  // carries it (cfg.source) so a reopened kit sees the catalog it was built
+  // from — the Schluter rule, adopted with the stock default.
+  const [source, setSource] = useState(s0.source);
   // Stock-only narrows a choice list to its stocked rows — unless none are,
   // in which case the whole list stays so a swap menu is never empty and the
   // pick lands flagged instead of silently vanishing.
@@ -957,7 +963,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
         mode: option ? "custom" : "kit", maxIn: maxIn, tileT: tileIn,
       });
       if (!b) return null;
-      return { ...b, lines: applySession(b, buildWalls, { qtyOv, manual, panelFit }) };
+      return { ...b, cfg: { ...b.cfg, source }, lines: applySession(b, buildWalls, { qtyOv, manual, panelFit }) };
     }
     if (manual.length) {
       const lines = manual.filter((m) => m.qty > 0).map((m) => {
@@ -972,7 +978,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
       return { pan: null, lines, panelSf: 0, factory: null, hints, mode: "browse", cfg: {}, soNet };
     }
     return null;
-  }, [panKey, option, buildWalls, wallH, opts, addons, benches, qtyOv, manual, panelFit, tierId, corners, maxIn, tileIn]);
+  }, [panKey, option, buildWalls, wallH, opts, addons, benches, qtyOv, manual, panelFit, tierId, corners, maxIn, tileIn, source]);
 
   // The live { mode, cfg } upward, in seed shape, so App's ft-open-layer
   // restore reopens mid-configuration rather than on the original seed.
@@ -1052,6 +1058,21 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   const pickPan = (key) => {
     if (option || kitDirty || manual.length) { setConfirmPan(key); return; }
     hardReset(key);
+  };
+  // "Keep what I added" (owner 2026-09-02): the kit takes the room's work —
+  // walls, extra walls, corners, wall height, benches, add-ons, hand-added
+  // lines — and drops what belonged to the OLD kit's parts: stepped
+  // quantities and part swaps. A typed wall length that only tracked the old
+  // geometry clears and follows the new kit (retuneWalls, the refit rule).
+  const keepAdded = (key) => {
+    retuneWalls();
+    setPlacing(false);
+    setOption(null);
+    setQtyOv({});
+    setOpts({ ...DEF_OPTS });
+    setPanKey(key);
+    const p = item(key);
+    if (p) seedFormFromKit(p, true);
   };
 
   // Solve the room. With "overall max" on, every fully open edge gives up
@@ -1421,20 +1442,40 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   const placedViews = useMemo(() => (placed || []).map((k) => ({ ...k, ...entryView(k.marker) })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [placed, tierId, customPct, salePct, bPct, panelFit]);
-  const addToBasket = () => {
-    if (!build || !onBasketChange) return;
+  // "New shower" on the kit-card confirm parks the standing build in the
+  // basket and DETACHES the popup from the kit it was opened on: from then on
+  // the build is a new kit — it appends instead of replacing, and Basket
+  // stages a new entry rather than another update of the same row. Without
+  // the detach, a second shower staged from a Reconfigure would land on top
+  // of the first (the trap behind the 2026-09-02 report).
+  const [detached, setDetached] = useState(false);
+  const edit = detached ? null : editing;
+  const commitLines = detached && onAddNew ? onAddNew : onAdd;
+  const stageBuild = ({ open = true } = {}) => {
+    if (!build || !onBasketChange) return false;
     const entry = normKitBasketEntry({
       addedAt: Date.now(), snap: { mode: build.mode, cfg: JSON.parse(JSON.stringify(build.cfg)) },
       session: { qtyOv: { ...qtyOv }, manual: manual.map((m) => ({ ...m })), panelFit },
-      target: editing || undefined,
+      target: edit || undefined,
     });
-    if (!entry) return;
+    if (!entry) return false;
     // One pending update per kit: staging a second edit of the same kit
     // REPLACES the first, or moving both would land one on top of the other.
     const rest = entry.target ? (basket || []).filter((b) => b.target?.rowId !== entry.target.rowId) : (basket || []);
     onBasketChange([...rest, entry]);
-    setBasketOpen(true);
-    say(entry.target ? "Update staged — moving it replaces this kit's lines" : "Staged in the basket — saved with this job");
+    if (open) {
+      setBasketOpen(true);
+      say(entry.target ? "Update staged — moving it replaces this kit's lines" : "Staged in the basket — saved with this job");
+    }
+    return true;
+  };
+  const addToBasket = () => stageBuild();
+  const newShower = (key) => {
+    const parked = stageBuild({ open: false });
+    setDetached(true);
+    hardReset(key);
+    const p = item(key);
+    say((parked ? "Parked in the basket — " : "Nothing to park — ") + (p ? unwedi(p.name) : "the kit") + " starts as a new shower");
   };
   const moveEntries = (ids) => {
     const picked = (basket || []).filter((b) => ids.includes(b.id));
@@ -2032,7 +2073,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
               : <><Eye size={11} /> cost &amp; margin</>}
           </button>
           <div className="btnrow">
-            <button className="wbtn primary" onClick={() => setPayload(rows)} data-wedi-add><Plus size={13} /> {editing ? "Update this kit" : "Add to product lines"}</button>
+            <button className="wbtn primary" onClick={() => setPayload(rows)} data-wedi-add><Plus size={13} /> {edit ? "Update this kit" : "Add to product lines"}</button>
             {onBasketChange && <button className="wbtn" onClick={addToBasket} data-wedi-add-basket><Plus size={13} /> Basket</button>}
             <button className="wbtn" disabled={!diag} onClick={() => setPrinting(true)}><Printer size={13} /> Print layout</button>
             <button className="wbtn" onClick={copyList}><Copy size={13} /> Order entry</button>
@@ -2349,27 +2390,16 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   })();
 
   // Kit card over a custom shower: confirm before wiping it (owner rule
-  // 2026-07-30) — yes resets everything to the chosen kit's stock setup.
+  // 2026-07-30), with the three ways forward of 2026-09-02 (KitOverwriteConfirm).
   const confirmModal = confirmPan && (() => {
     const p = item(confirmPan);
     const nm = p ? (p.group === "module" ? inch(p.len) + '" module' : inch(p.w) + "×" + inch(p.d)) : "";
+    const done = (fn) => () => { const k = confirmPan; setConfirmPan(null); fn(k); };
     return (
-      <div className="print:hidden fixed inset-0 z-[80] flex items-center justify-center p-8" style={{ background: "rgba(20,15,10,.5)" }}
-        onClick={(e) => { e.stopPropagation(); setConfirmPan(null); }}>
-        <div className="wedi-pop w-full max-w-[460px] rounded-xl overflow-hidden shadow-2xl" style={{ background: "var(--ft-cream)" }}
-          onClick={(e) => e.stopPropagation()} data-wedi-overwrite>
-          <div className="px-5 pt-4 pb-1 text-[14px] font-extrabold">Overwrite the custom shower?</div>
-          <div className="px-5 pb-4 text-[12px] leading-relaxed" style={{ color: "var(--ft-muted)" }}>
-            This build has been customized — walls, cuts, or parts differ from a stock kit. Starting the{" "}
-            <b style={{ color: "var(--ft-text)" }}>{nm}</b> kit resets all of it.
-          </div>
-          <div className="flex gap-2 px-5 py-3 border-t" style={{ borderColor: "var(--ft-border-strong)", background: "var(--ft-sand)" }}>
-            <button className="wbtn" onClick={() => setConfirmPan(null)}>Keep the custom shower</button>
-            <button className="wbtn primary" data-wedi-overwrite-yes
-              onClick={() => { hardReset(confirmPan); setConfirmPan(null); }}>Overwrite — start the kit</button>
-          </div>
-        </div>
-      </div>
+      <KitOverwriteConfirm vendor="wedi" kitName={nm} kitWord="stock kit"
+        onCancel={() => setConfirmPan(null)}
+        onOverwrite={done(hardReset)} onKeep={done(keepAdded)}
+        onNew={onBasketChange ? done(newShower) : undefined} />
     );
   })();
 
@@ -2381,8 +2411,8 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
       <div className="wedi-pop w-full max-w-[900px] max-h-[82vh] flex flex-col rounded-xl overflow-hidden shadow-2xl"
         style={{ background: "var(--ft-cream)" }} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2.5 px-4 py-3 border-b" style={{ borderColor: "var(--ft-border-strong)" }}>
-          <div className="text-sm font-extrabold">{editing ? "Update this kit — the payload" : "Add to product lines — the payload"}</div>
-          <div className="text-[11px] font-semibold text-slate-500">{payload.length} rows {editing ? "replace this kit's lines" : "land on the job sheet"}{areaName ? " in " + areaName : ""}</div>
+          <div className="text-sm font-extrabold">{edit ? "Update this kit — the payload" : "Add to product lines — the payload"}</div>
+          <div className="text-[11px] font-semibold text-slate-500">{payload.length} rows {edit ? "replace this kit's lines" : "land on the job sheet"}{areaName ? " in " + areaName : ""}</div>
           <button className="xbtn ml-auto" onClick={() => setPayload(null)}><X size={15} /></button>
         </div>
         <div className="flex-1 overflow-y-auto px-4 py-3">
@@ -2416,15 +2446,15 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
         <div className="flex items-center gap-2 px-4 py-3 border-t" style={{ borderColor: "var(--ft-border-strong)", background: "var(--ft-sand)" }}>
           <span className="text-[11px] font-semibold text-slate-500">Quantities and prices stay editable on the row afterwards.</span>
           <button className="wbtn" style={{ flex: "none", padding: "8px 14px" }} onClick={() => setPayload(null)}>Cancel</button>
-          {editing && onAddNew && (
+          {edit && onAddNew && (
             <button className="wbtn" style={{ flex: "none", padding: "8px 14px" }} data-wedi-addnew
               onClick={() => { setPayload(null); onAddNew(payload); }}>
               <Plus size={13} /> Add as a new kit
             </button>
           )}
           <button className="wbtn primary" style={{ flex: "none", padding: "8px 16px" }} data-wedi-confirm
-            onClick={() => { setPayload(null); onAdd(payload); }}>
-            <Plus size={13} /> {editing ? "Update" : "Add"} {payload.length} row{payload.length === 1 ? "" : "s"}
+            onClick={() => { setPayload(null); commitLines(payload); }}>
+            <Plus size={13} /> {edit ? "Update" : "Add"} {payload.length} row{payload.length === 1 ? "" : "s"}
           </button>
         </div>
       </div>

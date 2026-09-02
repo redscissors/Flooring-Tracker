@@ -135,6 +135,11 @@ src/
                     # (phase 4), so the two popups can't drift on the control;
                     # it carries no engine knowledge, each popup owns what the
                     # source constrains and styles `.srcseg` in its own CSS.
+                    # `KitOverwriteConfirm` (2026-09-02, ADR 0035 amendment) —
+                    # the kit-card confirm both popups raise over customized
+                    # work: Overwrite · Keep what I added · New shower ·
+                    # Cancel, one component for the same no-drift reason; the
+                    # callers own what each answer does to their state.
                     # `NumIn` (round 6) — the commit-on-blur/Enter number field
                     # both vendor configurators mount (moved out of
                     # WediConfigurator.jsx): whole builds re-solve off these,
@@ -754,8 +759,17 @@ src/
                     # hard-filters Browse, and narrows swap/chip/premade
                     # choice lists to stocked rows unless none are (then the
                     # full list stays so a menu is never empty and a pick
-                    # lands flagged). Session state only — never persisted
-                    # into product.wedi. Three tabs — Kits (every stocked pan
+                    # lands flagged). Stock only by default (owner 2026-09-02)
+                    # and the marker carries it (cfg.source, read back by
+                    # seedState — the Schluter rule) so a saved kit reopens
+                    # under the catalog it was built from. The kit-card
+                    # confirm (KitOverwriteConfirm) adds keepAdded — the
+                    # room's work rides onto the kit, stepped quantities and
+                    # part swaps drop — and newShower, which parks the build
+                    # in the basket and DETACHES the popup from the kit it
+                    # reopened (`detached` → `edit`/`commitLines`), so the
+                    # next build appends as a second shower instead of
+                    # replacing. Three tabs — Kits (every stocked pan
                     # a 21px ROW showing ONE price, the full kit through the tier
                     # lens — matching the build column's total; owner ask
                     # 2026-07-31 replaced the earlier our-stock-cost line — one
@@ -1223,7 +1237,9 @@ src/
   SchluterConfigurator.jsx  # the Schluter popup, a `React.lazy` chunk (ADR
                     # 0026) — the React port of the approved prototype
                     # (.scratch/097, P1/P2), wedi's sibling over the same
-                    # shell idioms: Kits (every tray a row, grouped by TYPE —
+                    # shell idioms (incl. the 2026-09-02 pair: Stock only by
+                    # default, and KitOverwriteConfirm's keepAdded / newShower
+                    # with the same `detached` rule — see WediConfigurator.jsx): Kits (every tray a row, grouped by TYPE —
                     # Point/TT/Offset/Linear family headers, each sorted
                     # smallest side then longest with the small side leading
                     # the label, the wedi issue-075 idiom — click one and
