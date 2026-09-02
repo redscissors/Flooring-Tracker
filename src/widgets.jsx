@@ -434,6 +434,42 @@ export function SourceSwitch({ source, onChange, title }) {
   );
 }
 
+// The kit-card confirm both popups raise over customized work (owner ask
+// 2026-09-02): one component so wedi and Schluter can't drift. Three ways
+// forward beside Cancel — Overwrite (the old hard reset), Keep what I added
+// (the room's work rides onto the kit; the old kit's stepped quantities and
+// part swaps don't), New shower (park this build in the basket, start the kit
+// as a second shower). `onNew` is omitted where there is no basket.
+export function KitOverwriteConfirm({ vendor, kitName, kitWord = "stock kit", onCancel, onOverwrite, onKeep, onNew }) {
+  const opt = (label, sub, fn, attr, primary) => (
+    <button onClick={fn} {...{ [attr]: true }}
+      className={"w-full text-left rounded-lg border px-3 py-2 " + (primary ? "border-[color:var(--ft-brand)] bg-white hover:bg-slate-50" : "border-slate-300 bg-white hover:bg-slate-50")}>
+      <div className="text-[12.5px] font-extrabold">{label}</div>
+      <div className="text-[11px] font-semibold leading-snug text-slate-500">{sub}</div>
+    </button>
+  );
+  return (
+    <div className="print:hidden fixed inset-0 z-[80] flex items-center justify-center p-8" style={{ background: "rgba(20,15,10,.5)" }}
+      onClick={(e) => { e.stopPropagation(); onCancel(); }}>
+      <div className={vendor === "wedi" ? "wedi-pop w-full max-w-[500px] rounded-xl overflow-hidden shadow-2xl" : "sch-pop w-full max-w-[500px] rounded-xl overflow-hidden shadow-2xl"}
+        style={{ background: "var(--ft-cream)" }} onClick={(e) => e.stopPropagation()} data-kit-confirm={vendor}>
+        <div className="px-5 pt-4 pb-1 text-[14px] font-extrabold">Start the {kitName} kit?</div>
+        <div className="px-5 pb-3 text-[12px] leading-relaxed" style={{ color: "var(--ft-muted)" }}>
+          This build has been customized — walls, cuts, or parts differ from a {kitWord}.
+        </div>
+        <div className="flex flex-col gap-2 px-5 pb-4">
+          {opt("Overwrite", "Reset everything to the kit's stock setup.", onOverwrite, "data-kit-overwrite", true)}
+          {opt("Keep what I added", "Carry the walls, benches, add-ons and hand-added lines onto this kit. Stepped quantities and part swaps reset.", onKeep, "data-kit-keep")}
+          {onNew && opt("New shower", "Park this build in the basket and start the kit as a second shower.", onNew, "data-kit-new")}
+        </div>
+        <div className="flex gap-2 px-5 py-3 border-t" style={{ borderColor: "var(--ft-border-strong)", background: "var(--ft-sand)" }}>
+          <button className="wbtn" style={{ flex: "none", marginLeft: "auto", padding: "7px 14px" }} onClick={onCancel} data-kit-cancel>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // The wedi/Schluter basket drawer shell (ADR 0035 step 3) — one shared
 // presentation component so the two popups can't drift (the SourceSwitch
 // doctrine). Engine-free: callers hand it pre-priced view rows. Staged rows
