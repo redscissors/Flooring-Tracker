@@ -1,9 +1,25 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normBookItem } from "./orderbook.js";
+import { normBookItem, bookItemData } from "./orderbook.js";
 import { FIXTURE_ROWS } from "./wedifixture.js";
-import { usOf, descOf, adaptRow, adaptBookRows } from "./wediadapter.js";
-import { dims } from "./wedi.js";
+import { usOf, descOf, adaptRow, adaptBookRows, adaptSoRow, adaptSoRows } from "./wediadapter.js";
+import {
+  dims,
+  setSoSource,
+  clearSoSource,
+  soSourceIsBook,
+  stockSourceIs,
+  soSourceIs,
+  missingRequiredParts,
+  catalog,
+  item,
+  setStockSource,
+  clearStockSource,
+  SKU,
+} from "./wedi.js";
+import { parseMapped } from "./pricebook.js";
+import { PRICELIST_SHEETS } from "./wedipricelistfixture.js";
+import { parseWediPricelist } from "./wedibook.js";
 
 const live = () => FIXTURE_ROWS.map((r) => normBookItem(r, "bk_wedi"));
 
@@ -176,4 +192,93 @@ test("descOf: a size inch() cannot represent keeps its own digits", () => {
   assert.match(descOf({ size: "0.5x8.5", description: "Widget" }), /1\/2"x8-1\/2"/);
   assert.match(descOf({ size: "0.3x8.5", description: "Widget" }), /0\.3/);
   assert.doesNotMatch(descOf({ size: "0.3x8.5", description: "Widget" }), /19\/64/);
+});
+
+// The pricelist half, through the REAL pipeline: parser → parseMapped →
+// the jsonb payload → normBookItem. No fixture of parser output exists on
+// purpose (the parser is under test elsewhere); this is what the hook sees.
+const liveSo = () => {
+  const p = parseWediPricelist(PRICELIST_SHEETS);
+  const { items } = parseMapped(p.rows, p.mapping);
+  return items.map((it) => normBookItem({ sku: it.sku, active: true, data: bookItemData(it) }, "bk_wedi_so"));
+};
+
+test("adaptSoRow: one live order-item row to the transcribed soRow contract", () => {
+  const rows = liveSo();
+  assert.equal(rows.length, 261, "guard: the whole pricelist came through the pipeline");
+  const panel = adaptSoRow(rows.find((r) => r.sku === "US8000006"));
+  assert.deepEqual(panel, {
+    us: "US8000006",
+    name: 'wedi® Building Panel 24"x48"x1/8"',
+    size: "Waterproof Tile Backer Board",
+    details: "10 sheets/box",
+    retail: 35.01,                 // normOrderItem rounded the sheet's 35.0069… to 2 dp, as WEDI_SO has it
+    net: 21.22,
+    section: "WEDI BUILDING PANELS",
+    discount: null,                // nothing reads it (spec decision 2)
+    erp: "29952",
+  });
+});
+
+test("adaptSoRow: a row with no wedi part number drops; erp is empty when the sheet printed none", () => {
+  assert.equal(adaptSoRow({ sku: "29WEDIT", description: "Wedi", price: 0, cost: 0, vendorSkus: [] }), null);
+  assert.equal(adaptSoRow(null), null);
+  const frame = adaptSoRow(liveSo().find((r) => r.sku === "676800061"));
+  assert.equal(frame.us, "676800061", "a nine-digit article number is a part number");
+  const sdry = adaptSoRow(liveSo().find((r) => r.sku === "US9176001"));
+  assert.equal(sdry.erp, "", "S-Dry prints no Stock SKUs column");
+  assert.equal(sdry.section, "wedi® S-DRY™ Shower Bases");
+});
+
+test("adaptSoRows: 261 in, 261 out — every pricelist row carries a part number", () => {
+  const out = adaptSoRows(liveSo());
+  assert.equal(out.length, 261);
+  assert.equal(new Set(out.map((r) => r.us)).size, 261);
+  assert.deepEqual(adaptSoRows(null), []);
+});
+
+test("seam: with nothing installed the catalog is the transcribed one — 269 entries, 151 stock", () => {
+  clearStockSource(); clearSoSource();
+  assert.equal(soSourceIsBook(), false);
+  assert.equal(catalog().length, 269);
+  assert.equal(catalog().filter((e) => e.stock).length, 151);
+});
+
+test("seam: setSoSource swaps the pricelist half and clears the memo; clearSoSource restores it", () => {
+  clearStockSource(); clearSoSource();
+  const before = catalog();
+  const rows = adaptSoRows(liveSo());
+  setSoSource(rows);
+  assert.equal(soSourceIsBook(), true);
+  assert.equal(soSourceIs(rows), true, "identity, not a boolean");
+  assert.equal(soSourceIs(rows.slice()), false, "a copy is a different source");
+  assert.notEqual(catalog(), before, "the memo was cleared");
+  assert.equal(catalog().length, 273, "151 stock + 122 special-order (118 + the 4 S-Dry parts the shop does not stock)");
+  assert.ok(item("US8076001"), "an S-Dry board the engine never priced is now an entry");
+  clearSoSource();
+  assert.equal(soSourceIsBook(), false);
+  assert.equal(catalog().length, 269);
+  assert.equal(stockSourceIs(null), true, "nothing installed on the stock side either");
+});
+
+test("seam: an empty pricelist source collapses to the fallback, exactly as the stock installer does", () => {
+  clearStockSource(); clearSoSource();
+  setSoSource([]);
+  assert.equal(soSourceIsBook(), false);
+  assert.equal(catalog().length, 269);
+  clearSoSource();
+});
+
+test("missingRequiredParts: every SKU.* constant resolves on the tables, on the book, and on the mix", () => {
+  clearStockSource(); clearSoSource();
+  assert.deepEqual(missingRequiredParts(), []);
+  setSoSource(adaptSoRows(liveSo()));
+  assert.deepEqual(missingRequiredParts(), [], "the pricelist carries all 24 — S-Dry brought sdrySeal and sdrySealTrowel");
+  setStockSource(adaptBookRows(live()));
+  assert.deepEqual(missingRequiredParts(), []);
+  // The one constant the stock table does NOT carry is the 620 sealant tube;
+  // thin the pricelist of it and the floor names it.
+  setSoSource(adaptSoRows(liveSo()).filter((r) => r.us !== SKU.sealant620Tube));
+  assert.deepEqual(missingRequiredParts(), [SKU.sealant620Tube]);
+  clearStockSource(); clearSoSource();
 });
