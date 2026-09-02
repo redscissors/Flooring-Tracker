@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { normBookItem } from "./orderbook.js";
 import { FIXTURE_ROWS } from "./wedifixture.js";
 import { adaptBookRows } from "./wediadapter.js";
-import { catalog, setStockSource, clearStockSource, kitFor, solve } from "./wedi.js";
+import { catalog, setStockSource, clearStockSource, kitFor, solve, figureConsumables, SKU } from "./wedi.js";
 
 // The zero-drift baseline (spec, "Verification"). Every cost and every retail
 // in the export matches the transcribed table to the cent, so any difference
@@ -89,4 +89,43 @@ test("the pinned engine totals do not move when the book feeds the catalog", () 
 
   assert.deepEqual(afterKit, beforeKit, "kitFor is unchanged");
   assert.deepEqual(afterSol, beforeSol, "solve is unchanged");
+});
+
+// A live book can SUBTRACT rows the transcribed table always had: a re-import
+// that no longer lists a SKU marks it active:false (usebooks.js) and the hook
+// filters it out. kitFor splices figureConsumables' lines straight in and then
+// dereferences l.item.key/.group/.stock, so an unresolvable line would be a
+// TypeError that takes out the popup rather than a dropped row.
+//
+// Measured, because the shape of the code overstates the exposure: 22 of the
+// 24 SKU.* constants also appear in WEDI_SO, so item() still resolves them —
+// as a special-order entry — when the book drops them. Only SKU.sdrySeal and
+// SKU.sdrySealTrowel are stock-only, and both already go through the guarded
+// push(). So this cannot crash TODAY. It becomes reachable when 8b retires
+// WEDI_SO and the pricelist stops backstopping the other 22, which is why the
+// guard goes in now rather than then.
+test("a book that drops hardcoded SKUs never yields a line with no item", () => {
+  clearStockSource();
+  assert.equal(figureConsumables(100, "sausage").lines.length, 2,
+    "guard: both consumable lines resolve on the transcribed table");
+
+  const live = FIXTURE_ROWS.map((r) => normBookItem(r, "bk_wedi"));
+  const gone = new Set([SKU.fastenerKit, SKU.sealantSausage, SKU.sealantTube,
+    SKU.sdrySeal, SKU.sdrySealTrowel]);
+  const thinned = adaptBookRows(live).filter((r) => !gone.has(r.us));
+  assert.ok(thinned.length < 151, "guard: the book really lost rows");
+
+  setStockSource(thinned);
+  // The three consumable codes fall through to their pricelist twins, so the
+  // lines survive — as special-order rows. That is correct, and it is the
+  // reason this is not a live crash.
+  const thin = figureConsumables(100, "sausage");
+  assert.equal(thin.lines.every((l) => l.item), true, "no consumable line carries a null item");
+  assert.equal(thin.lines.every((l) => l.item.stock === false), true,
+    "and they resolved through WEDI_SO, not the book");
+
+  assert.doesNotThrow(() => kitFor("US9100004"), "the kit still builds");
+  assert.equal(kitFor("US9100004").lines.every((l) => l.item), true,
+    "no kit line carries a null item");
+  clearStockSource();
 });

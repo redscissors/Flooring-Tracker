@@ -4433,12 +4433,19 @@ export function figureConsumables(panelSf, form) {
   if (sf > 0) {
     // No per-ft² note (owner ask 2026-07-30): the line reads the kit's own
     // contents — "100 ct … Screws & … Washers with Tabs" — nothing else.
-    lines.push({
-      item: item(SKU.fastenerKit), qty: Math.ceil(fastenerCount / CONSUMABLES.fastenerKitCt),
+    // Guarded like push() is: a live book can SUBTRACT a row the table always
+    // had, and kitFor splices these straight in before dereferencing l.item.
+    // Today both codes survive a thinned book because WEDI_SO also carries
+    // them — 22 of the 24 SKU.* constants have that pricelist twin. 8b retires
+    // WEDI_SO, and then they don't.
+    const fastenerKit = item(SKU.fastenerKit);
+    const sealant = sealantItem(form, false);
+    if (fastenerKit) lines.push({
+      item: fastenerKit, qty: Math.ceil(fastenerCount / CONSUMABLES.fastenerKitCt),
       group: "install", auto: true, note: "",
     });
-    lines.push({
-      item: sealantItem(form, false), qty: Math.ceil(oz / per),
+    if (sealant) lines.push({
+      item: sealant, qty: Math.ceil(oz / per),
       group: "install", auto: true,
       note: CONSUMABLES.sealantOzPerSf + " oz per ft² — " + oz + " oz",
     });
