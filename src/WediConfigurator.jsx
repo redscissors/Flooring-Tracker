@@ -633,7 +633,7 @@ export default function WediConfigurator(props) {
 }
 
 function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schluterBuilderPct,
-  cat, caption,
+  cat, caption = "",
   stockRows, bookStockReady, books, loadBookItems, mortars, mortarDefault,
   onAdd, onAddNew, editing = null, basket, onBasketChange, onMoveEntries, placed, onOpenPlaced, onDeleteKit,
   onQuoteOptions, onClose, areaName, projectName, onConfigChange, embedded = false }) {

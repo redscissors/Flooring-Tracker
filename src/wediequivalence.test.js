@@ -155,9 +155,10 @@ const pickSo = (e) => Object.fromEntries(SO_DERIVED.map((k) => [k, e[k]]));
 // transcription, measured row by row. `details` on ten rows — eight where
 // the sheet's captioned "Additional Details" column carries text the
 // transcription's fixed column 4 never saw, two where the transcription
-// hand-edited the sheet's wording. One of the eight moves a derived field:
-// unitOf() reads "per box", so the sausage gun becomes BX. Anything not in
-// this table that differs is a parser bug.
+// hand-edited the sheet's wording. No `unit` moves; `sizeText` moves on
+// US5000019 and US5000044, because they carry no dimensions and the size
+// line falls back to `details`. Anything not in this table that differs is
+// a parser bug.
 const PINNED_DETAILS = {
   US5000085: "1 Kit",
   US5000013: "12 per case, full cases only",
@@ -170,7 +171,6 @@ const PINNED_DETAILS = {
   US3000001: "Suspended Seat",
   US3000002: "Suspended Seat",
 };
-const PINNED_UNIT = { US5000019: "BX" };
 
 // The S-Dry parts the engine never priced from a pricelist. 32 of the 36 are
 // stocked (they twin a WEDI_STOCK entry — see the twinning test below); these
@@ -189,11 +189,7 @@ test("pricelist half: the book-fed special-order entries equal the transcribed o
   assert.deepEqual(Object.keys(fromBook).filter((k) => !fromTable.some((e) => e.key === k)).sort(), NEW_SO_ONLY.slice().sort(),
     "the only additions are the four S-Dry parts the shop does not stock");
 
-  const expected = fromTable.map((e) => {
-    const x = pickSo(e);
-    if (PINNED_UNIT[e.key]) x.unit = PINNED_UNIT[e.key];
-    return x;
-  });
+  const expected = fromTable.map((e) => pickSo(e));
   const actual = fromTable.map((e) => pickSo(fromBook[e.key]));
   assert.deepEqual(actual, expected);
 
@@ -276,10 +272,10 @@ const GEO_FIELDS = ["w", "d", "t", "len", "sf", "channel"];
 // entry at all — it falls to the generic else-branch, and board() just keeps
 // whatever order the source text's numbers came in. The swap is simply that
 // the ERP description prints "24x48" and the pricelist prints "48 in. x 24
-// in.", with nothing reconciling them. It's display-only because "sdry"-group
-// entries are excluded from group("pan") entirely, so pans()/solve() never
-// see them (wedi.js:4408-4410) — kept OUT of GEOMETRY_GAINS on purpose; any
-// OTHER non-null geometry change still fails.
+// in.", with nothing reconciling them. It's display-only because US3076003's
+// group is "sdry", so group("pan") never returns it — pans()/solve() never
+// see it — kept OUT of GEOMETRY_GAINS on purpose; any OTHER non-null geometry
+// change still fails.
 const GEOMETRY_TRANSPOSED = {
   US3076003: { before: { w: 24, d: 48 }, after: { w: 48, d: 24 } },
 };
@@ -301,6 +297,11 @@ test("stock half: with both books installed, only the 34 newly twinned entries c
   }
   assert.deepEqual(changed.map(([k]) => k).sort(), ALL_CHANGED_KEYS.slice().sort(),
     "exactly the pinned keys changed: 34 new twins (decision 8) + 9 pre-existing stock twins whose details text differs (decision 9)");
+
+  // Closure: every key that actually gained geometry (null -> non-null on
+  // any GEO_FIELDS field) must be exactly GEOMETRY_GAINS' key set, so an
+  // entry that stops gaining can't go dead silently in the table above.
+  const gained = new Set();
 
   for (const [k, diff] of changed) {
     if (PINNED_DETAILS_STOCK_KEYS.includes(k)) {
@@ -336,11 +337,15 @@ test("stock half: with both books installed, only the 34 newly twinned entries c
 
     const gains = GEOMETRY_GAINS[k];
     assert.ok(gains, `${k} changed geometry (${geoDiff.join(", ")}) but is not in GEOMETRY_GAINS — report this, do not allow-list it`);
+    gained.add(k);
     for (const f of geoDiff) {
       assert.equal(stockOnly[k][f], null, `${k}.${f} was not null before the twin arrived — a non-null value changed to a different value, report this`);
       assert.equal(both[k][f], gains[f], `${k}.${f}'s after-value does not match the pinned GEOMETRY_GAINS measurement`);
     }
   }
+
+  assert.deepEqual([...gained].sort(), Object.keys(GEOMETRY_GAINS).sort(),
+    "GEOMETRY_GAINS' key set must equal the keys that actually gained geometry — an entry that stops gaining cannot go dead silently");
 });
 
 test("the pinned engine totals do not move with BOTH books feeding the catalog", () => {

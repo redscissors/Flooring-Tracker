@@ -114,8 +114,9 @@ export function fallbackCaption(onBook, missing) {
   if (!onBook || !onBook.so) off.push("pricelist");
   if (!off.length) return "";
   const parts = [...new Set([...((missing && missing.stock) || []), ...((missing && missing.so) || [])])];
+  const shown = parts.length > 3 ? [...parts.slice(0, 3), "…"].join(", ") : parts.join(", ");
   return " · transcribed " + (off.length === 2 ? "tables" : off[0])
-    + (parts.length ? ` (book is missing ${parts.length} required part${parts.length === 1 ? "" : "s"}: ${parts.join(", ")})` : "");
+    + (parts.length ? ` (book is missing ${parts.length} required part${parts.length === 1 ? "" : "s"}: ${shown})` : "");
 }
 
 // One half's fetch state: the rows AND the id-set they were fetched for

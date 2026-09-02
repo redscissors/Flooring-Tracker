@@ -142,6 +142,22 @@ test("installSources: a pricelist book missing a required part is REFUSED — vi
   clearBoth();
 });
 
+test("installSources: BOTH books missing a required part — the second refusal branch — refuses the pricelist first, then the stock book", () => {
+  clearBoth();
+  const gone = SKU.sdrySealTrowel;   // US5076010, the one constant WEDI_SO lacks
+  const stock = liveStock().filter((r) => r.us !== gone);
+  const so = liveSo().filter((r) => r.us !== gone);
+  const plan = installSources({ stock, so });
+  assert.deepEqual(plan.onBook, { stock: false, so: false });
+  assert.deepEqual(plan.missing.so, [gone]);
+  assert.deepEqual(plan.missing.stock, [gone]);
+  assert.equal(stockSourceIsBook(), false);
+  assert.equal(soSourceIsBook(), false);
+  assert.equal(fallbackCaption(plan.onBook, plan.missing),
+    " · transcribed tables (book is missing 1 required part: US5076010)");
+  clearBoth();
+});
+
 test("installSources: no books at all — both tables, nothing missing; empty rows count as no book", () => {
   clearBoth();
   assert.deepEqual(installSources({ stock: null, so: null }).onBook, { stock: false, so: false });
@@ -160,6 +176,8 @@ test("fallbackCaption: the four states, and the floor's message", () => {
   assert.equal(fallbackCaption({ stock: false, so: false }, { stock: ["US8000017"], so: ["US8000017", "US5000088"] }),
     " · transcribed tables (book is missing 2 required parts: US8000017, US5000088)");
   assert.equal(fallbackCaption(null, null), " · transcribed tables");
+  assert.equal(fallbackCaption({ stock: false, so: false }, { stock: ["A", "B"], so: ["B", "C", "D"] }),
+    " · transcribed tables (book is missing 4 required parts: A, B, C, …)");
 });
 
 test("two halves: catReady is the AND of the two gates — either half waiting holds the popup", () => {

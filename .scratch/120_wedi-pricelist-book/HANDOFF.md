@@ -3,8 +3,8 @@ issue_type: Feature
 summary: "8b — wedi's pricelist half (WEDI_SO) from a registry book, ending the
   re-transcription chore 8a halved. Groundwork only: this directory holds the
   raw pricelist snapshot so the parser can be built without the owner's OneDrive."
-status: ready-for-agent
-labels: [ready-for-agent]
+status: ready-for-human
+labels: [ready-for-human]
 ---
 
 # 8b — the wedi pricelist book

@@ -66,12 +66,13 @@ into decisions 5 and 6 below.
    missing item.
 5. **`discount` is not carried: nothing reads it.** `details` is read by
    caption, not the transcription's column position; the ten rows where that
-   differs are pinned in `wediequivalence.test.js`, one of which
-   (`US5000019`, "1 per box") changes its unit to BX. Measured beyond the
-   spec's text: the pinned-`details` set is not stock-side-free — nine of the
-   ten rows are stock entries whose `details` (and, for the two seats,
-   `sizeText`) now read the pricelist's caption too, since both halves share
-   `makeEntry`'s display layer.
+   differs are pinned in `wediequivalence.test.js`, two of which
+   (`US5000019`, `US5000044`) move only `sizeText`, because they carry no
+   dimensions and the size line falls back to `details`; no `unit` moves.
+   Measured beyond the spec's text: the pinned-`details` set is not
+   stock-side-free — nine of the ten rows are stock entries whose `details`
+   (and, for the two seats, `sizeText`) now read the pricelist's caption too,
+   since both halves share `makeEntry`'s display layer.
 6. **Thirty-four stock entries gain a pricelist twin they never had** (the
    two SS27/SS43 frames and 32 stocked S-Dry parts) and take the pricelist's
    display name, as every twinned row already does. Pinned; the owner saw the

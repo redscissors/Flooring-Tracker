@@ -15,13 +15,12 @@ import { createRoot } from "react-dom/client";
 import "./index.css";
 import WediConfigurator from "./WediConfigurator.jsx";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
-import { normOrderItem } from "./orderbook.js";
+import { normOrderItem, bookItemData, normBookItem } from "./orderbook.js";
 import { newProduct, newArea, landKitLines, appendKitLines, moveKitEntries, placedKits, removeKitLines } from "./model.js";
 import { FIXTURE_ROWS as WEDI_STOCK_ROWS } from "./wedifixture.js";
 import { PRICELIST_SHEETS } from "./wedipricelistfixture.js";
 import { parseWediPricelist } from "./wedibook.js";
 import { parseMapped } from "./pricebook.js";
-import { bookItemData, normBookItem } from "./orderbook.js";
 
 const stockRows = FIXTURE_ITEMS.filter((i) => i.stock).map((i) => normOrderItem({
   sku: i.erp || i.sku, bookId: "bk_stock", description: i.name, vendorSkus: i.erp ? [i.sku] : [],

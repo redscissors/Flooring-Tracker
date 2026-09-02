@@ -309,10 +309,13 @@ Measured 2026-09-02 through the real pipeline, the `details` list is exactly
 ten rows: `US5000085` "1 Kit"; `US5000013`/`US5000088` "12 per case, full
 cases only"; `US5000010`/`US5000083` "20 per case, full cases only";
 `US5000019` "1 per box"; `US5000020` "sold in increments of 10 pcs.";
-`US5000044` "25 pcs/case, full cases only"; and the two seats. **One of them
-moves a derived field:** `unitOf` reads "per box", so `US5000019` (the
-sausage gun) goes from `EA` to `BX`. Pinned with the rest; shown in the
-preview.
+`US5000044` "25 pcs/case, full cases only"; and the two seats. Pinned with
+the rest; shown in the preview.
+
+*Errata 2026-09-02 (final review):* the planning measurement ran `unitOf` on
+the pricelist row alone; on the assembled entry the stock row's unit wins, so
+no `unit` moves. The derived change is `sizeText` on `US5000019` and
+`US5000044`, pinned by the stock-half test.
 
 Anything else that differs is a parser bug, not a judgement call.
 
