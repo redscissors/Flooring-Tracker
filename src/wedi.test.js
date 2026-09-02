@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
+import { rowItemKey, sessionFromRows,
   catalog, item, group, pans, curbs, kitFor, buildFromMarker, solve, figureConsumables, panelPlan,
   openEdges, openCorners, curbRuns, wallSpans, expandWallFaces, WALL_THICK, panThick, BROWSE_SECTIONS, sectionHit,
   tierPrice, lineItems, factoryKit, linearCoverFor, coverFrames, coverFrameFor, dims, round2, inch,
@@ -9,6 +9,7 @@ import {
   normBench, benchFootprint, benchLines, benchPanRoom, benchPanPlan, smallerPanFor, benchPremades,
   BENCH_H, BENCH_DEPTH, BENCH_CORNER_LEG,
   curbWidth, curbInsets, applyCurbInset, CURB_LAP, benchWallShadowSf,
+  setStockSource, clearStockSource, stockSourceIsBook,
 } from "./wedi.js";
 
 // Ported whole from the prototype's self-test
@@ -830,7 +831,7 @@ test("wedi line payloads: the pan anchors the kit, cfg round-trips (requirement 
   assert.equal(rows.length, kit.lines.length, "lineItems: one row per build line");
   assert.ok(rows[0].wedi && rows[0].wedi.cfg && rows[0].wedi.cfg.panKey === "US9100004" && rows[0].wedi.mode === "kit",
     "pan row is the anchor and carries wedi.cfg");
-  assert.ok(rows.slice(1).every((r) => r.wedi && r.wedi.part === true), "companion rows carry wedi.part");
+  assert.ok(rows.slice(1).every((r, i) => r.wedi && r.wedi.part === kit.lines[i + 1].item.key && !r.wedi.cfg), "companion rows carry wedi.part (the line's catalog key)");
   assert.ok(rows[0].tierPrice === "464.13" && rows[0].priceSqft === "566.01",
     "pan row carries the 0.82 builder stamp (566.01 → 464.13)");
   assert.ok((() => {
@@ -1227,4 +1228,81 @@ test("buildFromMarker: junk is null, never a throw", () => {
   assert.equal(buildFromMarker(null), null);
   assert.equal(buildFromMarker({ mode: "kit", cfg: {} }), null);
   assert.equal(buildFromMarker({ mode: "kit", cfg: { panKey: "no-such-pan" } }), null);
+});
+
+test("wedi stock source: nothing installed means the transcribed table, unchanged", () => {
+  clearStockSource();
+  assert.equal(stockSourceIsBook(), false);
+  assert.equal(catalog().filter((e) => e.stock).length, 151);
+});
+
+test("wedi stock source: installing rows swaps the source and rebuilds the index", () => {
+  clearStockSource();
+  // Two probes, chosen deliberately. US5000032 (drain wrench) is one of the 46
+  // stock rows with NO pricelist twin, so pulling it from the stock source
+  // removes it from the catalog entirely. US5000009 DOES have a twin
+  // (WEDI_SO, wedi.js:3571 "wedi® Washer Master Pack") — it must survive the
+  // swap as a special-order entry, which is how this test proves the
+  // pricelist half is untouched. Asserting null for US5000009 would be wrong.
+  assert.equal(item("US5000032").stock, true, "stock-only row starts stocked");
+  assert.equal(item("US5000009").stock, true, "twinned row starts merged as stock");
+
+  setStockSource([{ erp: "99999", desc: "Test Only Widget", cost: 1, retail: 2, unit: "EA", us: "US9999999" }]);
+  assert.equal(stockSourceIsBook(), true);
+  assert.equal(catalog().filter((e) => e.stock).length, 1);
+  assert.ok(item("US9999999"), "the installed row is indexed");
+  assert.equal(item("US5000032"), null, "a stock-only transcribed row is gone");
+  assert.equal(item("US5000009").stock, false,
+    "a twinned row survives as special-order only — WEDI_SO is untouched by the swap");
+
+  clearStockSource();
+  assert.equal(stockSourceIsBook(), false);
+  assert.equal(catalog().filter((e) => e.stock).length, 151, "clearing restores the fallback");
+  assert.equal(item("US5000032").stock, true, "and the index rebuilds with it");
+});
+
+// --- reconfigure reads the placed rows (owner 2026-09-02) --------------------
+
+test("lineItems: every emitted line carries its catalog key so a placed row maps back", () => {
+  const kit = kitFor("US9100004");
+  const rows = lineItems(kit);
+  assert.equal(rows[0].wedi.key, kit.lines[0].item.key);
+  assert.equal(rows[0].wedi.cfg.panKey, kit.lines[0].item.key);
+  rows.slice(1).forEach((r, i) => assert.equal(r.wedi.part, kit.lines[i + 1].item.key));
+  assert.ok(rows.slice(1).every((r) => r.wedi.part && !r.wedi.cfg));
+});
+
+test("rowItemKey: the stamped key, else the shop number, else the US lead of a legacy row", () => {
+  const kit = kitFor("US9100004");
+  const stockLine = kit.lines.find((l) => l.item.stock && l.item.erp);
+  const so = catalog().find((e) => !e.stock && e.us);
+  assert.equal(rowItemKey({ wedi: { part: stockLine.item.key } }), stockLine.item.key);
+  assert.equal(rowItemKey({ wedi: { part: true }, sku: stockLine.item.erp }), stockLine.item.key);
+  assert.equal(rowItemKey({ wedi: { part: true }, sku: "", brandColor: "wedi " + so.us + " — " + so.name }), so.key);
+  assert.equal(rowItemKey({ wedi: { part: true }, sku: "", brandColor: "wedi — something the catalog never had" }), null);
+  assert.equal(rowItemKey({ sku: stockLine.item.erp }), null, "a searched-in row with no marker is not a kit line");
+});
+
+test("sessionFromRows: a sheet-edited quantity reopens as the override; a missing line steps to 0; a stray row is a manual extra", () => {
+  const kit = kitFor("US9100004");
+  const rows = lineItems(kit).map((r) => ({ ...r, id: r.wedi.key || r.wedi.part }));
+  const [pan, second, third] = kit.lines;
+  const edited = rows.map((r) => (r.wedi.part === second.item.key ? { ...r, qty: String(second.qty + 2) } : r))
+    .filter((r) => r.wedi.part !== third.item.key);
+  const strayKey = catalog().find((e) => !kit.lines.some((l) => l.item.key === e.key)).key;
+  const extra = { sku: "", brandColor: "wedi — whatever", qty: "4", wedi: { part: strayKey } };
+  const s = sessionFromRows(kit.lines, [...edited, extra]);
+  assert.equal(s.qtyOv[pan.item.key], undefined, "an untouched line takes no override");
+  assert.equal(s.qtyOv[second.item.key], second.qty + 2);
+  assert.equal(s.qtyOv[third.item.key], 0);
+  assert.deepEqual(s.manual, [{ key: strayKey, qty: 4 }]);
+});
+
+test("sessionFromRows: rows that resolve to nothing leave the session empty rather than zeroing the kit", () => {
+  const kit = kitFor("US9100004");
+  assert.deepEqual(sessionFromRows(kit.lines, [{ wedi: { part: true }, sku: "", brandColor: "wedi — ???", qty: "1" }]), { qtyOv: {}, manual: [] });
+  assert.deepEqual(sessionFromRows(kit.lines, []), { qtyOv: {}, manual: [] });
+  // a blank qty is "not said", never a zero
+  const rows = lineItems(kit).map((r) => ({ ...r, qty: "" }));
+  assert.deepEqual(sessionFromRows(kit.lines, rows), { qtyOv: {}, manual: [] });
 });

@@ -4076,6 +4076,16 @@ function classify(us, name) {
 // ============================================================================
 
 let CAT = null, INDEX = null;
+// The live stock-kind book's rows, installed by useWediCatalog (spec
+// 2026-09-01, decision 3). Null means no book — buildCatalog falls back to the
+// transcribed WEDI_STOCK table, which is the ONLY situation the fallback is
+// legitimate in. The hook never installs while a book exists but has not
+// loaded; it waits instead, so a slow fetch can never quote stale prices.
+let STOCK_SRC = null;
+// The live order-kind book's rows for the pricelist half (spec 2026-09-02,
+// 8b), installed by the same hook under the same rule: null means no book and
+// buildCatalog falls back to the transcribed WEDI_SO table.
+let SO_SRC = null;
 
 function unitOf(stockRow, soRow) {
   if (stockRow && stockRow.unit) return stockRow.unit;
@@ -4304,7 +4314,8 @@ function makeEntry(stockRow, soRow) {
 }
 
 function buildCatalog() {
-  const soRows = WEDI_SO.filter((r) => !r.kitNote);
+  const rows = STOCK_SRC || WEDI_STOCK;
+  const soRows = (SO_SRC || WEDI_SO).filter((r) => !r.kitNote);
   const byErp = {}, byUs = {};
   soRows.forEach((r) => {
     if (r.erp) byErp[r.erp] = r;
@@ -4314,7 +4325,7 @@ function buildCatalog() {
   // Stock outranks a matching pricelist row: one entry, stock:true, cost and
   // retail off the ERP (the pricelist figures ride along as soRetail/soNet —
   // the two linear extensions are the only pair that disagree).
-  WEDI_STOCK.forEach((row) => {
+  rows.forEach((row) => {
     const so = (row.erp && byErp[row.erp]) || (row.us && byUs[row.us]) || null;
     if (so) used[so.us] = true;
     out.push(makeEntry(row, so));
@@ -4329,13 +4340,62 @@ function buildCatalog() {
     if (e.erp && !INDEX[e.erp]) INDEX[e.erp] = e;
   });
   // The ERP mis-keys one Subliner roll as US50000005; keep it findable.
-  WEDI_STOCK.forEach((row) => { if (row.us && !INDEX[row.us] && INDEX[row.erp]) INDEX[row.us] = INDEX[row.erp]; });
+  rows.forEach((row) => { if (row.us && !INDEX[row.us] && INDEX[row.erp]) INDEX[row.us] = INDEX[row.erp]; });
   return out;
 }
 
 export function catalog() {
   if (!CAT) CAT = buildCatalog();
   return CAT;
+}
+
+/**
+ * Install the live book's adapted rows as the stock source, or clear back to
+ * the transcribed fallback. Clearing both memos is what makes item()/group()/
+ * pans() — all ~30 call sites — follow the swap without changing their
+ * signatures (spec decision 4).
+ *
+ * Module-level state, deliberately: it is what lets the whole engine answer
+ * "which vintage am I quoting?" with ONE answer. The cost is that every lazy
+ * entry point reaching wedi.js must install first — see useWediCatalog, which
+ * is the single place allowed to call this.
+ */
+export function setStockSource(rows) {
+  STOCK_SRC = rows && rows.length ? rows : null;
+  CAT = null; INDEX = null;
+}
+export function clearStockSource() {
+  STOCK_SRC = null;
+  CAT = null; INDEX = null;
+}
+export function stockSourceIsBook() {
+  return STOCK_SRC !== null;
+}
+export function setSoSource(rows) {
+  SO_SRC = rows && rows.length ? rows : null;
+  CAT = null; INDEX = null;
+}
+export function clearSoSource() {
+  SO_SRC = null;
+  CAT = null; INDEX = null;
+}
+export function soSourceIsBook() {
+  return SO_SRC !== null;
+}
+// Identity, not a boolean: the hook's re-assert effect has to tell book A's
+// rows from book B's, which stockSourceIsBook() cannot.
+export function stockSourceIs(rows) {
+  return STOCK_SRC === (rows && rows.length ? rows : null);
+}
+export function soSourceIs(rows) {
+  return SO_SRC === (rows && rows.length ? rows : null);
+}
+// The plausibility floor (spec decision 6): the hardcoded parts the kit
+// builder dereferences, checked against what the INSTALLED sources actually
+// resolve — whichever mix of book and table each half is on.
+export function missingRequiredParts() {
+  catalog();
+  return Object.values(SKU).filter((k) => !INDEX[k]);
 }
 export function item(key) {
   catalog();
@@ -4403,12 +4463,19 @@ export function figureConsumables(panelSf, form) {
   if (sf > 0) {
     // No per-ft² note (owner ask 2026-07-30): the line reads the kit's own
     // contents — "100 ct … Screws & … Washers with Tabs" — nothing else.
-    lines.push({
-      item: item(SKU.fastenerKit), qty: Math.ceil(fastenerCount / CONSUMABLES.fastenerKitCt),
+    // Guarded like push() is: a live book can SUBTRACT a row the table always
+    // had, and kitFor splices these straight in before dereferencing l.item.
+    // Today both codes survive a thinned book because WEDI_SO also carries
+    // them — 22 of the 24 SKU.* constants have that pricelist twin. 8b retires
+    // WEDI_SO, and then they don't.
+    const fastenerKit = item(SKU.fastenerKit);
+    const sealant = sealantItem(form, false);
+    if (fastenerKit) lines.push({
+      item: fastenerKit, qty: Math.ceil(fastenerCount / CONSUMABLES.fastenerKitCt),
       group: "install", auto: true, note: "",
     });
-    lines.push({
-      item: sealantItem(form, false), qty: Math.ceil(oz / per),
+    if (sealant) lines.push({
+      item: sealant, qty: Math.ceil(oz / per),
       group: "install", auto: true,
       note: CONSUMABLES.sealantOzPerSf + " oz per ft² — " + oz + " oz",
     });
@@ -5076,8 +5143,11 @@ export function kitFor(panKey, opts) {
 
   // --- walls -----------------------------------------------------------------
   const sheets = panel && panel.sf ? Math.ceil(panelSf / panel.sf) : 0;
-  push(lines, panel, sheets, "walls",
+  // A live book can drop the default panel; the floor in usewedicatalog.js
+  // refuses such a book, and this is the belt to that brace.
+  if (panel) push(lines, panel, sheets, "walls",
     round2(panelSf) + " sf of wall — " + (panel.sf || 0) + " sf/sheet", true);
+  else hints.push("no-panel");
 
   // --- benches ---------------------------------------------------------------
   const bl = benchLines(benches, roomDims, panel);
@@ -5109,8 +5179,9 @@ export function kitFor(panKey, opts) {
     const ch = pan.channel || (option && option.drain && option.drain.len) || 0;
     cover = linearCoverFor(ch, opts.coverFinish || "SS");
   } else cover = item(SKU.coverSS);
-  push(lines, cover, 1, "drain", "", true);
-  const frame = opts.coverFrame ? coverFrameFor(cover, opts.coverFrame === true ? null : opts.coverFrame) : null;
+  if (cover) push(lines, cover, 1, "drain", "", true);
+  else hints.push("no-cover");
+  const frame = cover && opts.coverFrame ? coverFrameFor(cover, opts.coverFrame === true ? null : opts.coverFrame) : null;
   if (frame) push(lines, frame, 1, "drain", "trim ring around the cover", true);
 
   // --- curbless waterproofing ------------------------------------------------
@@ -6021,7 +6092,61 @@ export function lineItems(build, opts) {
       costSqft: String(round2(e.cost)),
       markupPct: "",
       tierPrice: String(round2(e.retail * mult)),
-      wedi: anchor ? mark : { part: true },
+      wedi: anchor ? { ...mark, key: e.key } : { part: e.key },
     };
   });
 }
+
+// Which catalog entry a placed project row is: the key its marker carries
+// (lineItems stamps every line since 2026-09-02), else the shop number a
+// stocked line lands as its sku, else the US code a special-order line leads
+// its name with — the two legacy `part: true` shapes. Null for a row that is
+// not a wedi kit line at all (a searched-in row has no marker).
+export function rowItemKey(row) {
+  const m = row && row.wedi;
+  if (!m) return null;
+  const direct = typeof m.part === "string" ? m.part : typeof m.key === "string" ? m.key : "";
+  const e = (direct && item(direct)) || (row.sku && item(String(row.sku))) || null;
+  if (e) return e.key;
+  const us = /^wedi (US\d+) —/.exec(String(row.brandColor || ""));
+  const e2 = us && item(us[1]);
+  return e2 ? e2.key : null;
+}
+
+// The session a placed kit's rows imply, so Reconfigure reopens on what the
+// sheet says rather than the recipe's figures (owner 2026-09-02): `lines` is
+// the kit rebuilt from its marker with the default session applied, `rows`
+// the kit's rows (model.js kitRows). A line whose rows total differently takes
+// that total as its override, a line with no row left steps to 0, and a row
+// the build doesn't produce is a manual extra. A blank qty is "not said" —
+// never a zero. Rows resolving to no entry are ignored, and when none resolve
+// the session stays empty rather than zeroing the whole kit.
+export function sessionFromRows(lines, rows) {
+  const qtyOv = {}, manual = [];
+  const totals = new Map();
+  let matched = 0;
+  for (const r of rows || []) {
+    const key = rowItemKey(r);
+    if (!key) continue;
+    matched++;
+    if (String(r.qty ?? "").trim() === "") continue;
+    totals.set(key, (totals.get(key) || 0) + (Number(r.qty) || 0));
+  }
+  if (!matched) return { qtyOv, manual };
+  const want = new Map(), auto = new Map();
+  for (const l of lines || []) {
+    const key = l.item && l.item.key;
+    if (!key) continue;
+    want.set(key, (want.get(key) || 0) + l.qty);
+    if (l.auto !== false) auto.set(key, true);
+  }
+  for (const [key, w] of want) {
+    const have = totals.has(key) ? totals.get(key) : matchedKeys(rows).has(key) ? null : 0;
+    if (have == null || have === w) continue;
+    if (auto.get(key)) qtyOv[key] = have;
+    else if (have > w) manual.push({ key, qty: have - w });
+  }
+  for (const [key, q] of totals) if (!want.has(key) && q > 0) manual.push({ key, qty: q });
+  return { qtyOv, manual };
+}
+const matchedKeys = (rows) => new Set((rows || []).map(rowItemKey).filter(Boolean));

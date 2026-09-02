@@ -585,6 +585,44 @@ test("mergeSearch: the EFT's re-lettered twin collides with the stock row's mfg 
   assert.deepEqual(s[0].alsoOn, ["eft"]);
 });
 
+test("mergeSearch: a stocked twin the typed words missed is surfaced off the whole cache", () => {
+  // The 3x5 wedi panel: the ERP export reads "Wedi Building Panel - US8000017"
+  // (size 3'x5'), the pricelist "wedi® Building Panel 36\"x60\"x1/2\"" — a size
+  // or thickness search hits only the vendor row, which then filed as a
+  // special order for a sheet the shop stocks.
+  const twin = { sku: "47700", vendorSkus: ["US8000017"], description: "Wedi Building Panel - US8000017", active: true };
+  const gone = { sku: "47701", vendorSkus: ["US8000099"], description: "Retired panel", active: true, discontinued: true };
+  const all = [{ sku: "1", description: "other" }, twin, gone];
+  const order = [
+    { sku: "US8000017", bookId: "wedi-pl", vendorSkus: ["47700"], description: "wedi® Building Panel 36\"x60\"x1/2\"" },
+    { sku: "US8000099", bookId: "wedi-pl", description: "wedi® Retired panel" },
+  ];
+  const { stock: s, order: o } = mergeSearch([], order, all);
+  assert.deepEqual(s.map((it) => it.sku), ["47700"]);
+  assert.deepEqual(s[0].alsoOn, ["wedi-pl"]);
+  assert.equal(s[0].matchedAs.sku, "US8000017");
+  assert.ok(!twin.alsoOn, "the shared cache object is never tagged");
+  assert.deepEqual(o.map((it) => it.sku), ["US8000099"], "a retired twin leaves the vendor row standing");
+  // the same twin off two vendor rows surfaces once
+  const two = mergeSearch([], [order[0], { ...order[0], bookId: "wedi-other" }], all);
+  assert.equal(two.stock.length, 1);
+  assert.deepEqual(two.stock[0].alsoOn, ["wedi-pl", "wedi-other"]);
+  // the vendor row's own ERP code alone is enough to find the twin
+  const byErp = mergeSearch([], [{ sku: "X1", bookId: "b", vendorSkus: ["47700"] }], all);
+  assert.deepEqual(byErp.stock.map((it) => it.sku), ["47700"]);
+  // a twin already among the stock matches is tagged, not doubled
+  const direct = mergeSearch([{ ...twin }], order, all);
+  assert.equal(direct.stock.length, 1);
+});
+
+test("rankMerged: a surfaced twin ranks as the vendor row it stands in for", () => {
+  const twin = { sku: "47700", vendorSkus: ["US8000017"], description: "Wedi Building Panel - US8000017", active: true };
+  const order = [{ sku: "US8000017", bookId: "wedi-pl", description: "wedi® Building Panel 36\"x60\"x1/2\"" }];
+  const loose = { sku: "9", description: "wedi 36x60 something loosely matching", active: true };
+  const out = rankMerged([loose], order, "panel 36\"x60\"", [twin, loose]);
+  assert.deepEqual(out.map((it) => it.sku), ["47700", "9"]);
+});
+
 // --- cross-tier ranking ------------------------------------------------------
 
 test("rankMerged: an exact special-order hit outranks a loose stock one", () => {

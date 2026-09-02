@@ -11,11 +11,11 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Plus, Eye, Printer, Copy } from "lucide-react";
-import { useEscClose, SourceSwitch, NumIn, KitBasketPanel } from "./widgets.jsx";
+import { useEscClose, SourceSwitch, NumIn, KitBasketPanel, KitOverwriteConfirm } from "./widgets.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
   trayCandidates, pickRolls, buildKit, tierPrice, lineItems, orderCopyLines, normBench, benchTrayRoom,
-  boardPlan, expandBoardFaces, wallArea, halfBoardPool, buildFromMarker,
+  boardPlan, expandBoardFaces, wallArea, halfBoardPool, buildFromMarker, ovKey, sessionFromRows,
 } from "./schluter.js";
 import { mortarItemFrom, MORTAR_BED_SF_PER_BAG } from "./schluteradapter.js";
 import { useSchluterCatalog } from "./useschlutercatalog.js";
@@ -368,7 +368,9 @@ function seedState(seed) {
     walls: DEF_WALLS.map((x) => ({ ...x })), xwalls: [], wallH: String(DEF_WALL_H),
     corners: {}, maxIn: false, tileT: "", benches: [], mortarName: "", ramp: false,
     drainX: "", drainY: "", drainRef: "left",
-    manual: [], q: "", source: "all", kitPick: false, pick: null, swaps: {},
+    // Stock only by default (owner 2026-09-02); a saved marker reopens under
+    // the catalog it was built from (below).
+    manual: [], q: "", source: "stock", kitPick: false, pick: null, swaps: {},
   };
   if (!seed) return s;
   const cfg = seed.cfg;
@@ -440,7 +442,7 @@ function seedState(seed) {
 }
 
 export default function SchluterConfigurator({
-  seed, tier, onTierChange, schluterBuilderPct, wediBuilderPct, onAdd, onAddNew, editing = null,
+  seed, tier, onTierChange, schluterBuilderPct, wediBuilderPct, onAdd, onAddNew, editing = null, editRows = null,
   basket, onBasketChange, onMoveEntries, placed, onOpenPlaced, onDeleteKit,
   onClose, areaName, projectName,
   onConfigChange, onQuoteOptions, embedded = false,
@@ -715,7 +717,6 @@ export default function SchluterConfigurator({
     return out;
   };
 
-  const ovKey = (l) => l.g + "|" + (l.item.sku || l.item.name);
   // a stepped quantity keeps winning over the recipe's figure while the
   // line survives; stepped to 0 the line leaves the bill (the wedi rule).
   // The basket drawer runs it too, so a staged entry prices the build that
@@ -735,6 +736,24 @@ export default function SchluterConfigurator({
     return b;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cfg, cat, source, pickCand, manual, qtyOv, plan]);
+  // A Reconfigure opens on what the sheet says (owner 2026-09-02, the wedi
+  // rule): the placed rows are the truth once a kit lands, so a quantity
+  // typed on a row — or stepped here before Add — is the session this
+  // reopens with. Derived once the catalog is up, off the marker rebuilt the
+  // way the basket drawer prices a placed kit (default session, Fit on).
+  const rowsSeeded = useRef(false);
+  useEffect(() => {
+    if (rowsSeeded.current || !editing || !editRows?.length || !seed?.cfg?.w || !catReady || !cat.length) return;
+    rowsSeeded.current = true;
+    const b = buildFromMarker(seed, cat);
+    if (!b) return;
+    const c2 = seed.cfg;
+    const lines = applyBoardPlan(b.lines, c2, c2.wallSys === "board" ? boardPlan(expandBoardFaces(c2), cat, { source: c2.source === "stock" ? "stock" : "all" }) : null);
+    const s = sessionFromRows(lines, editRows, cat);
+    if (Object.keys(s.qtyOv).length) setQtyOv(s.qtyOv);
+    if (s.manual.length) setManual((m) => [...m, ...s.manual]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catReady, cat]);
   const mode = kitPick && !manual.length && !benches.length && !liveXwalls.length && !cfg.drainX && !cfg.drainY
     && !(cfg.corners || []).length && !cfg.maxIn && !cfg.ramp && !cfg.swaps ? "kit" : "custom";
   // the saved marker records the PICKED tray too — Reconfigure must reopen on
@@ -778,21 +797,33 @@ export default function SchluterConfigurator({
   const placedViews = useMemo(() => (placed || []).map((k) => ({ ...k, ...entryView(k.marker) })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [placed, catReady, cat, tierId, customPct, salePct, bPct, panelFit]);
-  const addToBasket = () => {
-    if (!build || !onBasketChange) return;
+  // "New shower" on the kit-row confirm parks the standing build in the
+  // basket and DETACHES the popup from the kit it was opened on: from then on
+  // the build is a new kit — it appends instead of replacing, and Basket
+  // stages a new entry rather than another update of the same row (the wedi
+  // rule, 2026-09-02).
+  const [detached, setDetached] = useState(false);
+  const edit = detached ? null : editing;
+  const commitLines = detached && onAddNew ? onAddNew : onAdd;
+  const stageBuild = ({ open = true } = {}) => {
+    if (!build || !onBasketChange) return false;
     const entry = normKitBasketEntry({
       addedAt: Date.now(), snap: { mode, cfg: JSON.parse(JSON.stringify(markCfg)) },
       session: { qtyOv: { ...qtyOv }, panelFit },
-      target: editing || undefined,
+      target: edit || undefined,
     });
-    if (!entry) return;
+    if (!entry) return false;
     // One pending update per kit: staging a second edit of the same kit
     // REPLACES the first, or moving both would land one on top of the other.
     const rest = entry.target ? (basket || []).filter((b) => b.target?.rowId !== entry.target.rowId) : (basket || []);
     onBasketChange([...rest, entry]);
-    setBasketOpen(true);
-    say(entry.target ? "Update staged — moving it replaces this kit's lines" : "Staged in the basket — saved with this job");
+    if (open) {
+      setBasketOpen(true);
+      say(entry.target ? "Update staged — moving it replaces this kit's lines" : "Staged in the basket — saved with this job");
+    }
+    return true;
   };
+  const addToBasket = () => stageBuild();
   const moveEntries = (ids) => {
     const picked = (basket || []).filter((b) => ids.includes(b.id));
     const views = picked.map((e) => stagedViews.find((v) => v.id === e.id)).filter((v) => v && v.lines);
@@ -1077,6 +1108,26 @@ export default function SchluterConfigurator({
     setWallSys(sys);
     setW(String(t.w)); setD(String(t.d)); setDrain(t.drain); setCurbed(!t.thin);
     setPick(t.sku); setKitPick(true);
+  };
+  // "Keep what I added" (owner 2026-09-02): the kit takes the room's work —
+  // walls, extra walls, corners, wall height, drain position, benches,
+  // mortar, ramp, tile, hand-added lines — and drops what belonged to the
+  // OLD tray: stepped quantities and part swaps. A typed wall length that
+  // only tracked the old tray clears and follows the new one (the wedi
+  // retune rule); "Max — curb inside" resets because a kit's size IS the
+  // tray size.
+  const keepAdded = (t) => {
+    setWalls((ws) => ws.map((x, i) => (+x.len > 0 && Math.abs(+x.len - (i === 0 ? cfg.w : cfg.d)) < 0.01 ? { ...x, len: "" } : x)));
+    setPlacing(false); setWallMenu(null); setBenchMenu(null); setPicker(null); setSwap(null);
+    setSwaps({}); setQtyOv({}); setMaxIn(false);
+    setW(String(t.w)); setD(String(t.d)); setDrain(t.drain); setCurbed(!t.thin);
+    setPick(t.sku); setKitPick(true);
+  };
+  const newShower = (t) => {
+    const parked = stageBuild({ open: false });
+    setDetached(true);
+    pickKit(t);
+    say((parked ? "Parked in the basket — the " : "Nothing to park — the ") + rowSz(t) + " kit starts as a new shower");
   };
 
   const kitsTab = !catReady || !cat.length ? loadingPane : (
@@ -1612,7 +1663,7 @@ export default function SchluterConfigurator({
               : <><Eye size={11} /> cost &amp; margin</>}
           </button>
           <div className="btnrow">
-            <button className="wbtn primary" onClick={() => setPayload(rows)} data-schluter-add><Plus size={13} /> {editing ? "Update this kit" : "Add to product lines"}</button>
+            <button className="wbtn primary" onClick={() => setPayload(rows)} data-schluter-add><Plus size={13} /> {edit ? "Update this kit" : "Add to product lines"}</button>
             {onBasketChange && <button className="wbtn" onClick={addToBasket} data-schluter-add-basket><Plus size={13} /> Basket</button>}
             <button className="wbtn" disabled={!diag} onClick={() => setPrinting(true)} data-schluter-print><Printer size={13} /> Print layout</button>
             <button className="wbtn" onClick={copyList} data-schluter-copy><Copy size={13} /> Order entry</button>
@@ -1676,8 +1727,8 @@ export default function SchluterConfigurator({
       <div className="sch-pop w-full max-w-[900px] max-h-[82vh] flex flex-col rounded-xl overflow-hidden shadow-2xl"
         style={{ background: "var(--ft-cream)" }} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2.5 px-4 py-3 border-b" style={{ borderColor: "var(--ft-border-strong)" }}>
-          <div className="text-sm font-extrabold">{editing ? "Update this kit — the payload" : "Add to product lines — the payload"}</div>
-          <div className="text-[11px] font-semibold text-slate-500">{payload.length} rows {editing ? "replace this kit's lines" : "land on the job sheet"}{areaName ? " in " + areaName : ""}</div>
+          <div className="text-sm font-extrabold">{edit ? "Update this kit — the payload" : "Add to product lines — the payload"}</div>
+          <div className="text-[11px] font-semibold text-slate-500">{payload.length} rows {edit ? "replace this kit's lines" : "land on the job sheet"}{areaName ? " in " + areaName : ""}</div>
           <button className="xbtn ml-auto" onClick={() => setPayload(null)}><X size={15} /></button>
         </div>
         <div className="flex-1 overflow-y-auto px-4 py-3">
@@ -1711,15 +1762,15 @@ export default function SchluterConfigurator({
         <div className="flex items-center gap-2 px-4 py-3 border-t" style={{ borderColor: "var(--ft-border-strong)", background: "var(--ft-sand)" }}>
           <span className="text-[11px] font-semibold text-slate-500">Quantities and prices stay editable on the row afterwards.</span>
           <button className="wbtn" style={{ flex: "none", padding: "8px 14px" }} onClick={() => setPayload(null)}>Cancel</button>
-          {editing && onAddNew && (
+          {edit && onAddNew && (
             <button className="wbtn" style={{ flex: "none", padding: "8px 14px" }} data-schluter-addnew
               onClick={() => { setPayload(null); onAddNew(payload); }}>
               <Plus size={13} /> Add as a new kit
             </button>
           )}
           <button className="wbtn primary" style={{ flex: "none", padding: "8px 16px" }} data-schluter-confirm
-            onClick={() => { setPayload(null); onAdd(payload); }}>
-            <Plus size={13} /> {editing ? "Update" : "Add"} {payload.length} row{payload.length === 1 ? "" : "s"}
+            onClick={() => { setPayload(null); commitLines(payload); }}>
+            <Plus size={13} /> {edit ? "Update" : "Add"} {payload.length} row{payload.length === 1 ? "" : "s"}
           </button>
         </div>
       </div>
@@ -2080,25 +2131,16 @@ export default function SchluterConfigurator({
   })();
 
   // Kit row over customized work: confirm before wiping it (the wedi
-  // overwrite modal).
-  const confirmModal = confirmKit && (
-    <div className="print:hidden fixed inset-0 z-[80] flex items-center justify-center p-8" style={{ background: "rgba(20,15,10,.5)" }}
-      onClick={(e) => { e.stopPropagation(); setConfirmKit(null); }}>
-      <div className="sch-pop w-full max-w-[460px] rounded-xl overflow-hidden shadow-2xl" style={{ background: "var(--ft-cream)" }}
-        onClick={(e) => e.stopPropagation()} data-schluter-overwrite>
-        <div className="px-5 pt-4 pb-1 text-[14px] font-extrabold">Overwrite the custom shower?</div>
-        <div className="px-5 pb-4 text-[12px] leading-relaxed" style={{ color: "var(--ft-muted)" }}>
-          This build has been customized — walls, cuts, or parts differ from a shelf kit. Starting the{" "}
-          <b style={{ color: "var(--ft-text)" }}>{rowSz(confirmKit)}</b> kit resets all of it.
-        </div>
-        <div className="flex gap-2 px-5 py-3 border-t" style={{ borderColor: "var(--ft-border-strong)", background: "var(--ft-sand)" }}>
-          <button className="wbtn" onClick={() => setConfirmKit(null)}>Keep the custom shower</button>
-          <button className="wbtn primary" data-schluter-overwrite-yes
-            onClick={() => { const t = confirmKit; setConfirmKit(null); pickKit(t); }}>Overwrite — start the kit</button>
-        </div>
-      </div>
-    </div>
-  );
+  // overwrite modal, KitOverwriteConfirm — three ways forward, 2026-09-02).
+  const confirmModal = confirmKit && (() => {
+    const done = (fn) => () => { const t = confirmKit; setConfirmKit(null); fn(t); };
+    return (
+      <KitOverwriteConfirm vendor="schluter" kitName={rowSz(confirmKit)} kitWord="shelf kit"
+        onCancel={() => setConfirmKit(null)}
+        onOverwrite={done(pickKit)} onKeep={done(keepAdded)}
+        onNew={onBasketChange ? done(newShower) : undefined} />
+    );
+  })();
 
   // The print layout (round 8, the wedi sheet): both drawings, the cut list
   // and by-others notes, and the materials table through the tier lens —
@@ -2157,12 +2199,22 @@ export default function SchluterConfigurator({
 
   // The compare surface spans the whole body — its own two-column grid IS the
   // comparison, so the build column and the drawings rail step aside.
+  //
+  // The registry bag below is what the tab needs to assemble the OTHER engine's
+  // catalog — here, wedi's. wedi.js's catalog is installable module state, see
+  // usewedicatalog.js. With nothing installed, the tab's wedi column prices
+  // off the transcribed WEDI_STOCK table, and its quote-options footer commits
+  // those prices into the project. This popup does NOT call the hook itself —
+  // that would drag wedi.js's tables into the Schluter chunk, which the lazy
+  // boundary above exists to prevent — so the install happens inside the
+  // compare chunk, where both engines already live.
   const compareTab = (
     <Suspense fallback={null}>
       <CompareTab host="schluter" hostCfg={markCfg} hostBuild={build} cat={cat}
         hostMode={mode}
         source={source} tier={tierId}
         wediBuilderPct={wediBuilderPct} schluterBuilderPct={bPct}
+        books={books} loadBookItems={loadBookItems} bookStockReady={bookStockReady}
         mortars={mortars} mortarDefault={mortarDefault}
         areaName={areaName} onQuoteOptions={onQuoteOptions} />
     </Suspense>

@@ -1133,7 +1133,58 @@ export function lineItems(build, opts) {
       costSqft: String(tierPrice(e, "cost", {})),
       markupPct: "",
       tierPrice: String(tierPrice(e, "builder", opts)),
-      schluter: i === 0 ? mark : { part: true },
+      schluter: i === 0 ? { ...mark, key: e.sku } : { part: e.sku },
     };
   });
+}
+
+// A stepped line's override key — the group and the sku, because one part
+// can sit in two groups of a build (a board in Walls and in Extras).
+export const ovKey = (l) => l.g + "|" + (l.item.sku || l.item.name);
+
+// Which catalog entry a placed project row is: the sku its marker carries
+// (lineItems stamps every line since 2026-09-02), else the shop number a
+// stocked line lands as its sku (a legacy `part: true` row). Null for a row
+// that is not a Schluter kit line at all.
+export function rowItemEntry(row, cat) {
+  const m = row && row.schluter;
+  if (!m || !(cat || []).length) return null;
+  const direct = typeof m.part === "string" ? m.part : typeof m.key === "string" ? m.key : "";
+  return (direct && cat.find((e) => e.sku === direct))
+    || (row.sku && cat.find((e) => e.sku === row.sku || e.erp === row.sku)) || null;
+}
+
+// The session a placed kit's rows imply, so Reconfigure reopens on what the
+// sheet says rather than the recipe's figures (owner 2026-09-02; wedi.js's
+// sessionFromRows, in this engine's shapes): `lines` is the kit rebuilt from
+// its marker with the board plan applied. A line whose rows total differently
+// takes that total as its override (ovKey), a line with no row left steps to
+// 0, and a row the build doesn't produce is a manual extra { sku, qty }. A
+// blank qty is "not said". When no row resolves the session stays empty
+// rather than zeroing the kit.
+export function sessionFromRows(lines, rows, cat) {
+  const qtyOv = {}, manual = [];
+  const totals = new Map(), present = new Set();
+  for (const r of rows || []) {
+    const e = rowItemEntry(r, cat);
+    if (!e) continue;
+    present.add(e.sku);
+    if (String(r.qty ?? "").trim() === "") continue;
+    totals.set(e.sku, (totals.get(e.sku) || 0) + (Number(r.qty) || 0));
+  }
+  if (!present.size) return { qtyOv, manual };
+  const want = new Map();
+  for (const l of lines || []) {
+    if (l.noteOnly || !l.item) continue;
+    const sku = l.item.sku;
+    if (!want.has(sku)) want.set(sku, { qty: 0, line: l });
+    want.get(sku).qty += l.qty;
+  }
+  for (const [sku, w] of want) {
+    const have = totals.has(sku) ? totals.get(sku) : present.has(sku) ? null : 0;
+    if (have == null || have === w.qty) continue;
+    qtyOv[ovKey(w.line)] = have;
+  }
+  for (const [sku, q] of totals) if (!want.has(sku) && q > 0) manual.push({ sku, qty: q });
+  return { qtyOv, manual };
 }

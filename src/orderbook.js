@@ -429,18 +429,35 @@ export function skuKeys(code) {
 // on, so the UI can show an "also on {book}" note instead of a second,
 // differently-priced row. Which space a surviving hit RENDERS in is
 // rankMerged's call, not this one's.
-export function mergeSearch(stockMatches, orderMatches) {
+export function mergeSearch(stockMatches, orderMatches, stockAll) {
+  const index = (list, into) => {
+    for (const it of list || [])
+      for (const code of [it.sku, ...(it.vendorSkus || [])])
+        for (const k of skuKeys(code)) if (!into.has(k)) into.set(k, it);
+  };
   const byKey = new Map();
-  for (const it of stockMatches || [])
-    for (const code of [it.sku, ...(it.vendorSkus || [])])
-      for (const k of skuKeys(code)) if (!byKey.has(k)) byKey.set(k, it);
+  index(stockMatches, byKey);
+  // The whole stock cache, not just today's matches: an order hit's twin may
+  // not have matched the typed words at all (the ERP export says "Building
+  // Panel - US8000017", the pricelist says 36"x60"x1/2") and then the vendor
+  // copy stood alone and filed as a special order the shop actually stocks
+  // (owner 2026-09-02). A live twin found this way is surfaced INTO the stock
+  // list in the vendor row's place; a retired one leaves the vendor row be.
+  const wide = new Map();
+  index((stockAll || []).filter((it) => it.active !== false && !it.discontinued && !it.disabled), wide);
+  const stock = (stockMatches || []).slice();
   const order = [];
   for (const it of orderMatches || []) {
-    const twin = skuKeys(it.sku).map((k) => byKey.get(k)).find(Boolean);
+    const keys = [it.sku, ...(it.vendorSkus || [])].flatMap(skuKeys);
+    let twin = keys.map((k) => byKey.get(k)).find(Boolean);
+    if (!twin) {
+      const far = keys.map((k) => wide.get(k)).find(Boolean);
+      if (far) { twin = { ...far, matchedAs: it }; stock.push(twin); index([twin], byKey); }
+    }
     if (twin) { (twin.alsoOn = twin.alsoOn || []).push(it.bookId); continue; }
     order.push(it);
   }
-  return { stock: stockMatches || [], order: collapseCopies(order) };
+  return { stock, order: collapseCopies(order) };
 }
 
 // One relevance-ordered list out of the two search spaces. mergeSearch still
@@ -455,10 +472,13 @@ export function mergeSearch(stockMatches, orderMatches) {
 //
 // Within a rung each space keeps its incoming order — stock's best-similarity
 // sort, the order tier's orderFloorFirst — so this only ever re-interleaves.
-export function rankMerged(stockMatches, orderMatches, query) {
-  const { stock, order } = mergeSearch(stockMatches, orderMatches);
+export function rankMerged(stockMatches, orderMatches, query, stockAll) {
+  const { stock, order } = mergeSearch(stockMatches, orderMatches, stockAll);
+  // A twin surfaced off the whole cache ranks as the vendor row it stands in
+  // for — its own text may not answer the query at all.
+  const rankOf = (it) => (it.matchedAs ? Math.min(hitRank(it, query), hitRank(it.matchedAs, query)) : hitRank(it, query));
   return [
-    ...stock.map((it, i) => ({ it, rank: hitRank(it, query), shelf: 0, i })),
+    ...stock.map((it, i) => ({ it, rank: rankOf(it), shelf: 0, i })),
     ...order.map((it, i) => ({ it, rank: hitRank(it, query), shelf: 1, i })),
   ].sort((a, b) => a.rank - b.rank || a.shelf - b.shelf || a.i - b.i).map((r) => r.it);
 }

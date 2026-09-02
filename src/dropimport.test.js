@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fileFormat, computeFingerprint, mappingMatchesFile, routeFile, bundleByBook, bookKindFor, sourceSlot, mergeSources, missingSources, stepPayloads, declareManualSource, undeclareManualSource } from "./dropimport.js";
+import { PRICELIST_SHEETS } from "./wedipricelistfixture.js";
 
 const vtcSheets = [{ name: "EFT", rows: [
   ["Item Code", "VTC Mfg", "Description", "Dealer Price"],
@@ -406,4 +407,24 @@ test("bookKindFor: ERP stock exports become stock-kind books, vendor lists order
   assert.equal(bookKindFor("vendor-sku"), "stock");
   assert.equal(bookKindFor("vtc-eft"), "order");
   assert.equal(bookKindFor("generic"), "order");
+});
+
+test("fileFormat: the wedi distribution pricelist gets its own tag, and it makes an ORDER book", () => {
+  assert.equal(fileFormat({ sheets: PRICELIST_SHEETS }), "wedi-pricelist");
+  assert.equal(bookKindFor("wedi-pricelist"), "order");
+  // The 8a stock export is still the ERP stock list — the two wedi books never share a tag.
+  assert.equal(fileFormat({ sheets: [{ name: "Vendor SKU Analysis", rows: [["Product Code", "Full Description", "Base Price", "Retail Price", "Unit of Stock"], ["47832", "Wedi Washer", 93.42, 154.14, "BX"]] }] }), "vendor-sku");
+});
+
+test("routeFile: a pricelist drop names itself when no book matches, and routes to a book stamped with its tag", () => {
+  const fp = computeFingerprint({ sheets: PRICELIST_SHEETS, name: "wedi pricelist 2026.xlsx" });
+  assert.equal(fp.format, "wedi-pricelist");
+  const none = routeFile({ ...fp, sheets: PRICELIST_SHEETS }, []);
+  assert.equal(none.target, null);
+  assert.equal(none.reason, "wedi pricelist — pick which book");
+  const books = [{ id: "so", kind: "order", name: "wedi", data: { importFingerprint: { format: "wedi-pricelist" } } },
+    { id: "st", kind: "stock", name: "wedi", data: { importFingerprint: { format: "vendor-sku" } } }];
+  const hit = routeFile({ ...fp, sheets: PRICELIST_SHEETS }, books);
+  assert.equal(hit.target, "so", "the stock book named wedi is not a candidate — format, not name, routes");
+  assert.equal(hit.reason, "wedi pricelist → wedi");
 });

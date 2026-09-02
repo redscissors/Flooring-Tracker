@@ -78,6 +78,42 @@ and "the pending update to this kit" is the only thing that reading makes sense 
 The scope boundary is unchanged: only staged entries persist, placed kits are still
 derived live from the rows.
 
+## Amendment 2026-09-02 — the kit-card confirm has three ways forward; "New shower" detaches the popup
+
+Both popups already asked before a kit card wiped customized work, but the only
+answers were keep or overwrite, and the owner's real cases were neither: the room's
+work (typed and turned-off walls, extra walls, corners, wall height, benches, add-on
+chips, hand-added lines, on Schluter also the drain position, mortar, ramp and tile)
+usually belongs to the ROOM and should ride onto the next kit, and a second kit card
+was sometimes the START OF ANOTHER SHOWER, not an edit of this one. The confirm is now
+one shared component (`KitOverwriteConfirm`, widgets.jsx — the SourceSwitch doctrine,
+so wedi and Schluter cannot drift) with Overwrite, **Keep what I added**, **New
+shower**, and Cancel.
+
+*Keep what I added* carries the room's work and drops what belonged to the old kit's
+parts — stepped quantities and part swaps — because those were decisions about lines
+the new kit does not have. A typed wall length that only matched the old kit's auto
+geometry clears and follows the new kit (wedi's existing refit rule, mirrored on
+Schluter against the old tray's dims); "Max — curb inside" resets because a kit's size
+IS its pan/tray size.
+
+*New shower* parks the standing build in the basket (as an UPDATE of the kit the popup
+was opened on, if any — the 2026-09-01 target — else as a new entry) and then
+**detaches** the popup from that kit: from then on the primary button reads "Add to
+product lines" and lands through the append path, and Basket stages a new entry
+rather than another update of the same row. Without the detach, a second shower staged
+from a Reconfigure would replace the pending update (the 2026-09-01 one-pending-update
+rule) and land on top of the first kit — the trap behind the 2026-09-02 report that
+wedi "could not add more than one shower". The detach is popup-session state, not a
+flag on any row: `editing` is still derived from the live row in App.jsx.
+
+Alongside, both popups now open **Stock only** by default (owner ask). That made the
+wedi marker's "session state, never persisted" rule for the source untenable: a kit
+built from the full catalog would reopen under Stock only and degrade. The wedi marker
+therefore carries `cfg.source` and its seed reads it back — the rule Schluter already
+had. A marker saved before the field existed reopens on the Full catalog, since it was
+built with everything on offer.
+
 ## Consequences
 
 - **Replacement rules.** With a `kitId` on the reconfigured anchor, every row sharing
@@ -107,3 +143,42 @@ derived live from the rows.
   carrying a `kitId` keep it, so per-entry basket stamps survive the shared landing
   helpers), never inside the engines: `lineItems` outputs stay deterministic and
   the pinned engine tests untouched.
+
+## Amendment (2026-09-02): Reconfigure reads the placed rows
+
+The consequence above — "hand edits to companion rows are replaced with the
+kit" — was true twice over: Add replaced them, and Reconfigure never saw them.
+The wedi/Schluter marker is `{ mode, cfg }` and the popup's stepped quantities
+(`qtyOv`) and hand-added extras are session state that "never rode the cfg", so
+a salesperson who typed a quantity on a placed row (or stepped one in the popup
+before Add) and then hit **Reconfigure** got the recipe's figures back, and
+Update this kit re-landed them (the 2026-09-02 report).
+
+Decision (owner): **once a kit lands, its rows are the truth, and Reconfigure
+opens on them.** Two mechanisms, both engines:
+
+- `lineItems` now stamps every emitted line with its catalog identity — the
+  anchor's marker gains `key`, a companion carries `{ part: <key> }` instead of
+  `{ part: true }` (still truthy, so every `!marker.part` anchor test stands).
+  Legacy rows resolve by the shop number a stocked line lands as its sku, or the
+  `wedi US… —` lead of a special-order line.
+- `kitRows` (model.js) hands the popup the anchor plus exactly the companions
+  `kitCompanionIds` gives it — the set landing replaces and Remove deletes — and
+  `sessionFromRows` (wedi.js / schluter.js) diffs those rows against the kit
+  rebuilt from its marker with the default session: a line whose rows total
+  differently reopens with that total as its override, a line with no row left
+  steps to 0, a row the build doesn't produce reopens as a manual extra. A blank
+  qty is "not said", and a row set that resolves to nothing leaves the session
+  empty rather than zeroing the kit.
+
+Why the kitId group and not "the wedi rows nearby": with two showers in one
+area plus a panel the salesperson searched in by hand, the searched row carries
+no marker and no kitId, and the second shower's rows carry a different kitId —
+neither can fold into the first shower's session (the owner's question). The
+legacy fallback (contiguous same-vendor companions below a kitId-less anchor) is
+the same one the landing rule already used, so Reconfigure can never read a row
+Add would not replace.
+
+The override is a starting point, not a lock: the popup shows it as a hand-set
+quantity with the recipe's figure on hover, and Reset / re-picking a kit clears
+it as before.

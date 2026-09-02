@@ -744,6 +744,15 @@ export const normOps = (raw) => {
   return { ...(lastImport ? { lastImport } : {}), ...(lastBackup ? { lastBackup } : {}), ...(staleDays != null ? { staleDays } : {}), ...(vendorGroups.length ? { vendorGroups } : {}) };
 };
 
+// The shop the team measures job distance from (spec 2026-09-01). One address,
+// team-wide, so a stored distance means the same thing whoever looked it up.
+// Optional like ops: absent settings rows serialize without the key, so there
+// is nothing to migrate.
+export const normShop = (raw) => {
+  const address = String(raw?.address || "").trim().slice(0, 200);
+  return address ? { address } : undefined;
+};
+
 // Team-wide tier percentages (spec 2026-07-16): Builder / Sale % off retail,
 // edited in Settings → Price book, clamped to a sane discount range.
 // wediBuilderPct is the wedi configurator's own Builder discount — the owner's
@@ -783,7 +792,8 @@ const serializeApps = (apps) => ({ labels: { presets: customLabelPresets(apps?.l
 
 export const serializeSettings = (s) => {
   const ops = normOps(s.ops);
-  return { waste: s.waste, catalog: s.catalog, pricing: normPricing(s.pricing), apps: serializeApps(s.apps), ...(ops ? { ops } : {}) };
+  const shop = normShop(s.shop);
+  return { waste: s.waste, catalog: s.catalog, pricing: normPricing(s.pricing), apps: serializeApps(s.apps), ...(ops ? { ops } : {}), ...(shop ? { shop } : {}) };
 };
 
 // Entry point for loaded/imported settings: backfill a pre-catalog record by
@@ -795,5 +805,6 @@ export function normalizeSettings(raw) {
     ? normalizeCatalog(raw.catalog)
     : seedCatalog(mergeSettings(raw));
   const ops = normOps(raw?.ops);
-  return withDerived({ waste, catalog, pricing: normPricing(raw?.pricing), apps: normApps(raw?.apps), ...(ops ? { ops } : {}) });
+  const shop = normShop(raw?.shop);
+  return withDerived({ waste, catalog, pricing: normPricing(raw?.pricing), apps: normApps(raw?.apps), ...(ops ? { ops } : {}), ...(shop ? { shop } : {}) });
 }

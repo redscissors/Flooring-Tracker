@@ -128,7 +128,10 @@ Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
            freight: "" | "off",
            kitId: "" | string,
            sheoga: { mode, cfg } | null,
-           wedi: { mode, cfg } | { part: true } | null }
+           wedi: { mode, cfg, key } | { part: <catalog key> } | null }
+           // `key` / a string `part` since 2026-09-02 (ADR 0035 amendment):
+           // the line's catalog identity, so Reconfigure can read the placed
+           // rows back; older rows carry `part: true` and resolve by sku/name
            // freight = the row's opt-OUT of its book's freight program
            // (ADR 0030). "" (the default) means the row rides the vendor's
            // shipment; only the explicit "off" is stored, so a row saved before
@@ -158,7 +161,13 @@ Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
            // wedi = the same marker for the wedi configurator (issue 066), on
            // the ANCHOR line only (the pan): { mode, cfg } re-lands the whole
            // kit through wedi.js kitFor, so "wedi — reconfigure" replaces the
-           // kit's lines. Every companion line carries { part: true } instead.
+           // kit's lines. Every companion line carries { part: <sku> } instead
+           // ({ part: true } on rows saved before 2026-09-02).
+           // Its cfg also carries `source` ("stock"|"all", 2026-09-02) — the
+           // Stock only / Full catalog switch the kit was built under, read
+           // back on reopen (the Schluter marker's existing rule); absent on
+           // older markers, which reopen on the full catalog. Both popups open
+           // Stock only by default.
            // attached = add-on material categories (ADR 0016, PR 3): one entry
            // per custom category, keyed by the category id, resolved by NAME at
            // calc time (mortar convention, no snapshot). getAttached does the

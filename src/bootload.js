@@ -8,6 +8,7 @@ import { normLabel } from "./labels.js";
 import { normClaudeIssue } from "./claudeissues.js";
 import { normSampleRequest } from "./samples.js";
 import { normalizeSettings, serializeSettings, catalogHasSeedUnderlayments } from "./catalog.js";
+import { normDistance } from "./mapslookup.js";
 
 export const SHARED_SETTINGS_ID = "singleton";
 
@@ -37,9 +38,9 @@ export const lightRow = (r) => ({
 });
 
 // Customer (person) rows: contact info lives in the data jsonb; builder_id is a
-// real column. (Internal — only the loaders below consume these.)
-const PERSON_SELECT = "id, created_at, updated_at, builder_id, name:data->>name, phone:data->>phone, email:data->>email, address:data->>address, notes:data->>notes";
-const personRow = (r) => ({ id: r.id, builderId: r.builder_id ?? null, name: r.name || "", phone: r.phone || "", email: r.email || "", address: r.address || "", notes: r.notes || "", createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(), updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : Date.now() });
+// real column. Exported so bootload.test.js can exercise them directly.
+export const PERSON_SELECT = "id, created_at, updated_at, builder_id, name:data->>name, phone:data->>phone, email:data->>email, address:data->>address, notes:data->>notes, distance:data->distance";
+export const personRow = (r) => ({ id: r.id, builderId: r.builder_id ?? null, name: r.name || "", phone: r.phone || "", email: r.email || "", address: r.address || "", notes: r.notes || "", distance: normDistance(r.distance), createdAt: r.created_at ? new Date(r.created_at).getTime() : Date.now(), updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : Date.now() });
 const builderRow = (r) => ({ id: r.id, name: r.name || "" });
 
 // Fetch every project, but LIGHT: only the fields the list draws/searches/

@@ -146,8 +146,10 @@ function useOrderResults(query, searchOrder, strictness, fallback, stockExact) {
 // stock and two order books' copies of one product collapsed to the cheaper.
 // Each stock match is shallow-copied so mergeSearch's alsoOn tag never lands on
 // the shared in-memory stock objects.
-const mergeCombined = (stockMatches, orderRaw, query) =>
-  rankMerged(stockMatches.map((it) => ({ ...it })), orderRaw, query);
+// `stockAll` is the whole cache, so an order hit whose stocked twin the typed
+// words missed still resolves to stock (mergeSearch's wide index).
+const mergeCombined = (stockMatches, orderRaw, query, stockAll) =>
+  rankMerged(stockMatches.map((it) => ({ ...it })), orderRaw, query, stockAll);
 
 // A quiet banner over the results when they came from the looser fallback pass
 // (the set strictness matched nothing), so a near-match is never mistaken for
@@ -166,12 +168,12 @@ export const NearMatchNote = () => (
 export function useMergedResults(active, stock, query, searchOrder, strictness, fallback) {
   const stockExact = active ? searchStock(stock, query) : [];
   const order = useOrderResults(active ? query : "", searchOrder, strictness, fallback, stockExact.length > 0);
-  const exact = mergeCombined(stockExact, order.exact, query);
+  const exact = mergeCombined(stockExact, order.exact, query, active ? stock : []);
   if (exact.length) return { results: exact.slice(0, SKU_SHOW), total: exact.length, near: false };
-  const near = mergeCombined(active ? searchStock(stock, query, strictness) : [], order.near, query);
+  const near = mergeCombined(active ? searchStock(stock, query, strictness) : [], order.near, query, active ? stock : []);
   if (near.length) return { results: near.slice(0, SKU_SHOW), total: near.length, near: true };
   const widerOn = active && fallback != null && strictness != null && fallback < strictness;
-  const wider = mergeCombined(widerOn ? searchStock(stock, query, fallback) : [], order.wider, query);
+  const wider = mergeCombined(widerOn ? searchStock(stock, query, fallback) : [], order.wider, query, active ? stock : []);
   return { results: wider.slice(0, SKU_SHOW), total: wider.length, near: wider.length > 0 };
 }
 

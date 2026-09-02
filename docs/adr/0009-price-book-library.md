@@ -253,3 +253,26 @@ The Schluter configurator's catalog assembly inherits the same rule
 (`dropStockTwins` in `src/schluteradapter.js`, used by `useSchluterCatalog`):
 stock wins the collision in any spelling, so the EFT twin of a stocked tray
 no longer renders as a second, dearer row.
+
+## Amendment (2026-09-02): the stocked twin is found in the whole cache
+
+The exact-SKU collision (item 3 of the search design, the 2026-08-21 key set
+above) resolved an order hit only against the stock rows that had *also
+matched the typed words*. Two books that describe one part differently
+defeated that: the ERP export reads "Wedi Building Panel - US8000017" with the
+size in its own column, the wedi pricelist reads "wedi® Building Panel
+36"x60"x1/2"", so a search by size or thickness matched only the pricelist row,
+which stood alone, filed as a special order, and carried that into order entry
+for a sheet the shop stocks (the 2026-09-02 report).
+
+`mergeSearch` now takes the whole stock cache as a third argument and keys it
+the same way (every `skuKeys` spelling of each row's sku and sheet-stated
+`vendorSkus`); the order side keys its own `vendorSkus` too, since the wedi
+pricelist states the shop number beside the US code. An order hit whose twin
+is live in that wide index (active, not discontinued, not disabled) is dropped
+and the twin is **surfaced into the stock list in its place**, tagged `alsoOn`
+as before and carrying `matchedAs` (the order row it stands in for) so
+`rankMerged` ranks it as that hit rather than by its own text. A retired twin
+leaves the order row standing — the vendor copy is then the real offering.
+Still identity, never similarity: the same exact-membership test as before,
+run over more rows.

@@ -62,6 +62,11 @@ up).
    pattern, publishes its own retail (no shop markup to track), and porting
    it to registry rows is out of scope here. A reader comparing the two files
    should not read the difference as an oversight.
+
+   **Superseded in part by ADR 0037 (2026-09-01):** wedi's *stock* half is
+   now registry-driven too, at the owner's request. The divergence this
+   consequence describes now applies only to wedi's pricelist half, which
+   remains transcribed until 8b.
 4. **Pricing lens (`tierPrice`) hardcodes the shop's observed markup rule**:
    a stocked row's retail is the registry book's own `price`; a non-stock
    (special-order) row — one with no shelf price, such as a factory kit —

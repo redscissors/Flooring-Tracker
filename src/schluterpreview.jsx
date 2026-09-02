@@ -17,7 +17,7 @@ import "./index.css";
 import SchluterConfigurator from "./SchluterConfigurator.jsx";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
 import { normOrderItem } from "./orderbook.js";
-import { newProduct, newArea, landKitLines, appendKitLines, moveKitEntries, placedKits, removeKitLines } from "./model.js";
+import { newProduct, newArea, landKitLines, appendKitLines, moveKitEntries, placedKits, removeKitLines, kitRows } from "./model.js";
 
 const stockRows = FIXTURE_ITEMS.filter((i) => i.stock).map((i) => normOrderItem({
   sku: i.erp || i.sku, bookId: "bk_stock", description: i.name, vendorSkus: i.erp ? [i.sku] : [],
@@ -46,13 +46,36 @@ eftRows.push(normOrderItem({
   description: "KERDI-SHOWER-KIT KERDI-SHOWER TT 38 X 32", leadTime: "READY SHIP",
 }));
 
+// The harness "sheet" — the placed rows as the job sheet holds them, with a
+// qty box per row and Reconfigure on each anchor, so the drive can prove a
+// sheet-edited quantity reopens as the popup's override (owner 2026-09-02).
+function Sheet({ cats, setCats, vendor, onReconfig }) {
+  const rows = cats.flatMap((a) => a.products.filter((p) => p[vendor]).map((p) => ({ a, p })));
+  if (!rows.length) return null;
+  const setQty = (a, p, qty) => setCats((c) => c.map((x) => (x.id !== a.id ? x : { ...x, products: x.products.map((r) => (r.id === p.id ? { ...r, qty } : r)) })));
+  return (
+    <div data-sheet className="fixed top-2 left-2 z-[80] border rounded-md bg-white text-[11px]" style={{ width: 330, maxHeight: "90vh", overflow: "auto", borderColor: "#c8c8c0" }}>
+      <div className="px-2 py-1 font-extrabold uppercase tracking-wider text-[9.5px]" style={{ color: "#777" }}>Job sheet (harness) — {rows.length} rows</div>
+      {rows.map(({ a, p }) => (
+        <div key={p.id} className="flex items-center gap-2 px-2 py-0.5 border-t" style={{ borderColor: "#eee" }} data-sheet-row={p.id}>
+          <span className="ft-mono w-16 shrink-0" style={{ color: "#888" }}>{p.sku || "—"}</span>
+          <span className="truncate flex-1">{p.brandColor}</span>
+          <input data-sheet-qty={p.id} type="number" value={p.qty} onChange={(e) => setQty(a, p, e.target.value)} className="ft-cell w-14 text-right border rounded px-1" style={{ borderColor: "#ccc" }} />
+          {p[vendor].cfg && !p[vendor].part && <button data-sheet-reconfig={p.id} className="rounded-full border px-2 font-medium" style={{ borderColor: "#3f6b45", color: "#3f6b45" }} onClick={() => onReconfig(a, p)}>{vendor} — reconfigure</button>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function Harness() {
   const [cats, setCats] = useState([{ ...newArea(), name: "Master bath", products: [newProduct()] }]);
   const [basket, setBasket] = useState([]);
   const [pop, setPop] = useState({ aid: null, pid: null, seed: null, n: 0 });
   const aid = pop.aid || cats[0].id, pid = pop.pid || cats[0].products.at(-1).id;
   const row = cats.find((a) => a.id === aid)?.products.find((p2) => p2.id === pid);
-  return (
+  return (<>
+    <Sheet cats={cats} setCats={setCats} vendor="schluter" onReconfig={(a, p) => setPop((o) => ({ aid: a.id, pid: p.id, seed: p.schluter, n: o.n + 1 }))} />
     <SchluterConfigurator key={pid + ":" + pop.n} seed={pop.seed}
       schluterBuilderPct={8}
       wediBuilderPct={18}
@@ -70,12 +93,13 @@ function Harness() {
       onDeleteKit={(k) => setCats((c) => removeKitLines(c, k.areaId, k.rowId) || c)}
       onAdd={(lines) => setCats((c) => { const withRow = c.map((a) => (a.id === aid && !a.products.some((x) => x.id === pid) ? { ...a, products: [...a.products, { ...newProduct(), id: pid }] } : a)); return landKitLines(withRow, aid, pid, lines) || withRow; })}
       editing={row?.schluter?.cfg && !row.schluter.part ? { areaId: aid, rowId: pid, kitId: row.kitId || "" } : null}
+      editRows={row?.schluter?.cfg && !row.schluter.part ? kitRows(cats, aid, pid) : null}
       onAddNew={(lines) => setCats((c) => appendKitLines(c, aid, lines))}
       onMoveEntries={(groups, nextBasket) => { setCats((c) => moveKitEntries(c, aid, groups).categories); setBasket(nextBasket); }}
       onQuoteOptions={(p) => console.log("onQuoteOptions", p)}
       onClose={() => console.log("close")} onConfigChange={() => {}}
     />
-  );
+  </>);
 }
 
 createRoot(document.getElementById("preview")).render(<Harness />);

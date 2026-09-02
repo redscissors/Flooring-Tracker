@@ -16,6 +16,7 @@ import {
 } from "./comparekit.js";
 import { useEscClose } from "./widgets.jsx";
 import { useSchluterCatalog } from "./useschlutercatalog.js";
+import { useWediCatalog } from "./usewedicatalog.js";
 import { mortarItemFrom } from "./schluteradapter.js";
 import { lineItems as wediLineItems } from "./wedi.js";
 import { lineItems as schluterLineItems } from "./schluter.js";
@@ -126,13 +127,28 @@ export default function CompareTab({
     [wediHost, hostCfg]);
   const roomOk = room.w > 0 && room.d > 0;
 
-  // Hooks can't be conditional: this always runs. Inside the Schluter popup
-  // the catalog is already assembled upstream and arrives as `cat` — the hook
-  // then gets no rows and no books, and settles empty without fetching.
-  const own = useSchluterCatalog({ stockRows, bookStockReady, books, loadBookItems });
+  // The registry bag the host hands over serves whichever engine THIS tab has
+  // to assemble — the host popup already has its own. Hooks can't be
+  // conditional, so both run; the one whose engine the host owns is fed nulls
+  // (Schluter) or switched off (wedi) so it neither re-fetches nor, in wedi's
+  // case, touches the source its host installed.
+  const own = useSchluterCatalog(wediHost
+    ? { stockRows, bookStockReady, books, loadBookItems }
+    : { stockRows: null, bookStockReady: false, books: null, loadBookItems: null });
   const hasCatProp = !!(cat && cat.length);
   const schCat = hasCatProp ? cat : own.cat;
   const schCatReady = hasCatProp || own.catReady;
+
+  // wedi's catalog is MODULE-LEVEL state behind an installer (see
+  // usewedicatalog.js). comparekit reaches it through wedi.js's catalog(), so
+  // in the Schluter popup — which never installs anything — this tab was
+  // pricing the wedi column off whatever the last wedi popup happened to leave
+  // behind, or off the transcribed WEDI_STOCK table if none had opened this
+  // session. Those figures are not display-only: the quote-options footer
+  // commits them into the project. So the tab installs the book itself and the
+  // wedi column waits on it.
+  const ownWedi = useWediCatalog({ bookStockReady, books, loadBookItems, enabled: !wediHost });
+  const wediCatReady = wediHost || ownWedi.catReady;
 
   const mortarItem = useMemo(
     () => mortarItemFrom(mortarDefault || Object.keys(mortars || {})[0] || "", mortars || {}),
@@ -141,8 +157,8 @@ export default function CompareTab({
   // The HOST column is whatever that popup has on screen; the other column is
   // that engine's house kit for the same room.
   const wediBuild = useMemo(
-    () => (wediHost ? hostBuild || null : roomOk ? wediBuildFor(room, { source, tier }) : null),
-    [wediHost, hostBuild, room, roomOk, source, tier]);
+    () => (wediHost ? hostBuild || null : roomOk && wediCatReady ? wediBuildFor(room, { source, tier }) : null),
+    [wediHost, hostBuild, room, roomOk, wediCatReady, source, tier]);
   const sch = useMemo(() => {
     if (!wediHost) return { build: hostBuild || null, cfg: hostCfg || null };
     if (!roomOk || !schCatReady || !schCat.length) return { build: null, cfg: null };
@@ -157,7 +173,9 @@ export default function CompareTab({
   const wediMiss = wediRows.length ? null
     : !roomOk ? "Enter a room size — the compare runs off the room on screen."
       : wediHost ? "Nothing built yet — pick a kit or solve a room on the other tabs."
-        : "No wedi pan solves this room. Try Full catalog, or a size the pan family reaches.";
+        : ownWedi.bookError ? "Couldn't load the wedi price book — this column can't be priced without it."
+          : !wediCatReady ? "Loading the wedi price book…"
+            : "No wedi pan solves this room. Try Full catalog, or a size the pan family reaches.";
   const schMiss = schRows.length ? null
     : !roomOk ? "Enter a room size — the compare runs off the room on screen."
       : !wediHost ? "Nothing built yet — pick a tray or solve a room on the other tabs."

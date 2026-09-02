@@ -4,9 +4,11 @@ import { offeredGrouts, offeredMortars, isOffered, setCatalogDefault, isDuplicat
 import { stockBaseCompanion } from "./stock.js";
 import { deriveSeriesRule, matchRule, parseColorToken, normBookFamily, familyWarnings, linkedItemState, proposeLinks, applyProposals, looksLikeBase } from "./booklink.js";
 import { uid } from "./model.js";
-import { DotMenu, Modal, HelpTip } from "./widgets.jsx";
+import { DotMenu, Modal, HelpTip, AddressField, lookupErrText } from "./widgets.jsx";
 import { StockSearch, FamilySearch, SeriesSearch } from "./search.jsx";
 import { PriceBookLibrary } from "./pricebooklib.jsx";
+import { probeMaps } from "./usemapslookup.js";
+import { probeText } from "./probetext.js";
 
 // The shared grout/mortar catalog editor: a Company → Product tree. Each company
 // and product has an enabled checkbox (show/hide for the job dropdowns); a
@@ -163,7 +165,7 @@ function LinkMigration({ catalog, bookStock, books, onApply, onClose }) {
   );
 }
 
-export default function SettingsWorkspace({ onClose, settings, setSettings, gFamilies, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, headerLayout, setHeaderLayout, profile, saveProfile, user, books, addBook, updateBook, confirmBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setBookItemIssue, addClaudeIssue, bookStock = {}, bookStockReady, refreshBookStock, initialSection, onSectionChange }) {
+export default function SettingsWorkspace({ onClose, settings, setSettings, gFamilies, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, headerLayout, setHeaderLayout, profile, saveProfile, user, books, addBook, updateBook, confirmBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setBookItemIssue, addClaudeIssue, bookStock = {}, bookStockReady, refreshBookStock, initialSection, onSectionChange, ping }) {
   const catalog = settings.catalog;
   const onChange = (c) => setSettings({ catalog: c });
   // initialSection/onSectionChange: the refresh-restore hooks (App's
@@ -191,6 +193,12 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
   const [confirmDelCat, setConfirmDelCat] = useState(false);
   const [famSeed, setFamSeed] = useState(null); // FamilyConfirm opener: { pick, query? } | { bookId, description, rule?, name?, forDraft|forProduct }
   const [showLinkMigration, setShowLinkMigration] = useState(false); // LinkMigration opener
+  const [probe, setProbe] = useState(null);
+  const [probing, setProbing] = useState(false);
+  const runProbe = async () => {
+    setProbing(true); setProbe(null);
+    try { setProbe(await probeMaps()); } finally { setProbing(false); }
+  };
 
   // Shrink-to-fit: measure the overlay's usable width (its padding steps
   // 8→20px at md) and zoom the card to it. Floored, not rounded — w/zoom must
@@ -863,6 +871,22 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
               <div><label className={lbl}>Tile waste (%)</label><input type="number" value={settings.waste.tile} onChange={(e) => setSettings({ waste: { ...settings.waste, tile: e.target.value } })} className={inp + " w-28"} /></div>
               <div><label className={lbl}>Flooring waste (%)</label><input type="number" value={settings.waste.floor} onChange={(e) => setSettings({ waste: { ...settings.waste, floor: e.target.value } })} className={inp + " w-28"} /><div className="text-[11px] text-slate-400 mt-1">Hardwood, vinyl, laminate, carpet</div></div>
               <div className="text-[11px] text-slate-400 self-end pb-1 max-w-[15rem]">The rates a new project starts with. Each job carries its own waste from there — changing these never touches a project that already exists.</div>
+            </div>
+            <div className="mt-8 pt-6 border-t border-slate-100">
+              <label className={lbl + " mb-2"}>Shop address <HelpTip className="align-middle" w={300} tip="Where job distance is measured from. Team-wide — one address, so a distance means the same thing whoever looked it up. Leave blank to turn job distance off." /></label>
+              <div className="max-w-xl">
+                <AddressField suggest value={settings.shop?.address || ""} onChange={(v) => setSettings({ shop: { address: v } })} inp={inp} placeholder="Shop address…" ping={ping} />
+              </div>
+              <div className="text-[11px] text-slate-400 mt-1">Job distance is internal — it never prints on an estimate.</div>
+              <div className="flex items-center gap-2 mt-2">
+                <button type="button" onClick={runProbe} disabled={probing}
+                  className="rounded-md border border-slate-200 px-2.5 py-1 text-[12px] font-semibold text-slate-500 hover:border-indigo-300 hover:text-indigo-700 disabled:opacity-40">
+                  {probing ? "Checking…" : "Test address lookup"}
+                </button>
+                {probe && (probe.ok
+                  ? <span className="text-[11px]" style={{ color: "var(--ft-brand)" }}>{probeText(probe, lookupErrText)}</span>
+                  : <span className="text-[11px] text-amber-600">{probeText(probe, lookupErrText)}</span>)}
+              </div>
             </div>
             <div className="mt-8 pt-6 border-t border-slate-100">
               <label className={lbl + " mb-2"}>Appearance <HelpTip className="align-middle" tip="Applies on this device only. The printed estimate stays on white paper." /></label>
