@@ -225,7 +225,15 @@ src/
                     # `custSamples`/`filterBySamples` (spec 2026-08-28) roll a
                     # customer's projects up against the sample_requests tally
                     # Map (App's `projectSampleTally(sampleRequests)`) for the
-                    # browser's samples column and filter
+                    # browser's samples column and filter.
+                    # `stripOpenDefault`/`normPanelH`/`clampPanelH` + STRIP_H/
+                    # LINES_H/PANEL_MIN (2026-09-01) are the two side panels'
+                    # sizing rules: the strip opens WITH the browser (the quick
+                    # prices are what it's opened for) unless a saved choice or
+                    # an empty unfiled folder says otherwise, and a drag may
+                    # never shrink a panel below one row or grow it past 60% of
+                    # the overlay — the minimum outranking the maximum on a
+                    # short window
   CustomerBrowser.jsx  # the customer browser, a `React.lazy` chunk (ADR 0026):
                     # near-fullscreen ERP-style directory grid — dense customer
                     # rows grouped by salesman over a bottom project-lines panel —
@@ -236,7 +244,20 @@ src/
                     # moss "M ordered", shared with the unfiled strips and the
                     # project-lines panel) and a Samples filter button
                     # (open = customer has any need>0) beside the salesperson
-                    # box, over the same rows/strips it narrows
+                    # box, over the same rows/strips it narrows.
+                    # The Estimates & drafts strip and the project-lines panel
+                    # are both DRAG-SIZED (2026-09-01): each carries a
+                    # `ResizeHandle` on its open edge (pointer capture, so a
+                    # fast drag can't outrun it; the start height measured off
+                    # the live panel, so one still at its content-sized default
+                    # resizes from where it actually is), and a double-click
+                    # hands the panel back to that default. The strip also now
+                    # opens BY DEFAULT at ~3 quick prices tall — the team comes
+                    # here to check them, and the toggle still hides it. The
+                    # toggle state and both heights ride `initialPanels` /
+                    # `onPanels` up to App's `saveUiPref({ browserPanels })`,
+                    # the same per-user `ui` blob as the column order; a
+                    # committed size saves once per drag, on release
   EstimatePrint.jsx # `EstimatePaper` (+ `PRINT_DASH`) — the print/Preview-tab "paper", one
                     # component behind both call sites so they can never drift. STATIC import only:
                     # `window.print()` fires right after the print-mode render, so a `React.lazy`
@@ -314,12 +335,16 @@ src/
                     # book's item mark rides the apply as opts.claudeSkus since
                     # an added row doesn't exist to mark yet; a bundle carries
                     # earlier files' flags to the last file's apply.
-                    # A Rep tab (spec 2026-08-28, `RepCard`) sits last on
-                    # EVERY book kind (not gated behind `isOrder` like Markup/
-                    # Freight/Brand): the vendor sample-order contact
-                    # (book.data.rep {name, email}) the Samples panel's
-                    # "Email the rep" button addresses — no salesperson info,
-                    # samples ship straight to the customer
+                    # A Contacts tab (spec 2026-08-28, renamed + widened
+                    # 2026-09-01, `ContactsCard`) sits last on EVERY book kind
+                    # (not gated behind `isOrder` like Markup/Freight/Brand):
+                    # the vendor's TWO contacts — the rep (book.data.rep
+                    # {name, email}) and the sample-request address
+                    # (book.data.sampleContact {name, email}) for vendors whose
+                    # samples go to a company inbox rather than a person. One
+                    # Save writes both slots. `sampleContactFor` (samples.js)
+                    # picks which one the Samples panel emails; no salesperson
+                    # info, samples ship straight to the customer
   SettingsWorkspace.jsx  # the Settings workspace, now a `React.lazy` chunk (ADR 0026);
                     # `MATERIAL_CATEGORIES` lives here. Shrink-to-fit (issue 084,
                     # the wedi popup's rig): drawn at SETTINGS_DESIGN_W (1240)
@@ -1566,21 +1591,28 @@ src/
                     # header badge), `projectSampleTally` (a
                     # projectId→{need,ordered} Map — the browser column/
                     # filter's one shared roll-up),
-                    # and `repEmail`/`mailtoHref` (the vendor rep's email: item
+                    # `repEmail`/`mailtoHref` (the vendor email: item
                     # list + the CUSTOMER as ship-to — samples ship direct —
                     # and deliberately NO salesperson info, owner call
-                    # 2026-08-28). Split from samples.jsx so `node --test` can
+                    # 2026-08-28), and `sampleContactFor`/`contactLabel` (WHO
+                    # that email goes to: book.data.sampleContact wins when it
+                    # carries an email, book.data.rep is the fallback, null
+                    # when neither can be mailed — so a book whose rep IS the
+                    # samples contact needs nothing typed twice; the label
+                    # reads "Email {first name}", or "Email samples" for a
+                    # nameless company inbox). Split from samples.jsx so `node --test` can
                     # cover it (samples.test.js)
   samples.jsx       # the Samples panel (spec 2026-08-28) — this project's
                     # sample_requests, grouped by vendor via `sampleGroups`,
                     # in the same right-dock shell as order entry. Per-line
                     # two-way status toggle (To order ⇄ Ordered), per-vendor
-                    # "Mark all ordered" and an "Email the rep" mailto button
-                    # built from `repEmail`/`mailtoHref` (falls back to a
-                    # Copy-email button + a "No rep on file" hint pointing at
-                    # the book's Rep tab when the vendor has no email saved),
+                    # "Mark all ordered" and an "Email {contact}" mailto button
+                    # built from `repEmail`/`mailtoHref` + `contactLabel` (falls
+                    # back to a Copy-email button + a "No sample contact on
+                    # file" hint pointing at the book's Contacts tab when the
+                    # vendor has neither email saved),
                     # remove ×. Presentation only — contract is
-                    # `SamplesPanel({ name, requests, custInfo, repFor,
+                    # `SamplesPanel({ name, requests, custInfo, contactFor,
                     # onOrdered, onRemove, onClose })`: every write goes back
                     # through `onOrdered(ids, ordered)` — an ID LIST, so "Mark
                     # all ordered" is one write, never one per row (useSamples'
@@ -1602,7 +1634,10 @@ src/
                     # CustomerBrowser instead, over a second sample-less
                     # customer (Task 8 preview proof — the samples column/
                     # filter's mock state), fed `sampleTally={projectSampleTally(SEED)}`
-                    # so the filter visibly narrows the grid
+                    # so the filter visibly narrows the grid, five unfiled
+                    # projects so the default-open strip has three quick prices
+                    # to show with the next peeking, and stateful `panels` so a
+                    # drag round-trips the real initialPanels/onPanels contract
   vendorfetch.js    # vendor sheet fetch (ADR 0019): portal-link parse/validate,
                     # bookmarklet source + clipboard hand-off (copies a marked
                     # base64 payload — HANDOFF_MARK/stripHandoffMark — that the

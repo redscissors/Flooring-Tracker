@@ -10,9 +10,15 @@ shared; the per-user `app_data.data` jsonb blob now holds only that user's
 `profile` (settings moved to the shared record, ADR 0002).
 
 ```
-app_data.data : { profile: { name, phone, email } }   // per user; stamped onto each
+app_data.data : { profile: { name, phone, email },    // per user; stamped onto each
                                                       // NEW project as its salesperson
                                                       // snapshot (ADR 0008)
+                  ui: { browserCols: string[],        // per-user UI prefs, written
+                        browserPanels: {              // only through saveUiPref
+                          strip: bool,                // (best-effort, never toasts):
+                          stripH: number|null,        // the customer browser's column
+                          linesH: number|null } } }   // order + its two side panels'
+                                                      // shown/dragged heights
 
 customers row : { id (text), owner_id (uuid, nullable "created by"),
                   data: Customer, created_at, updated_at,
@@ -56,6 +62,15 @@ sample_request row : { id (text pk), data: { status: "need"|"ordered",
                   // one source for the row icon, project panel, header badge,
                   // and the customer browser's samples column. Written only
                   // through useSamples (usesamples.js).
+                  // WHO the panel emails is NOT snapshotted here — it resolves
+                  // live from the book's two contact slots (Contacts tab,
+                  // owner call 2026-09-01): `price_books.data.sampleContact
+                  // { name, email }` (the vendor's sample-request address —
+                  // often a company inbox, and the name may be a company) wins
+                  // when it carries an email, else `price_books.data.rep
+                  // { name, email }`. Either slot may be absent or blank; both
+                  // are plain jsonb keys, so nothing to migrate. Resolved by
+                  // `sampleContactFor` (samples.js), never read ad hoc.
 
 Customer { id, name, address, phone, email, notes, createdAt,
            categories: Area[], attachments: Att[],

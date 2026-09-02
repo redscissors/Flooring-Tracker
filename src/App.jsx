@@ -9,7 +9,7 @@ import { pricedItem, orderPatch, orderDrift, rowCostSqft, skuKeys } from "./orde
 import { OrderEntryPanel } from "./orderentry.jsx";
 import { isSpecialOrder, nameBudget, orderQty } from "./orderentry.js";
 import { SamplesPanel } from "./samples.jsx";
-import { requestFrom, sampleCounts, projectSampleTally, SAMPLE_LABEL, SAMPLE_COLOR } from "./samples.js";
+import { requestFrom, sampleCounts, projectSampleTally, sampleContactFor, SAMPLE_LABEL, SAMPLE_COLOR } from "./samples.js";
 import { useSamples } from "./usesamples.js";
 import { tierView, tierUnitPrice, employeeNoCost, normPricing } from "./pricing.js";
 import { freightPrintRows, freightOrderRow, freightSummary, freightBookFor, rowFreightOn } from "./freight.js";
@@ -28,7 +28,7 @@ import { uid, money, sf1, miscQty, blobToDataURL, dataURLToBlob, wasteNote, newP
 import { lineTotal, printProduct, printAreaFloor, KSHORT, u1, orderEntryRow } from "./print.js";
 import { jobTotals } from "./jobtotals.js";
 import { OPTION_SLOTS, OPTION_COLOR, optionsUsed, bucketCats, scopedCats, optionTitle, optionShort, duplicateInto, compareOptionsPatch } from "./options.js";
-import { LazyBoundary, FitSelect, BuilderCombo, MetaChip, SalespersonPop, SegBar, WasteBar, ThemeSwitch, MarginLine, Modal, useEscClose, HelpTip } from "./widgets.jsx";
+import { LazyBoundary, FitSelect, BuilderCombo, MetaChip, SalespersonPop, SegBar, WasteBar, ThemeSwitch, MarginLine, Modal, useEscClose, HelpTip, AddressField } from "./widgets.jsx";
 import { escPush } from "./escstack.js";
 import { TypeSelect, GRID_COLS, GridPriceCell, GridSizeInput, GridProductBox, GridOmniSearch } from "./grid.jsx";
 import { MobileSheet, MobileProductRow, MobileRowSheet } from "./mobile.jsx";
@@ -567,6 +567,8 @@ export default function App({ user, onSignOut }) {
     sampleRequests, hydrateSampleRequests, refreshSampleRequests,
     addSampleRequest, delSampleRequest, setSampleOrdered,
   } = useSamples({ user, profile, ping, flashSaved });
+  const openTodoCount = todos.filter((t) => !t.done).length;
+  const openClaudeCount = claudeIssues.filter((t) => !t.done).length;
   // Which Issues & To-Do tab is up; the sidebar button refreshes both lists.
   const [issuesTab, setIssuesTab] = useState("team");
   const openIssues = (tab) => { if (tab) setIssuesTab(tab); openTodos(); refreshClaudeIssues(); };
@@ -1438,10 +1440,14 @@ export default function App({ user, onSignOut }) {
             </div>
             <div className="flex gap-2">
               <button onClick={() => { setSettingsSection("materials"); setShowSettings(true); setSidebarOpen(false); }} className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm py-1.5 text-slate-600"><Settings size={15} /> Settings</button>
-              <button onClick={() => openIssues()} title="Team issues & to-do list — the clay count is the Claude issue bucket" className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm py-1.5 text-slate-600">
-                <ListTodo size={15} /> Issues
-                {todos.filter((t) => !t.done).length > 0 && <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-indigo-600 text-white text-[10px] font-semibold flex items-center justify-center">{todos.filter((t) => !t.done).length}</span>}
-                {claudeIssues.filter((t) => !t.done).length > 0 && <span className="min-w-[18px] h-[18px] px-1 rounded-full text-white text-[10px] font-semibold flex items-center justify-center gap-0.5" style={{ background: CLAUDE_CLAY }}><ClaudeMark size={8} />{claudeIssues.filter((t) => !t.done).length}</span>}
+              <button onClick={() => openIssues()} aria-label="Issues" title="Team issues & to-do list — the clay count is the Claude issue bucket" className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm py-1.5 text-slate-600">
+                {/* Icon + label + both counts is wider than half the 205px rail,
+                    and nothing inside a button shrinks — it used to spill past
+                    the rail's edge. The counts say "issues" well enough on
+                    their own, so the word steps aside while either is up. */}
+                <ListTodo size={15} />{openTodoCount + openClaudeCount === 0 && " Issues"}
+                {openTodoCount > 0 && <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-indigo-600 text-white text-[10px] font-semibold flex items-center justify-center">{openTodoCount}</span>}
+                {openClaudeCount > 0 && <span className="min-w-[18px] h-[18px] px-1 rounded-full text-white text-[10px] font-semibold flex items-center justify-center gap-0.5" style={{ background: CLAUDE_CLAY }}><ClaudeMark size={8} />{openClaudeCount}</span>}
               </button>
             </div>
           </div>
@@ -1479,7 +1485,7 @@ export default function App({ user, onSignOut }) {
                     <div className="mt-3">
                       {custChip === "phone" && <><label className={lbl}>Phone</label><input autoFocus value={selCust.phone} onChange={(e) => updatePerson(selCust.id, { phone: e.target.value })} className={inp} /></>}
                       {custChip === "email" && <><label className={lbl}>Email</label><input autoFocus value={selCust.email} onChange={(e) => updatePerson(selCust.id, { email: e.target.value })} className={inp} /></>}
-                      {custChip === "address" && <><label className={lbl}>Mailing address</label><input autoFocus value={selCust.address} onChange={(e) => updatePerson(selCust.id, { address: e.target.value })} className={inp} /></>}
+                      {custChip === "address" && <><label className={lbl}>Mailing address</label><AddressField autoFocus suggest value={selCust.address} onChange={(v) => updatePerson(selCust.id, { address: v })} inp={inp} ping={ping} distance={selCust.distance} shopAddress={settings.shop?.address || ""} onDistance={(d) => updatePerson(selCust.id, { distance: d })} /></>}
                       {custChip === "builder" && <><label className={lbl}>Builder</label><BuilderCombo value={selCust.builderId} builders={data.builders} inp={inp} onSelect={(bid) => updatePerson(selCust.id, { builderId: bid })} onAddBuilder={(name) => addBuilderFor(selCust.id, name)} /></>}
                       {custChip === "notes" && <><label className={lbl}>Customer notes</label><textarea autoFocus value={selCust.notes} onChange={(e) => updatePerson(selCust.id, { notes: e.target.value })} rows={2} className={inp} /></>}
                     </div>
@@ -1601,7 +1607,7 @@ export default function App({ user, onSignOut }) {
                       </>}>
                       <div className="space-y-3">
                         <div><label className={lbl}>Project name</label><input value={sel.name} maxLength={PROJECT_NAME_MAX} onChange={(e) => updateProject(sel.id, { name: e.target.value })} placeholder="Project name" className={inp} /></div>
-                        <div><label className={lbl}>Project address</label><input value={sel.address} onChange={(e) => updateProject(sel.id, { address: e.target.value })} placeholder="Project address…" className={inp} /></div>
+                        <div><label className={lbl}>Project address</label><AddressField suggest value={sel.address} onChange={(v) => updateProject(sel.id, { address: v })} placeholder="Project address…" inp={inp} ping={ping} distance={sel.distance} shopAddress={settings.shop?.address || ""} onDistance={(d) => updateProject(sel.id, { distance: d })} /></div>
                         <div>
                           <label className={lbl}>Price tier</label>
                           <SegBar value={sel.priceTier || "retail"} inputValue={sel.customPct}
@@ -2637,6 +2643,8 @@ export default function App({ user, onSignOut }) {
           sampleTally={sampleTally}
           initialCols={appBlobRef.current?.ui?.browserCols}
           onColOrder={(order) => saveUiPref({ browserCols: order })}
+          initialPanels={appBlobRef.current?.ui?.browserPanels}
+          onPanels={(patch) => saveUiPref({ browserPanels: { ...(appBlobRef.current?.ui?.browserPanels || {}), ...patch } })}
           onClose={() => setShowBrowser(false)}
           onOpenCustomer={(id) => { setSelId(null); setSelCustId(id); setShowBrowser(false); }}
           onOpenProject={(id) => { pickProject(id); setShowBrowser(false); }}
@@ -2653,7 +2661,7 @@ export default function App({ user, onSignOut }) {
         <Suspense fallback={null}>
         <SettingsWorkspace onClose={() => setShowSettings(false)}
           initialSection={settingsSection} onSectionChange={setSettingsSection}
-          settings={settings} setSettings={setSettings} gFamilies={gFamilies}
+          settings={settings} setSettings={setSettings} gFamilies={gFamilies} ping={ping}
           exportBackup={exportBackup} importBackup={importBackup} fileRef={fileRef}
           inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} theme={theme} setTheme={setTheme} headerLayout={headerLayout} setHeaderLayout={setHeaderLayout}
           profile={profile} saveProfile={saveProfile} user={user}
@@ -2936,7 +2944,7 @@ export default function App({ user, onSignOut }) {
         return (
           <SamplesPanel name={sel.name} requests={projSamples}
             custInfo={{ custName: cust?.name || sel.name || "", address: sel.address || cust?.address || "", phone: sel.phone || cust?.phone || "" }}
-            repFor={(g) => books.find((b) => b.id === g.bookId)?.data?.rep || null}
+            contactFor={(g) => sampleContactFor(books.find((b) => b.id === g.bookId)?.data)}
             onOrdered={setSampleOrdered} onRemove={delSampleRequest}
             onClose={() => setShowSamples(false)} />
         );
@@ -2954,7 +2962,7 @@ export default function App({ user, onSignOut }) {
                 <div><label className={lbl}>Phone</label><input value={c.phone} onChange={(e) => updatePerson(c.id, { phone: e.target.value })} className={inp} /></div>
                 <div><label className={lbl}>Email</label><input value={c.email} onChange={(e) => updatePerson(c.id, { email: e.target.value })} className={inp} /></div>
               </div>
-              <div><label className={lbl}>Mailing address</label><input value={c.address} onChange={(e) => updatePerson(c.id, { address: e.target.value })} className={inp} /></div>
+              <div><label className={lbl}>Mailing address</label><AddressField suggest value={c.address} onChange={(v) => updatePerson(c.id, { address: v })} inp={inp} ping={ping} distance={c.distance} shopAddress={settings.shop?.address || ""} onDistance={(d) => updatePerson(c.id, { distance: d })} /></div>
               <div><label className={lbl}>Builder</label><BuilderCombo value={c.builderId} builders={data.builders} inp={inp} onSelect={(bid) => updatePerson(c.id, { builderId: bid })} onAddBuilder={(name) => addBuilderFor(c.id, name)} /></div>
               <div><label className={lbl}>Customer notes</label><textarea value={c.notes} onChange={(e) => updatePerson(c.id, { notes: e.target.value })} rows={2} className={inp} /></div>
             </div>

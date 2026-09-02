@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { loadProjects, loadTodos, resolveSharedSettings, loadSettingsRow, listSelect, loadSampleRequests } from "./bootload.js";
+import { loadProjects, loadTodos, resolveSharedSettings, loadSettingsRow, listSelect, loadSampleRequests, PERSON_SELECT, personRow } from "./bootload.js";
 
 // Chainable thenable standing in for the supabase query builder (same idea as
 // fetchall.test.js): select/eq/order return the builder; awaiting it resolves
@@ -73,4 +73,14 @@ test("loadSampleRequests maps and normalizes rows", async () => {
   assert.equal(rows[0].status, "ordered");
   assert.equal(rows[0].item.sku, "CM1224");
   assert.equal(rows[1].status, "need");
+});
+
+test("PERSON_SELECT asks for the stored distance — without it the value silently never loads", () => {
+  assert.match(PERSON_SELECT, /distance:data->distance/);
+});
+
+test("personRow normalizes the distance jsonb it gets back", () => {
+  const row = { id: "p1", data: {}, distance: { miles: 18.4, minutes: 27, from: "shop", to: "job", at: 5 } };
+  assert.deepEqual(personRow(row).distance, { miles: 18.4, minutes: 27, from: "shop", to: "job", at: 5 });
+  assert.equal(personRow({ id: "p2" }).distance, null);
 });

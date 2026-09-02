@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { X, Search, Plus, Users, Folder, FileText, ChevronRight, ChevronDown, ArrowUpRight, Zap, Clock, Check, Layers } from "lucide-react";
-import { browserRows, quickRows, draftRows, filterRows, filterBySales, sortRows, groupBySales, salesNameOf, salesRoster, defaultSalesFilter, shortDate, projNos, SORTS, NO_SALES, normColOrder, moveCol, custSamples, filterBySamples } from "./custbrowser.js";
+import { browserRows, quickRows, draftRows, filterRows, filterBySales, sortRows, groupBySales, salesNameOf, salesRoster, defaultSalesFilter, shortDate, projNos, SORTS, NO_SALES, normColOrder, moveCol, custSamples, filterBySamples, normPanelH, clampPanelH, stripOpenDefault, STRIP_H, LINES_H } from "./custbrowser.js";
 import { useEscClose, DotMenu } from "./widgets.jsx";
 
 // The customer browser (issue 040): an ERP-style directory — a dense grid of
@@ -9,7 +9,7 @@ import { useEscClose, DotMenu } from "./widgets.jsx";
 // reads all day). Replaces the sidebar's expanding age-bucket folders. Pure
 // UI over the boot's light rows; opening it fetches nothing, and every action
 // routes back through App's existing handlers.
-export default function CustomerBrowser({ people, projects, builders, myName, initialCols, onColOrder, onClose, onOpenCustomer, onOpenProject, onNewCustomer, onNewProject, sampleTally = new Map() }) {
+export default function CustomerBrowser({ people, projects, builders, myName, initialCols, onColOrder, initialPanels, onPanels = () => {}, onClose, onOpenCustomer, onOpenProject, onNewCustomer, onNewProject, sampleTally = new Map() }) {
   const [q, setQ] = useState("");
   // Column order: seeded from the salesperson's saved arrangement, edited by
   // dragging the header cells; every change flows up through onColOrder.
@@ -27,11 +27,6 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
   const roster = useMemo(() => salesRoster(projects), [projects]);
   const [sortKey, setSortKey] = useState("created");
   const [selId, setSelId] = useState(null);
-  // The customer-less projects — quick-price drafts and unassigned estimates —
-  // live folded into this folder (they have no customer row), hidden until the
-  // header's Estimates & drafts toggle shows the strip. Both lists narrow with
-  // the search box AND the salesperson filter, like the grid.
-  const [showQuick, setShowQuick] = useState(false);
   // Samples filter (spec 2026-08-28): only customers with OPEN (to-order)
   // sample requests, over the same grid + strips the salesperson box narrows.
   const [samplesOnly, setSamplesOnly] = useState(false);
@@ -45,6 +40,16 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
   const quickCount = useMemo(() => quickRows(projects).length, [projects]);
   const draftCount = useMemo(() => draftRows(projects).length, [projects]);
   const unfiledCount = quickCount + draftCount;
+  // The customer-less projects — quick-price drafts and unassigned estimates —
+  // live folded into this folder (they have no customer row). The strip opens
+  // WITH the browser, sized to the last few quick prices, because they are
+  // what the team comes here to check; the header toggle still hides it, and
+  // both that choice and the dragged heights save per user. Both lists narrow
+  // with the search box AND the salesperson filter, like the grid.
+  const [showQuick, setShowQuick] = useState(() => stripOpenDefault(initialPanels?.strip, unfiledCount));
+  const [stripH, setStripH] = useState(() => normPanelH(initialPanels?.stripH));
+  const [linesH, setLinesH] = useState(() => normPanelH(initialPanels?.linesH));
+  const toggleStrip = () => { const next = !showQuick; setShowQuick(next); onPanels({ strip: next }); };
   const shown = useMemo(() => sortRows(filterBySales(filterRows(samplesOnly ? filterBySamples(rows, sampleTally) : rows, q), salesQ), sortKey), [rows, q, salesQ, sortKey, samplesOnly, sampleTally]);
   // Flat list by default; the salesman bands appear only while the
   // salesperson box narrows the list (they show which salesmen matched).
@@ -222,7 +227,7 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
             <Layers size={13} /> Samples
           </button>
           {unfiledCount > 0 && (
-            <button onClick={() => setShowQuick((s) => !s)}
+            <button onClick={toggleStrip}
               title={showQuick ? "Hide estimates & drafts" : "Show estimates & drafts"}
               className={`h-[26px] flex items-center gap-1 rounded-md border px-2 text-xs font-semibold shrink-0 ${showQuick ? "ft-seg-on border-slate-200" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}>
               <Clock size={13} /> Estimates &amp; drafts
@@ -237,8 +242,8 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
             drafts (ADR 0022) and unassigned estimates, shown only on demand so
             they never crowd the directory itself */}
         {showQuick && unfiledCount > 0 && (
-          <div className="border-b border-slate-200 shrink-0 flex flex-col" style={{ maxHeight: "34%" }}>
-            <div className="overflow-y-auto">
+          <div className="relative border-b border-slate-200 shrink-0 flex flex-col" style={stripH ? { height: stripH } : { maxHeight: STRIP_H }}>
+            <div className="flex-1 min-h-0 overflow-y-auto">
               {quickCount > 0 && (<>
                 <div className="flex items-center gap-2 px-3 md:px-4 py-1.5 sticky top-0" style={{ background: "var(--ft-band)" }}>
                   <span className="ft-eyebrow text-[9.5px] flex items-center gap-1.5"><Zap size={11} className="text-indigo-500" /> Quick prices <span className="normal-case tracking-normal font-normal text-slate-400">· {quickShown.length === quickCount ? quickCount : `${quickShown.length} of ${quickCount}`}</span></span>
@@ -259,6 +264,9 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
                 </div>
               </>)}
             </div>
+            <ResizeHandle edge="bottom" label="Estimates &amp; drafts height"
+              onResize={(h, commit) => { setStripH(h); if (commit) onPanels({ stripH: h }); }}
+              onReset={() => { setStripH(null); onPanels({ stripH: null }); }} />
           </div>
         )}
 
@@ -288,7 +296,10 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
 
         {/* Project lines for the selected customer — the ERP order-lines panel */}
         {sel && (
-          <div className="border-t border-slate-200 shrink-0 flex flex-col" style={{ maxHeight: "38%" }}>
+          <div className="relative border-t border-slate-200 shrink-0 flex flex-col" style={linesH ? { height: linesH } : { maxHeight: LINES_H }}>
+            <ResizeHandle edge="top" label="Project lines height"
+              onResize={(h, commit) => { setLinesH(h); if (commit) onPanels({ linesH: h }); }}
+              onReset={() => { setLinesH(null); onPanels({ linesH: null }); }} />
             <div className="flex items-center gap-2 flex-wrap px-3 md:px-4 py-2 shrink-0" style={{ background: "var(--ft-band)" }}>
               <span className="ft-item-name font-semibold text-[13px] truncate">{sel.name || "Unnamed customer"}</span>
               <span className="text-[11px] text-slate-500 truncate">{[sel.builderName, sel.phone, sel.address].filter(Boolean).join(" · ")}</span>
@@ -298,7 +309,7 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
                 <button onClick={() => setSelId(null)} className="text-slate-400 hover:text-slate-600 ml-1"><X size={15} /></button>
               </div>
             </div>
-            <div className="overflow-y-auto px-1.5 py-1">
+            <div className="flex-1 min-h-0 overflow-y-auto px-1.5 py-1">
               {sel.projs.length === 0 && <div className="text-[12px] text-slate-400 px-2.5 py-1.5">No projects yet</div>}
               {sel.projs.map((p) => (
                 <button key={p.id} onClick={() => onOpenProject(p.id)}
@@ -316,6 +327,44 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// The grab bar on a panel's open edge. Pointer capture keeps a fast drag on
+// the handle after the cursor has outrun it; the height is measured off the
+// live panel at pointer-down, so a panel still sitting at its content-sized
+// default resizes from where it actually is. The pref saves once per drag, on
+// release, and a double-click hands the panel back to that default — the way
+// out of a drag that went wrong.
+function ResizeHandle({ edge, onResize, onReset, label }) {
+  const drag = useRef(null);
+  const down = (e) => {
+    if (e.button !== 0) return;
+    const panel = e.currentTarget.parentElement;
+    drag.current = { y: e.clientY, h: panel.getBoundingClientRect().height, vh: window.innerHeight, last: null };
+    e.currentTarget.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  };
+  const move = (e) => {
+    const d = drag.current;
+    if (!d) return;
+    const delta = edge === "top" ? d.y - e.clientY : e.clientY - d.y;
+    d.last = clampPanelH(d.h + delta, d.vh);
+    onResize(d.last, false);
+  };
+  const up = (e) => {
+    const d = drag.current;
+    if (!d) return;
+    drag.current = null;
+    e.currentTarget.releasePointerCapture(e.pointerId);
+    if (d.last != null) onResize(d.last, true);
+  };
+  return (
+    <div role="separator" aria-orientation="horizontal" aria-label={label} title={`${label} — drag to resize, double-click to reset`}
+      onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onDoubleClick={onReset}
+      className={`group absolute inset-x-0 ${edge === "top" ? "top-0" : "bottom-0"} h-[7px] z-20 flex items-center justify-center cursor-row-resize touch-none`}>
+      <div className="w-10 h-[3px] rounded-full bg-slate-200 group-hover:bg-indigo-400 transition-colors" />
     </div>
   );
 }

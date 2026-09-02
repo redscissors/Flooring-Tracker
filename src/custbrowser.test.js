@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { salesNameOf, salesRoster, defaultSalesFilter, browserRows, quickRows, draftRows, filterRows, filterBySales, sortRows, groupBySales, NO_SALES, shortDate, BROWSER_COLS, normColOrder, moveCol, projNoHit, projNos, custSamples, filterBySamples } from "./custbrowser.js";
+import { salesNameOf, salesRoster, defaultSalesFilter, browserRows, quickRows, draftRows, filterRows, filterBySales, sortRows, groupBySales, NO_SALES, shortDate, BROWSER_COLS, normColOrder, moveCol, projNoHit, projNos, custSamples, filterBySamples, normPanelH, clampPanelH, stripOpenDefault, PANEL_MIN, STRIP_H, LINES_H } from "./custbrowser.js";
 
 const people = [
   { id: "c1", name: "Sarah Jones", phone: "(330) 555-0101", address: "4905 Harris Rd", builderId: "b1", createdAt: 100, updatedAt: 150 },
@@ -230,4 +230,48 @@ test("defaultSalesFilter: opens on me only when a job actually carries my name",
   assert.equal(defaultSalesFilter(projects, ""), "");
   assert.equal(defaultSalesFilter(projects, "   "), "");
   assert.equal(defaultSalesFilter([], "Marcus Mast"), "");
+});
+
+test("normPanelH: a saved height survives, junk falls back to the content-sized default", () => {
+  assert.equal(normPanelH(180), 180);
+  assert.equal(normPanelH(64.5), 64.5);
+  assert.equal(normPanelH(undefined), null);
+  assert.equal(normPanelH(null), null);
+  assert.equal(normPanelH("180"), null);
+  assert.equal(normPanelH(0), null);
+  assert.equal(normPanelH(-40), null);
+  assert.equal(normPanelH(NaN), null);
+  assert.equal(normPanelH(Infinity), null);
+});
+
+test("clampPanelH: never smaller than a row, never past 60% of the overlay", () => {
+  assert.equal(clampPanelH(300, 1000), 300);
+  assert.equal(clampPanelH(10, 1000), PANEL_MIN);
+  assert.equal(clampPanelH(900, 1000), 600);
+  // A tiny window can't honor both bounds — the minimum wins so the handle
+  // never collapses out of reach.
+  assert.equal(clampPanelH(500, 80), PANEL_MIN);
+  // Junk viewport (0 before the first measure) leaves the ask alone.
+  assert.equal(clampPanelH(300, 0), 300);
+  assert.equal(clampPanelH(300, NaN), 300);
+});
+
+test("stripOpenDefault: opens on its own, and only when there's something to show", () => {
+  // No saved choice: open whenever unfiled projects exist (the 3-quick-prices default).
+  assert.equal(stripOpenDefault(undefined, 4), true);
+  assert.equal(stripOpenDefault(undefined, 0), false);
+  // A saved choice wins — but an empty folder still has nothing to open.
+  assert.equal(stripOpenDefault(false, 4), false);
+  assert.equal(stripOpenDefault(true, 4), true);
+  assert.equal(stripOpenDefault(true, 0), false);
+  assert.equal(stripOpenDefault("yes", 4), true);
+});
+
+test("the panel defaults clear the minimum, and the strip default is three rows tall", () => {
+  // ~26px per unfiled row + the sticky section band: the strip has to open on
+  // three quick prices for the default to mean what it says.
+  const ROW = 26, BAND = 24;
+  assert.ok(STRIP_H >= BAND + 3 * ROW, `STRIP_H ${STRIP_H} no longer fits three rows`);
+  assert.equal(clampPanelH(STRIP_H, 900), STRIP_H);
+  assert.equal(clampPanelH(LINES_H, 900), LINES_H);
 });

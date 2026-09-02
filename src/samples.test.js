@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { normA } from "./model.js";
 import {
   normSampleRequest, requestFrom, sampleGroups, sampleCounts, projectSampleTally,
-  repEmail, mailtoHref, SAMPLE_STATUSES, SAMPLE_LABEL,
+  repEmail, mailtoHref, sampleContactFor, contactLabel, SAMPLE_STATUSES, SAMPLE_LABEL,
 } from "./samples.js";
 
 const BOOKS = [
@@ -101,4 +101,29 @@ test("mailtoHref encodes subject and body", () => {
 test("status vocabulary is exactly two states, each labeled", () => {
   assert.deepEqual(SAMPLE_STATUSES, ["need", "ordered"]);
   for (const s of SAMPLE_STATUSES) assert.ok(SAMPLE_LABEL[s]);
+});
+
+test("sampleContactFor: the samples contact wins, the rep is the fallback", () => {
+  const rep = { name: "Jeff Krejci", email: "jeff@glazzio.example" };
+  const desk = { name: "Glazzio samples desk", email: "samples@glazzio.example" };
+
+  assert.deepEqual(sampleContactFor({ rep }), { name: "Jeff Krejci", email: "jeff@glazzio.example", from: "rep" });
+  assert.deepEqual(sampleContactFor({ rep, sampleContact: desk }), { name: "Glazzio samples desk", email: "samples@glazzio.example", from: "sample" });
+  assert.deepEqual(sampleContactFor({ sampleContact: { name: "", email: "samples@glazzio.example" } }), { name: "", email: "samples@glazzio.example", from: "sample" });
+});
+
+test("sampleContactFor: an addressless contact is no contact", () => {
+  const rep = { name: "Jeff Krejci", email: "jeff@glazzio.example" };
+  // A name typed with no email can't be mailed — fall through to the rep.
+  assert.equal(sampleContactFor({ rep, sampleContact: { name: "Samples desk", email: "  " } }).from, "rep");
+  assert.equal(sampleContactFor({ rep: { name: "Jeff", email: "" } }), null);
+  assert.equal(sampleContactFor({}), null);
+  assert.equal(sampleContactFor(null), null);
+  assert.deepEqual(sampleContactFor({ rep: { name: " Jeff ", email: " jeff@x.example " } }), { name: "Jeff", email: "jeff@x.example", from: "rep" });
+});
+
+test("contactLabel: first name when there is one, the generic otherwise", () => {
+  assert.equal(contactLabel({ name: "Jeff Krejci", email: "j@x.example", from: "rep" }), "Email Jeff");
+  assert.equal(contactLabel({ name: "", email: "samples@x.example", from: "sample" }), "Email samples");
+  assert.equal(contactLabel(null), "Email samples");
 });
