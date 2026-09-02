@@ -37,8 +37,12 @@ export function usOf(row) {
 
 /** The engine's own fraction vocabulary, hyphenated the way both sheets print a
  * mixed number — "5-3/4", "3/16". */
+// inch() rounds to the nearest 64th, so spelling a decimal it cannot represent
+// would CHANGE the value in a file whose whole contract is zero drift (0.3 ->
+// "19/64" -> 0.296875). Every decimal the importer produces today is a binary
+// fraction and round-trips exactly; anything that doesn't keeps its own digits.
 function spell(n) {
-  return inch(n).replace(" ", "-");
+  return Number.isInteger(n * 64) ? inch(n).replace(" ", "-") : String(n);
 }
 
 /**

@@ -95,11 +95,17 @@ hand-transcribed `us` values with no fixup table.
 
 ## Consequences
 
-- **Stocked wedi lines gain a `bookId`.** They file as stock at order entry
-  through tier 1 of `isSpecialOrder` (book provenance) rather than tier 2
-  (the configurator's verdict). Both give the same answer today, but tier 2
-  stops being load-bearing for new wedi rows, and stays necessary for every
-  row saved before this change, which never gains a `bookId` (ADR 0003).
+- **Order entry is unchanged — stocked wedi lines do NOT gain a `bookId`.**
+  An earlier draft of this ADR said they would, and that tier 2 of
+  `isSpecialOrder` would stop being load-bearing. Neither is true. `adaptRow`
+  emits only `{erp, desc, cost, retail, unit, us}`, and `bookId` appears
+  nowhere in `wediadapter.js` or `wedi.js` — the adapter feeds `makeEntry`'s
+  stockRow shape, which has no such field, and threading one through would be
+  a change to the engine this decision explicitly does not make. Even if a
+  line did carry one, `orderentry.js:44` short-circuits only for a bookId that
+  is NOT in `stockBookIds`, so a stock-kind wedi book would fall through to
+  the configurator's-verdict clause regardless. Tier 2 remains fully
+  load-bearing for every wedi row, saved or new.
 - **Re-import machinery comes free.** Drift chips, the whole-book diff, the
   still-good stamp, per-item disable, flag review — all of ADR 0025/0027
   applies to wedi's stock range the day the book exists, the same as it does

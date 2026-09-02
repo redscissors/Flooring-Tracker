@@ -150,3 +150,30 @@ test("descOf: the reattached thickness is inserted literally, never as a replace
   assert.equal(descOf({ thickness: "$&", description: "Widget 1-" }), "Widget 1-$&");
   assert.equal(descOf({ thickness: "$1", description: "Widget 1-" }), "Widget 1-$1");
 });
+
+test("usOf: with no US-shaped code the fallback is POSITIONAL, and normFits is what makes it stable", () => {
+  // The US-shaped preference is order-independent, so a row with one such code
+  // is deterministic whatever the array order:
+  assert.equal(usOf({ sku: "12345", vendorSkus: ["073736517", "US9330001"] }), "US9330001");
+  assert.equal(usOf({ sku: "12345", vendorSkus: ["US9330001", "073736517"] }), "US9330001");
+
+  // But when NEITHER candidate is US-shaped the rule takes codes[0] as given.
+  // It is only stable in production because normFits sorted vendorSkus before
+  // the row ever got here — the determinism is INHERITED, not intrinsic:
+  assert.equal(usOf({ sku: "12345", vendorSkus: ["073736517", "095225053"] }), "073736517");
+  assert.equal(usOf({ sku: "12345", vendorSkus: ["095225053", "073736517"] }), "095225053");
+
+  // No row in today's export has two non-US candidates — measured, 0 of 151 —
+  // so nothing exercises this path yet. A future export with two article
+  // numbers on one row would key on whichever sorts first, silently. Pinned
+  // here so that is a decision on the record rather than a discovery.
+});
+
+test("descOf: a size inch() cannot represent keeps its own digits", () => {
+  // inch() rounds to the nearest 64th, so spelling a value it cannot hold
+  // would CHANGE it — 0.3 would come back 19/64 = 0.296875 — in a file whose
+  // contract is zero drift. Representable values still spell.
+  assert.match(descOf({ size: "0.5x8.5", description: "Widget" }), /1\/2"x8-1\/2"/);
+  assert.match(descOf({ size: "0.3x8.5", description: "Widget" }), /0\.3/);
+  assert.doesNotMatch(descOf({ size: "0.3x8.5", description: "Widget" }), /19\/64/);
+});
