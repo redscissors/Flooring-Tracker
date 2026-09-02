@@ -1,7 +1,9 @@
 # wedi's pricelist side from a registry price book (8b)
 
-- **Status:** Design approved by the owner 2026-09-02 (sections 1–6 in chat);
-  spec awaiting the owner's read before a plan is written.
+- **Status:** Approved by the owner 2026-09-02; plan at
+  `docs/superpowers/plans/2026-09-02-wedi-pricelist-book.md`. Amended the same
+  day from the planning measurements: decision 1's `details` fallback,
+  decision 8 (34 twinned entries, not two), decision 9's pinned list.
 - **Date:** 2026-09-02
 - **Builds on:** spec 8a (`2026-09-01-wedi-stock-book-design.md`) and ADR 0037,
   which moved wedi's stock half onto a registry book and left `WEDI_SO`
@@ -132,13 +134,16 @@ and rollback, per-item disable, Flag-for-Claude — run unchanged (ADR 0025/0027
   the last). A doubled unit at the end of a size cell (" in. in.") is collapsed
   — a sheet typo on one row that the transcription corrected by hand.
 - **`details`** is the column captioned "Additional Details" or "Drain
-  Location" — by caption, not position — and, where a section captions
-  neither, the cell to the right of the size column (the accessories block,
-  where the sheet spills the description across merged cells and the
-  transcription kept the spill). This is a deliberate improvement over the
-  transcription's position-4 rule: it recovers "1 Kit" and "12 per case, full
-  cases only", which position 4 dropped. Decision 9 pins every row where the
-  two disagree.
+  Location" **when that cell is non-empty**, else the cell to the right of the
+  size column. The fallback covers two measured cases: sections that caption
+  neither (the accessories block, where the sheet spills the description
+  across merged cells and the transcription kept the spill), and the joint
+  sealant block, which captions "Additional Details" at a column that is
+  empty on rows whose real note ("Alkali Resistant", "*count determined by
+  weight…") sits one cell left. This reproduces the transcription on 213 of
+  223 rows and improves on it on the rest: it recovers "1 Kit" and "12 per
+  case, full cases only", which the transcription's fixed column 4 never saw.
+  Decision 9 pins every row where the two disagree.
 - **Everything else is skipped** without a warning: title lines, "Full
   Pallet/Box Quantities Only", the "*Contains Fundo® Shower Base…" kit notes,
   the Terms of Sale block. The six `kitNote` rows in `WEDI_SO` are **not**
@@ -223,7 +228,7 @@ prefers that label later.
 
 | stock half | pricelist half | `catReady` | `onBook` |
 |---|---|---|---|
-| no book | no book | true | `{stock:false, so:false}` — both transcribed tables, caption "· transcribed table" |
+| no book | no book | true | `{stock:false, so:false}` — both transcribed tables, caption "· transcribed tables" |
 | book, rows | no book | true | `{stock:true, so:false}` — caption "· transcribed pricelist" |
 | no book | book, rows | true | `{stock:false, so:true}` — caption "· transcribed stock table" |
 | book, rows | book, rows | true | `{stock:true, so:true}` — no caption |
@@ -264,16 +269,25 @@ frame with the same kind of hint. `coverFrameFor` is already null-safe.
 
 ### 8. The visible catalog change, pinned
 
-Surfacing `676800061` / `676800064` from the pricelist gives two existing
-stock entries a pricelist twin they never had. `makeEntry` names a twinned
-entry from the pricelist (`soRow.name`), so those two frames' display names
-move from the ERP wording ("28\" Wedi Linear Channel Frame - 676800061
--Stainless") to the pricelist's ("wedi Fundo® Linear Drain Cover Frame SS27"),
-exactly the treatment every other twinned row already gets. They also gain
-`section`, `size`, `details`, `soRetail`, `soNet`. The acceptance test pins
-this: those two keys are the **only** stock entries allowed to differ, and
-only in those fields. The owner sees the rename in the preview proof and can
-veto it there.
+**Thirty-four** existing stock entries gain a pricelist twin they never had
+(measured 2026-09-02 while planning; the design discussion said two): the
+SS27/SS43 linear cover frames `676800061` / `676800064`, and **32 of the 36
+S-Dry parts — the S-Dry line is stocked**, and `WEDI_STOCK` already carries
+them under the ERP's wording. `makeEntry` names a twinned entry from the
+pricelist (`soRow.name`), so their display names move from the ERP wording
+("28\" Wedi Linear Channel Frame - 676800061 -Stainless", "50\"x25' Wedi
+S-Dry Membrane 104sf US5076009") to the pricelist's ("wedi Fundo® Linear
+Drain Cover Frame SS27", "wedi® S-DRY™"), exactly the treatment the 105
+already-twinned rows get. They also gain `section`, `size`, `details`,
+`soRetail`, `soNet` (and `sizeText` where it derives from `size`). S-Dry
+pans are unaffected in name — `makeEntry` rebuilds every pan's name from its
+dimensions. The acceptance test pins this: those 34 keys are the **only**
+stock entries allowed to differ, and only in those fields; a difference in
+any geometry or price field is a finding for the owner, never a key to
+allow-list. Only four S-Dry parts are new special-order entries
+(`US8076001`, `US9476013`, `US9476014`, `US9476015`), so the catalog grows
+from 269 to 273. The owner sees the renames in the preview proof and can veto
+them there.
 
 ### 9. Where the parser deliberately differs from `WEDI_SO`, pinned
 
@@ -292,6 +306,15 @@ strings trips):
   reproduced.
 - `size` on `US3000000`: the sheet's "… x 3 1/8 in. in." collapses to one
   "in." (decision 1), matching the transcription.
+
+Measured 2026-09-02 through the real pipeline, the `details` list is exactly
+ten rows: `US5000085` "1 Kit"; `US5000013`/`US5000088` "12 per case, full
+cases only"; `US5000010`/`US5000083` "20 per case, full cases only";
+`US5000019` "1 per box"; `US5000020` "sold in increments of 10 pcs.";
+`US5000044` "25 pcs/case, full cases only"; and the two seats. **One of them
+moves a derived field:** `unitOf` reads "per box", so `US5000019` (the
+sausage gun) goes from `EA` to `BX`. Pinned with the rest; shown in the
+preview.
 
 Anything else that differs is a parser bug, not a judgement call.
 
@@ -317,7 +340,9 @@ preview the plan must capture.
    the `WEDI_SO`-fed half on 8a's `DERIVED` field list **plus** `section`,
    `size`, `soRetail` and `soNet`, for all 223 transcribed keys, with
    `details` compared separately against decision 9's allow-list; the
-   additions are exactly the 36 S-Dry codes and nothing else; the stock half is unchanged except the two frames of
+   special-order additions are exactly the four S-Dry parts the shop does not
+   stock, the catalog totals 273, and the stock half changes only on decision
+   8's 34 twinned keys and only in the listed fields; the stock half is unchanged except the two frames of
    decision 8, in exactly the listed fields; **0 rows in `misc`** with both
    sources installed; the pinned `kitFor("US9100004")` and `solve(...)` trees
    are identical with both sources installed vs neither.
@@ -345,6 +370,7 @@ preview the plan must capture.
 
 ## Open for the owner
 
-1. The two frames' rename (decision 8): accept when it shows in the preview,
-   or ask for the ERP wording to be kept on twinned rows — which would be a
-   `makeEntry` rule change affecting every twinned row, not just these two.
+1. The 34 renames of decision 8 (two frames, 32 stocked S-Dry parts): accept
+   when they show in the preview, or ask for the ERP wording to be kept on
+   twinned rows — which would be a `makeEntry` rule change affecting all 139
+   twinned rows, not just these.
