@@ -143,3 +143,42 @@ built with everything on offer.
   carrying a `kitId` keep it, so per-entry basket stamps survive the shared landing
   helpers), never inside the engines: `lineItems` outputs stay deterministic and
   the pinned engine tests untouched.
+
+## Amendment (2026-09-02): Reconfigure reads the placed rows
+
+The consequence above — "hand edits to companion rows are replaced with the
+kit" — was true twice over: Add replaced them, and Reconfigure never saw them.
+The wedi/Schluter marker is `{ mode, cfg }` and the popup's stepped quantities
+(`qtyOv`) and hand-added extras are session state that "never rode the cfg", so
+a salesperson who typed a quantity on a placed row (or stepped one in the popup
+before Add) and then hit **Reconfigure** got the recipe's figures back, and
+Update this kit re-landed them (the 2026-09-02 report).
+
+Decision (owner): **once a kit lands, its rows are the truth, and Reconfigure
+opens on them.** Two mechanisms, both engines:
+
+- `lineItems` now stamps every emitted line with its catalog identity — the
+  anchor's marker gains `key`, a companion carries `{ part: <key> }` instead of
+  `{ part: true }` (still truthy, so every `!marker.part` anchor test stands).
+  Legacy rows resolve by the shop number a stocked line lands as its sku, or the
+  `wedi US… —` lead of a special-order line.
+- `kitRows` (model.js) hands the popup the anchor plus exactly the companions
+  `kitCompanionIds` gives it — the set landing replaces and Remove deletes — and
+  `sessionFromRows` (wedi.js / schluter.js) diffs those rows against the kit
+  rebuilt from its marker with the default session: a line whose rows total
+  differently reopens with that total as its override, a line with no row left
+  steps to 0, a row the build doesn't produce reopens as a manual extra. A blank
+  qty is "not said", and a row set that resolves to nothing leaves the session
+  empty rather than zeroing the kit.
+
+Why the kitId group and not "the wedi rows nearby": with two showers in one
+area plus a panel the salesperson searched in by hand, the searched row carries
+no marker and no kitId, and the second shower's rows carry a different kitId —
+neither can fold into the first shower's session (the owner's question). The
+legacy fallback (contiguous same-vendor companions below a kitId-less anchor) is
+the same one the landing rule already used, so Reconfigure can never read a row
+Add would not replace.
+
+The override is a starting point, not a lock: the popup shows it as a hand-set
+quantity with the recipe's figure on hover, and Reset / re-picking a kit clears
+it as before.

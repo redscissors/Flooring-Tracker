@@ -388,7 +388,11 @@ order books it becomes a two-tier search:
    guess prices a job off the wrong list. Honest and simple beats clever here.
    *(Extended 2026-07-25 — ADR 0009 amendment: copies of one product across two
    ORDER books also collapse, to the cheapest, but only when the descriptions
-   corroborate the SKU match. The hazard named here is what sets that bar.)*
+   corroborate the SKU match. The hazard named here is what sets that bar.
+   Extended again 2026-09-02: the twin is looked up in the WHOLE stock cache,
+   not just the stock rows the typed words matched, and the order row's own
+   stated codes count too — so a size search that only the vendor's spelling
+   answers still lands the stocked item.)*
 4. The result cap lesson from issue 005 carries over: always show
    "Showing 30 of N", never truncate silently.
 

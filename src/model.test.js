@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normP, normA, normC, rowBlank, newProduct, newArea, newProject, newPerson, areaLabel, money, catSig, quickAutoName, isQuickAutoName, isRealProjectName, QUICK_DEFAULT_NAME, stampKit, landKitLines, removeKitLines, placedKits, normKitBasketEntry, appendKitLines, moveKitEntries } from "./model.js";
+import { normP, normA, normC, rowBlank, newProduct, newArea, newProject, newPerson, areaLabel, money, catSig, quickAutoName, isQuickAutoName, isRealProjectName, QUICK_DEFAULT_NAME, stampKit, landKitLines, removeKitLines, kitRows, placedKits, normKitBasketEntry, appendKitLines, moveKitEntries } from "./model.js";
 
 test("normP fills every field a grid row reads from a bare object", () => {
   const p = normP({ id: "x" });
@@ -254,6 +254,28 @@ test("removeKitLines: removes the anchor and its companions, across areas", () =
   const next = removeKitLines(cats, cats[0].id, anchor.id);
   assert.deepEqual(next[0].products.map((p) => p.brandColor), ["Tile"]);
   assert.equal(next[1].products.length, 0);
+});
+
+test("kitRows: the anchor and its kitId group, never a hand-searched line or the next shower", () => {
+  const a1 = wediAnchor({ kitId: "K1" });
+  const p1 = wediPart({ kitId: "K1" });
+  const hand = { ...newProduct(), brandColor: "wedi panel picked from search", sku: "47700", qty: "3" };
+  const a2 = wediAnchor({ kitId: "K2" });
+  const p2 = wediPart({ kitId: "K2" });
+  const far = wediPart({ kitId: "K1" });
+  const cats = [{ ...newArea(), products: [a1, p1, hand, a2, p2] }, { ...newArea(), products: [far] }];
+  assert.deepEqual(kitRows(cats, cats[0].id, a1.id).map((p) => p.id), [a1.id, p1.id, far.id]);
+  assert.deepEqual(kitRows(cats, cats[0].id, a2.id).map((p) => p.id), [a2.id, p2.id]);
+  assert.equal(kitRows(cats, cats[0].id, "nope"), null);
+});
+
+test("kitRows: a legacy kitId-less anchor reads the contiguous companion run below it", () => {
+  const a1 = wediAnchor();
+  const p1 = wediPart();
+  const tile = { ...newProduct(), brandColor: "Tile", priceSqft: "4" };
+  const p2 = wediPart();
+  const cats = [{ ...newArea(), products: [a1, p1, tile, p2] }];
+  assert.deepEqual(kitRows(cats, cats[0].id, a1.id).map((p) => p.id), [a1.id, p1.id]);
 });
 
 test("removeKitLines: a bundle anchor takes the whole bundle; a sibling width takes only itself", () => {

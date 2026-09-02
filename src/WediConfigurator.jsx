@@ -21,7 +21,7 @@ import {
   tierPrice, lineItems, coverFrames, inch, round2, TIERS, SKU, MODULE_DEPTH, MODEXT_DEPTH,
   FINISHES, GROUP_LABEL, BUILDER_MULT, SO_MIN_NET,
   normBench, benchPremades, benchPanRoom, benchPanPlan, smallerPanFor,
-  BENCH_CORNER_LBL, buildFromMarker,
+  BENCH_CORNER_LBL, buildFromMarker, sessionFromRows,
 } from "./wedi.js";
 import { TopDown, Iso, railSplit, RAIL_DESIGN_W, curbHeight } from "./showerdraw.jsx";
 import { normKitBasketEntry } from "./model.js";
@@ -639,7 +639,7 @@ export default function WediConfigurator(props) {
 function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schluterBuilderPct,
   cat, caption = "",
   stockRows, bookStockReady, books, loadBookItems, mortars, mortarDefault,
-  onAdd, onAddNew, editing = null, basket, onBasketChange, onMoveEntries, placed, onOpenPlaced, onDeleteKit,
+  onAdd, onAddNew, editing = null, editRows = null, basket, onBasketChange, onMoveEntries, placed, onOpenPlaced, onDeleteKit,
   onQuoteOptions, onClose, areaName, projectName, onConfigChange, embedded = false }) {
   const init = useRef(null);
   if (!init.current) init.current = seedState(seed);
@@ -979,6 +979,24 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     }
     return null;
   }, [panKey, option, buildWalls, wallH, opts, addons, benches, qtyOv, manual, panelFit, tierId, corners, maxIn, tileIn, source]);
+
+  // A Reconfigure opens on what the sheet says (owner 2026-09-02): the placed
+  // rows are the truth once a kit lands, so a quantity typed on a row — or
+  // stepped here before Add — is the session this reopens with, not the
+  // recipe's figure. Derived once, off the marker rebuilt the way the basket
+  // drawer prices a placed kit (default session, Fit on); the body only
+  // mounts with the catalog installed, so the rebuild reads the right book.
+  const rowsSeeded = useRef(false);
+  useEffect(() => {
+    if (rowsSeeded.current || !editing || !editRows?.length || !seed?.cfg?.panKey) return;
+    rowsSeeded.current = true;
+    const b = buildFromMarker(seed);
+    if (!b) return;
+    const s = sessionFromRows(applySession(b, b.cfg.walls, { qtyOv: {}, manual: [], panelFit: true }), editRows);
+    if (Object.keys(s.qtyOv).length) setQtyOv(s.qtyOv);
+    if (s.manual.length) setManual(s.manual);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // The live { mode, cfg } upward, in seed shape, so App's ft-open-layer
   // restore reopens mid-configuration rather than on the original seed.

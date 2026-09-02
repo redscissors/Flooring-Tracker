@@ -24,7 +24,7 @@ import { seedFromQuery as wediSeed } from "./wediquery.js";
 // engine, adapter, and popup all stay inside the lazy chunk (ADR 0026/0032).
 import { seedFromQuery as schluterSeed } from "./schluterquery.js";
 import { STOCK_LOADING_MSG, TYPES, TLBL, underlayLabel, TYPE_ACCENT, ROW_WASH, TOTAL_WASH, JOINTS, colorsFor, ATT_BUCKET, TIER_COLOR, tierBadgeText, PROJECT_NAME_MAX, AUTO_KEEP, QUICK_SWEEP_DAYS } from "./uiconst.js";
-import { uid, money, sf1, miscQty, blobToDataURL, dataURLToBlob, wasteNote, newProduct, newArea, areaLabel, rowBlank, catSig, newProject, newPerson, newBuilder, normC, personData, quickAutoName, isRealProjectName, QUICK_DEFAULT_NAME, stampKit, landKitLines, appendKitLines, moveKitEntries, placedKits, removeKitLines } from "./model.js";
+import { uid, money, sf1, miscQty, blobToDataURL, dataURLToBlob, wasteNote, newProduct, newArea, areaLabel, rowBlank, catSig, newProject, newPerson, newBuilder, normC, personData, quickAutoName, isRealProjectName, QUICK_DEFAULT_NAME, stampKit, landKitLines, appendKitLines, moveKitEntries, placedKits, removeKitLines, kitRows } from "./model.js";
 import { lineTotal, printProduct, printAreaFloor, KSHORT, u1, orderEntryRow } from "./print.js";
 import { jobTotals } from "./jobtotals.js";
 import { OPTION_SLOTS, OPTION_COLOR, optionsUsed, bucketCats, scopedCats, optionTitle, optionShort, duplicateInto, compareOptionsPatch } from "./options.js";
@@ -2818,6 +2818,7 @@ export default function App({ user, onSignOut }) {
             onDeleteKit={(k) => { const next = removeKitLines(sel.categories, k.areaId, k.rowId); if (next) { updateProject(sel.id, { categories: next }); if (k.rowId === wediPop.pid) setWediPop(null); } }}
             onQuoteOptions={(p) => addCompareOptions(wediPop.aid, p)}
             editing={row.wedi?.cfg && !row.wedi.part ? { areaId: wediPop.aid, rowId: wediPop.pid, kitId: row.kitId || "" } : null}
+            editRows={row.wedi?.cfg && !row.wedi.part ? kitRows(sel.categories, wediPop.aid, wediPop.pid) : null}
             onAdd={(lines) => { addWediLines(wediPop.aid, wediPop.pid, lines); setWediPop(null); setFocusQty(wediPop.pid); }}
             onAddNew={(lines) => { updateProject(sel.id, { categories: appendKitLines(sel.categories, wediPop.aid, lines) }); setWediPop(null); }}
             onConfigChange={(live) => { try { localStorage.setItem("ft-open-layer", JSON.stringify({ kind: "wedi", aid: wediPop.aid, pid: wediPop.pid, seed: live })); } catch (x) { } }}
@@ -2860,6 +2861,7 @@ export default function App({ user, onSignOut }) {
             onDeleteKit={(k) => { const next = removeKitLines(sel.categories, k.areaId, k.rowId); if (next) { updateProject(sel.id, { categories: next }); if (k.rowId === schluterPop.pid) setSchluterPop(null); } }}
             onQuoteOptions={(p) => addCompareOptions(schluterPop.aid, p)}
             editing={row.schluter?.cfg && !row.schluter.part ? { areaId: schluterPop.aid, rowId: schluterPop.pid, kitId: row.kitId || "" } : null}
+            editRows={row.schluter?.cfg && !row.schluter.part ? kitRows(sel.categories, schluterPop.aid, schluterPop.pid) : null}
             onAdd={(lines) => { addSchluterLines(schluterPop.aid, schluterPop.pid, lines); setSchluterPop(null); setFocusQty(schluterPop.pid); }}
             onAddNew={(lines) => { updateProject(sel.id, { categories: appendKitLines(sel.categories, schluterPop.aid, lines) }); setSchluterPop(null); }}
             onConfigChange={(live) => { try { localStorage.setItem("ft-open-layer", JSON.stringify({ kind: "schluter", aid: schluterPop.aid, pid: schluterPop.pid, seed: live })); } catch (x) { } }}
