@@ -2157,12 +2157,22 @@ export default function SchluterConfigurator({
 
   // The compare surface spans the whole body — its own two-column grid IS the
   // comparison, so the build column and the drawings rail step aside.
+  //
+  // The registry bag below is what the tab needs to assemble the OTHER engine's
+  // catalog — here, wedi's. wedi.js's catalog is installable module state, see
+  // usewedicatalog.js. With nothing installed, the tab's wedi column prices
+  // off the transcribed WEDI_STOCK table, and its quote-options footer commits
+  // those prices into the project. This popup does NOT call the hook itself —
+  // that would drag wedi.js's tables into the Schluter chunk, which the lazy
+  // boundary above exists to prevent — so the install happens inside the
+  // compare chunk, where both engines already live.
   const compareTab = (
     <Suspense fallback={null}>
       <CompareTab host="schluter" hostCfg={markCfg} hostBuild={build} cat={cat}
         hostMode={mode}
         source={source} tier={tierId}
         wediBuilderPct={wediBuilderPct} schluterBuilderPct={bPct}
+        books={books} loadBookItems={loadBookItems} bookStockReady={bookStockReady}
         mortars={mortars} mortarDefault={mortarDefault}
         areaName={areaName} onQuoteOptions={onQuoteOptions} />
     </Suspense>
