@@ -613,7 +613,7 @@ function WediGate({ embedded, onClose, children }) {
  * with it.
  */
 export default function WediConfigurator(props) {
-  const { cat, catReady, onBook, bookError, retryBook } = useWediCatalog(props);
+  const { cat, catReady, caption, bookError, retryBook } = useWediCatalog(props);
   if (!catReady) {
     return (
       <WediGate embedded={props.embedded} onClose={props.onClose}>
@@ -629,11 +629,11 @@ export default function WediConfigurator(props) {
       </WediGate>
     );
   }
-  return <WediConfiguratorBody {...props} cat={cat} onBook={onBook} />;
+  return <WediConfiguratorBody {...props} cat={cat} caption={caption} />;
 }
 
 function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schluterBuilderPct,
-  cat, onBook,
+  cat, caption = "",
   stockRows, bookStockReady, books, loadBookItems, mortars, mortarDefault,
   onAdd, onAddNew, editing = null, basket, onBasketChange, onMoveEntries, placed, onOpenPlaced, onDeleteKit,
   onQuoteOptions, onClose, areaName, projectName, onConfigChange, embedded = false }) {
@@ -2006,6 +2006,12 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
           {build.hints.includes("small-order") && (
             <div className="whint">Special-order net {fm(build.soNet)} runs under wedi's $500 minimum — 10% small-order handling applies</div>
           )}
+          {build.hints.includes("no-panel") && (
+            <div className="whint">No wedi building panel in the price book — wall sheets were not priced. Re-import the book, or pick a panel by hand.</div>
+          )}
+          {build.hints.includes("no-cover") && (
+            <div className="whint">No drain cover in the price book — the drain line was left off. Re-import the book, or pick a cover by hand.</div>
+          )}
 
         </div>
 
@@ -2480,7 +2486,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     ["kits", "Kits", pans().length + " pans"],
     ["custom", "Custom shower", "solver"],
     ["browse", "Browse", nStock + " stock · " + (cat.length - nStock) + " SO"
-      + (onBook ? "" : " · transcribed table")],
+      + caption],
     ["compare", "Compare", "wedi ⇄ Schluter"],
   ];
 

@@ -15,8 +15,12 @@ import { createRoot } from "react-dom/client";
 import "./index.css";
 import WediConfigurator from "./WediConfigurator.jsx";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
-import { normOrderItem } from "./orderbook.js";
+import { normOrderItem, bookItemData, normBookItem } from "./orderbook.js";
 import { newProduct, newArea, landKitLines, appendKitLines, moveKitEntries, placedKits, removeKitLines } from "./model.js";
+import { FIXTURE_ROWS as WEDI_STOCK_ROWS } from "./wedifixture.js";
+import { PRICELIST_SHEETS } from "./wedipricelistfixture.js";
+import { parseWediPricelist } from "./wedibook.js";
+import { parseMapped } from "./pricebook.js";
 
 const stockRows = FIXTURE_ITEMS.filter((i) => i.stock).map((i) => normOrderItem({
   sku: i.erp || i.sku, bookId: "bk_stock", description: i.name, vendorSkus: i.erp ? [i.sku] : [],
@@ -26,6 +30,23 @@ const eftRows = FIXTURE_ITEMS.filter((i) => !i.stock).map((i) => normOrderItem({
   sku: i.sku, bookId: "bk_eft", description: i.name, size: i.size || "", unit: i.unit,
   cost: i.cost, price: i.price, leadTime: i.lead || "",
 }));
+
+// ?mode=none|stock|so|both|floor — which wedi books exist, for the Browse
+// caption's five states (spec 2026-09-02 decision 5/6). `floor` is a
+// pricelist book missing the one SKU.* the stock table lacks, so the hook
+// refuses it and names it.
+const MODE = new URLSearchParams(location.search).get("mode") || "both";
+const wediStockRows = WEDI_STOCK_ROWS.map((r) => normBookItem(r, "bk_wedi"));
+const wediSoRows = (() => {
+  const p = parseWediPricelist(PRICELIST_SHEETS);
+  const { items } = parseMapped(p.rows, p.mapping);
+  const rows = items.map((it) => normBookItem({ sku: it.sku, active: true, data: bookItemData(it) }, "bk_wedi_so"));
+  return MODE === "floor" ? rows.filter((r) => r.sku !== "US5000088") : rows;
+})();
+const wediBooks = [
+  ...(MODE === "stock" || MODE === "both" || MODE === "floor" ? [{ id: "bk_wedi", kind: "stock", active: true, name: "wedi" }] : []),
+  ...(MODE === "so" || MODE === "both" || MODE === "floor" ? [{ id: "bk_wedi_so", kind: "order", active: true, name: "wedi" }] : []),
+];
 
 function Harness() {
   const [cats, setCats] = useState([{ ...newArea(), name: "Master bath", products: [newProduct()] }]);
@@ -41,8 +62,8 @@ function Harness() {
       projectName="Harper — 214 Ridgeway"
       stockRows={stockRows}
       bookStockReady
-      books={[{ id: "bk_eft", kind: "order", active: true, name: "Schluter EFT" }]}
-      loadBookItems={async () => eftRows}
+      books={[{ id: "bk_eft", kind: "order", active: true, name: "Schluter EFT" }, ...wediBooks]}
+      loadBookItems={async (id) => (id === "bk_wedi" ? wediStockRows : id === "bk_wedi_so" ? wediSoRows : eftRows)}
       mortars={{ "Schluter All Set": { tier1: 95, tier2: 70, tier3: 45, unit: "bags", price: 39.21 }, "ProLite": { tier1: 90, tier2: 63, tier3: 45, unit: "bags", price: 32.5 } }}
       mortarDefault="Schluter All Set"
       basket={basket} onBasketChange={setBasket}

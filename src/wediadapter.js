@@ -154,3 +154,34 @@ export function adaptRow(row) {
 export function adaptBookRows(rows) {
   return (rows || []).map(adaptRow).filter(Boolean);
 }
+
+// --- the pricelist half (spec 2026-09-02, 8b) --------------------------------
+//
+// Much simpler than the stock half above: wedibook.js wrote `size` and
+// `description` as separate columns, so nothing was split and nothing needs
+// putting back. The one thing to know is what is NOT here — `discount`. The
+// transcribed table carried the section caption's "(less N%)", and nothing
+// in the engine ever read it (makeEntry does not copy it); the book does not
+// carry it and the adapter emits null.
+
+const SO_PART = /^(US\d{7,9}|\d{9})$/;
+
+/** One live order-item row → makeEntry's soRow shape, or null without a wedi part number. */
+export function adaptSoRow(row) {
+  if (!row || !SO_PART.test(String(row.sku || ""))) return null;
+  return {
+    us: String(row.sku),
+    name: String(row.description || ""),
+    size: String(row.size || ""),
+    details: String(row.note || ""),
+    retail: +row.price || 0,
+    net: +row.cost || 0,
+    section: String(row.section || ""),
+    discount: null,
+    erp: (row.vendorSkus || [])[0] || "",
+  };
+}
+
+export function adaptSoRows(rows) {
+  return (rows || []).map(adaptSoRow).filter(Boolean);
+}

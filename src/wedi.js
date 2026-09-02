@@ -4082,6 +4082,10 @@ let CAT = null, INDEX = null;
 // legitimate in. The hook never installs while a book exists but has not
 // loaded; it waits instead, so a slow fetch can never quote stale prices.
 let STOCK_SRC = null;
+// The live order-kind book's rows for the pricelist half (spec 2026-09-02,
+// 8b), installed by the same hook under the same rule: null means no book and
+// buildCatalog falls back to the transcribed WEDI_SO table.
+let SO_SRC = null;
 
 function unitOf(stockRow, soRow) {
   if (stockRow && stockRow.unit) return stockRow.unit;
@@ -4311,7 +4315,7 @@ function makeEntry(stockRow, soRow) {
 
 function buildCatalog() {
   const rows = STOCK_SRC || WEDI_STOCK;
-  const soRows = WEDI_SO.filter((r) => !r.kitNote);
+  const soRows = (SO_SRC || WEDI_SO).filter((r) => !r.kitNote);
   const byErp = {}, byUs = {};
   soRows.forEach((r) => {
     if (r.erp) byErp[r.erp] = r;
@@ -4366,6 +4370,32 @@ export function clearStockSource() {
 }
 export function stockSourceIsBook() {
   return STOCK_SRC !== null;
+}
+export function setSoSource(rows) {
+  SO_SRC = rows && rows.length ? rows : null;
+  CAT = null; INDEX = null;
+}
+export function clearSoSource() {
+  SO_SRC = null;
+  CAT = null; INDEX = null;
+}
+export function soSourceIsBook() {
+  return SO_SRC !== null;
+}
+// Identity, not a boolean: the hook's re-assert effect has to tell book A's
+// rows from book B's, which stockSourceIsBook() cannot.
+export function stockSourceIs(rows) {
+  return STOCK_SRC === (rows && rows.length ? rows : null);
+}
+export function soSourceIs(rows) {
+  return SO_SRC === (rows && rows.length ? rows : null);
+}
+// The plausibility floor (spec decision 6): the hardcoded parts the kit
+// builder dereferences, checked against what the INSTALLED sources actually
+// resolve — whichever mix of book and table each half is on.
+export function missingRequiredParts() {
+  catalog();
+  return Object.values(SKU).filter((k) => !INDEX[k]);
 }
 export function item(key) {
   catalog();
@@ -5113,8 +5143,11 @@ export function kitFor(panKey, opts) {
 
   // --- walls -----------------------------------------------------------------
   const sheets = panel && panel.sf ? Math.ceil(panelSf / panel.sf) : 0;
-  push(lines, panel, sheets, "walls",
+  // A live book can drop the default panel; the floor in usewedicatalog.js
+  // refuses such a book, and this is the belt to that brace.
+  if (panel) push(lines, panel, sheets, "walls",
     round2(panelSf) + " sf of wall — " + (panel.sf || 0) + " sf/sheet", true);
+  else hints.push("no-panel");
 
   // --- benches ---------------------------------------------------------------
   const bl = benchLines(benches, roomDims, panel);
@@ -5146,8 +5179,9 @@ export function kitFor(panKey, opts) {
     const ch = pan.channel || (option && option.drain && option.drain.len) || 0;
     cover = linearCoverFor(ch, opts.coverFinish || "SS");
   } else cover = item(SKU.coverSS);
-  push(lines, cover, 1, "drain", "", true);
-  const frame = opts.coverFrame ? coverFrameFor(cover, opts.coverFrame === true ? null : opts.coverFrame) : null;
+  if (cover) push(lines, cover, 1, "drain", "", true);
+  else hints.push("no-cover");
+  const frame = cover && opts.coverFrame ? coverFrameFor(cover, opts.coverFrame === true ? null : opts.coverFrame) : null;
   if (frame) push(lines, frame, 1, "drain", "trim ring around the cover", true);
 
   // --- curbless waterproofing ------------------------------------------------
