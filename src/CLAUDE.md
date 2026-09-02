@@ -609,10 +609,15 @@ src/
                     # only file that sees a raw book row. `usOf` recovers the
                     # wedi US-SKU from `vendorSkus`: the row's own sku is
                     # excluded (two rows repeat it in a vendor column), a
-                    # `US`-shaped code beats a numeric article number, and
-                    # the preference is what makes the rule independent of
-                    # ORDER — normFits SORTS vendorSkus, so column order does
-                    # not survive normalization. NO fixup table: 28954 reads
+                    # `US`-shaped code beats a numeric article number. That
+                    # PREFERENCE is order-independent; the remaining fallback
+                    # is not — it takes codes[0] as given, and is stable only
+                    # because normFits SORTED vendorSkus upstream (column
+                    # order does not survive normalization). 7 rows use the
+                    # fallback, 0 have two non-US candidates; a future row
+                    # with two article numbers would key on whichever sorts
+                    # first, which wediadapter.test.js pins deliberately
+                    # rather than leaving to be discovered. NO fixup table: 28954 reads
                     # US50000005 in the export AND in WEDI_STOCK, and
                     # wedi.js's index-compensation line depends on the
                     # ten-digit spelling; "correcting" it re-keys the entry
