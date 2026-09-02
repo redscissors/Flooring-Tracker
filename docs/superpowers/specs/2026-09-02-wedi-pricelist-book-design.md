@@ -10,7 +10,9 @@
   chore this ends).
 - **Groundwork:** `.scratch/120_wedi-pricelist-book/` — the raw sheet snapshot
   (`pricelist-sheets.json`, 5 sheets / 602 non-blank rows, exactly what
-  `readXlsxSheets` hands the wizard), its generator, and `HANDOFF.md`.
+  `readXlsxSheets` hands the wizard), its generator, `HANDOFF.md`, and
+  `tools/measure-vs-so.mjs`, the throwaway walk of the snapshot that produced
+  every figure in this spec (a measurement, not the parser).
 - **PR:** #355 (draft) on `wedi-pricelist-8b-prep`.
 
 ## Context
@@ -54,10 +56,20 @@ the `WEDI_SO` table in `src/wedi.js`; none is estimated.
   identity and the engine's `INDEX[key]`.
 - **"New Product Data"** (65 parts) carries no prices — UPC/GTIN/packaged
   dimensions only.
-- The sheet's discount headers do not always describe their column: the S-Dry
-  "Distributor Net Price* (less 52%)" column holds a figure that is 42% off
-  retail on `US5076012`, and `WEDI_SO` recorded `discount: 42`. The
-  transcription derived the discount from the numbers, not the header.
+- **`discount` is the header's figure, not arithmetic.** `WEDI_SO` records
+  the "(less N%)" from each section's "Distributor Net Price*" caption — 50 on
+  building panels, where net ÷ retail is actually 39% off — and reading the
+  governing caption reproduces all 223 values. (The suggested retail and the
+  distributor net are on different bases; the percentage is wedi's, not a
+  derivation.)
+- **`details` was read by column position.** The transcription took Fundo
+  column 4 on every row: the "Additional Details" column in most sections, an
+  uncaptioned spill of the description in the shower-base accessories block,
+  and an EMPTY cell in the two sections that caption "Additional Details" at
+  column 5 ("1 Kit", "12 per case, full cases only" were dropped). Two seat rows
+  carry a hand edit the sheet never had ("Suspended Corner Seat" for the
+  sheet's "Suspended Seat"). One size cell carries a sheet typo the
+  transcription fixed ("… x 3 1/8 in. in.").
 
 ### Owner decisions, 2026-09-02
 
@@ -109,9 +121,24 @@ and rollback, per-item disable, Flag-for-Claude — run unchanged (ADR 0025/0027
   with an optional trailing footnote asterisk that is stripped. A product row
   emits `{ us, name, size, details, retail, net, section, discount, erp }`,
   `WEDI_SO`'s exact contract.
-- **`discount`** is derived: `round((1 − net / retail) × 100)`, never read
-  from a header (see Context). Rows with no retail or a $0 retail emit
-  `discount: null` and a warning; none exist on the two in-scope sheets today.
+- **`discount`** is the integer in the governing section's "Distributor Net
+  Price* (less N%)" caption — the figure `WEDI_SO` records on all 223 rows
+  (measured), never computed from the prices, which sit on different bases
+  (see Context). The parser emits it in the canonical sheet so the wizard's
+  preview shows it; it is **not** mapped onto the book item, because nothing
+  in the engine reads it (decision 2).
+- **`size`** is the column captioned "Size", "Dimensions" or "Product
+  Information", whichever the section prints (the accessories block prints only
+  the last). A doubled unit at the end of a size cell (" in. in.") is collapsed
+  — a sheet typo on one row that the transcription corrected by hand.
+- **`details`** is the column captioned "Additional Details" or "Drain
+  Location" — by caption, not position — and, where a section captions
+  neither, the cell to the right of the size column (the accessories block,
+  where the sheet spills the description across merged cells and the
+  transcription kept the spill). This is a deliberate improvement over the
+  transcription's position-4 rule: it recovers "1 Kit" and "12 per case, full
+  cases only", which position 4 dropped. Decision 9 pins every row where the
+  two disagree.
 - **Everything else is skipped** without a warning: title lines, "Full
   Pallet/Box Quantities Only", the "*Contains Fundo® Shower Base…" kit notes,
   the Terms of Sale block. The six `kitNote` rows in `WEDI_SO` are **not**
@@ -144,7 +171,7 @@ and rollback, per-item disable, Flag-for-Claude — run unchanged (ADR 0025/0027
 | `net` | `cost` | |
 | `section` | `section` | also the book's `groupBy` axis, as OVF sundries does |
 | `erp` | `vendorSkus[0]` | the shop's ERP code where the Fundo sheet prints one (column 0) |
-| `discount` | — | derived by the adapter from `price`/`cost`, so it can never disagree with them |
+| `discount` | — | **not carried.** Nothing reads it: `makeEntry` never copies it onto the entry, and `wedi.js`, the popup and the compare code contain zero reads (measured 2026-09-02). Dead data in `WEDI_SO`; the adapter emits `null` |
 
 **The owner** creates nothing by hand beyond what the wizard does today: drop
 the pricelist workbook, the router says "wedi pricelist — pick which book",
@@ -156,7 +183,7 @@ until that apply.
 One live order-item row → the `soRow` contract: `us = row.sku`,
 `name = row.description`, `size = row.size`, `details = row.note`,
 `retail = row.price`, `net = row.cost`, `section = row.section`,
-`erp = row.vendorSkus[0] || ""`, `discount` derived as in decision 1. A row
+`erp = row.vendorSkus[0] || ""`, `discount = null` (decision 2: nothing reads it). A row
 whose `sku` matches neither pattern drops, the way `adaptRow` drops `29WEDIT`.
 `wediadapter.js` stays the only file that sees a raw book row.
 
@@ -235,7 +262,7 @@ frame with the same kind of hint. `coverFrameFor` is already null-safe.
 - `WEDI_STOCK` and `WEDI_SO` stay in the tree as the visible fallbacks
   (owner decision 2).
 
-### 8. The one visible catalog change, pinned
+### 8. The visible catalog change, pinned
 
 Surfacing `676800061` / `676800064` from the pricelist gives two existing
 stock entries a pricelist twin they never had. `makeEntry` names a twinned
@@ -247,6 +274,26 @@ exactly the treatment every other twinned row already gets. They also gain
 this: those two keys are the **only** stock entries allowed to differ, and
 only in those fields. The owner sees the rename in the preview proof and can
 veto it there.
+
+### 9. Where the parser deliberately differs from `WEDI_SO`, pinned
+
+The acceptance test compares the book-fed pricelist half to the transcribed
+one field by field. These are the only permitted differences, each measured
+against the snapshot, and none moves a derived field (`details` feeds only
+`e.details` and the drain/channel/coverage text scans, which none of these
+strings trips):
+
+- `details` on the rows whose captioned "Additional Details" column the
+  transcription skipped (`US5000085` → "1 Kit", `US5000013` → "12 per case,
+  full cases only", and any sibling the test enumerates in the same two
+  sections).
+- `details` on `US3000001`/`US3000002`: the sheet says "Suspended Seat"; the
+  transcription's "Suspended Corner Seat" was a hand edit and is not
+  reproduced.
+- `size` on `US3000000`: the sheet's "… x 3 1/8 in. in." collapses to one
+  "in." (decision 1), matching the transcription.
+
+Anything else that differs is a parser bug, not a judgement call.
 
 ## Verification
 
@@ -260,15 +307,17 @@ preview the plan must capture.
    output, so the test is not circular): 261 rows out (225 Fundo + 36 S-Dry);
    every row carries a non-empty `section`; the two asterisk rows parse as
    `US3000042`/`US3000043`; `US5076012` appears once, from Fundo, with a
-   warning; `discount` on `US5076012` is 42; a sheet renamed away yields 0
+   warning; the parser's `discount` is read from the caption (50 on
+   `US8000006`, whose prices compute to 39); a sheet renamed away yields 0
    rows and a warning; the detector is true for the snapshot and false for the
    8a stock export fixture.
 2. **Zero drift (`src/wediequivalence.test.js`)** — the pricelist half, book-fed
    through the *real* pipeline (`parseWediPricelist` → `parseMapped` →
    `normBookItem` → `adaptSoRows` → `setSoSource` → `catalog()`), deep-equals
-   the `WEDI_SO`-fed half on the same `DERIVED` field list 8a uses, for all
-   223 transcribed keys; the additions are exactly the 36 S-Dry codes and
-   nothing else; the stock half is unchanged except the two frames of
+   the `WEDI_SO`-fed half on 8a's `DERIVED` field list **plus** `section`,
+   `size`, `soRetail` and `soNet`, for all 223 transcribed keys, with
+   `details` compared separately against decision 9's allow-list; the
+   additions are exactly the 36 S-Dry codes and nothing else; the stock half is unchanged except the two frames of
    decision 8, in exactly the listed fields; **0 rows in `misc`** with both
    sources installed; the pinned `kitFor("US9100004")` and `solve(...)` trees
    are identical with both sources installed vs neither.
