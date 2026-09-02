@@ -269,6 +269,17 @@ const GEOMETRY_GAINS = {
 };
 const GEO_FIELDS = ["w", "d", "t", "len", "sf", "channel"];
 
+// Spec decision 8, measured (fix round 2): US3076003 is the one exception —
+// makeEntry's "extension" branch normalizes orientation for every S-Dry
+// extension ("the two sheets print these both ways round…, so normalize: w
+// is the run, d the depth it adds" — wedi.js's own comment on that branch),
+// and the entry classifies "sdry", so the solver never reads its w/d. The
+// swap is a display convention, not a measurement moving — kept OUT of
+// GEOMETRY_GAINS on purpose; any OTHER non-null geometry change still fails.
+const GEOMETRY_TRANSPOSED = {
+  US3076003: { before: { w: 24, d: 48 }, after: { w: 48, d: 24 } },
+};
+
 test("stock half: with both books installed, only the 34 newly twinned entries change, and only where a soRow feeds them", () => {
   clearBoth();
   setStockSource(adaptBookRows(liveStock()));
@@ -304,6 +315,21 @@ test("stock half: with both books installed, only the 34 newly twinned entries c
 
     const geoDiff = diff.filter((f) => GEO_FIELDS.includes(f));
     if (!geoDiff.length) continue;
+
+    if (GEOMETRY_TRANSPOSED[k]) {
+      const { before, after } = GEOMETRY_TRANSPOSED[k];
+      const outsideTransposed = geoDiff.filter((f) => !(f in before));
+      assert.deepEqual(outsideTransposed, [], `${k} changed geometry (${outsideTransposed.join(", ")}) outside the pinned GEOMETRY_TRANSPOSED fields — report this, do not allow-list it`);
+      for (const f of Object.keys(before)) {
+        assert.equal(stockOnly[k][f], before[f], `${k}.${f} before-value does not match the pinned GEOMETRY_TRANSPOSED measurement`);
+        assert.equal(both[k][f], after[f], `${k}.${f} after-value does not match the pinned GEOMETRY_TRANSPOSED measurement`);
+      }
+      const sortedBefore = Object.keys(before).map((f) => before[f]).sort((a, b) => a - b);
+      const sortedAfter = Object.keys(before).map((f) => after[f]).sort((a, b) => a - b);
+      assert.deepEqual(sortedAfter, sortedBefore, `${k}'s transposed fields are not the same two numbers swapped — report this`);
+      continue;
+    }
+
     const gains = GEOMETRY_GAINS[k];
     assert.ok(gains, `${k} changed geometry (${geoDiff.join(", ")}) but is not in GEOMETRY_GAINS — report this, do not allow-list it`);
     for (const f of geoDiff) {
@@ -317,11 +343,13 @@ test("the pinned engine totals do not move with BOTH books feeding the catalog",
   const INPUT = { w: 36, d: 60, curb: "curbed", drain: "any" };
   // `details` is decision 9's pinned text on two consumable items in this
   // kit (US5000010 sausage, US5000044 trowel) — not a price or a quantity.
-  // Strip it beside `desc`; everything else in the trees is still deep-compared.
+  // `sizeText` derives from `details` on the trowel (it has no dimensions of
+  // its own), so it's decision 9's text too. Strip both beside `desc`; every
+  // price, quantity, key and w/d/t in the trees is still deep-compared.
   const stripVolatile = (v) => {
     if (Array.isArray(v)) return v.map(stripVolatile);
     if (v && typeof v === "object") {
-      return Object.fromEntries(Object.entries(v).filter(([k]) => k !== "desc" && k !== "details").map(([k, x]) => [k, stripVolatile(x)]));
+      return Object.fromEntries(Object.entries(v).filter(([k]) => k !== "desc" && k !== "details" && k !== "sizeText").map(([k, x]) => [k, stripVolatile(x)]));
     }
     return v;
   };
