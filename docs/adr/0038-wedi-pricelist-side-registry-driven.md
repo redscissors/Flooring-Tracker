@@ -75,7 +75,7 @@ into decisions 5 and 6 below.
 6. **Thirty-four stock entries gain a pricelist twin they never had** (the
    two SS27/SS43 frames and 32 stocked S-Dry parts) and take the pricelist's
    display name, as every twinned row already does. Pinned; the owner saw the
-   rename in the preview. Measured beyond the spec's text: 14 of the 34 also
+   rename in the preview. Measured beyond the spec's text: 13 of the 34 also
    gained `w`/`d`/`t` where the ERP description carried none, parsed from the
    pricelist's size cell (the rule every Fundo twin already follows) — pinned
    null→populated only, in a `GEOMETRY_GAINS` map. Two of those are
