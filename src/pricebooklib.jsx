@@ -2276,7 +2276,7 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
               <button onClick={() => saveMapping(mapping)} className="text-sm text-slate-500 hover:text-slate-700 underline">Save mapping only</button>
               <div className="flex gap-2">
                 <button onClick={onClose} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button>
-                <button onClick={() => { saveMapping(mapping); onApply(forcing ? forceDiff(diff, existingItems) : diff, { disableSkus, superseded: appliedSupersede, fingerprint, slot: addSlot, forced: forcing, claudeSkus: [...claudeFlags] }, bundleItems); }} disabled={emptyRetire || (lastOfBundle && importCount + disableSkus.length === 0 && !forcing)} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 disabled:opacity-50">{applyLabel}</button>
+                <button onClick={() => onApply(forcing ? forceDiff(diff, existingItems) : diff, { disableSkus, superseded: appliedSupersede, fingerprint, slot: addSlot, forced: forcing, claudeSkus: [...claudeFlags], mapping }, bundleItems)} disabled={emptyRetire || (lastOfBundle && importCount + disableSkus.length === 0 && !forcing)} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 disabled:opacity-50">{applyLabel}</button>
               </div>
             </div>
           </div>

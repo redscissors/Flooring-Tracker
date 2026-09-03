@@ -961,8 +961,13 @@ export function markupGroups(items, markups) {
 // published retail, ADR 0038): pricedItem passes a row's price straight
 // through, so no markup is ever applied and none is missing. Read off the saved
 // mapping, the one piece of metadata that says the sheet has a price column.
+// The format stamp is checked too: the wizard's Apply used to write the
+// mapping and the import stamp as two updates off the same stale book, so the
+// mapping could be lost while importFingerprint (written with the stamp) kept.
+const PUBLISHES_PRICE_FORMATS = new Set(["wedi-pricelist"]);
 export function bookPublishesPrice(book) {
   if (!book || book.kind !== "order") return false;
+  if (PUBLISHES_PRICE_FORMATS.has(book.data?.importFingerprint?.format)) return true;
   return Object.values(book.data?.mapping?.columns || {}).includes("price");
 }
 

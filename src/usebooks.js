@@ -123,7 +123,10 @@ export function useBooks({ user, profile, ping, flashSaved }) {
     // parking marks) must NOT reset the book's last-import date/staleness or add
     // an import-history version — no vendor data actually landed. Only a real
     // import (something in the diff's three buckets) stamps/snapshots.
-    if (!(diff.added.length + diff.changed.length + diff.missing.length)) { flashSaved(); return; }
+    if (!(diff.added.length + diff.changed.length + diff.missing.length)) {
+      if (opts.mapping) await updateBook(bookId, { dataPatch: { mapping: opts.mapping } }); else flashSaved();
+      return;
+    }
     const li = { at: Date.now(), by: profile.name || user.email || "", count: diff.added.length + diff.changed.length };
     if (opts.superseded?.length) li.superseded = opts.superseded;
     if (disable.size) li.disabled = disable.size;
@@ -132,6 +135,9 @@ export function useBooks({ user, profile, ping, flashSaved }) {
     // Remember what this file looks like so the drop router (PR C) matches the
     // next drop of the same vendor sheet to this book.
     if (opts.fingerprint?.format) dataPatch.importFingerprint = opts.fingerprint;
+    // Carried in this write, not a separate saveMapping before it: two updates
+    // off the same stale `books` closure let the second drop the first's patch.
+    if (opts.mapping) dataPatch.mapping = opts.mapping;
     if (opts.sources?.length) dataPatch.sources = opts.sources;
     await updateBook(bookId, { dataPatch });
     await snapshotBookVersion(bookId, appliedFromDiff(diff), bookItemData);

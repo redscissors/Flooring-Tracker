@@ -1304,3 +1304,11 @@ test("bookNoMarkup: a book that publishes retail never sells at cost, markup or 
   assert.equal(bookNoMarkup(wedi), false);
   assert.equal(bookNoMarkup({ ...wedi, data: { ...wedi.data, markups: { default: 0 } } }), false);
 });
+
+test("bookPublishesPrice: the import format stamp is enough when the saved mapping never landed", () => {
+  // The wizard's Apply writes mapping and lastImport as two updates off the same
+  // stale book, so the mapping can be lost; importFingerprint rides the surviving write.
+  assert.equal(bookPublishesPrice({ kind: "order", data: { importFingerprint: { format: "wedi-pricelist" } } }), true);
+  assert.equal(bookPublishesPrice({ kind: "order", data: { importFingerprint: { format: "ovf-sundries" } } }), false);
+  assert.equal(bookNoMarkup({ kind: "order", data: { importFingerprint: { format: "wedi-pricelist" } } }), false);
+});
