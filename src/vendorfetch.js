@@ -37,8 +37,10 @@ export const VENDORS = {
     hostLabels: { "www.emser.com": "Emser Tile" },
     path: "/api/v1/custom/customerDocuments/",
     linkMark: "customerDocuments",
-    // No token to renew: remembered Emser sheets are always fetchable, and the
-    // live-session pool never applies (sheetSesid short-circuits on this).
+    // No token to carry, but no relay fetch either: the document API answers a
+    // cookie-less request with 401 (verified 2026-07-21), so remembered Emser
+    // sheets are the book's identity and are never live — the sheet is
+    // downloaded by hand while signed in and dropped on the page.
     sessionless: true,
     rules: {
       uid: /^\d{1,10}$/,
@@ -50,6 +52,16 @@ export const VENDORS = {
 };
 
 export const sessionlessVendor = (vendor) => !!VENDORS[vendor]?.sessionless;
+
+// Why a sheet's download button isn't lit, for its tooltip. A sessionless
+// vendor can never be unlocked from here; a token vendor is waiting on a
+// bookmark/paste sign-in.
+export function lockedHint(vendor) {
+  const cfg = VENDORS[vendor];
+  return cfg?.sessionless
+    ? `${cfg.label} needs its own sign-in — download the sheet from their site while signed in and drop the file here`
+    : "no live sign-in yet — a failed try says how to unlock";
+}
 
 // A portal link (from the bookmarklet, a pasted URL, or the address bar) ->
 // structured entry, or null when it isn't a recognized price-list link.

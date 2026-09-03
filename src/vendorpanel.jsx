@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Plus, Trash2, ClipboardList, Download, X, Check, ChevronRight, Hand, Pencil, BookOpen, Database, Link2, Link2Off, MoreHorizontal, RotateCcw, AlertTriangle } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
-import { parseVendorLink, entryProblems, entryFileName, bookmarkletSource, clearHandoff, poolSession, sheetRecord, recordKey, applySesid, mergeEntries, newGroup, moveSheetInGroups, sheetMatchesGroup, rememberIntoGroups, setSheetBook, stripHandoffMark, decodeHandoff, decodeHandoffSession, pendingForSheet, sessionlessVendor, classifySheetBytes, sheetMagic, isSheetStream, parseSheetStreamFinal } from "./vendorfetch.js";
+import { parseVendorLink, entryProblems, entryFileName, bookmarkletSource, clearHandoff, poolSession, sheetRecord, recordKey, applySesid, mergeEntries, newGroup, moveSheetInGroups, sheetMatchesGroup, rememberIntoGroups, setSheetBook, stripHandoffMark, decodeHandoff, decodeHandoffSession, pendingForSheet, sessionlessVendor, lockedHint, classifySheetBytes, sheetMagic, isSheetStream, parseSheetStreamFinal } from "./vendorfetch.js";
 import { bookStaleness, bookFreshAt, bookNoMarkup, DEFAULT_STALE_DAYS } from "./orderbook.js";
 import { DotMenu, HelpTip } from "./widgets.jsx";
 
@@ -321,7 +321,7 @@ export function VendorBookRow({ sheet, siblings = [], book, group, groups, books
         {pending && !fetching && (
           <button onClick={() => onReview(pending)} title={`${entryFileName(sheet)} is downloaded — open this book's import review`} className="shrink-0 rounded-full bg-indigo-600 text-white text-[10px] font-semibold px-2 py-px hover:bg-indigo-700">Review</button>
         )}
-        {!fetching && !pending && <button onClick={() => onRedownload(sheet)} disabled={running} title={locked ? "Refresh this book's sheet (no live sign-in yet — a failed try says how to unlock)" : "Ready — refresh this book's sheet"} className={"p-0.5 disabled:opacity-40 shrink-0 " + (locked || prog?.state === "done" ? "text-slate-400 hover:text-indigo-600" : "ft-live")}><RotateCcw size={12} /></button>}
+        {!fetching && !pending && <button onClick={() => onRedownload(sheet)} disabled={running} title={locked ? `Refresh this book's sheet (${lockedHint(sheet.vendor)})` : "Ready — refresh this book's sheet"} className={"p-0.5 disabled:opacity-40 shrink-0 " + (locked || prog?.state === "done" ? "text-slate-400 hover:text-indigo-600" : "ft-live")}><RotateCcw size={12} /></button>}
         <button ref={menuBtn} onClick={() => openMenu(!menu)} title="More" className="p-0.5 text-slate-400 hover:text-slate-600 shrink-0"><MoreHorizontal size={14} /></button>
         <DotMenu open={menu} onClose={() => openMenu(false)} anchorRef={menuBtn}>
           <div className="px-3 py-1 text-[11px] text-slate-400">
@@ -394,7 +394,7 @@ export function VendorSheetRow({ sheet, group, groups, books, prog, locked, mism
         {pending && !fetching && (
           <button onClick={() => onReview(pending)} title={`${entryFileName(sheet)} is downloaded — open its import review`} className="shrink-0 rounded-full bg-indigo-600 text-white text-[10px] font-semibold px-2 py-px hover:bg-indigo-700">Review</button>
         )}
-        {!fetching && <button onClick={() => onRedownload(sheet)} disabled={running} title={locked ? "Download this sheet (no live sign-in yet — a failed try says how to unlock)" : "Ready — download this sheet"} className={"p-0.5 disabled:opacity-40 shrink-0 " + (locked || prog?.state === "done" ? "text-slate-400 hover:text-indigo-600" : "ft-live")}><RotateCcw size={12} /></button>}
+        {!fetching && <button onClick={() => onRedownload(sheet)} disabled={running} title={locked ? `Download this sheet (${lockedHint(sheet.vendor)})` : "Ready — download this sheet"} className={"p-0.5 disabled:opacity-40 shrink-0 " + (locked || prog?.state === "done" ? "text-slate-400 hover:text-indigo-600" : "ft-live")}><RotateCcw size={12} /></button>}
         <button ref={menuBtn} onClick={() => openMenu(!menu)} title="More" className="p-0.5 text-slate-400 hover:text-slate-600 shrink-0"><MoreHorizontal size={14} /></button>
         <DotMenu open={menu} onClose={() => openMenu(false)} anchorRef={menuBtn}>
           {sheet.bookId ? (
@@ -569,9 +569,10 @@ export function useVendorFetch({ settings, setSettings, books, vendorPending, ve
   const liveSesid = {};
   for (const e of sesidPool) { const k = `${e.host}|${e.user}`; if (!liveSesid[k]) liveSesid[k] = e.sesid; }
   for (const s of sessions) { liveSesid[`${s.host}|${s.user}`] = s.sesid; } // a fresh bookmarklet grab outranks stale link tokens
-  // A sessionless vendor's sheets are always live: the sentinel keeps every
-  // liveness read truthy, and applySesid clamps it back to "" for the relay.
-  const sheetSesid = (s) => (sessionlessVendor(s.vendor) ? "none-needed" : liveSesid[`${s.host}|${s.user}`]);
+  // A sessionless vendor's sheets are never live: the relay can't carry the
+  // login its downloads need (ADR 0019, Emser verification), so nothing on
+  // this page can unlock them — the sheet is downloaded by hand and dropped.
+  const sheetSesid = (s) => (sessionlessVendor(s.vendor) ? undefined : liveSesid[`${s.host}|${s.user}`]);
 
   // Staleness of the price book a sheet feeds: amber once the linked book's last
   // import is past the owner-set threshold (the same one the book list uses).

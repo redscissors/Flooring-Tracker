@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  parseVendorLink, entryProblems, buildVendorUrl, entryFileName, entryKey,
+  parseVendorLink,
+  lockedHint, entryProblems, buildVendorUrl, entryFileName, entryKey,
   decodeHandoff, bookmarkletSource, harvestVendorLinks, mergeEntries,
   sheetRecord, recordKey, mergeRecords, applySesid, classifySheetBytes, sheetMagic, deadSessionStatus,
   migrateVendorSheets, normVendorGroups, groupName, newGroup, groupForSheet,
@@ -488,6 +489,11 @@ test("Emser entries reject tokens, foreign hosts, and account-less filenames", (
   assert.equal(entryProblems({ ...e, sesid: "abc" }), "bad sesid"); // token-free by design
   assert.equal(parseVendorLink(EMSER_LINK.replace("www.emser.com", "evil.example.com")), null);
   assert.equal(entryProblems(parseVendorLink("https://www.emser.com/api/v1/custom/customerDocuments/pricelist.xlsx")), "bad uid");
+});
+
+test("a sessionless vendor's lock hint points at download-and-drop, a token vendor's at the sign-in", () => {
+  assert.match(lockedHint("emser"), /^Emser Tile needs its own sign-in — download the sheet/);
+  assert.match(lockedHint("dancik"), /no live sign-in yet/);
 });
 
 test("applySesid keeps a sessionless vendor's entry token-free", () => {
