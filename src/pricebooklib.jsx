@@ -6,7 +6,7 @@ import { MAX_QUICK_MARKUPS } from "./costentry.js";
 import { priceUnitOf, orderUnitOf } from "./stock.js";
 import { mappedSkuRe, guessHeaderRow, bestDataSheet, columnsFromHeader, parseMapped, detectVtcEft, detectVendorSkuAnalysis } from "./pricebook.js";
 import { computeFingerprint, fileFormat, routeFile, bundleByBook, bookKindFor, sourceSlot, mergeSources, missingSources, stepPayloads, declareManualSource, undeclareManualSource } from "./dropimport.js";
-import { entryFileName, captureHandoff, captureHandoffSession, clearHandoffSession, recordKey, poolPendingReview, pendingForSheet, sheetsForBook } from "./vendorfetch.js";
+import { entryFileName, captureHandoff, captureHandoffSession, clearHandoffSession, recordKey, poolPendingReview, pendingForSheet, sheetsForBook, lockedHint } from "./vendorfetch.js";
 import { parsePdfPages } from "./pdfbook.js";
 import { isManningtonCartons, parseManningtonPages } from "./manningtonbook.js";
 import { isTrueTouch, parseTrueTouchPages } from "./truetouchbook.js";
@@ -808,7 +808,7 @@ function SourceSheetStrip({ sources, pendingSources, stale: st, lastImportAt, pe
               {pending ? (
                 <button onClick={() => onReview(pending)} className="shrink-0 rounded-lg bg-indigo-600 text-white px-3 py-1.5 text-xs font-medium hover:bg-indigo-700">Review changes</button>
               ) : (
-                <button onClick={() => onRefresh(sheet)} title={live ? "Ready — fetch the latest sheet, then review at your pace" : "Fetch the latest sheet (needs a live sign-in — the board says how to unlock)"} className={"shrink-0 flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium hover:bg-white " + (live ? "ft-live" : "text-slate-600")}><RotateCcw size={12} /> Refresh</button>
+                <button onClick={() => onRefresh(sheet)} title={live ? "Ready — fetch the latest sheet, then review at your pace" : `Fetch the latest sheet (${lockedHint(sheet.vendor)})`} className={"shrink-0 flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium hover:bg-white " + (live ? "ft-live" : "text-slate-600")}><RotateCcw size={12} /> Refresh</button>
               )}
             </div>
           );

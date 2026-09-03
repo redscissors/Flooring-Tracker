@@ -239,6 +239,18 @@ FloorTrack JWT and rebuilds the URL from the allowlisted host + fixed path —
 `customerDocuments/<validated filename>` — so it still can't proxy anything
 else on emser.com.
 
+### Amendment (2026-09-03): sessionless means never live, not always live
+
+The always-green sentinel outlived the verification above: `sheetSesid` still
+answered `"none-needed"` for Emser, so its board column, sheet rows and the
+book page's Refresh button all glowed "ready to download" for a sheet the
+relay can never fetch. Withdrawn: a sessionless vendor's sheets are **never
+live** (`sheetSesid` returns nothing for them), and the locked tooltips read
+from `lockedHint(vendor)` — "Emser Tile needs its own sign-in — download the
+sheet from their site while signed in and drop the file here" — while a
+token vendor keeps the bookmark/paste advice. The group's sign-in link is
+unrelated to liveness and stays. `applySesid`/`normSession` are unchanged.
+
 ### Amendment (2026-07-24): the mid-build placeholder page ("interim")
 
 A VT EFT fetch imported as **0 items with no error**. The file itself was fine
