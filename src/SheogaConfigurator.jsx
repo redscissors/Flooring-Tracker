@@ -13,7 +13,7 @@ import {
   PREFIN_SHEET, PREFIN_WS, prefinCost, prefinGreen, prefinRowForStocked, stockedForPrefin, floorSeedFromPrefin,
   STOCKED, STOCKED_WIDTHS, stockedItem, HERRINGBONE, CHEVRON_ADD,
   hbBandForLen, hbSlatLen,
-  STAIN_COLORS, SHEENS, SHEEN_FEE,
+  STAIN_COLORS, SHEENS, SHEEN_ADD, standardSheen, sheenChange,
   VENT_GROUP, VENT_CATS, VENT_PREFIN, VENT_TEX, VENT_CUBED, DAMPER_ATTACH, DAMPERS, ventFromFloor, hbFromFloor, ventScrape, ventDims,
   DEFAULT_MARKUP, DEFAULT_VENT_MARKUP, tierSellOf, tierFeeOf, cartonize, lineItems, frameLineal, SHEET_NOTE,
   redistributeShares, multiWidthBuild, multiWidthLineItems, normBasketEntry,
@@ -294,8 +294,20 @@ function StainPicker({ cfg, set, custom }) {
   );
 }
 
-// Sheen: 30/20/15/10/5 + custom. `note` (e.g. the $250 hint) shows beside the
+// Sheen: 30/20/15/10/5 + custom. `note` (the standard + 25¢ hint) shows beside the
 // label; `warn` renders under the control when a fee applies.
+// Floor / herringbone sheen-picker copy: the color's standard and the 25¢
+// adder, or "no charge" where the finish has no standard (custom colors).
+function sheenHint(cfg, tsell) {
+  const std = standardSheen(cfg);
+  if (std == null) return { note: "· custom color, no sheen charge" };
+  const sc = sheenChange(cfg, std);
+  return {
+    note: `standard ${std} · +${fm(tsell(SHEEN_ADD))}/sf if changed`,
+    warn: sc.add ? `Non-standard sheen (${sc.sheen} vs ${std}) — adds ${fm(tsell(SHEEN_ADD))}/sf.` : null,
+  };
+}
+
 function SheenPicker({ cfg, set, note, warn }) {
   return (
     <div>
@@ -374,13 +386,14 @@ function FloorRail({ f, set, sf, tsell, onGrid, multi, mwWidths, onMultiToggle, 
       <Dropdown label="Finishing" hint={f.sp === LIVE_SAWN_SP ? "Live Sawn — unfinished only" : f.finish === "nat" ? "Natural — no fee" : "fee under 500 sf"} value={f.finish} onChange={(finish) => set({ ...f, finish })}
         options={FINISHES.map((x) => ({ id: x.id, label: x.name + (x.id === "unf" ? "" : `  +${fm(tsell(x.add(f)))}`), dis: f.sp === LIVE_SAWN_SP && x.id !== "unf" }))} />
     </div>
-    {/* Prefinished finishes: stain color (established/custom) + sheen. Sheen is
-        free on this custom/floor tab — no fee, it's made to order regardless. */}
+    {/* Prefinished finishes: stain color (established/custom) + sheen. Off the
+        color's standard sheen the build owes SHEEN_ADD/sf; custom colors have
+        no standard, so their sheen is free. */}
     {prefin && (
       <div className="mb-3 rounded-lg border-2 p-3" style={{ borderColor: "var(--ft-brand)", background: "var(--ft-tint)" }}>
         <div className={`grid gap-3 ${stained ? "grid-cols-2" : "grid-cols-1"}`}>
           {stained && <StainPicker cfg={f} set={set} custom={custom} />}
-          <SheenPicker cfg={f} set={set} note="· included, no charge" />
+          <SheenPicker cfg={f} set={set} {...sheenHint(f, tsell)} />
         </div>
       </div>
     )}
@@ -432,8 +445,7 @@ function StockedRail({ k, set, sf, tsell, onGrid, multi, mwWidths, onMultiToggle
   const pickSpecies = (sp) => { const c = colorsFor(sp)[0]; set(snap({ ...k, sp, color: c.color, sheen: String(c.sheen), sheenCustom: false })); };
   const pickColor = (color) => { const nit = STOCKED.find((x) => x.sp === k.sp && x.color === color); set(snap({ ...k, color, sheen: String(nit.sheen), sheenCustom: false })); };
   const std = it.sheen;
-  const curSheen = k.sheenCustom ? k.sheen : (k.sheen ?? String(std));
-  const changed = k.sheenCustom ? (k.sheen !== "" && Number(k.sheen) !== std) : (Number(k.sheen ?? std) !== std);
+  const sc = sheenChange(k, std);
   return (<>
     <Sect title="Species" hint="ships from stock">
       <Chips cur={k.sp} onPick={pickSpecies} items={species.map((sp) => ({ id: sp, label: sp }))} />
@@ -457,8 +469,8 @@ function StockedRail({ k, set, sf, tsell, onGrid, multi, mwWidths, onMultiToggle
         onPick={(w) => set({ ...k, w: +w })} onToggle={onMwWidth} onMultiToggle={onMultiToggle} onStep={onStep} />
     </Sect>
     <Sect title="Sheen">
-      <SheenPicker cfg={k} set={set} note={`standard ${std} · +$${SHEEN_FEE} if changed`}
-        warn={changed ? `Non-standard sheen (${curSheen} vs ${std}) — adds a $${SHEEN_FEE} flat line at cost.` : null} />
+      <SheenPicker cfg={k} set={set} note={`standard ${std} · +${fm(tsell(SHEEN_ADD))}/sf if changed`}
+        warn={sc.add ? `Non-standard sheen (${sc.sheen} vs ${std}) — made to order: +${fm(tsell(SHEEN_ADD))}/sf${it.color === "Natural" ? "" : ", and the small-order fee under 500 sf"}.` : null} />
     </Sect>
   </>);
 }
@@ -538,7 +550,7 @@ function HbRail({ h, set, tsell, onGrid, onCopyFloor, copySrc }) {
     </Sect>
     {/* Scrape + finishing + edge, same options and $/sf adders as the custom
         floor tab. A prefinished finish drops its stain/sheen detail in below
-        (sheen free); established/custom colors owe the $750 sample. */}
+        (25¢/sf off the standard sheen); established/custom colors owe the $750 sample. */}
     <div className="mb-3 grid grid-cols-2 gap-x-3 gap-y-3">
       <Dropdown label="Texture / scrape" value={h.tex || "smooth"} onChange={(tex) => set({ ...h, tex })}
         options={TEXTURES.map((t) => ({ id: t.id, label: t.name.replace(" (standard)", "") + (t.add ? `  +${fm(tsell(t.add))}` : "") }))} />
@@ -549,7 +561,7 @@ function HbRail({ h, set, tsell, onGrid, onCopyFloor, copySrc }) {
       <div className="mb-3 rounded-lg border-2 p-3" style={{ borderColor: "var(--ft-brand)", background: "var(--ft-tint)" }}>
         <div className={`grid gap-3 ${stained ? "grid-cols-2" : "grid-cols-1"}`}>
           {stained && <StainPicker cfg={h} set={set} custom={custom} />}
-          <SheenPicker cfg={h} set={set} note="· included, no charge" />
+          <SheenPicker cfg={h} set={set} {...sheenHint(h, tsell)} />
         </div>
       </div>
     )}
@@ -1037,8 +1049,8 @@ function BuildCard({ c, sell, activeMarkup, tierId, pct, tierColor, tfee, isEa, 
 // --- multi-width build card ---------------------------------------------------
 // Same cost -> sell shape as BuildCard, one row per selected width instead of
 // one product. Shares are editable inline; sf/line/bundle total recompute live
-// off multiWidthBuild. Setup fees (small-order, sample, non-standard sheen)
-// pool to a single shared line instead of repeating per width.
+// off multiWidthBuild. Setup fees (small-order, sample) pool to a single
+// shared line instead of repeating per width.
 function MultiWidthCard({ base, widths, shares, sf, tsell, tfee, tierColor, onShare, onAddBasket, onMove, showActions = true }) {
   const wlist = widths.map((w) => ({ w, share: shares[w] ?? 0 }));
   const b = useMemo(() => multiWidthBuild(base, wlist, sf), [base, JSON.stringify(wlist), sf]);

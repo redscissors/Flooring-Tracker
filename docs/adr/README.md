@@ -42,3 +42,4 @@ System-wide ADRs. Area-scoped ADRs live under `docs/<area>/adr/`.
 | [0036](0036-google-maps-relay-and-distance-snapshot.md) | Google Maps relay: a Netlify Function holds the key; a job-site distance is a snapshot, not a cache | Accepted | 2026-09-01 |
 | [0037](0037-wedi-stock-side-registry-driven.md) | wedi's stock side is registry-driven, not transcribed: `WEDI_STOCK` stays as a gated, visible fallback until the pricelist half (8b) moves too | Accepted | 2026-09-01 |
 | [0038](0038-wedi-pricelist-side-registry-driven.md) | wedi's pricelist side is registry-driven: a dedicated parser feeds an order-kind book; `WEDI_SO` stays as a gated, visible fallback; a book missing a required part is refused, visibly | Accepted | 2026-09-02 |
+| [0039](0039-sheoga-sheen-change-per-sf.md) | Sheoga sheen change is 25¢/sf off the color's standard sheen (textured = lower of it and 20), on every tab; custom colors exempt; stocked adds small-order fees | Accepted | 2026-09-03 |
