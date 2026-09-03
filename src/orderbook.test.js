@@ -1312,3 +1312,11 @@ test("bookPublishesPrice: the import format stamp is enough when the saved mappi
   assert.equal(bookPublishesPrice({ kind: "order", data: { importFingerprint: { format: "ovf-sundries" } } }), false);
   assert.equal(bookNoMarkup({ kind: "order", data: { importFingerprint: { format: "wedi-pricelist" } } }), false);
 });
+
+test("bookPublishesPrice: the wedi pricelist book is known by name, as pickWediSoBooks knows it", () => {
+  assert.equal(bookPublishesPrice({ kind: "order", name: "wedi", data: {} }), true);
+  assert.equal(bookPublishesPrice({ kind: "order", name: "Tile Shop", data: { brandLabel: "wedi" } }), true);
+  assert.equal(bookPublishesPrice({ kind: "order", name: "Swedish Oak", data: {} }), false);   // \b-anchored
+  assert.equal(bookPublishesPrice({ kind: "stock", name: "wedi", data: {} }), false);
+  assert.equal(bookNoMarkup({ kind: "order", name: "wedi", data: { lastImport: { at: 1 } } }), false);
+});

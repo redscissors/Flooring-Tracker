@@ -965,8 +965,13 @@ export function markupGroups(items, markups) {
 // mapping and the import stamp as two updates off the same stale book, so the
 // mapping could be lost while importFingerprint (written with the stamp) kept.
 const PUBLISHES_PRICE_FORMATS = new Set(["wedi-pricelist"]);
+// The name test is the one the configurator selects the book by
+// (usewedicatalog.js pickWediSoBooks, `\b`-anchored so "Swedish" misses) —
+// the live book kept neither its mapping nor a format stamp.
+const WEDI_NAME = /\bwedi\b/i;
 export function bookPublishesPrice(book) {
   if (!book || book.kind !== "order") return false;
+  if (WEDI_NAME.test((book.name || "") + " " + (book.data?.brandLabel || ""))) return true;
   if (PUBLISHES_PRICE_FORMATS.has(book.data?.importFingerprint?.format)) return true;
   return Object.values(book.data?.mapping?.columns || {}).includes("price");
 }
