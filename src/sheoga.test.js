@@ -6,6 +6,7 @@ import {
   VENT_GROUP, VENT_STD, VENT_FRAMED, VENT_CAR, VENT_3D, VENT_CATS,
   MODES, defaultConfig, floorWidths, floorBase, gradeName, finishName,
   calcFloor, calcStocked, calcHerringbone, calcVent, calcDamper, calcConfig, smallOrderFee,
+  STAIN_COLORS, COLOR_SHEEN, SHEEN_ADD, standardSheen,
   DEFAULT_MARKUP, DEFAULT_VENT_MARKUP, sellOf, tierSellOf, tierFeeOf, cartonize, lineItems,
   parseQuery, queryHit, querySummary, seedFromQuery, frameLineal, ventFromFloor, hbFromFloor,
   redistributeShares, multiWidthBuild, multiWidthLineItems,
@@ -186,7 +187,45 @@ test("calcFloor: length shows only when non-standard; sheen rides prefinished", 
   // default sheen 30 on a prefinished finish, and it changes with the config
   assert.ok(calcFloor(floor({ finish: "nat" }), 1000).desc.endsWith("Prefinished Natural 30 sheen"));
   assert.ok(calcFloor(floor({ finish: "nat", sheen: "5" }), 1000).desc.endsWith("Natural 5 sheen"));
-  assert.deepEqual(calcFloor(floor({ finish: "nat", sheen: "5" }), 1000).fees, []); // floor sheen is free
+  assert.deepEqual(calcFloor(floor({ finish: "nat", sheen: "5" }), 1000).fees, []); // a sheen change is $/sf, never a flat fee
+});
+
+// --- sheen change (owner, 2026-09-03: 25¢/sf off the color's standard, not on the sheet)
+
+test("standardSheen: the color's sheet sheen; textured takes the lower of that and 20; custom colors have none", () => {
+  for (const c of STAIN_COLORS) assert.ok([30, 20, 5].includes(COLOR_SHEEN[c]), `${c} has a sheet sheen`);
+  assert.equal(standardSheen(floor({ finish: "nat" })), 30);
+  assert.equal(standardSheen(floor({ finish: "est", stain: "Cattail" })), 30);
+  assert.equal(standardSheen(floor({ finish: "est", stain: "Caramel" })), 20);
+  assert.equal(standardSheen(floor({ finish: "est", stain: "Fresh Cut" })), 5);
+  // textured: Cattail drops to the sheet's textured 20, Fresh Cut stays at its lower 5
+  assert.equal(standardSheen(floor({ finish: "est", stain: "Cattail", tex: "sawcut" })), 20);
+  assert.equal(standardSheen(floor({ finish: "est", stain: "Fresh Cut", tex: "oldmill" })), 5);
+  assert.equal(standardSheen(floor({ finish: "nat", tex: "aged" })), 20);
+  assert.equal(standardSheen(floor({ finish: "unf" })), null);
+  assert.equal(standardSheen(floor({ finish: "t1", stain: "Anything", sheen: "5" })), null);
+  assert.equal(standardSheen(floor({ finish: "est", stain: "Some custom name", stainCustom: true })), null);
+});
+
+test("calcFloor: moving off the standard sheen adds 25¢/sf as a row, on solid and engineered alike", () => {
+  const std = calcFloor(floor({ finish: "est", stain: "Fresh Cut", sheen: "5" }), 1000);
+  const off = calcFloor(floor({ finish: "est", stain: "Fresh Cut", sheen: "30" }), 1000);
+  assert.equal(SHEEN_ADD, 0.25);
+  assert.equal(Math.round((off.cost - std.cost) * 100) / 100, 0.25);
+  assert.ok(!std.rows.some(([l]) => /sheen change/i.test(l)));
+  assert.deepEqual(off.rows.find(([l]) => /sheen change/i.test(l)), ["Sheen change — 30-sheen (standard 5)", "+$0.25/sf"]);
+  assert.deepEqual(off.fees, []);
+  const eng = calcFloor(floor({ cons: "eng", w: 5.25, finish: "est", stain: "Fresh Cut", sheen: "30" }), 1000);
+  const engStd = calcFloor(floor({ cons: "eng", w: 5.25, finish: "est", stain: "Fresh Cut", sheen: "5" }), 1000);
+  assert.equal(Math.round((eng.cost - engStd.cost) * 100) / 100, 0.25);
+  // Natural pays it too (owner, 2026-09-03); a custom color never does
+  assert.equal(Math.round((calcFloor(floor({ finish: "nat", sheen: "5" }), 1000).cost - calcFloor(floor({ finish: "nat" }), 1000).cost) * 100) / 100, 0.25);
+  assert.equal(calcFloor(floor({ finish: "t1", stain: "X", sheen: "5" }), 1000).cost, calcFloor(floor({ finish: "t1", stain: "X", sheen: "30" }), 1000).cost);
+  // textured Cattail: 20 is its standard, 30 is a change; a typed custom sheen counts by its number
+  assert.ok(!calcFloor(floor({ finish: "est", stain: "Cattail", tex: "sawcut", sheen: "20" }), 1000).rows.some(([l]) => /sheen change/i.test(l)));
+  assert.ok(calcFloor(floor({ finish: "est", stain: "Cattail", tex: "sawcut", sheen: "30" }), 1000).rows.some(([l]) => /sheen change/i.test(l)));
+  assert.ok(calcFloor(floor({ finish: "est", stain: "Cattail", sheen: "25", sheenCustom: true }), 1000).rows.some(([l]) => /sheen change/i.test(l)));
+  assert.ok(!calcFloor(floor({ finish: "est", stain: "Cattail", sheen: "", sheenCustom: true }), 1000).rows.some(([l]) => /sheen change/i.test(l)));
 });
 
 // --- calcStocked --------------------------------------------------------------
@@ -202,16 +241,26 @@ test("calcStocked looks up by species + color, not table position", () => {
   assert.equal(stockedItem({ sp: "White Oak", color: "Natural" }).sheen, 30);
 });
 
-test("calcStocked: off-standard sheen adds a flat $250 fee line, stays at cost", () => {
-  const base = { sp: "White Oak", color: "Natural", grade: "char", w: 5.25 }; // standard 30
-  assert.deepEqual(calcStocked({ ...base, sheen: "30" }).fees, []);
-  const off = calcStocked({ ...base, sheen: "5" });
-  assert.equal(off.cost, 5.85); // fee never folds into $/sf
-  assert.deepEqual(off.fees, [{ label: "Non-standard sheen — 5-sheen (standard 30)", amt: 250 }]);
+test("calcStocked: off-standard sheen adds 25¢/sf and the small-order fees of a made-to-order run", () => {
+  const base = { sp: "White Oak", color: "Cattail", grade: "char", w: 5.25 }; // standard 30, cost 6.20
+  assert.deepEqual(calcStocked({ ...base, sheen: "30" }, 300).fees, []);
+  assert.equal(calcStocked({ ...base, sheen: "30" }, 300).cost, 6.20);
+  const off = calcStocked({ ...base, sheen: "5" }, 1000);
+  assert.equal(off.cost, 6.45);
+  assert.deepEqual(off.rows.find(([l]) => /sheen change/i.test(l)), ["Sheen change — 5-sheen (standard 30)", "+$0.25/sf"]);
+  assert.deepEqual(off.fees, []); // 1000 sf: no small-order fee
   assert.ok(off.desc.endsWith("Prefinished 5 sheen"));
   assert.ok(off.warn[0].includes("made to order"));
+  assert.deepEqual(calcStocked({ ...base, sheen: "5" }, 300).fees, [{ label: "Small-order fee — prefinished job under 500 sf", amt: 300 }]);
+  assert.deepEqual(calcStocked({ ...base, sheen: "5" }, 200).fees, [{ label: "Small-order fee — prefinished job under 250 sf", amt: 600 }]);
+  assert.deepEqual(calcStocked({ ...base, sheen: "5" }).fees, []); // no job size known → no fee to charge
+  // Natural is exempt from the small-order fee (owner rule 2026-07-28) but still owes the 25¢
+  const nat = calcStocked({ sp: "White Oak", color: "Natural", grade: "char", w: 5.25, sheen: "5" }, 300);
+  assert.equal(nat.cost, 6.10);
+  assert.deepEqual(nat.fees, []);
   // a product whose standard is 20 (White Oak Caramel) doesn't charge at 20
-  assert.deepEqual(calcStocked({ sp: "White Oak", color: "Caramel", grade: "char", w: 5.25, sheen: "20" }).fees, []);
+  assert.deepEqual(calcStocked({ sp: "White Oak", color: "Caramel", grade: "char", w: 5.25, sheen: "20" }, 300).fees, []);
+  assert.equal(calcStocked({ sp: "White Oak", color: "Caramel", grade: "char", w: 5.25, sheen: "20" }, 300).cost, 6.20);
 });
 
 test("calcStocked: missing grade/width/color combos are null", () => {
@@ -279,10 +328,13 @@ test("calcHerringbone: scrape + prefinished stain add the custom-tab $/sf, fees 
   assert.deepEqual(plain.fees, []);
   assert.equal(plain.desc, '4¼" White Oak Character · Solid Herringbone · 18¼"–28" slats');
   // Saw Cut scrape (+1.50) + Established stain on a deep scrape (+3.15).
+  // A textured prefinish's standard is 20, so 30-sheen here is a sheen change (+0.25).
   const fin = calcHerringbone({ ...base, tex: "sawcut", finish: "est", stain: "Cattail" }, 1000);
-  assert.equal(fin.cost, 8.40 + 1.5 + 3.15);
+  assert.equal(fin.cost, 8.40 + 1.5 + 3.15 + 0.25);
   assert.equal(fin.desc, '4¼" White Oak Character · Solid Herringbone · 18¼"–28" slats · Saw Cut · Prefinished Cattail stain 30 sheen');
   assert.ok(fin.rows.some(([l]) => l === "Texture — Saw Cut"));
+  assert.ok(fin.rows.some(([l]) => l === "Sheen change — 30-sheen (standard 20)"));
+  assert.equal(calcHerringbone({ ...base, tex: "sawcut", finish: "est", stain: "Cattail", sheen: "20" }, 1000).cost, 8.40 + 1.5 + 3.15);
   // Small-order fee follows sf, imports as its own flat line, never in the $/sf.
   const small = calcHerringbone({ ...base, finish: "est", stain: "Cattail" }, 200);
   assert.equal(small.cost, 8.40 + 2.05);
@@ -676,11 +728,16 @@ test("multiWidthBuild stocked: no small-order fee; standard sheen has no fee", (
   assert.deepEqual(b.fees, []);
 });
 
-test("multiWidthBuild stocked: off-standard sheen pools once at $250", () => {
-  const b = multiWidthBuild(mwStocked({ sheen: "5" }), [{ w: 3.25, share: 40 }, { w: 4.25, share: 60 }], 200);
-  assert.equal(b.fees.length, 1);
-  assert.match(b.fees[0].label, /sheen/i);
-  assert.equal(b.fees[0].amt, 250);
+test("multiWidthBuild stocked: off-standard sheen rides each width's $/sf; the small-order fee pools once", () => {
+  const cfg = { sp: "White Oak", color: "Cattail", grade: "char", sheen: "5", sheenCustom: false };
+  const b = multiWidthBuild({ mode: "stocked", cfg }, [{ w: 3.25, share: 40 }, { w: 4.25, share: 60 }], 200);
+  assert.deepEqual(b.lines.map((l) => l.cost), [5.95, 6.20]); // 5.70 / 5.95 + 0.25
+  assert.deepEqual(b.fees, [{ label: "Small-order fee — prefinished job under 250 sf", amt: 600 }]);
+  const big = multiWidthBuild({ mode: "stocked", cfg }, [{ w: 3.25, share: 40 }, { w: 4.25, share: 60 }], 800);
+  assert.deepEqual(big.fees, []);
+  const std = multiWidthBuild({ mode: "stocked", cfg: { ...cfg, sheen: "30" } }, [{ w: 3.25, share: 40 }, { w: 4.25, share: 60 }], 200);
+  assert.deepEqual(std.lines.map((l) => l.cost), [5.70, 5.95]);
+  assert.deepEqual(std.fees, []);
 });
 
 test("multiWidthBuild stocked: a width the product doesn't ship is flagged ok:false", () => {

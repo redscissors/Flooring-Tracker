@@ -97,12 +97,13 @@ export const SAMPLE_FEE = 750;
 export const CUSTOM_FINISHES = ["t1", "t2", "t3"];
 
 // Prefinished stain-color picks (the stocked program's standard colors) + a
-// custom entry, and the sheen scale. Sheen is descriptive on the custom/floor
-// tab (free); on the STOCKED tab, moving a product off its standard sheen adds
-// a flat SHEEN_FEE line (made-to-order setup).
+// custom entry, and the sheen scale. Every color has a standard sheen on the
+// sheet (COLOR_SHEEN / standardSheen below); ordering it at any other sheen
+// adds SHEEN_ADD per sf on every tab — a vendor rule not printed on the sheet
+// (owner, 2026-09-03; ADR 0039).
 export const STAIN_COLORS = ["Natural", "Cattail", "Caramel", "Fresh Cut", "Toasted Acorn", "Nutmeg", "Buckeye", "Hickory Nut", "Frost", "Breeze", "Camo", "Dawn", "Drift", "Mist", "Prestige", "Silk"];
 export const SHEENS = ["30", "20", "15", "10", "5"];
-export const SHEEN_FEE = 250;
+export const SHEEN_ADD = 0.25;
 
 // --- stocked prefinished ------------------------------------------------------
 // Solid, micro bevel; clear and char widths both 2¼–6¼ (STOCKED_WIDTHS).
@@ -196,6 +197,29 @@ export function prefinCost(row, grade, wIdx) {
   const fin = FINISHES.find((x) => x.id === (row.color === "Natural" ? "nat" : "est"));
   return round2(base + (tex ? tex.add : 0) + fin.add({ tex: row.tex || "smooth" }));
 }
+
+// A color's standard sheen is the sheet's footnote (30 unless marked 20 / 5),
+// the same on every species. A textured prefinish takes the LOWER of the
+// color's sheen and the sheet's textured 20 (owner, 2026-09-03). Unfinished
+// and custom colors (T-1/2/3, or a typed-in stain) have no standard, so their
+// sheen pick is free.
+export const TEXTURED_SHEEN = 20;
+export const COLOR_SHEEN = Object.fromEntries(PREFIN_SHEET.filter((r) => !r.tex).map((r) => [r.color, r.sheen]));
+export function standardSheen(f) {
+  if (!f || !f.finish || f.finish === "unf" || CUSTOM_FINISHES.includes(f.finish)) return null;
+  const base = COLOR_SHEEN[f.finish === "nat" ? "Natural" : f.stain];
+  if (base == null) return null;
+  return f.tex && f.tex !== "smooth" ? Math.min(base, TEXTURED_SHEEN) : base;
+}
+// { std, sheen, add } for a config against its standard: `sheen` is what the
+// order reads, `add` the $/sf owed (0 when standard, unknown, or blank).
+export function sheenChange(cfg, std) {
+  const raw = cfg.sheen != null && String(cfg.sheen).trim() !== "" ? String(cfg.sheen).trim() : null;
+  const sheen = raw ?? (std != null ? String(std) : "30");
+  const changed = std != null && raw != null && Number(raw) !== std;
+  return { std, sheen, add: changed ? SHEEN_ADD : 0 };
+}
+const sheenRow = (sc) => [`Sheen change — ${sc.sheen}-sheen (standard ${sc.std})`, `+${fm(sc.add)}/sf`];
 
 // STOCK / FAST TRACK — the sheet's green highlight.
 export const prefinGreen = (row, grade, wIdx) => !!(row && row.green && row.green[grade] && row.green[grade].includes(wIdx));
@@ -421,14 +445,16 @@ export function calcFloor(f, sf) {
   const sap = f.noSap ? NO_SAP[f.sp] || 0 : 0;
   const lenAdd = ((base + sap) * len.pct) / 100;
   const finAdd = fin.add(f);
+  const sc = sheenChange(f, standardSheen(f));
   const fee = smallOrderFee(f.finish, sf);
-  const cost = base + sap + lenAdd + tex.add + edge.add + finAdd;
+  const cost = base + sap + lenAdd + tex.add + edge.add + finAdd + sc.add;
   const rows = [[`Unfinished base — ${[f.sp, gradeName(f)].filter(Boolean).join(", ")}, ${f.cons === "solid" ? "solid" : "engineered"} ${WIDTH_LABEL[f.w]}`, fm(base) + "/sf"]];
   if (sap) rows.push(["No-sap upcharge", `+${fm(sap)}/sf`]);
   if (len.pct) rows.push([`${len.name} lengths (+${len.pct}% of base)`, `+${fm(lenAdd)}/sf`]);
   if (tex.add) rows.push([`Texture — ${tex.name}`, `+${fm(tex.add)}/sf`]);
   if (edge.add) rows.push([`Edge — ${edge.name}`, `+${fm(edge.add)}/sf`]);
   if (finAdd) rows.push([`Finishing — ${fin.name.replace("Prefinished — ", "")}`, `+${fm(finAdd)}/sf`]);
+  if (sc.add) rows.push(sheenRow(sc));
   const fees = [];
   if (fee) fees.push({ label: `Small-order fee — prefinished job under ${sf < 250 ? 250 : 500} sf`, amt: fee });
   const custom = CUSTOM_FINISHES.includes(f.finish);
@@ -451,7 +477,7 @@ export function calcFloor(f, sf) {
   if (tex.id !== "smooth") parts.push(tex.name.replace(" (standard)", ""));
   if (edge.id !== "square") parts.push(edge.name);
   if (len.pct) parts.push(len.name.replace(" (standard)", "") + " lengths");
-  parts.push(f.finish === "unf" ? "Unfinished" : `${finishName(f)} ${f.sheen || "30"} sheen`);
+  parts.push(f.finish === "unf" ? "Unfinished" : `${finishName(f)} ${sc.sheen} sheen`);
   const rest = parts.filter(Boolean).join(" ");
   return { desc: `${size} ${rest}`, size, rest, cartonSf: CARTON_SF[f.w] || null, name: `Sheoga ${size} ${f.sp}`, rows, cost, per: "sf", warn, fees };
 }
@@ -478,7 +504,10 @@ export function floorGridIncludes(f) {
   return out;
 }
 
-export function calcStocked(k) {
+// A stocked item off its standard sheen is a made-to-order run priced like the
+// custom tab's build of the same color: SHEEN_ADD per sf plus the small-order
+// fees (owner, 2026-09-03). Natural keeps its small-order exemption there too.
+export function calcStocked(k, sf) {
   const it = stockedItem(k);
   if (!it) return null;
   const arr = it[k.grade];
@@ -489,12 +518,12 @@ export function calcStocked(k) {
   const p = i < 0 ? N : arr[i];
   if (p == N) return null;
   const std = it.sheen;
-  const sheen = k.sheen != null && k.sheen !== "" ? String(k.sheen) : String(std);
-  const changed = Number(sheen) !== std;
+  const sc = sheenChange(k, std);
+  const { sheen } = sc;
+  const changed = sc.add > 0;
   const rows = [[`Stocked prefinished — micro bevel, ${sheen}-sheen clear ceramic`, fm(p) + "/sf"]];
-  // Off-standard sheen turns a stock item into a made-to-order run: a flat
-  // $250 line at cost (never folded into the $/sf), like the other fees.
-  const fees = changed ? [{ label: `Non-standard sheen — ${sheen}-sheen (standard ${std})`, amt: SHEEN_FEE }] : [];
+  if (changed) rows.push(sheenRow(sc));
+  const fees = stockedSheenFees(k, sf);
   fees.forEach((x) => rows.push([`${x.label} → imports as its own line`, `+${fm(x.amt)} flat`]));
   const size = WIDTH_LABEL[k.w];
   const color = it.color.replace(/ · /g, " ");
@@ -504,7 +533,15 @@ export function calcStocked(k) {
   // warn line below still tells the salesperson it ships from stock.
   const rest = `${it.sp} ${color} ${k.grade === "clear" ? "Clear" : "Character"} Prefinished ${sheen} sheen`;
   const warn = changed ? ["Non-standard sheen — made to order, not a stock item"] : ["Stocked item — ships from Sheoga stock"];
-  return { desc: `${size} ${rest}`, size, rest, cartonSf: CARTON_SF[k.w] || null, name: `Sheoga ${size} ${it.sp} ${it.color}`, rows, cost: p, per: "sf", warn, fees };
+  return { desc: `${size} ${rest}`, size, rest, cartonSf: CARTON_SF[k.w] || null, name: `Sheoga ${size} ${it.sp} ${it.color}`, rows, cost: round2(p + sc.add), per: "sf", warn, fees };
+}
+
+// The stocked tab's only flat fees: the small-order fees a sheen change owes.
+export function stockedSheenFees(k, sf) {
+  const it = stockedItem(k);
+  if (!it || !sheenChange(k, it.sheen).add) return [];
+  const fee = smallOrderFee(it.color === "Natural" ? "nat" : "est", sf);
+  return fee ? [{ label: `Small-order fee — prefinished job under ${sf < 250 ? 250 : 500} sf`, amt: fee }] : [];
 }
 
 export function calcHerringbone(h, sf) {
@@ -539,6 +576,8 @@ export function calcHerringbone(h, sf) {
   if (edge.add) { cost += edge.add; rows.push([`Edge — ${edge.name}`, `+${fm(edge.add)}/sf`]); }
   const finAdd = fin.add(h);
   if (finAdd) { cost += finAdd; rows.push([`Finishing — ${fin.name.replace("Prefinished — ", "")}`, `+${fm(finAdd)}/sf`]); }
+  const sc = sheenChange(h, standardSheen({ ...h, finish: fin.id }));
+  if (sc.add) { cost += sc.add; rows.push(sheenRow(sc)); }
   const fees = [];
   const fee = smallOrderFee(fin.id, sf);
   if (fee) fees.push({ label: `Small-order fee — prefinished job under ${sf < 250 ? 250 : 500} sf`, amt: fee });
@@ -553,7 +592,7 @@ export function calcHerringbone(h, sf) {
   const finBits = [];
   if (tex.id !== "smooth") finBits.push(tex.name.replace(" (standard)", ""));
   if (edge.id !== "square") finBits.push(edge.name);
-  if (prefin) finBits.push(`${finishName(h)} ${h.sheen || "30"} sheen`);
+  if (prefin) finBits.push(`${finishName(h)} ${sc.sheen} sheen`);
   // Grade (clear/character) is descriptive order text — the herringbone sheet has
   // no clear/char price split, so it never changes cost, only what's read to Sheoga.
   const grade = h.grade === "clear" ? "Clear" : "Character";
@@ -675,7 +714,7 @@ export function hbFromFloor(snap) {
 export function calcConfig(snap, sf) {
   if (!snap || !snap.cfg) return null;
   if (snap.mode === "floor") return calcFloor(snap.cfg, sf);
-  if (snap.mode === "stocked") return calcStocked(snap.cfg);
+  if (snap.mode === "stocked") return calcStocked(snap.cfg, sf);
   if (snap.mode === "hb") return calcHerringbone(snap.cfg, sf);
   if (snap.mode === "vent") return calcVent(snap.cfg);
   if (snap.mode === "damper") return calcDamper(snap.cfg);
@@ -702,10 +741,7 @@ export function multiWidthBuild(base, widths, sf) {
   if (okIdx.length) { let bi = okIdx[0]; for (const i of okIdx) if (lines[i].sf > lines[bi].sf) bi = i; lines[bi].sf += diff; }
   const fees = [];
   if (stocked) {
-    const it = stockedItem(base.cfg);
-    const std = it ? it.sheen : null;
-    const sheen = base.cfg.sheen != null && base.cfg.sheen !== "" ? String(base.cfg.sheen) : String(std);
-    if (std != null && Number(sheen) !== std) fees.push({ label: `Non-standard sheen — ${sheen}-sheen (standard ${std})`, amt: SHEEN_FEE });
+    fees.push(...stockedSheenFees(base.cfg, sf));
   } else {
     const f = base.cfg;
     const fee = smallOrderFee(f.finish, sf);

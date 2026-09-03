@@ -507,8 +507,10 @@ src/
                     # paired, and Texture/Finishing/Lengths/Edge as dropdowns;
                     # prefinished finishes reveal Stain-color + Sheen pickers
                     # (each with a Custom… entry). Stocked tab is species -> color
-                    # -> grade -> width -> sheen, and an off-standard sheen there
-                    # adds a $250 flat fee line (free on the custom/floor tab).
+                    # -> grade -> width -> sheen. Every prefinished color has a
+                    # standard sheen (sheet footnote; textured = the lower of it
+                    # and 20); any other sheen adds 25¢/sf on every tab, and on
+                    # the stocked tab also the small-order fees (ADR 0039).
                     # Vent tab: the Prefinished/Textured toggles reveal stain-color
                     # and scrape pickers (order text only — the sheet's adders are
                     # flat), and a "Copy floor" button maps the last-open floor/
