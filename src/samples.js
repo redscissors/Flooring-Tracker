@@ -63,14 +63,32 @@ export const requestFrom = ({ project, custName, area, areaIndex, product: p, bo
 
 // Vendor groups in encounter order, Other always last — a sample order is
 // placed per vendor, so that's the unit the panel and the email work in.
-export const sampleGroups = (requests) => {
+// Given a contact resolver, books whose sample contact is the same address
+// collapse into one group (owner ask 2026-09-04: one email per inbox, not one
+// per book) — the merged group's name joins the book names, its contact is the
+// first book's. Books with no contact stay separate.
+export const sampleGroups = (requests, contactFor) => {
   const groups = new Map();
   for (const r of requests || []) {
     const key = r.bookId || r.bookName;
-    if (!groups.has(key)) groups.set(key, { key, bookId: r.bookId, name: r.bookName, rows: [] });
+    if (!groups.has(key)) groups.set(key, { key, bookId: r.bookId, bookIds: r.bookId ? [r.bookId] : [], name: r.bookName, contact: null, rows: [] });
     groups.get(key).rows.push(r);
   }
-  const out = [...groups.values()];
+  const out = [];
+  const byEmail = new Map();
+  for (const g of groups.values()) {
+    g.contact = contactFor ? (contactFor(g) || null) : null;
+    const email = str(g.contact?.email).trim().toLowerCase();
+    const into = email && byEmail.get(email);
+    if (into) {
+      into.bookIds.push(...g.bookIds);
+      if (!into.name.split(" + ").includes(g.name)) into.name += ` + ${g.name}`;
+      into.rows.push(...g.rows);
+      continue;
+    }
+    if (email) byEmail.set(email, g);
+    out.push(g);
+  }
   const oi = out.findIndex((g) => g.name === OTHER);
   if (oi >= 0) out.push(out.splice(oi, 1)[0]);
   return out;

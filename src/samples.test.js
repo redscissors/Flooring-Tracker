@@ -67,6 +67,37 @@ test("sampleGroups: groups by vendor in encounter order, Other last", () => {
   assert.equal(gs[0].bookId, "b1");
 });
 
+test("sampleGroups: books that share a sample email merge into one group", () => {
+  const rows = [
+    req({ id: "r1", bookId: "b1", bookName: "Glazzio Tile" }),
+    req({ id: "r2", bookId: "b2", bookName: "GLATI stock", productId: "p2" }),
+    req({ id: "r3", bookId: "b3", bookName: "Glazzio Stock", productId: "p3" }),
+    req({ id: "r4", bookId: "b1", bookName: "Glazzio Tile", productId: "p4" }),
+    req({ id: "r5", bookId: "", bookName: "Other / hand-entered", productId: "p5" }),
+    req({ id: "r6", bookId: "b4", bookName: "No contact", productId: "p6" }),
+    req({ id: "r7", bookId: "b5", bookName: "No contact either", productId: "p7" }),
+    req({ id: "r8", bookId: "b6", bookName: "Glazzio Tile", productId: "p8" }),
+  ];
+  const contacts = {
+    b1: { name: "Jeff Krejci", email: "Samples@Glazzio.example", from: "sample" },
+    b2: { name: "", email: "samples@glati.example", from: "sample" },
+    b3: { name: "Glazzio desk", email: " samples@glazzio.example ", from: "sample" },
+    b6: { name: "", email: "samples@glazzio.example", from: "rep" },
+  };
+  const gs = sampleGroups(rows, (g) => contacts[g.bookId] || null);
+  assert.deepEqual(gs.map((g) => g.name), ["Glazzio Tile + Glazzio Stock", "GLATI stock", "No contact", "No contact either", "Other / hand-entered"]);
+  assert.deepEqual(gs[0].rows.map((r) => r.id), ["r1", "r4", "r3", "r8"]);
+  assert.equal(gs[0].bookId, "b1");
+  assert.deepEqual(gs[0].bookIds, ["b1", "b3", "b6"]);
+  assert.equal(gs[0].contact.email, "Samples@Glazzio.example");
+  assert.equal(gs[0].contact.name, "Jeff Krejci");
+  assert.equal(gs[1].contact.email, "samples@glati.example");
+  assert.equal(gs[2].contact, null);
+  assert.equal(new Set(gs.map((g) => g.key)).size, gs.length);
+  // Without a resolver nothing merges.
+  assert.equal(sampleGroups(rows).length, 7);
+});
+
 test("sampleCounts + projectSampleTally", () => {
   const rows = [
     req({ id: "r1", status: "need" }),
