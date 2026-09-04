@@ -4,6 +4,7 @@ import { LABEL_FIELDS, KIND_OF, VARIANT_KEYS, newDraftFromPreset, normPreset, st
 import { searchStock } from "./stock.js";
 import { stampKit } from "./model.js";
 import SheogaConfigurator from "./SheogaConfigurator.jsx";
+import { DOCK_FRAME_W } from "./sheoga.js";
 import keimLogo from "./assets/keim-logo-ink.png";
 
 // Lazy so the wedi tables stay in their own chunk (ADR 0026) — opening the hub
@@ -109,15 +110,19 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
   // shrink. So the rail folds away into a "‹ Apps" button and comes back as an
   // overlay drawer (the App.jsx mobile-sidebar pattern), which is also why
   // picking an app closes it again.
+  // Sheoga's docked price grid outranks the rail (owner, 2026-09-04): on that
+  // app the rail also folds whenever the window can't hold grid + rail + build
+  // card beside a 224px nav, so the grid docks from ~1626px instead of ~1850.
+  const hubQuery = (a) => `(min-width: ${a === "sheoga" ? DOCK_FRAME_W + 224 + 40 : 1100}px)`;
   const [wideHub, setWideHub] = useState(() => (typeof window !== "undefined" && window.matchMedia
-    ? window.matchMedia("(min-width: 1100px)").matches : true));
+    ? window.matchMedia(hubQuery(app)).matches : true));
   useEffect(() => {
-    const mq = window.matchMedia("(min-width: 1100px)");
+    const mq = window.matchMedia(hubQuery(app));
     const on = () => setWideHub(mq.matches);
     on();
     mq.addEventListener("change", on);
     return () => mq.removeEventListener("change", on);
-  }, []);
+  }, [app]);
   const [railOpen, setRailOpen] = useState(false);
   const pickApp = (k) => { setApp(k); setRailOpen(false); };
   // Configurators (Apps hub): builds stage locally — nothing touches a real

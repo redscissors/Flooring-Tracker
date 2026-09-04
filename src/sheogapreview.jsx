@@ -7,6 +7,7 @@ import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import SheogaConfigurator from "./SheogaConfigurator.jsx";
+import { AppsWorkspace } from "./AppsWorkspace.jsx";
 import { newProduct, newArea, stampKit, landKitLines, removeKitLines, placedKits, uid } from "./model.js";
 import { lineItems, multiWidthLineItems, defaultConfig, normBasketEntry } from "./sheoga.js";
 
@@ -17,16 +18,24 @@ const bundleLines = stampKit(multiWidthLineItems({ mode: "floor", cfg: { ...floo
 const area0 = { ...newArea(), name: "Great room", products: [...land(singleLines), ...land(bundleLines), newProduct()] };
 const staged = [normBasketEntry({ id: uid(), kind: "single", addedAt: Date.now(), markupPct: 40, snap: { mode: "floor", cfg: { ...floorCfg, sp: "Maple" } }, sf: 150 })].filter(Boolean);
 
-// `?hub=1` wraps the configurator in the Apps hub's shell (p-5 gutters + the
-// 224px rail) so the embedded width the docked grid has to fit is real.
+// `?hub=1` opens the REAL Apps hub on the Sheoga app instead, so the rail
+// fold and the embedded width the docked grid has to fit are the real ones.
 const HUB = new URLSearchParams(location.search).get("hub") === "1";
+
+function Hub() {
+  return (
+    <AppsWorkspace initialApp="sheoga" onClose={() => console.log("close")}
+      stock={[]} labels={[]} presets={[]} onAddLabel={() => {}} onAddLabelsBulk={() => {}} onUpdateLabel={() => {}} onDeleteLabel={() => {}} onSavePreset={() => {}}
+      sheoga={{ markupDefault: 40, ventMarkupDefault: 50, currentName: "", addToCurrent: () => {}, addToNew: (l) => console.log("add", l) }} />
+  );
+}
 
 function Harness() {
   const [cats, setCats] = useState([area0]);
   const [basket, setBasket] = useState(staged);
   const [pop, setPop] = useState({ aid: area0.id, pid: area0.products.at(-1).id, seed: null });
-  const pop_ = (
-    <SheogaConfigurator key={pop.pid} embedded={HUB}
+  return (
+    <SheogaConfigurator key={pop.pid}
       seed={pop.seed} initialSf={200} markupDefault={40} ventMarkupDefault={50}
       basket={basket} onBasketChange={setBasket}
       areaName="Great room"
@@ -40,15 +49,6 @@ function Harness() {
       onConfigChange={() => {}}
     />
   );
-  if (!HUB) return pop_;
-  return (
-    <div className="fixed inset-0 p-5" style={{ background: "rgba(20,15,10,.4)" }}>
-      <div className="relative bg-white rounded-2xl border border-slate-200 w-full h-full flex overflow-hidden">
-        <aside className="w-56 shrink-0 border-r border-slate-200 bg-slate-50/50 p-4"><h3 className="ft-serif text-2xl">Apps</h3></aside>
-        <div className="flex-1 flex flex-col min-w-0">{pop_}</div>
-      </div>
-    </div>
-  );
 }
 
-createRoot(document.getElementById("preview")).render(<Harness />);
+createRoot(document.getElementById("preview")).render(HUB ? <Hub /> : <Harness />);

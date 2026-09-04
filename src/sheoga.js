@@ -1048,6 +1048,10 @@ export function normBasketEntry(e) {
 export const DOCK_GRID_W = { floor: 716, stocked: 660 };
 export const DOCK_RAIL_W = 430;
 export const DOCK_BUILD_MIN_W = 440;
+// The frame width at which the wider (floor) grid docks — the Apps hub folds
+// its rail on this app below viewport = this + rail + gutters, because the
+// owner would rather lose the app list than the grid (2026-09-04).
+export const DOCK_FRAME_W = DOCK_GRID_W.floor + DOCK_RAIL_W + DOCK_BUILD_MIN_W;
 export function canDockGrid(availW, mode) {
   const g = DOCK_GRID_W[mode];
   if (!g || !(availW > 0)) return false;
