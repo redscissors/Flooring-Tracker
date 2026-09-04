@@ -1,4 +1,5 @@
-// The Samples panel — this project's sample requests, grouped by vendor,
+// The Samples panel — this project's sample requests, grouped by vendor
+// (books sharing a sample address merge into one group and one email),
 // ordered by EMAILING each vendor's sample contact — its rep, or the separate
 // samples address when it has one (owner call: samples ship direct to
 // the customer; the email body carries the item list + the customer ship-to
@@ -25,13 +26,14 @@ function StatusSeg({ status, onPick }) {
   );
 }
 
-function VendorGroup({ g, custInfo, contact, onOrdered, onRemove }) {
+function VendorGroup({ g, custInfo, onOrdered, onRemove }) {
+  const contact = g.contact;
   const need = g.rows.filter((r) => r.status === "need");
   const mail = repEmail({ rows: g.rows, ...custInfo, repName: contact?.name || "" });
   return (
     <section>
       <div className="flex items-center justify-between mb-2 gap-2">
-        <h4 className="ft-eyebrow text-[10px] tracking-[.12em] text-slate-500 truncate">{g.name} · {g.rows.length}</h4>
+        <h4 title={g.name} className="ft-eyebrow text-[10px] tracking-[.12em] text-slate-500 truncate">{g.name} · {g.rows.length}</h4>
         <div className="flex items-center gap-2 shrink-0">
           {need.length > 0 && (
             <button onClick={() => onOrdered(need.map((r) => r.id), true)}
@@ -76,7 +78,7 @@ function VendorGroup({ g, custInfo, contact, onOrdered, onRemove }) {
 }
 
 export function SamplesPanel({ name, requests, custInfo, contactFor, onOrdered, onRemove, onClose }) {
-  const groups = sampleGroups(requests);
+  const groups = sampleGroups(requests, contactFor);
   return (
     <div className="print:hidden fixed inset-0 z-50 flex justify-end" style={{ background: "rgba(20,15,10,.4)" }} onClick={onClose}>
       <div className="flex flex-col bg-white border-l border-slate-200 shadow-2xl w-full lg:w-[560px] max-w-full h-full" onClick={(e) => e.stopPropagation()}>
@@ -97,7 +99,7 @@ export function SamplesPanel({ name, requests, custInfo, contactFor, onOrdered, 
               {!custInfo.address && (
                 <p className="text-[11px]" style={{ color: "#b45309" }}>No ship-to address on this project — the sample email will have nowhere to send the samples. Add the project (or customer) address first.</p>
               )}
-              {groups.map((g) => <VendorGroup key={g.key} g={g} custInfo={custInfo} contact={contactFor(g)} onOrdered={onOrdered} onRemove={onRemove} />)}
+              {groups.map((g) => <VendorGroup key={g.key} g={g} custInfo={custInfo} onOrdered={onOrdered} onRemove={onRemove} />)}
               <p className="text-[11px] text-slate-400">
                 Samples ship straight to the customer — the email carries their name and the project address. After sending, <b>Mark all ordered</b>; statuses are shared, so the whole team sees what's in flight.
               </p>

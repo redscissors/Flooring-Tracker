@@ -18,6 +18,9 @@ const BOOKS = [
   // A separate samples address (no rep) — the company-inbox case the
   // Contacts tab exists for; Glazzio above exercises the rep fallback.
   { id: "bkGlati", kind: "stock", name: "GLATI stock", data: { sampleContact: { name: "", email: "samples@glati.example" } } },
+  // Same address as Glazzio EFT (case differs on purpose) — the two books
+  // merge into one group and one email.
+  { id: "bkGlzStk", kind: "stock", name: "Glazzio stock", data: { sampleContact: { name: "Jeff Krejci", email: "Jeff@Glazzio.example" } } },
 ];
 const PROJECT = { id: "c1", name: "Marsh — whole first floor", address: "214 Old Mill Rd, Chagrin Falls", phone: "(555) 210-0114" };
 const area = (id, name) => normA({ id, name, products: [{}] });
@@ -27,6 +30,7 @@ const kitchen = area("a1", "Kitchen"), bath = area("a2", "Master bath");
 const SEED = [
   mk(kitchen, { id: "p1", type: "tile", bookId: "bkGlz", sku: "KES6301", brandColor: "Kessel Collection Ovo Glossy", L: "3", W: "12" }),
   mk(kitchen, { id: "p2", type: "tile", bookId: "bkGlz", sku: "CLNL289", brandColor: "Colonial Long Hex Village Square", sizeText: "12x12 sheet" }, { status: "ordered", orderedBy: "Marcus", orderedAt: Date.now() - 4 * 86400000 }),
+  mk(bath, { id: "p6", type: "tile", bookId: "bkGlzStk", sku: "GLZ-STK-44", brandColor: "Carrara Hex Mosaic", sizeText: "12x12 sheet" }),
   mk(kitchen, { id: "p3", type: "tile", bookId: "bkGlati", sku: "05153", brandColor: "Hanoi White Matte", L: "12", W: "24" }),
   mk(bath, { id: "p4", type: "hardwood", brandColor: "White Oak 5\" Character", sheoga: { mode: "floor", cfg: {} } }),
   mk(bath, { id: "p5", type: "vinyl", sku: "STIPEHW1212PEBF", brandColor: "Uptown Pebbles Harmony Warm Blend", sizeText: "12x12" }),
