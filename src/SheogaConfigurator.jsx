@@ -17,6 +17,7 @@ import {
   VENT_GROUP, VENT_CATS, VENT_PREFIN, VENT_TEX, VENT_CUBED, DAMPER_ATTACH, DAMPERS, ventFromFloor, hbFromFloor, ventScrape, ventDims,
   DEFAULT_MARKUP, DEFAULT_VENT_MARKUP, tierSellOf, tierFeeOf, cartonize, lineItems, frameLineal, SHEET_NOTE,
   redistributeShares, multiWidthBuild, multiWidthLineItems, normBasketEntry,
+  DOCK_GRID_W, canDockGrid,
 } from "./sheoga.js";
 import { stampKit } from "./model.js";
 import { TIER_COLOR, tierBadgeText } from "./uiconst.js";
@@ -1175,8 +1176,23 @@ function useMedia(query) {
 // Matches the app's 768px breakpoint; self-contained so the harness works too.
 const useIsWide = () => useMedia("(min-width: 768px)");
 // The third tier: wide enough to dock a price grid beside the rail AND the
-// build card. Below it the floor/stocked grids stay behind the modal button.
-const useIsGridWide = () => useMedia("(min-width: 1400px)");
+// build card. Measured on the configurator's own frame rather than the
+// viewport — embedded in the Apps hub it is narrower than the window by the
+// hub's rail and gutters, and a viewport query docked the grid into a box
+// that then crushed the build card (1440–1700px laptops).
+function useDockGrid(ref, mode, pad) {
+  const [w, setW] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const on = () => setW(el.clientWidth - pad);
+    on();
+    const ro = new ResizeObserver(on);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref, pad]);
+  return canDockGrid(w, mode);
+}
 
 // --- shopping basket -----------------------------------------------------------
 // A basket entry snapshots a single build or a multi-width bundle so it can sit
@@ -1301,7 +1317,8 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
   const [sf, setSf] = useState(bseed?.sf > 0 ? bseed.sf : initialSf > 0 ? initialSf : 1);
   const [grid, setGrid] = useState(false);
   const isWide = useIsWide();
-  const isGridWide = useIsGridWide();
+  const frameRef = useRef(null);
+  const isGridWide = useDockGrid(frameRef, mode, embedded ? 0 : 40); // the overlay's p-5 gutters
   const [sheetUp, setSheetUp] = useState(false); // mobile: pull-up build sheet
   const [basketOpen, setBasketOpen] = useState(false);
   const [basketSel, setBasketSel] = useState({}); // basket entry id -> selected
@@ -1535,7 +1552,7 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
     <div className={embedded
         ? "relative flex-1 min-h-0 flex flex-col"
         : `print:hidden fixed inset-0 flex items-center justify-center z-[70] ${isWide ? "p-5" : ""}`}
-      style={embedded ? undefined : { background: "rgba(20,15,10,.55)" }} onClick={embedded ? undefined : onClose}>
+      style={embedded ? undefined : { background: "rgba(20,15,10,.55)" }} onClick={embedded ? undefined : onClose} ref={frameRef}>
       <div className={`bg-white flex flex-col overflow-hidden ${embedded
           ? "relative flex-1 min-h-0 w-full"
           : isWide ? `relative rounded-xl w-full ${dockGrid ? "max-w-[1660px]" : "max-w-[1060px]"} h-[min(820px,94vh)] border border-slate-300 shadow-2xl` : "w-full h-full relative"}`}
@@ -1547,7 +1564,7 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
           {/* desktop: [docked price grid] + options rail + build card side by side */}
           <div className="flex-1 flex min-h-0">
             {dockGrid && (
-              <GridPanel width={mode === "stocked" ? 660 : 716} title={gridTitle} controls={gridControls} sub={gridSub}>{gridTable}</GridPanel>
+              <GridPanel width={DOCK_GRID_W[mode]} title={gridTitle} controls={gridControls} sub={gridSub}>{gridTable}</GridPanel>
             )}
             <div className={`${dockGrid ? "w-[430px]" : "w-[50%] max-w-[500px]"} shrink-0 border-r border-slate-300 overflow-y-auto p-4`} style={{ scrollbarGutter: "stable" }}>{rail}</div>
             <div className="flex-1 min-w-0 overflow-y-auto p-4" style={{ background: "var(--ft-cream)" }}>

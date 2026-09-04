@@ -7,6 +7,7 @@ import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import SheogaConfigurator from "./SheogaConfigurator.jsx";
+import { AppsWorkspace } from "./AppsWorkspace.jsx";
 import { newProduct, newArea, stampKit, landKitLines, removeKitLines, placedKits, uid } from "./model.js";
 import { lineItems, multiWidthLineItems, defaultConfig, normBasketEntry } from "./sheoga.js";
 
@@ -16,6 +17,18 @@ const singleLines = stampKit(lineItems({ mode: "floor", cfg: floorCfg }, { sf: 3
 const bundleLines = stampKit(multiWidthLineItems({ mode: "floor", cfg: { ...floorCfg, sp: "Hickory" } }, [{ w: 3.25, share: 40 }, { w: 4.25, share: 60 }], 240, 40));
 const area0 = { ...newArea(), name: "Great room", products: [...land(singleLines), ...land(bundleLines), newProduct()] };
 const staged = [normBasketEntry({ id: uid(), kind: "single", addedAt: Date.now(), markupPct: 40, snap: { mode: "floor", cfg: { ...floorCfg, sp: "Maple" } }, sf: 150 })].filter(Boolean);
+
+// `?hub=1` opens the REAL Apps hub on the Sheoga app instead, so the rail
+// fold and the embedded width the docked grid has to fit are the real ones.
+const HUB = new URLSearchParams(location.search).get("hub") === "1";
+
+function Hub() {
+  return (
+    <AppsWorkspace initialApp="sheoga" onClose={() => console.log("close")}
+      stock={[]} labels={[]} presets={[]} onAddLabel={() => {}} onAddLabelsBulk={() => {}} onUpdateLabel={() => {}} onDeleteLabel={() => {}} onSavePreset={() => {}}
+      sheoga={{ markupDefault: 40, ventMarkupDefault: 50, currentName: "", addToCurrent: () => {}, addToNew: (l) => console.log("add", l) }} />
+  );
+}
 
 function Harness() {
   const [cats, setCats] = useState([area0]);
@@ -38,4 +51,4 @@ function Harness() {
   );
 }
 
-createRoot(document.getElementById("preview")).render(<Harness />);
+createRoot(document.getElementById("preview")).render(HUB ? <Hub /> : <Harness />);
