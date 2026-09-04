@@ -13,6 +13,7 @@ import {
   normBasketEntry,
   PREFIN_SHEET, PREFIN_WS, prefinCost, prefinGreen, prefinRowFor, prefinRowForStocked,
   stockedForPrefin, floorSeedFromPrefin, floorCellCost, floorGridIncludes,
+  canDockGrid,
 } from "./sheoga.js";
 
 const floor = (over = {}) => ({ ...defaultConfig("floor"), ...over });
@@ -961,4 +962,20 @@ test("floorGridIncludes names each flat adder baked into the grid", () => {
   assert.equal(inc[0].add, 1.5);
   assert.equal(inc[1].add, 3.15);   // deep scrape rate
   assert.equal(inc[2].add, null);   // a % of base, not a flat rate
+});
+
+test("canDockGrid: grid docks only when its own frame holds grid + rail + a real build card", () => {
+  // Apps hub on a 1536px laptop: 1536 - 40 gutters - 224 rail = 1272 — no dock
+  assert.equal(canDockGrid(1272, "floor"), false);
+  assert.equal(canDockGrid(1272, "stocked"), false);
+  // standalone overlay at 1660 (its max width) docks both
+  assert.equal(canDockGrid(1660, "floor"), true);
+  assert.equal(canDockGrid(1660, "stocked"), true);
+  // exact thresholds: grid + 430 rail + 440 build card
+  assert.equal(canDockGrid(716 + 430 + 440, "floor"), true);
+  assert.equal(canDockGrid(716 + 430 + 439, "floor"), false);
+  assert.equal(canDockGrid(660 + 430 + 440, "stocked"), true);
+  // tabs without a grid, or an unmeasured frame, never dock
+  assert.equal(canDockGrid(2000, "vent"), false);
+  assert.equal(canDockGrid(0, "floor"), false);
 });

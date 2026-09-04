@@ -1038,3 +1038,18 @@ export function normBasketEntry(e) {
   if (!e.snap || !e.snap.cfg) return null;
   return { ...head, kind: "single", snap: { mode: e.snap.mode || "floor", cfg: e.snap.cfg }, sf: Number(e.sf) || 0 };
 }
+
+// --- docked price grid: does it fit? ----------------------------------------
+// The floor / stocked price grid docks beside the options rail and the build
+// card only when the configurator's OWN box (not the viewport — inside the
+// Apps hub the rail and gutters eat ~264px of it) holds all three at full
+// width. The rail and build card are the columns that must always show, so
+// below the threshold the grid goes back behind the "Full price grid" button.
+export const DOCK_GRID_W = { floor: 716, stocked: 660 };
+export const DOCK_RAIL_W = 430;
+export const DOCK_BUILD_MIN_W = 440;
+export function canDockGrid(availW, mode) {
+  const g = DOCK_GRID_W[mode];
+  if (!g || !(availW > 0)) return false;
+  return availW >= g + DOCK_RAIL_W + DOCK_BUILD_MIN_W;
+}
