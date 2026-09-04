@@ -424,8 +424,11 @@ export function finishName(f) {
 
 // Small-order fee — prefinished jobs under 500/250 sf. Prefinished Natural is
 // exempt (owner rule 2026-07-28): the clear natural coat is a standard run, so
-// only stained/custom prefinishes owe the setup fee.
-export const smallOrderFee = (finish, sf) => (finish === "unf" || finish === "nat" ? 0 : sf < 250 ? 600 : sf < 500 ? 300 : 0);
+// only stained/custom prefinishes owe the setup fee — unless it's ordered at a
+// non-standard sheen, which makes Natural a made-to-order run too and owes the
+// fee like any other color (owner, 2026-09-04; ADR 0039 amendment).
+export const smallOrderFee = (finish, sf, nonStdSheen = false) =>
+  finish === "unf" || (finish === "nat" && !nonStdSheen) ? 0 : sf < 250 ? 600 : sf < 500 ? 300 : 0;
 
 // Length upcharges (%) apply to the unfinished base incl. no-sap, BEFORE the
 // flat $/sf adders (assumption 1 of the design README — sheet just says "Add
@@ -446,7 +449,7 @@ export function calcFloor(f, sf) {
   const lenAdd = ((base + sap) * len.pct) / 100;
   const finAdd = fin.add(f);
   const sc = sheenChange(f, standardSheen(f));
-  const fee = smallOrderFee(f.finish, sf);
+  const fee = smallOrderFee(f.finish, sf, sc.add > 0);
   const cost = base + sap + lenAdd + tex.add + edge.add + finAdd + sc.add;
   const rows = [[`Unfinished base — ${[f.sp, gradeName(f)].filter(Boolean).join(", ")}, ${f.cons === "solid" ? "solid" : "engineered"} ${WIDTH_LABEL[f.w]}`, fm(base) + "/sf"]];
   if (sap) rows.push(["No-sap upcharge", `+${fm(sap)}/sf`]);
@@ -506,7 +509,8 @@ export function floorGridIncludes(f) {
 
 // A stocked item off its standard sheen is a made-to-order run priced like the
 // custom tab's build of the same color: SHEEN_ADD per sf plus the small-order
-// fees (owner, 2026-09-03). Natural keeps its small-order exemption there too.
+// fees (owner, 2026-09-03) — Natural included, since off its standard sheen it
+// is no longer the standard run that earns its exemption (owner, 2026-09-04).
 export function calcStocked(k, sf) {
   const it = stockedItem(k);
   if (!it) return null;
@@ -540,7 +544,7 @@ export function calcStocked(k, sf) {
 export function stockedSheenFees(k, sf) {
   const it = stockedItem(k);
   if (!it || !sheenChange(k, it.sheen).add) return [];
-  const fee = smallOrderFee(it.color === "Natural" ? "nat" : "est", sf);
+  const fee = smallOrderFee(it.color === "Natural" ? "nat" : "est", sf, true);
   return fee ? [{ label: `Small-order fee — prefinished job under ${sf < 250 ? 250 : 500} sf`, amt: fee }] : [];
 }
 
@@ -579,7 +583,7 @@ export function calcHerringbone(h, sf) {
   const sc = sheenChange(h, standardSheen({ ...h, finish: fin.id }));
   if (sc.add) { cost += sc.add; rows.push(sheenRow(sc)); }
   const fees = [];
-  const fee = smallOrderFee(fin.id, sf);
+  const fee = smallOrderFee(fin.id, sf, sc.add > 0);
   if (fee) fees.push({ label: `Small-order fee — prefinished job under ${sf < 250 ? 250 : 500} sf`, amt: fee });
   const custom = CUSTOM_FINISHES.includes(fin.id);
   const established = fin.id === "est";
@@ -744,7 +748,7 @@ export function multiWidthBuild(base, widths, sf) {
     fees.push(...stockedSheenFees(base.cfg, sf));
   } else {
     const f = base.cfg;
-    const fee = smallOrderFee(f.finish, sf);
+    const fee = smallOrderFee(f.finish, sf, sheenChange(f, standardSheen(f)).add > 0);
     if (fee) fees.push({ label: `Small-order fee — prefinished job under ${sf < 250 ? 250 : 500} sf`, amt: fee });
     if (CUSTOM_FINISHES.includes(f.finish) || (f.finish === "est" && f.sample)) fees.push({ label: "Custom color-match sample — approval bundle shipped", amt: SAMPLE_FEE });
   }

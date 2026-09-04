@@ -305,7 +305,7 @@ function sheenHint(cfg, tsell) {
   const sc = sheenChange(cfg, std);
   return {
     note: `standard ${std} · +${fm(tsell(SHEEN_ADD))}/sf if changed`,
-    warn: sc.add ? `Non-standard sheen (${sc.sheen} vs ${std}) — adds ${fm(tsell(SHEEN_ADD))}/sf.` : null,
+    warn: sc.add ? `Non-standard sheen (${sc.sheen} vs ${std}) — adds ${fm(tsell(SHEEN_ADD))}/sf${cfg.finish === "nat" ? ", and the small-order fee under 500 sf" : ""}.` : null,
   };
 }
 
@@ -471,7 +471,7 @@ function StockedRail({ k, set, sf, tsell, onGrid, multi, mwWidths, onMultiToggle
     </Sect>
     <Sect title="Sheen">
       <SheenPicker cfg={k} set={set} note={`standard ${std} · +${fm(tsell(SHEEN_ADD))}/sf if changed`}
-        warn={sc.add ? `Non-standard sheen (${sc.sheen} vs ${std}) — made to order: +${fm(tsell(SHEEN_ADD))}/sf${it.color === "Natural" ? "" : ", and the small-order fee under 500 sf"}.` : null} />
+        warn={sc.add ? `Non-standard sheen (${sc.sheen} vs ${std}) — made to order: +${fm(tsell(SHEEN_ADD))}/sf, and the small-order fee under 500 sf.` : null} />
     </Sect>
   </>);
 }
@@ -1315,6 +1315,10 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
   const tsell = (cost) => tierSellOf(cost, activeMarkup, tierId, pct);
   const tfee = (amt) => tierFeeOf(amt, tierId, pct);
   const [sf, setSf] = useState(bseed?.sf > 0 ? bseed.sf : initialSf > 0 ? initialSf : 1);
+  // What the Job size box shows while it's being typed in: it may sit blank or
+  // at 0 mid-edit (backspace the 1, type the real number) — `sf` itself never
+  // drops below 1. Null = not editing, mirror `sf`.
+  const [sfDraft, setSfDraft] = useState(null);
   const [grid, setGrid] = useState(false);
   const isWide = useIsWide();
   const frameRef = useRef(null);
@@ -1497,7 +1501,9 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
   );
   const sfInput = sfMode && (
     <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
-      Job size <input type="number" min="1" step={isWide ? "50" : "10"} value={sf} onChange={(e) => setSf(Math.max(1, Number(e.target.value) || 1))}
+      Job size <input type="number" min="1" step={isWide ? "50" : "10"} value={sfDraft ?? sf}
+        onChange={(e) => { const v = e.target.value; setSfDraft(v); const n = Number(v); if (v !== "" && n >= 1) setSf(Math.round(n)); }}
+        onBlur={() => setSfDraft(null)}
         className="w-20 rounded-md border border-slate-300 px-2 py-1 text-center text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500" data-sheoga-sf /> sq ft
     </label>
   );
