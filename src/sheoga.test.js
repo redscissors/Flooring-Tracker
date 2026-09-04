@@ -146,7 +146,7 @@ test("calcFloor: small-order fees are flat fee lines, never in the $/sf", () => 
   assert.deepEqual(unf.fees, []);
 });
 
-test("calcFloor: Prefinished Natural never owes the small-order fee", () => {
+test("calcFloor: Prefinished Natural at its standard sheen never owes the small-order fee", () => {
   for (const sf of [200, 400, 600]) {
     const c = calcFloor(floor({ finish: "nat" }), sf);
     assert.equal(c.cost, 4.15 + 1.70);
@@ -154,12 +154,26 @@ test("calcFloor: Prefinished Natural never owes the small-order fee", () => {
   }
 });
 
-test("smallOrderFee: unfinished and Natural are exempt at every size", () => {
+test("calcFloor: Natural at a non-standard sheen is made to order and owes the small-order fee", () => {
+  assert.deepEqual(calcFloor(floor({ finish: "nat", sheen: "5" }), 200).fees, [{ label: "Small-order fee — prefinished job under 250 sf", amt: 600 }]);
+  assert.deepEqual(calcFloor(floor({ finish: "nat", sheen: "5" }), 400).fees, [{ label: "Small-order fee — prefinished job under 500 sf", amt: 300 }]);
+  assert.deepEqual(calcFloor(floor({ finish: "nat", sheen: "5" }), 600).fees, []);
+  // herringbone follows the same rule
+  const hb = { sp: "White Oak", cons: "solid", grade: "char", w: 4.25, slatLen: "24", finish: "nat", sheen: "5" };
+  assert.deepEqual(calcHerringbone(hb, 300).fees, [{ label: "Small-order fee — prefinished job under 500 sf", amt: 300 }]);
+  assert.deepEqual(calcHerringbone({ ...hb, sheen: "30" }, 300).fees, []);
+});
+
+test("smallOrderFee: unfinished always exempt; Natural exempt only at its standard sheen", () => {
   assert.equal(smallOrderFee("est", 200), 600);
   assert.equal(smallOrderFee("est", 400), 300);
   assert.equal(smallOrderFee("est", 500), 0);
   assert.equal(smallOrderFee("t1", 249), 600);
   for (const f of ["unf", "nat"]) for (const sf of [1, 200, 400, 600]) assert.equal(smallOrderFee(f, sf), 0);
+  assert.equal(smallOrderFee("nat", 200, true), 600);
+  assert.equal(smallOrderFee("nat", 400, true), 300);
+  assert.equal(smallOrderFee("nat", 500, true), 0);
+  for (const sf of [1, 200, 400]) assert.equal(smallOrderFee("unf", sf, true), 0);
 });
 
 test("calcFloor: custom color always charges the $750 sample; established stain is optional", () => {
@@ -255,10 +269,12 @@ test("calcStocked: off-standard sheen adds 25¢/sf and the small-order fees of a
   assert.deepEqual(calcStocked({ ...base, sheen: "5" }, 300).fees, [{ label: "Small-order fee — prefinished job under 500 sf", amt: 300 }]);
   assert.deepEqual(calcStocked({ ...base, sheen: "5" }, 200).fees, [{ label: "Small-order fee — prefinished job under 250 sf", amt: 600 }]);
   assert.deepEqual(calcStocked({ ...base, sheen: "5" }).fees, []); // no job size known → no fee to charge
-  // Natural is exempt from the small-order fee (owner rule 2026-07-28) but still owes the 25¢
+  // Natural off its standard sheen owes the 25¢ AND the small-order fee — the
+  // 2026-07-28 exemption only covers the standard run (owner, 2026-09-04)
   const nat = calcStocked({ sp: "White Oak", color: "Natural", grade: "char", w: 5.25, sheen: "5" }, 300);
   assert.equal(nat.cost, 6.10);
-  assert.deepEqual(nat.fees, []);
+  assert.deepEqual(nat.fees, [{ label: "Small-order fee — prefinished job under 500 sf", amt: 300 }]);
+  assert.deepEqual(calcStocked({ sp: "White Oak", color: "Natural", grade: "char", w: 5.25, sheen: "30" }, 300).fees, []);
   // a product whose standard is 20 (White Oak Caramel) doesn't charge at 20
   assert.deepEqual(calcStocked({ sp: "White Oak", color: "Caramel", grade: "char", w: 5.25, sheen: "20" }, 300).fees, []);
   assert.equal(calcStocked({ sp: "White Oak", color: "Caramel", grade: "char", w: 5.25, sheen: "20" }, 300).cost, 6.20);

@@ -28,8 +28,12 @@ print:
 - **On the stocked tab a sheen change is a made-to-order run**: besides the
   25¢ it owes the same small-order fees as the custom tab's build of that
   color ($300 under 500 sf, $600 under 250 sf), pooled once on a multi-width
-  bundle. Natural keeps its small-order exemption (owner rule 2026-07-28) so
-  the stocked price agrees with the white-cell hand-off to the custom tab.
+  bundle. ~~Natural keeps its small-order exemption (owner rule 2026-07-28) so
+  the stocked price agrees with the white-cell hand-off to the custom tab.~~
+  **Amended 2026-09-04 (owner):** a non-standard sheen owes the small-order
+  fee on every color, Natural included, on every tab. The 2026-07-28
+  exemption covers Natural's *standard* clear run only; at any other sheen it
+  is a made-to-order run like a stain (`smallOrderFee(finish, sf, nonStdSheen)`).
   This supersedes ticket 065's "sheen change on a green cell = $250 flat, no
   small-order fee".
 
