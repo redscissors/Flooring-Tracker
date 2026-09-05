@@ -4,6 +4,7 @@ import { ChevronDown, User, Paperclip, X, Lock, LockOpen, Eye, EyeOff, MapPin, C
 import { num } from "./catalog.js";
 import { money } from "./model.js";
 import { normName, matchName } from "./names.js";
+import { phoneChange } from "./phone.js";
 import { mapsUrl, cleanAddress } from "./address.js";
 import { escPush } from "./escstack.js";
 import { useAddressSuggest, fetchDistance, fetchPlaceDetails } from "./usemapslookup.js";
@@ -200,7 +201,7 @@ export function SalespersonPop({ value, fallback, onChange, alignRight, small })
         <div ref={panelRef} style={{ ...vPos(pos), left: Math.max(8, Math.min(alignRight ? pos.left + pos.width - W : pos.left, window.innerWidth - W - 8)) }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 p-3 space-y-1.5" onKeyDown={(e) => { if (e.key === "Escape") e.preventDefault(); if (e.key === "Escape" || e.key === "Enter") setOpen(false); }} >
           <div className="ft-eyebrow text-[9px]">Salesperson</div>
           <input autoFocus value={sp.name} onChange={(e) => onChange({ ...sp, name: e.target.value })} placeholder="Name" className={fld} style={{ width: W - 24 }} />
-          <input value={sp.phone} onChange={(e) => onChange({ ...sp, phone: e.target.value })} placeholder="Phone" className={fld} style={{ width: W - 24 }} />
+          <input type="tel" inputMode="tel" value={sp.phone} onChange={(e) => onChange({ ...sp, phone: phoneChange(sp.phone, e.target.value) })} placeholder="Phone" className={fld} style={{ width: W - 24 }} />
           <input value={sp.email} onChange={(e) => onChange({ ...sp, email: e.target.value })} placeholder="Email" className={fld} style={{ width: W - 24 }} />
           <div className="flex items-center justify-between pt-1">
             <button onClick={() => onChange({ name: fallback?.name || "", phone: fallback?.phone || "", email: fallback?.email || "" })} className="flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700"><User size={13} /> Use my details</button>
