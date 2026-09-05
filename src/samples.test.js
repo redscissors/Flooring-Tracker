@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { normA } from "./model.js";
 import {
   normSampleRequest, requestFrom, sampleGroups, sampleCounts, projectSampleTally,
-  repEmail, mailtoHref, sampleContactFor, contactLabel, SAMPLE_STATUSES, SAMPLE_LABEL,
+  repEmail, mailtoHref, sampleContactFor, sampleBookFor, contactLabel, SAMPLE_STATUSES, SAMPLE_LABEL,
 } from "./samples.js";
 
 const BOOKS = [
@@ -157,4 +157,37 @@ test("contactLabel: first name when there is one, the generic otherwise", () => 
   assert.equal(contactLabel({ name: "Jeff Krejci", email: "j@x.example", from: "rep" }), "Email Jeff");
   assert.equal(contactLabel({ name: "", email: "samples@x.example", from: "sample" }), "Email samples");
   assert.equal(contactLabel(null), "Email samples");
+});
+
+test("requestFrom: a Sheoga line files under the Sheoga vendor book when one exists (spec 2026-09-05)", () => {
+  const vb = { id: "vb1", kind: "vendor", name: "Sheoga Hardwood", data: { engine: "sheoga", brandLabel: "Sheoga" } };
+  const area = normA({ id: "a1", name: "Great room", products: [{ id: "p1" }] });
+  const base = { project: { id: "c1" }, custName: "K", area, areaIndex: 0, by: "D", product: { id: "p1", type: "hardwood", sheoga: { mode: "floor", cfg: {} } } };
+  const r = requestFrom({ ...base, books: [...BOOKS, vb] });
+  assert.equal(r.bookId, "vb1");
+  assert.equal(r.bookName, "Sheoga");
+  const without = requestFrom({ ...base, books: BOOKS });
+  assert.equal(without.bookId, "");
+  assert.equal(without.bookName, "Sheoga Hardwood");
+});
+
+test("sampleBookFor: by id first, else the book whose brand label or name is the group name", () => {
+  const vb = { id: "vb1", kind: "vendor", name: "Sheoga Hardwood", data: { engine: "sheoga", brandLabel: "Sheoga Hardwood" } };
+  const books = [...BOOKS, vb];
+  assert.equal(sampleBookFor({ bookId: "vb1", name: "x" }, books), vb);
+  assert.equal(sampleBookFor({ bookId: "", name: "Sheoga Hardwood" }, books), vb);
+  assert.equal(sampleBookFor({ bookId: "", name: "Glazzio" }, books), BOOKS[0]);
+  assert.equal(sampleBookFor({ bookId: "", name: "Other / hand-entered" }, books), null);
+  assert.equal(sampleBookFor({ bookId: "gone", name: "Sheoga Hardwood" }, books), vb);
+});
+
+test("sampleGroups: pre-book Sheoga requests (no id) merge with new ones through the shared contact", () => {
+  const rows = [
+    req({ id: "r1", bookId: "", bookName: "Sheoga Hardwood" }),
+    req({ id: "r2", bookId: "vb1", bookName: "Sheoga Hardwood", productId: "p2" }),
+  ];
+  const gs = sampleGroups(rows, () => ({ name: "Dan", email: "samples@sheoga.example", from: "sample" }));
+  assert.equal(gs.length, 1);
+  assert.equal(gs[0].name, "Sheoga Hardwood");
+  assert.deepEqual(gs[0].rows.map((r) => r.id), ["r1", "r2"]);
 });

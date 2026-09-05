@@ -24,6 +24,8 @@ import { ClaudeMark, FlagForClaude, CLAUDE_CLAY } from "./claudeflag.jsx";
 import { bookSource } from "./claudeissues.js";
 import { Modal, HelpTip } from "./widgets.jsx";
 import { InHouseColumn, PasteSignInPopover, FLAG_SEMANTICS, useVendorFetch, VendorFetchPage } from "./vendorpanel.jsx";
+import { VendorBookPage } from "./vendorbook.jsx";
+import { vendorBookFor, vendorBookSeed, sheogaMarkups } from "./vendorbook.js";
 
 // --- Price book library (ADR 0009, Phase 1) ---------------------------------
 //
@@ -57,7 +59,7 @@ const NEW_BOOK = "__new__";
 // A folder tab on the book page (owner sketch 2026-08-07): label over a live
 // summary line. The active tab merges into the drawer below it — its bottom
 // border painted the drawer's background over the strip's hairline.
-function BookTab({ label, summary, tone, active, onClick }) {
+export function BookTab({ label, summary, tone, active, onClick }) {
   return (
     <button onClick={onClick} className="rounded-t-md px-3 py-1 text-left"
       style={{
@@ -477,7 +479,14 @@ export function PriceBookLibrary({ books, addBook, updateBook, confirmBook, delB
   const bookStale = (b) => bookStaleness(bookFreshAt(b.data), staleDays);
   const setStaleDays = (v) => { const n = Math.round(Number(v)); setSettings({ ops: { ...(settings.ops || {}), staleDays: n > 0 ? n : null } }); };
 
+  const sheogaBook = vendorBookFor(books, "sheoga");
   const create = async () => {
+    if (newKind === "vendor") {
+      const seed = vendorBookSeed("sheoga", settings);
+      const id = await addBook({ kind: "vendor", name: newName.trim() || seed.name, data: seed.data });
+      setAdding(false); setNewName(""); setSel(id);
+      return;
+    }
     const name = newName.trim() || (newKind === "stock" ? "New stock book" : "New vendor book");
     const id = await addBook({ kind: newKind, name });
     setAdding(false); setNewName(""); setSel(id);
@@ -528,6 +537,7 @@ export function PriceBookLibrary({ books, addBook, updateBook, confirmBook, delB
           mean. The signs read the direction: − off retail, + over cost. */}
       {sel === "library" && (() => {
         const pcts = normPricing(settings.pricing);
+        const sheogaMk = sheogaMarkups(books, settings);
         const setPct = (k) => (v) => setSettings({ pricing: { ...pcts, [k]: v === "" ? undefined : Number(v) } });
         // Compact twins of `inp` / the ± chips: the panels stack three rows, so
         // the control height sets the header's height. Built standalone rather
@@ -574,6 +584,11 @@ export function PriceBookLibrary({ books, addBook, updateBook, confirmBook, delB
 
             <div className="snap-center shrink-0 basis-[85%] sm:basis-[46%] md:basis-0 md:grow md:shrink md:min-w-0 rounded-xl border border-slate-200 bg-white p-1.5 flex flex-col gap-1">
               <span className="ft-eyebrow text-[10px]">Sheoga markup</span>
+              {sheogaBook ? (
+                <button onClick={() => setSel(sheogaBook.id)} className="text-left text-[11px] text-indigo-600 hover:text-indigo-800 leading-snug" title="The Sheoga markups moved onto the Sheoga vendor book (Markup tab)">
+                  Now on the {sheogaBook.name || "Sheoga"} book → flooring {sheogaMk.markupPct}% · vents {sheogaMk.ventMarkupPct}%
+                </button>
+              ) : (
               <div className="flex flex-col gap-1 text-[11px] text-slate-600">
                 <label className="flex items-center gap-1.5" title="Default markup the Sheoga configurator applies to flooring over distributor cost — adjustable per configuration in the popup">
                   {plus}<input type="number" min="0" step="5" value={pcts.sheogaMarkupPct} onChange={(e) => setPct("sheogaMarkupPct")(e.target.value)} className={pctInp} /><span className="font-medium whitespace-nowrap">Flooring</span>
@@ -582,6 +597,7 @@ export function PriceBookLibrary({ books, addBook, updateBook, confirmBook, delB
                   {plus}<input type="number" min="0" step="5" value={pcts.sheogaVentMarkupPct} onChange={(e) => setPct("sheogaVentMarkupPct")(e.target.value)} className={pctInp} /><span className="font-medium whitespace-nowrap">Vents &amp; dmp.</span>
                 </label>
               </div>
+              )}
             </div>
 
             <QuickMarkupsCard value={pcts.quickMarkups} onChange={(list) => setSettings({ pricing: { ...pcts, quickMarkups: list } })} />
@@ -608,6 +624,8 @@ export function PriceBookLibrary({ books, addBook, updateBook, confirmBook, delB
 
       {sel === "library" ? (
         <VendorFetchPage vf={vf} books={books} pending={pendingReviews} onReview={reviewOne} onOpenBook={setSel} leadColumn={inHouseCol} inp={inp} />
+      ) : selBook?.kind === "vendor" ? (
+        <>{backBtn}<VendorBookPage key={selBook.id} book={selBook} updateBook={updateBook} delBook={delBook} onDeleted={() => setSel("library")} inp={inp} lbl={lbl} /></>
       ) : selBook ? (
         <>{backBtn}<BookDetail key={selBook.id} book={selBook} updateBook={updateBook} confirmBook={confirmBook} delBook={delBook} onDeleted={() => setSel("library")} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} setBookItemIssue={setBookItemIssue} addClaudeIssue={addClaudeIssue} hideCosts={hideCosts} staleDays={staleDays} source={sheetsForBook(vf.groups, selBook.id)} sourcePendingOf={sourcePendingOf} sourceLiveOf={sourceLiveOf} onRefreshSheet={(s) => vf.run(Array.isArray(s) ? s : [s])} onReviewSheet={reviewOne} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} /></>
       ) : (
@@ -628,7 +646,7 @@ export function PriceBookLibrary({ books, addBook, updateBook, confirmBook, delB
         <Modal title="New price book" onClose={() => setAdding(false)}>
           <label className={lbl}>Type</label>
           <div className="flex gap-2 mb-3">
-            {[["order", "Special order", "Vendor cost list — a markup makes the selling price"], ["stock", "Stock", "Shop-priced sheet — the ERP stock exports"]].map(([k, t, d]) => (
+            {[["order", "Special order", "Vendor cost list — a markup makes the selling price"], ["stock", "Stock", "Shop-priced sheet — the ERP stock exports"], ...(sheogaBook ? [] : [["vendor", "Sheoga (vendor)", "Priced by the configurator — contacts, markup, freight and brand, no items"]])].map(([k, t, d]) => (
               <button key={k} onClick={() => setNewKind(k)} className={`flex-1 text-left rounded-lg border px-3 py-2 ${newKind === k ? "border-indigo-500 bg-indigo-50" : "border-slate-200 hover:bg-slate-50"}`}>
                 <div className="text-sm font-medium">{t}</div>
                 <div className="text-[11px] text-slate-400 mt-0.5">{d}</div>
@@ -636,7 +654,7 @@ export function PriceBookLibrary({ books, addBook, updateBook, confirmBook, delB
             ))}
           </div>
           <label className={lbl}>Name</label>
-          <input className={inp} value={newName} onChange={(e) => setNewName(e.target.value)} placeholder={newKind === "stock" ? "e.g. Schluter 2026" : "e.g. Virginia Tile SO"} autoFocus onKeyDown={(e) => e.key === "Enter" && create()} />
+          <input className={inp} value={newName} onChange={(e) => setNewName(e.target.value)} placeholder={newKind === "stock" ? "e.g. Schluter 2026" : newKind === "vendor" ? "Sheoga Hardwood" : "e.g. Virginia Tile SO"} autoFocus onKeyDown={(e) => e.key === "Enter" && create()} />
           <div className="flex justify-end gap-2 mt-4">
             <button onClick={() => setAdding(false)} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button>
             <button onClick={create} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700">Create book</button>
@@ -1638,22 +1656,23 @@ export function ContactsCard({ book, onSave, inp, lbl }) {   // exported for the
   const rep = book.data?.rep || {};
   const sample = book.data?.sampleContact || {};
   const [form, setForm] = useState({
-    repName: rep.name || "", repEmail: rep.email || "",
+    repName: rep.name || "", repEmail: rep.email || "", repPhone: rep.phone || "",
     sampleName: sample.name || "", sampleEmail: sample.email || "",
   });
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
-  const dirty = form.repName.trim() !== (rep.name || "") || form.repEmail.trim() !== (rep.email || "")
+  const dirty = form.repName.trim() !== (rep.name || "") || form.repEmail.trim() !== (rep.email || "") || form.repPhone.trim() !== (rep.phone || "")
     || form.sampleName.trim() !== (sample.name || "") || form.sampleEmail.trim() !== (sample.email || "");
   const save = () => onSave({
-    rep: { name: form.repName.trim(), email: form.repEmail.trim() },
+    rep: { name: form.repName.trim(), email: form.repEmail.trim(), phone: form.repPhone.trim() },
     sampleContact: { name: form.sampleName.trim(), email: form.sampleEmail.trim() },
   });
   return (
     <div className="pt-3 max-w-md">
       <div className="ft-eyebrow text-[10px] tracking-[.12em] text-slate-500 mb-1.5">Rep</div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <div><label className={lbl}>Name</label><input value={form.repName} onChange={set("repName")} placeholder="Jeff Krejci" className={inp} /></div>
         <div><label className={lbl}>Email</label><input value={form.repEmail} onChange={set("repEmail")} placeholder="rep@vendor.com" className={inp} /></div>
+        <div><label className={lbl}>Phone</label><input value={form.repPhone} onChange={set("repPhone")} placeholder="(555) 555-0100" className={inp} /></div>
       </div>
 
       <div className="ft-eyebrow text-[10px] tracking-[.12em] text-slate-500 mt-4 mb-1.5">Sample requests</div>

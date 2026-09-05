@@ -762,7 +762,7 @@ export function InHouseColumn({ books, groups, bookStale, onOpen }) {
             <Database size={14} className={noMarkup ? "text-red-400 shrink-0" : "text-slate-400 shrink-0"} />
             <span className="min-w-0 flex-1">
               <span className={"block text-[12.5px] font-medium truncate " + (noMarkup ? "text-red-900" : "")}>{b.name || "Untitled"}</span>
-              <span className={"block text-[10px] " + (noMarkup ? "text-red-700" : "text-slate-400")}>{b.kind === "stock" ? "stock" : "special order"}{b.active ? "" : " · off"}{noMarkup ? " · no markup" : ""}</span>
+              <span className={"block text-[10px] " + (noMarkup ? "text-red-700" : "text-slate-400")}>{b.kind === "stock" ? "stock" : b.kind === "vendor" ? "vendor · configurator" : "special order"}{b.active ? "" : " · off"}{noMarkup ? " · no markup" : ""}</span>
             </span>
             {noMarkup && <AlertTriangle size={12} className="text-red-500 shrink-0" aria-label="No markup set — sells at cost" />}
             {bookStale(b).stale && <AlertTriangle size={12} className="text-amber-500 shrink-0" aria-label={`Stale — imported ${bookStale(b).days} days ago`} />}

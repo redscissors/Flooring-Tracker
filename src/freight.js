@@ -22,6 +22,7 @@
 import { num, ceilQty, getCarton, getPieceCarton } from "./catalog.js";
 import { miscQty } from "./model.js";
 import { orderDescription, orderCopyText } from "./orderentry.js";
+import { vendorBookForRow } from "./vendorbook.js";
 
 const str = (v) => String(v ?? "").trim();
 const round2 = (n) => Math.round(n * 100) / 100;
@@ -134,9 +135,10 @@ export const rowFreightOn = (p) => p?.freight !== "off";
 // that book carries a program. A stock row (the shop's own shelf) never ships
 // from a vendor, so stock-kind books are excluded by the caller passing only
 // order books — but a stock book with no program falls out here anyway.
+// A configurator row has no bookId; its vendor book stands in (spec 2026-09-05).
 export const freightBookFor = (p, books) => {
-  const id = str(p?.bookId); if (!id) return null;
-  const book = (books || []).find((b) => b.id === id);
+  const id = str(p?.bookId);
+  const book = id ? (books || []).find((b) => b.id === id) : vendorBookForRow(p, books);
   return book && hasFreightProgram(book) ? book : null;
 };
 

@@ -82,6 +82,11 @@ supabase/
                     # column on price_book_items + stock_items + the fuzzy RPC's
                     # disabled filter (team-controlled hide-from-search switch;
                     # folded into pricebooks.sql/stock.sql for fresh installs)
+  pricebook-vendor.sql  # run once on pre-2026-09-05 installs: widen the
+                    # price_books.kind check to allow 'vendor' (ADR 0040 — the
+                    # item-less Sheoga book; folded into pricebooks.sql for
+                    # fresh installs). Until it is run, "New book → Sheoga
+                    # (vendor)" pings "Couldn't create book"
   project-numbers.sql  # run once: projects.project_no + backfill + claim RPC
                     # (project numbers N100, spec 2026-08-14); code falls back
                     # to numberless display until it is run

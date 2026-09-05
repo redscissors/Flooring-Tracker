@@ -9,7 +9,8 @@ import { pricedItem, orderPatch, orderDrift, rowCostSqft, skuKeys } from "./orde
 import { OrderEntryPanel } from "./orderentry.jsx";
 import { isSpecialOrder, nameBudget, orderQty } from "./orderentry.js";
 import { SamplesPanel } from "./samples.jsx";
-import { requestFrom, sampleCounts, projectSampleTally, sampleContactFor, SAMPLE_LABEL, SAMPLE_COLOR } from "./samples.js";
+import { requestFrom, sampleCounts, projectSampleTally, sampleContactFor, sampleBookFor, SAMPLE_LABEL, SAMPLE_COLOR } from "./samples.js";
+import { sheogaMarkups } from "./vendorbook.js";
 import { useSamples } from "./usesamples.js";
 import { tierView, tierUnitPrice, employeeNoCost, normPricing } from "./pricing.js";
 import { freightPrintRows, freightOrderRow, freightSummary, freightBookFor, rowFreightOn } from "./freight.js";
@@ -2688,8 +2689,8 @@ export default function App({ user, onSignOut }) {
           onDeleteLabel={delLabel}
           onSavePreset={saveLabelPreset}
           sheoga={{
-            markupDefault: normPricing(settings.pricing).sheogaMarkupPct,
-            ventMarkupDefault: normPricing(settings.pricing).sheogaVentMarkupPct,
+            markupDefault: sheogaMarkups(books, settings).markupPct,
+            ventMarkupDefault: sheogaMarkups(books, settings).ventMarkupPct,
             currentName: sel?._full ? (sel.name || "Untitled project") : null,
             addToCurrent: (lines) => { if (!lines?.length || !sel) return; updateProject(sel.id, { categories: applySheogaToFirstArea(sel.categories, lines) }); setShowApps(false); },
             addToNew: (lines) => { if (!lines?.length) return; createQuickWithSheoga(lines); setShowApps(false); },
@@ -2763,8 +2764,8 @@ export default function App({ user, onSignOut }) {
           <Suspense fallback={null}>
           <SheogaConfigurator key={sheogaPop.pid + ":" + (sheogaPop.n || 0)} seed={sheogaPop.seed}
             initialSf={num(row.qty) > 0 && row.qtyType === "sqft" ? num(row.qty) : 0}
-            markupDefault={normPricing(settings.pricing).sheogaMarkupPct}
-            ventMarkupDefault={normPricing(settings.pricing).sheogaVentMarkupPct}
+            markupDefault={sheogaMarkups(books, settings).markupPct}
+            ventMarkupDefault={sheogaMarkups(books, settings).ventMarkupPct}
             basket={sel.sheogaBasket || []}
             onBasketChange={(next) => updateProject(sel.id, { sheogaBasket: next })}
             tier={{ tier: sel.priceTier || "retail", customPct: sel.customPct, builderPct: normPricing(settings.pricing).builderPct, salePct: normPricing(settings.pricing).salePct }}
@@ -2947,7 +2948,7 @@ export default function App({ user, onSignOut }) {
         return (
           <SamplesPanel name={sel.name} requests={projSamples}
             custInfo={{ custName: cust?.name || sel.name || "", address: sel.address || cust?.address || "", phone: sel.phone || cust?.phone || "" }}
-            contactFor={(g) => sampleContactFor(books.find((b) => b.id === g.bookId)?.data)}
+            contactFor={(g) => sampleContactFor(sampleBookFor(g, books)?.data)}
             onOrdered={setSampleOrdered} onRemove={delSampleRequest}
             onClose={() => setShowSamples(false)} />
         );

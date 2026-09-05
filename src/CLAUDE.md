@@ -361,7 +361,13 @@ src/
                     # samples go to a company inbox rather than a person. One
                     # Save writes both slots. `sampleContactFor` (samples.js)
                     # picks which one the Samples panel emails; no salesperson
-                    # info, samples ship straight to the customer
+                    # info, samples ship straight to the customer. The rep
+                    # slot also holds `phone` (2026-09-05, display only).
+                    # A `vendor`-kind book (ADR 0040) routes to
+                    # vendorbook.jsx's VendorBookPage instead of BookDetail;
+                    # the New-book dialog offers "Sheoga (vendor)" until one
+                    # exists, and the library's Sheoga-markup card turns into
+                    # a link to that book while it does
   SettingsWorkspace.jsx  # the Settings workspace, now a `React.lazy` chunk (ADR 0026);
                     # `MATERIAL_CATEGORIES` lives here. Shrink-to-fit (issue 084,
                     # the wedi popup's rig): drawn at SETTINGS_DESIGN_W (1240)
@@ -468,6 +474,30 @@ src/
                     # the rest; never written to items, so clearing the box
                     # needs no re-import and saved rows never move (ADR 0003)
   synonyms.js       # trade-synonym map for price-book search (ADR 0009 §6, Option D)
+  vendorbook.js     # vendor-kind books (ADR 0040): `vendorBookFor(books,
+                    # engine)`, `vendorBookForRow` (a `sheoga`-marked row's
+                    # book — configurator rows never carry a bookId, a stamped
+                    # one would put them on the order-drift path),
+                    # `vendorBookSeed` (name + data seeded from the Settings
+                    # markups at creation), `sheogaMarkups(books, settings)`
+                    # — the configurator's defaults: the Sheoga book's
+                    # `data.markups {flooring, vents}` when the book exists,
+                    # Settings' sheogaMarkupPct/sheogaVentMarkupPct otherwise
+                    # (vendorbook.test.js)
+  vendorbook.jsx    # `VendorBookPage` — the vendor book's page: name, badge,
+                    # "priced by the configurator" meta, Active, delete, and
+                    # the Markup · Freight · Brand · Contacts tabs. No Source
+                    # tab, no items, no import. Reuses pricebooklib's
+                    # FreightCard/BrandCard/ContactsCard (a deliberate import
+                    # cycle — both only touch each other inside render);
+                    # `VendorMarkupCard` is its own — two percent fields with a
+                    # worked cost→sell example off the transcribed tables
+  vendorbookpreview.jsx  # dev-only harness (vendor-book-preview.html): the
+                    # REAL VendorBookPage beside the REAL SamplesPanel over
+                    # local state — a pre-book name-only Sheoga request and an
+                    # id-keyed one merge under one Email button; `?book=1`
+                    # mounts the page alone (the panel's backdrop covers the
+                    # tabs otherwise); not part of the app build
   sheoga.js         # Sheoga Hardwood vendor configurator engine (issue 023):
                     # Sheoga sells by DESCRIPTION, not SKU. Hand-transcribed
                     # sheet tables (flooring & stocked Jan '26, vents Feb '22,
@@ -1696,8 +1726,13 @@ src/
                     # when neither can be mailed — so a book whose rep IS the
                     # samples contact needs nothing typed twice; the label
                     # reads "Email {first name}", or "Email samples" for a
-                    # nameless company inbox). Split from samples.jsx so `node --test` can
-                    # cover it (samples.test.js)
+                    # nameless company inbox). `sampleBookFor(group, books)`
+                    # (ADR 0040) is the panel's book lookup: by id, else by
+                    # brand label/name — so requests saved before Sheoga had
+                    # a book (name only) still find its contact and merge in;
+                    # `requestFrom` files a `sheoga`-marked line under the
+                    # Sheoga vendor book when one exists. Split from
+                    # samples.jsx so `node --test` can cover it (samples.test.js)
   samples.jsx       # the Samples panel (spec 2026-08-28) — this project's
                     # sample_requests, grouped by vendor via `sampleGroups`,
                     # in the same right-dock shell as order entry. Per-line

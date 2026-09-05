@@ -308,6 +308,18 @@ breakdown/totals, printed estimate, and order sheet. `getAttached` does the math
 shared aggregate, and `materialWarnings` flags a checked chip whose product no
 longer resolves — all resolving by name at calc time, like mortar.
 
+**Vendor-kind books** (ADR 0040, spec 2026-09-05). `price_books.kind` also
+allows `'vendor'`: a row with NO items and no import, for a vendor a
+configurator prices by description (Sheoga). `data`: `{ engine: "sheoga",
+brandLabel, rep { name, email, phone }, sampleContact { name, email },
+freight, markups: { flooring, vents } }` — the markups are the configurator's
+defaults and win over `settings.pricing.sheogaMarkupPct`/`sheogaVentMarkupPct`
+while the book exists (`sheogaMarkups`, vendorbook.js). A configurator row
+never gets a `bookId`; `vendorBookForRow` resolves its `sheoga` marker to the
+book for sample requests and freight. `rep.phone` is new on every kind
+(display only). `supabase/pricebook-vendor.sql` widens the check on older
+installs.
+
 **Vendor freight** (issue 061, ADR 0030). A special-order book can carry a
 **freight program** — the rate table off the vendor's shipping sheet, stored in
 `price_books.data.freight` (the slot ADR 0009 §3 reserved) and edited on the book

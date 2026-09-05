@@ -32,9 +32,9 @@ export function useBooks({ user, profile, ping, flashSaved }) {
     return rows.map((r) => normBookItem(r, bookId));
   };
 
-  const addBook = async ({ kind, name }) => {
+  const addBook = async ({ kind, name, data }) => {
     const id = uid();
-    const row = { id, kind, name: name || "", active: true, data: {} };
+    const row = { id, kind, name: name || "", active: true, data: data || {} };
     setBooks((bs) => [...bs, normBook(row)]);
     try { const { error } = await supabase.from("price_books").insert(row); if (error) throw error; flashSaved(); }
     catch (x) { ping("Couldn't create book — has supabase/pricebooks.sql been run?"); }
