@@ -292,3 +292,16 @@ test("freightOrderRow: several tables key as ONE line at the combined total", ()
   assert.equal(row.desc.tier, "full");
   assert.equal(row.desc.ext, null);
 });
+
+test("freightTally: a Sheoga configurator row (no bookId) ships on the Sheoga vendor book's program (spec 2026-09-05)", () => {
+  const vb = { id: "vb1", kind: "vendor", name: "Sheoga Hardwood", data: { engine: "sheoga", freight: { ...FREIGHT_SEED, mode: "program" } } };
+  const p = proj([
+    { ...newProduct(), type: "hardwood", qtyType: "sqft", qty: "300", sheoga: { mode: "floor", cfg: {} } },
+    { ...newProduct(), type: "hardwood", qtyType: "sqft", qty: "100" },
+  ]);
+  const t = freightTally(p, s, [book(), vb]);
+  assert.equal(t.length, 1);
+  assert.equal(t[0].book.id, "vb1");
+  assert.equal(t[0].smallSf, 300);
+  assert.equal(freightTally(p, s, [book()]).length, 0);
+});

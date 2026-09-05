@@ -6,6 +6,7 @@
 
 import { areaLabel, uid } from "./model.js";
 import { TLBL } from "./uiconst.js";
+import { vendorBookForRow } from "./vendorbook.js";
 
 export const SAMPLE_STATUSES = ["need", "ordered"];
 export const SAMPLE_LABEL = { need: "To order", ordered: "Ordered" };
@@ -41,12 +42,14 @@ export const normSampleRequest = (r) => {
 };
 
 // A new request: the line frozen at request time. Vendor resolves once, here —
-// the book's brand label over its name, Sheoga-configurator lines under
-// Sheoga, everything else (hand rows, wedi's table-based lines) under Other.
+// the book's brand label over its name, Sheoga-configurator lines under the
+// Sheoga vendor book (spec 2026-09-05) or, without one, a bare "Sheoga
+// Hardwood" name, everything else (hand rows, wedi's table-based lines) under
+// Other.
+export const bookLabel = (book) => (book.data?.brandLabel || "").trim() || book.name || "Price book";
 export const requestFrom = ({ project, custName, area, areaIndex, product: p, books = [], by = "" }) => {
-  const book = p.bookId ? books.find((b) => b.id === p.bookId) : null;
-  const bookName = book ? ((book.data?.brandLabel || "").trim() || book.name || "Price book")
-    : p.sheoga ? "Sheoga Hardwood" : OTHER;
+  const book = (p.bookId ? books.find((b) => b.id === p.bookId) : null) || vendorBookForRow(p, books);
+  const bookName = book ? bookLabel(book) : p.sheoga ? "Sheoga Hardwood" : OTHER;
   return normSampleRequest({
     id: uid(), status: "need", createdBy: by, createdAt: Date.now(),
     projectId: project.id, custName: custName || project.name || "",
@@ -122,6 +125,18 @@ export const sampleContactFor = (bookData) => {
     if (email) return { name: str(c?.name).trim(), email, from };
   }
   return null;
+};
+
+// The book a panel group reads its contact from. Requests carry the book id;
+// those saved before their vendor had a book (Sheoga, pre-2026-09-05) carry
+// only the name, so the label match lets them find it — and then the group
+// merge above folds them in with the id-keyed requests.
+export const sampleBookFor = (g, books) => {
+  const byId = g.bookId ? (books || []).find((b) => b.id === g.bookId) : null;
+  if (byId) return byId;
+  const name = str(g.name).trim().toLowerCase();
+  if (!name || name === OTHER.toLowerCase()) return null;
+  return (books || []).find((b) => bookLabel(b).trim().toLowerCase() === name || str(b.name).trim().toLowerCase() === name) || null;
 };
 
 export const contactLabel = (contact) => {

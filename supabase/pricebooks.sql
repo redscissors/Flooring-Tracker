@@ -16,7 +16,7 @@
 
 create table if not exists public.price_books (
   id         text primary key,
-  kind       text not null check (kind in ('stock', 'order')),
+  kind       text not null check (kind in ('stock', 'order', 'vendor')),  -- vendor: no items (spec 2026-09-05)
   name       text not null default '',
   active     boolean not null default true,
   -- { vendor, note, mapping, markups: { groupBy, default, byGroup },
