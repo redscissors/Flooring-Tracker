@@ -15,6 +15,7 @@ import { tierView, tierUnitPrice, employeeNoCost, normPricing } from "./pricing.
 import { freightPrintRows, freightOrderRow, freightSummary, freightBookFor, rowFreightOn } from "./freight.js";
 import { FreightMatRow } from "./freightui.jsx";
 import { matchName } from "./names.js";
+import { phoneChange } from "./phone.js";
 import { projNoHit } from "./custbrowser.js";
 import { seedFromQuery as sheogaSeed } from "./sheoga.js";
 // The wedi search seed comes from wediquery.js, not wedi.js — the catalog and
@@ -1483,7 +1484,7 @@ export default function App({ user, onSignOut }) {
                   </div>
                   {custChip && (
                     <div className="mt-3">
-                      {custChip === "phone" && <><label className={lbl}>Phone</label><input autoFocus value={selCust.phone} onChange={(e) => updatePerson(selCust.id, { phone: e.target.value })} className={inp} /></>}
+                      {custChip === "phone" && <><label className={lbl}>Phone</label><input autoFocus type="tel" inputMode="tel" value={selCust.phone} onChange={(e) => updatePerson(selCust.id, { phone: phoneChange(selCust.phone, e.target.value) })} className={inp} /></>}
                       {custChip === "email" && <><label className={lbl}>Email</label><input autoFocus value={selCust.email} onChange={(e) => updatePerson(selCust.id, { email: e.target.value })} className={inp} /></>}
                       {custChip === "address" && <><label className={lbl}>Mailing address</label><AddressField autoFocus suggest value={selCust.address} onChange={(v) => updatePerson(selCust.id, { address: v })} inp={inp} ping={ping} distance={selCust.distance} shopAddress={settings.shop?.address || ""} onDistance={(d) => updatePerson(selCust.id, { distance: d })} /></>}
                       {custChip === "builder" && <><label className={lbl}>Builder</label><BuilderCombo value={selCust.builderId} builders={data.builders} inp={inp} onSelect={(bid) => updatePerson(selCust.id, { builderId: bid })} onAddBuilder={(name) => addBuilderFor(selCust.id, name)} /></>}
@@ -2961,7 +2962,7 @@ export default function App({ user, onSignOut }) {
             <div className="space-y-3">
               <div><label className={lbl}>Name</label><input value={c.name} onChange={(e) => updatePerson(c.id, { name: e.target.value })} placeholder="Customer name" className={inp} /></div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className={lbl}>Phone</label><input value={c.phone} onChange={(e) => updatePerson(c.id, { phone: e.target.value })} className={inp} /></div>
+                <div><label className={lbl}>Phone</label><input type="tel" inputMode="tel" value={c.phone} onChange={(e) => updatePerson(c.id, { phone: phoneChange(c.phone, e.target.value) })} className={inp} /></div>
                 <div><label className={lbl}>Email</label><input value={c.email} onChange={(e) => updatePerson(c.id, { email: e.target.value })} className={inp} /></div>
               </div>
               <div><label className={lbl}>Mailing address</label><AddressField suggest value={c.address} onChange={(v) => updatePerson(c.id, { address: v })} inp={inp} ping={ping} distance={c.distance} shopAddress={settings.shop?.address || ""} onDistance={(d) => updatePerson(c.id, { distance: d })} /></div>

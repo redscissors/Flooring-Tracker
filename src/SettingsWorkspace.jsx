@@ -9,6 +9,7 @@ import { StockSearch, FamilySearch, SeriesSearch } from "./search.jsx";
 import { PriceBookLibrary } from "./pricebooklib.jsx";
 import { probeMaps } from "./usemapslookup.js";
 import { probeText } from "./probetext.js";
+import { phoneChange } from "./phone.js";
 
 // The shared grout/mortar catalog editor: a Company → Product tree. Each company
 // and product has an enabled checkbox (show/hide for the job dropdowns); a
@@ -861,7 +862,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
             <p className="text-sm text-slate-500 mt-1 max-w-xl">Your contact info prints at the top of the estimate ("Your salesperson") so the customer knows who to reach. It's saved with your login — each person on the team sets their own.</p>
             <div className="mt-5 space-y-3 max-w-md">
               <div><label className={lbl}>Name</label><input value={profile.name} onChange={(e) => saveProfile({ name: e.target.value })} placeholder="Your name" className={inp} /></div>
-              <div><label className={lbl}>Phone</label><input value={profile.phone} onChange={(e) => saveProfile({ phone: e.target.value })} placeholder="Phone number" className={inp} /></div>
+              <div><label className={lbl}>Phone</label><input type="tel" inputMode="tel" value={profile.phone} onChange={(e) => saveProfile({ phone: phoneChange(profile.phone, e.target.value) })} placeholder="Phone number" className={inp} /></div>
               <div><label className={lbl}>Email</label><input value={profile.email} onChange={(e) => saveProfile({ email: e.target.value })} placeholder={user.email || "Email"} className={inp} /></div>
             </div>
             <p className="text-xs text-slate-400 mt-4">Signed in as {user.email}. Leave a field blank to keep it off the estimate.</p>
