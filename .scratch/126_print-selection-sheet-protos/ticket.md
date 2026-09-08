@@ -1,4 +1,4 @@
-Status: in progress
+Status: done
 
 Print page prototypes (owner, 2026-09-08): "it needs to feel more like a
 selection sheet and less like a quote or an order. Primarily the header — but
