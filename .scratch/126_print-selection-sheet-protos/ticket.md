@@ -79,3 +79,12 @@ pricing and quantities for planning purposes only." `?tag=b` is that wording
 verbatim (now the default); `?tag=c` keeps a "· not an order" tail; `?tag=a`
 is the round-1 line. `shot-tag.mjs` shoots A4 + fill with b and c —
 `A4-tagb-*` / `A4-tagc-*` (masthead crop + print page 1).
+
+## Round 5 — drop the eyebrow (owner, 2026-09-08)
+
+Owner: "drop the small Keim in the top left — we have the nice Keim logo on
+the right." `?eyebrow=none` (now the default) removes the run above the title;
+`?eyebrow=ft` keeps just "Flooring & Tile" there; `?eyebrow=keim` is the
+round-1 run. `node shot-tag.mjs eyebrow` shoots none and ft —
+`A4-eyebrow-none-*` / `A4-eyebrow-ft-*`. Without the eyebrow the masthead
+loses ~14px (header ~120px).

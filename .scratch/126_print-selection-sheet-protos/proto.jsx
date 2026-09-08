@@ -60,12 +60,15 @@ const TAGLINES = {
   c: "Rough pricing and quantities for planning purposes only · not an order",
 };
 const TAG = TAGLINES[q.get("tag") || "b"];
+// ?eyebrow=none|ft|keim — the run above the title (owner 2026-09-08: drop the
+// small Keim at the top left, the logo on the right carries the name).
+const EYEBROW = { none: "", ft: "Flooring & Tile", keim: "Keim · Flooring & Tile" }[q.get("eyebrow") || "none"];
 function HeadA({ labels = true, people = true } = {}) {
   return (
     <div>
       <div className="flex justify-between items-end" style={{ gap: 16, borderBottom: "2px solid var(--ft-text)", paddingBottom: 8 }}>
         <div style={{ minWidth: 0 }}>
-          <div className="uppercase" style={{ fontSize: 8, fontWeight: 800, letterSpacing: ".3em", color: "var(--ft-brand-deep)", marginBottom: 3 }}>Keim · Flooring &amp; Tile</div>
+          {EYEBROW && <div className="uppercase" style={{ fontSize: 8, fontWeight: 800, letterSpacing: ".3em", color: "var(--ft-brand-deep)", marginBottom: 3 }}>{EYEBROW}</div>}
           <div className="uppercase" style={{ fontSize: 28, fontWeight: 800, letterSpacing: ".12em", lineHeight: 1 }}>Selection Sheet</div>
           <div style={{ fontSize: 9, color: "var(--ft-muted)", marginTop: 5 }}>{TAG}</div>
         </div>
