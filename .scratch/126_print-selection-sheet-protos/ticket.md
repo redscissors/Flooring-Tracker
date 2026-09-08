@@ -42,3 +42,19 @@ Shots: `A-*`, `B-*`, `today-none-*` — `-screen.png` (on-screen preview),
 
 **Owner picked A** (2026-09-08): "nice, clean, professional, very obvious that
 that is what this is." Round 2 expands A into three versions.
+
+## Round 2 — three takes on A (`?v=A1|A2|A3`, shot with `wm=none|outline`)
+
+- **A1 — Compact.** A squeezed toward today's budget: title 24px, disclaimer
+  on one line under it, people row two lines a column. Header 117px (today
+  108, A 146).
+- **A2 — Letter.** Title as A with the project name · N-number · area count as
+  its subtitle; the people block is two prose lines ("Prepared for …" /
+  "Selections by …") plus the disclaimer. Header 143px.
+- **A3 — Band.** Logo and N-number/date above, then the title in a full-width
+  `.ft-pband` (moss on screen, black with white type in print, like the area
+  bands) with the disclaimer knocked out at its right edge; A's people row
+  beneath. Header 140px.
+
+All three print on 2 pages; the outline watermark repeats per page as before.
+Shots: `A1-*`, `A2-*`, `A3-*`.

@@ -29,7 +29,7 @@ const paperProps = { pMats: T.pMats, materialsCost: T.materialsCost, freightCost
 const cust = PEOPLE[0];
 
 const CSS = `
-  [data-v="A"] [data-real] > div > div:nth-child(-n+2), [data-v="B"] [data-real] > div > div:nth-child(-n+2) { display:none !important }
+  [data-v]:not([data-v="today"]) [data-real] > div > div:nth-child(-n+2) { display:none !important }
   [data-shot] { position:relative; z-index:0; overflow:hidden }
   .wm { position:absolute; left:0; width:100%; height:950px; display:flex; align-items:center; justify-content:center; pointer-events:none; z-index:-1; overflow:hidden }
   .wm-print { display:none }
@@ -139,6 +139,120 @@ function HeadB() {
   );
 }
 
+// ---------------------------------------------------------- round 2: A1 --
+// Compact. A squeezed back to today's header budget (~108px): the title drops
+// to 24px, the disclaimer rides one line under it, the people row tightens to
+// two lines a column.
+function HeadA1() {
+  const line = { fontSize: 9.5, lineHeight: 1.3, color: "var(--ft-muted)" };
+  return (
+    <div>
+      <div className="flex justify-between items-end" style={{ gap: 16, borderBottom: "2px solid var(--ft-text)", paddingBottom: 5 }}>
+        <div style={{ minWidth: 0 }}>
+          <div className="uppercase" style={{ fontSize: 7.5, fontWeight: 800, letterSpacing: ".3em", color: "var(--ft-brand-deep)", marginBottom: 2 }}>Keim · Flooring &amp; Tile</div>
+          <div className="uppercase" style={{ fontSize: 24, fontWeight: 800, letterSpacing: ".12em", lineHeight: 1 }}>Selection Sheet</div>
+          <div style={{ fontSize: 8.5, color: "var(--ft-muted)", marginTop: 3 }}>Selections and planning quantities · not an order · pricing subject to change on final order</div>
+        </div>
+        <div style={{ textAlign: "right", flexShrink: 0 }}>
+          <img src={keimLogo} alt="Keim" style={{ height: 22, width: "auto", display: "inline-block" }} />
+          <div className="flex items-baseline justify-end" style={{ gap: 8, marginTop: 2, whiteSpace: "nowrap" }}>
+            <span style={{ fontSize: 12, fontWeight: 800 }}>N{sel.projectNo}</span>
+            <span className="ft-mono" style={{ fontSize: 9.5, color: "var(--ft-muted)" }}>{DATE}</span>
+          </div>
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr 1fr", gap: 18, padding: "4px 0 5px", borderBottom: "1px solid var(--ft-paper-rule)", marginBottom: 8 }}>
+        <div>
+          <L>Prepared for</L>
+          <div style={{ fontSize: 11, fontWeight: 800, lineHeight: 1.3 }}>{cust.name}</div>
+          <div style={line}>{cust.address} · {cust.phone}</div>
+        </div>
+        <div>
+          <L>Project</L>
+          <div style={{ fontSize: 11, fontWeight: 800, lineHeight: 1.3 }}>{sel.name}</div>
+          <div style={line}>{tv.proj.categories.length} areas selected</div>
+        </div>
+        <div>
+          <L>Selections by</L>
+          <div style={{ fontSize: 10.5, fontWeight: 700, lineHeight: 1.3 }}>{PROFILE.name}</div>
+          <div style={line}>{PROFILE.phone} · {PROFILE.email}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------- round 2: A2 --
+// Letter. Title and mark as A; the project name + number become the title's
+// subtitle, and the people block is two prose lines — "Prepared for …" /
+// "Selections by …" — the way a cover letter opens.
+function HeadA2() {
+  const B = ({ children }) => <b style={{ fontWeight: 800, color: "var(--ft-text)" }}>{children}</b>;
+  return (
+    <div>
+      <div className="flex justify-between items-end" style={{ gap: 16, borderBottom: "2px solid var(--ft-text)", paddingBottom: 7 }}>
+        <div style={{ minWidth: 0 }}>
+          <div className="uppercase" style={{ fontSize: 8, fontWeight: 800, letterSpacing: ".3em", color: "var(--ft-brand-deep)", marginBottom: 3 }}>Keim · Flooring &amp; Tile</div>
+          <div className="uppercase" style={{ fontSize: 28, fontWeight: 800, letterSpacing: ".12em", lineHeight: 1 }}>Selection Sheet</div>
+          <div style={{ fontSize: 11.5, fontWeight: 800, marginTop: 5 }}>{sel.name} <span style={{ fontWeight: 500, color: "var(--ft-muted)" }}>· N{sel.projectNo} · {tv.proj.categories.length} areas</span></div>
+        </div>
+        <div style={{ textAlign: "right", flexShrink: 0 }}>
+          <img src={keimLogo} alt="Keim" style={{ height: 24, width: "auto", display: "inline-block" }} />
+          <div className="ft-mono" style={{ fontSize: 9.5, color: "var(--ft-muted)", marginTop: 4 }}>{DATE}</div>
+        </div>
+      </div>
+      <div style={{ padding: "6px 0 7px", borderBottom: "1px solid var(--ft-paper-rule)", marginBottom: 8, fontSize: 10.5, lineHeight: 1.5, color: "var(--ft-muted)" }}>
+        <div>Prepared for <B>{cust.name}</B> · {cust.address} · {cust.phone}</div>
+        <div>Selections by <B>{PROFILE.name}</B> · {PROFILE.phone} · {PROFILE.email}</div>
+        <div style={{ fontSize: 8.5, color: "var(--ft-faint)", marginTop: 2 }}>Planning quantities, not an order · pricing subject to change on final order</div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------- round 2: A3 --
+// Band. The title runs in a full-width band — the same treatment the area
+// bands already use, so .ft-pband inks it black with white type in print
+// media (moss on screen) — with the disclaimer knocked out at its right edge.
+// Logo above it left, number + date right; A's people row beneath.
+function HeadA3() {
+  return (
+    <div>
+      <div className="flex justify-between items-center" style={{ gap: 16, paddingBottom: 6 }}>
+        <img src={keimLogo} alt="Keim" style={{ height: 26, width: "auto", display: "block" }} />
+        <div className="flex items-baseline" style={{ gap: 10, whiteSpace: "nowrap" }}>
+          <span className="uppercase" style={{ fontSize: 7.5, fontWeight: 800, letterSpacing: ".26em", color: "var(--ft-brand-deep)" }}>Flooring &amp; Tile</span>
+          <span style={{ fontSize: 12, fontWeight: 800 }}>N{sel.projectNo}</span>
+          <span className="ft-mono" style={{ fontSize: 9.5, color: "var(--ft-muted)" }}>{DATE}</span>
+        </div>
+      </div>
+      <div className="ft-pband flex justify-between items-center" style={{ gap: 16, background: "var(--ft-brand-deep)", color: "#fff", borderRadius: 4, padding: "6px 12px" }}>
+        <div className="uppercase" style={{ fontSize: 20, fontWeight: 800, letterSpacing: ".2em", lineHeight: 1, color: "#fff" }}>Selection Sheet</div>
+        <div className="uppercase" style={{ fontSize: 7.5, fontWeight: 700, letterSpacing: ".14em", color: "#fff", textAlign: "right", lineHeight: 1.3 }}>Planning quantities · not an order<br />pricing subject to change on final order</div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr 1fr", gap: 18, padding: "7px 2px 7px", borderBottom: "1px solid var(--ft-paper-rule)", marginBottom: 8 }}>
+        <div>
+          <L>Prepared for</L>
+          <div style={{ fontSize: 11.5, fontWeight: 800, lineHeight: 1.3 }}>{cust.name}</div>
+          <div style={muted}>{cust.address}</div>
+          <div style={muted}>{cust.phone}</div>
+        </div>
+        <div>
+          <L>Project</L>
+          <div style={{ fontSize: 11.5, fontWeight: 800, lineHeight: 1.3 }}>{sel.name}</div>
+          <div style={muted}>{tv.proj.categories.length} areas selected</div>
+        </div>
+        <div>
+          <L>Selections by</L>
+          <div style={{ fontSize: 11, fontWeight: 700, lineHeight: 1.3 }}>{PROFILE.name}</div>
+          <div style={muted}>{PROFILE.phone}</div>
+          <div style={muted}>{PROFILE.email}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const Watermark = ({ cls, pages }) => WM === "none" ? null : (
   <>
     {Array.from({ length: pages }, (_, i) => <div key={i} className={`wm wm-screen wm-${WM}`} style={{ top: i * 950 }}><span>Selections</span></div>)}
@@ -153,6 +267,9 @@ createRoot(document.getElementById("preview")).render(
       <Watermark pages={3} />
       {V === "A" && <HeadA />}
       {V === "B" && <HeadB />}
+      {V === "A1" && <HeadA1 />}
+      {V === "A2" && <HeadA2 />}
+      {V === "A3" && <HeadA3 />}
       <div data-real><EstimatePaper sel={sel} people={PEOPLE} profile={PROFILE} tv={tv} jobWaste={wSet.waste} tSet={tSet} {...paperProps} /></div>
     </div>
   </>

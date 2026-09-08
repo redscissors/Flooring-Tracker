@@ -12,7 +12,11 @@ const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
 const OUT = "/home/user/Flooring-Tracker/.scratch/126_print-selection-sheet-protos";
 const BASE = "http://localhost:5199/.scratch/126_print-selection-sheet-protos/proto.html";
 const PAGE_H = 950, W = 726; // 710 paper + p-2 padding
-const COMBOS = [["today", "none"], ["A", "none"], ["A", "outline"], ["A", "fill"], ["B", "none"], ["B", "outline"], ["B", "fill"]];
+// Round 1 shot today/A/B × none/outline/fill; round 2 shoots the A variants.
+const ROUND = process.argv[2] || "2";
+const COMBOS = ROUND === "1"
+  ? [["today", "none"], ["A", "none"], ["A", "outline"], ["A", "fill"], ["B", "none"], ["B", "outline"], ["B", "fill"]]
+  : [["A1", "none"], ["A1", "outline"], ["A2", "none"], ["A2", "outline"], ["A3", "none"], ["A3", "outline"]];
 
 const browser = await chromium.launch({ executablePath: process.env.CHROME || "/opt/pw-browsers/chromium", args: ["--no-sandbox"] });
 const ctx = await browser.newContext({ viewport: { width: W, height: PAGE_H }, deviceScaleFactor: 2 });
