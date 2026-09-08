@@ -1,61 +1,21 @@
-import { Fragment, useEffect, useRef } from "react";
+import { Fragment, useLayoutEffect, useRef, useState } from "react";
 import { normPrintPricing, tierTag } from "./pricing.js";
 import { num } from "./catalog.js";
 import { money, sf1, wasteNote, wasteMeta, miscQty, rowBlank, quickPrintName } from "./model.js";
 import { TLBL, THICK } from "./uiconst.js";
 import { printProduct, printAreaFloor, areaPrintLabel, PRINT_COLS, PRINT_COLS_UNIT, PRINT_COLS_NONE, KSHORT, ESTIMATE_PRINT_LAYOUT, u1 } from "./print.js";
 import { unitNoun } from "./units.js";
-import NedMark from "./NedMark.jsx";
 import NedLogo from "./NedLogo.jsx";
 import keimLogo from "./assets/keim-logo-ink.png";
 
 export const PRINT_DASH = <span style={{ color: "var(--ft-faint)" }}>—</span>;
 
-// The printable box: Letter at 96dpi (816×1056) minus index.css's @page 1.4cm
-// margins — the same numbers the .scratch print harnesses measure against.
-const PRINT_PAGE_H = 950, PRINT_PAGE_W = 710, FOOT_GAP = 12;
-
-// Pins the "Prepared with" footer to the bottom of the LAST printed page
-// (owner ask 2026-08-17). CSS can't address "the last page" in paged media, so
-// on beforeprint the hidden print wrapper is laid out offscreen in page-height
-// CSS COLUMNS — column fragmentation runs the same break-inside/break-after
-// rules as printing, so a card that jumps a page turn jumps a column the same
-// way, which plain flow-height arithmetic gets wrong. The footer's landing spot
-// in its last column is where it lands on the last page; the leftover below it
-// becomes its top margin. afterprint puts the margin back, and Ctrl+P and the
-// Print buttons both pass through beforeprint. The slack below the footer
-// covers what still follows it (the print wrapper's 8px bottom padding) plus
-// the print stylesheet's extra chip/box borders and engine rounding, so the
-// push can never spill onto a blank extra page; a non-Letter paper (A4 is
-// taller) just leaves the footer a little above the bottom.
-function usePinFooter(active, paperRef, footRef) {
-  useEffect(() => {
-    if (!active) return;
-    const before = () => {
-      const paper = paperRef.current, foot = footRef.current, wrap = paper?.parentElement;
-      if (!paper || !foot || !wrap) return;
-      foot.style.marginTop = `${FOOT_GAP}px`;
-      const prev = wrap.style.cssText, prevPad = paper.style.paddingTop;
-      // padding:0 so every column is exactly one page tall; the wrapper's own
-      // p-2 top padding moves onto the paper so page 1 still starts 8px down.
-      wrap.style.cssText = `display:block;position:fixed;left:-10000px;top:0;width:${PRINT_PAGE_W}px;height:${PRINT_PAGE_H}px;padding:0;column-width:${PRINT_PAGE_W}px;column-gap:0;column-fill:auto;`;
-      paper.style.paddingTop = "8px";
-      const bottomInPage = foot.getBoundingClientRect().bottom - wrap.getBoundingClientRect().top;
-      wrap.style.cssText = prev;
-      paper.style.paddingTop = prevPad;
-      const push = PRINT_PAGE_H - 24 - bottomInPage;
-      if (push > 0) foot.style.marginTop = `${FOOT_GAP + push}px`;
-    };
-    const after = () => { if (footRef.current) footRef.current.style.marginTop = `${FOOT_GAP}px`; };
-    window.addEventListener("beforeprint", before);
-    window.addEventListener("afterprint", after);
-    return () => { window.removeEventListener("beforeprint", before); window.removeEventListener("afterprint", after); };
-  }, [active]);
-}
-
-export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet, materialsCost, freightCost = 0, flooringPrice, miscCost, totalSqft, orderedSqft, grandTotal, optionPrint = null, scopeNote = "", printSheet = false }) {
-  const paperRef = useRef(null), footRef = useRef(null);
-  usePinFooter(printSheet, paperRef, footRef);
+export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet, materialsCost, freightCost = 0, flooringPrice, miscCost, totalSqft, orderedSqft, grandTotal, optionPrint = null, scopeNote = "" }) {
+  const paperRef = useRef(null);
+  // How many 950px page stripes the on-screen sheet spans — one watermark
+  // copy each (the print copy is a single fixed box the browser repeats).
+  const [wmPages, setWmPages] = useState(1);
+  useLayoutEffect(() => { setWmPages(Math.max(1, Math.ceil((paperRef.current?.offsetHeight || 0) / 950))); });
   // pMats already carries the job's freight as its own trailing "Freight" group
   // (App.jsx appends freightPrintRows), so the breakdown band renders it with
   // everything else — but the band's subtotal has to count it, and the meta line
@@ -149,7 +109,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
             ); })}
             {pMats.length > 0 && (
               <div className="break-inside-avoid mb-4">
-                <div className="uppercase mb-2" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>Setting materials &amp; sundries</div>
+                <div className="uppercase mb-2" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>Extras</div>
                 <div className="ft-pbox" style={{ background: "var(--ft-paper-band)", borderRadius: 4, padding: "14px 16px" }}>
                   <div style={{ columns: 2, columnGap: 28 }}>
                     {(() => {
@@ -289,47 +249,49 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
     // "Whole job" beside an option total only earns its ink when shared areas
     // actually add cost — otherwise it repeats the option total verbatim.
     const hasShared = !!optionPrint && optionPrint.sharedT.grandTotal > 0;
-    // Compact header (issue 090, owner sketch 2026-08-16): the badge holds the
-    // page's true center on a 1fr/auto/1fr grid, its disclaimer wrapping inside
-    // so it stays narrow; the right block is the sheet title over number + date.
-    // The second row is the same grid — customer stack (name/phone/address) at
-    // the left edge, salesperson stack (name/phone/email) at the right, and the
-    // project name centered between them, where it has the row's width to
-    // itself. Waste no longer prints here — the line beside the total carries
-    // it. The stack line height everywhere is the tight 1.35.
+    // Selection-sheet masthead (owner pick 2026-09-08, .scratch/126): the
+    // document's name is the hero, the Keim mark steps to the right with the
+    // number + date, and one tagline replaces the Rough Estimate badge. The
+    // people row prints without run labels — the names speak for themselves.
+    // The watermark sits behind everything at z-index -1; the root's own
+    // stacking context keeps it above the wrapper's white.
     const stackLine = { fontSize: 9.5, lineHeight: 1.35, color: "var(--ft-muted)" };
+    // Not on an option print — `areas` is only the shared bucket there, and
+    // "1 area selected" under a two-option job misleads.
+    const areaCount = !optionPrint && areas.length > 0 ? `${areas.length} ${areas.length === 1 ? "area" : "areas"} selected` : "";
     return (
-      <div ref={paperRef} style={{ fontSize: 11, color: "var(--ft-text)" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", gap: 14, borderBottom: "2px solid var(--ft-text)", paddingBottom: 7 }}>
-          <img src={keimLogo} alt="Keim" style={{ height: 32, width: "auto", display: "block" }} />
-          <div className="ft-pbadge" style={{ maxWidth: 190, textAlign: "center", background: "#f4ebd6", border: "1px solid #d8c48c", borderRadius: 5, padding: "2px 12px", lineHeight: 1.25 }}>
-            <div className="uppercase" style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".06em", color: "#7a5a1c" }}>Rough Estimate</div>
-            <div style={{ fontSize: 8, color: "var(--ft-muted)" }}>For planning purposes only · pricing subject to change on final order</div>
+      <div ref={paperRef} className="ft-paper" style={{ fontSize: 11, color: "var(--ft-text)" }}>
+        {Array.from({ length: wmPages }, (_, i) => <div key={i} className="ft-pwm ft-pwm-screen" style={{ top: i * 950 }} aria-hidden="true"><span>Selections</span></div>)}
+        <div className="ft-pwm ft-pwm-print" aria-hidden="true"><span>Selections</span></div>
+        <div className="flex justify-between items-end" style={{ gap: 16, borderBottom: "2px solid var(--ft-text)", paddingBottom: 8 }}>
+          <div style={{ minWidth: 0 }}>
+            <div className="uppercase" style={{ fontSize: 8, fontWeight: 800, letterSpacing: ".3em", color: "var(--ft-brand-deep)", marginBottom: 3 }}>Flooring &amp; Tile</div>
+            <div className="uppercase" style={{ fontSize: 28, fontWeight: 800, letterSpacing: ".12em", lineHeight: 1 }}>Selection Sheet</div>
+            <div style={{ fontSize: 9, color: "var(--ft-muted)", marginTop: 5 }}>Rough pricing and quantities for planning purposes only</div>
           </div>
-          <div style={{ minWidth: 0, textAlign: "right" }}>
-            <div className="uppercase" style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".14em", color: "var(--ft-brand-deep)", whiteSpace: "nowrap", marginBottom: 1 }}>Flooring &amp; Tile Selections</div>
-            <div className="flex items-baseline justify-end" style={{ gap: 8, whiteSpace: "nowrap" }}>
-              {sel.projectNo && <span style={{ fontSize: 13, fontWeight: 800, letterSpacing: ".02em" }}>N{sel.projectNo}</span>}
+          <div style={{ textAlign: "right", flexShrink: 0 }}>
+            <img src={keimLogo} alt="Keim" style={{ height: 24, width: "auto", display: "inline-block" }} />
+            <div className="flex items-baseline justify-end" style={{ gap: 8, marginTop: 4, whiteSpace: "nowrap" }}>
+              {sel.projectNo && <span style={{ fontSize: 12, fontWeight: 800 }}>N{sel.projectNo}</span>}
               <span className="ft-mono" style={{ fontSize: 9.5, color: "var(--ft-muted)" }}>{new Date().toLocaleDateString()}</span>
             </div>
             {tag && <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: ".18em", color: "var(--ft-brand-deep)" }}>{tag}</div>}
           </div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", gap: 18, padding: "5px 0 6px", borderBottom: "1px solid var(--ft-paper-rule)", marginBottom: 8 }}>
-          {/* No customer record → no name fallback here: the centered project
-              name already identifies the job, and repeating it as a fake
-              customer prints the same words twice on one line. */}
+        <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr 1fr", gap: 18, padding: "6px 0 7px", borderBottom: "1px solid var(--ft-paper-rule)", marginBottom: 8 }}>
+          {/* No customer record → no name fallback here: the project name in
+              the next cell already identifies the job. */}
           <div>
-            {cust?.name && <div style={{ fontSize: 11, fontWeight: 800, lineHeight: 1.35 }}>{cust.name}</div>}
-            {(cust?.phone || sel.phone) && <div style={stackLine}>{cust?.phone || sel.phone}</div>}
+            {cust?.name && <div style={{ fontSize: 11.5, fontWeight: 800, lineHeight: 1.3 }}>{cust.name}</div>}
             {(cust?.address || sel.address) && <div style={stackLine}>{cust?.address || sel.address}</div>}
+            {(cust?.phone || sel.phone) && <div style={stackLine}>{cust?.phone || sel.phone}</div>}
           </div>
-          <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 12.5, fontWeight: 800 }}>{printName || PRINT_DASH}</div>
-            {scopeNote && <div style={stackLine}>{scopeNote}</div>}
+          <div>
+            <div style={{ fontSize: 11.5, fontWeight: 800, lineHeight: 1.3 }}>{printName || PRINT_DASH}</div>
+            {(scopeNote || areaCount) && <div style={stackLine}>{scopeNote || areaCount}</div>}
           </div>
           <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: 10.5, fontWeight: 700, lineHeight: 1.35 }}>{pname || PRINT_DASH}</div>
+            <div style={{ fontSize: 11, fontWeight: 700, lineHeight: 1.3 }}>{pname || PRINT_DASH}</div>
             {[sp.phone, sp.email].filter((x) => x && x !== pname).map((d, j) => <div key={j} style={stackLine}>{d}</div>)}
           </div>
         </div>
@@ -353,7 +315,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
 
         {pMats.length > 0 && (
           <div style={{ margin: "10px 0 5px" }}>
-            <div className="uppercase" style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".22em", color: "var(--ft-brand-deep)", marginBottom: 4, breakAfter: "avoid" }}>{optionPrint ? "Setting materials & sundries — shared areas" : "Extras"}</div>
+            <div className="uppercase" style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".22em", color: "var(--ft-brand-deep)", marginBottom: 4, breakAfter: "avoid" }}>{optionPrint ? "Extras — shared areas" : "Extras"}</div>
             <div className="ft-pbox" style={{ background: "var(--ft-paper-band)", borderRadius: 4, padding: "8px 12px" }}>
               <div style={{ columns: 2, columnGap: 28 }}>
                 {groups.map((g, gi) => (
@@ -454,10 +416,6 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
             090) — so it prints in every pricing mode, not just "full". */}
         {wasteNote(jobWaste) && <div className="break-inside-avoid" style={{ fontSize: 9.5, color: "var(--ft-faint)", marginTop: 5, textAlign: "right" }}>Includes {wasteNote(jobWaste)}</div>}
 
-        <div ref={footRef} className="break-inside-avoid flex justify-center items-center" style={{ gap: 7, borderTop: "1px solid var(--ft-paper-footer)", paddingTop: 8, marginTop: FOOT_GAP }}>
-          <span style={{ fontSize: 10.5, color: "var(--ft-faint)" }}>Prepared with</span>
-          <NedMark size={18} />
-        </div>
       </div>
     );
   };
