@@ -279,10 +279,9 @@ src/
                     # component behind both call sites so they can never drift. STATIC import only:
                     # `window.print()` fires right after the print-mode render, so a `React.lazy`
                     # chunk here would still be loading and print a blank page.
-                    # Selection-sheet masthead + faint SELECTIONS watermark
-                    # (2026-09-08, owner pick from .scratch/126): `.ft-pwm`
-                    # screen copies per 950px stripe, one fixed print copy the
-                    # browser repeats per page (index.css). No footer.
+                    # Selection-sheet masthead (2026-09-08, owner pick from
+                    # .scratch/126), no footer; the SELECTIONS watermark that
+                    # shipped with it was pulled the same day (owner)
   usetoast.js       # `useToast` — toast/save-flash UI state (`ping`, `flashSaved`)
   usedirectory.js   # `useDirectory` — the project/people/builder directory: state, selection,
                     # and their write paths (`updateProject`/`addProject`/`setSettings`/`saveProfile`…);

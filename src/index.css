@@ -455,22 +455,6 @@ input.ft-cell[type="number"],input.ft-num[type="number"]{-moz-appearance:textfie
   .ft-light .ft-pink{color:#000 !important;}
 }
 
-/* Selection-sheet watermark (2026-09-08, .scratch/126): a faint diagonal
-   SELECTIONS behind the estimate paper. Screen copies sit one per 950px page
-   stripe (EstimatePrint counts them); print media swaps in a single fixed box,
-   which Chromium repeats on every page. 6% black stays a faint halftone on a
-   mono laser — the mono-ink remap above doesn't touch it. 86px/-30° is the
-   largest that fits the 710×950 printable box whole. */
-.ft-paper{position:relative;z-index:0;}
-@media screen{.ft-paper{overflow:hidden;}}
-.ft-pwm{position:absolute;left:0;width:100%;height:950px;display:flex;align-items:center;justify-content:center;pointer-events:none;user-select:none;z-index:-1;overflow:hidden;}
-.ft-pwm>span{font-weight:800;font-size:86px;letter-spacing:.12em;line-height:1;white-space:nowrap;transform:rotate(-30deg);text-transform:uppercase;color:rgba(0,0,0,.06);}
-.ft-pwm-print{display:none;}
-@media print{
-  .ft-pwm-screen{display:none;}
-  .ft-pwm-print{display:flex;position:fixed;top:0;left:0;width:100%;height:100%;}
-}
-
 /* Area cards take the grid line as their resting outline (a touch darker than
    the default hairline) so the card border reads as one continuous line with
    the product-row dividers stacked inside it. The .border-slate-200 qualifier
