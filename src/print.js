@@ -68,7 +68,7 @@ export function orderLineCost(p, s, sell) {
   return pct > 0 ? sell / (1 + pct / 100) : sell;
 }
 // Estimate area headers show the flooring subtotal only — material costs live
-// in the bottom "Setting materials & sundries" breakdown.
+// in the bottom "Extras" breakdown.
 export const printAreaFloor = (a, s) => a.products.reduce((t, p) => t + printProduct(p, s).line, 0);
 // The area heading on the printed estimate. A named area prints its name alone —
 // the customer reads "Kitchen", and the "Area 03" ordinal beside it is internal

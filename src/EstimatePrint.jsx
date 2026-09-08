@@ -149,7 +149,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
             ); })}
             {pMats.length > 0 && (
               <div className="break-inside-avoid mb-4">
-                <div className="uppercase mb-2" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>Setting materials &amp; sundries</div>
+                <div className="uppercase mb-2" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".22em", color: "var(--ft-brand-deep)" }}>Extras</div>
                 <div className="ft-pbox" style={{ background: "var(--ft-paper-band)", borderRadius: 4, padding: "14px 16px" }}>
                   <div style={{ columns: 2, columnGap: 28 }}>
                     {(() => {
@@ -353,7 +353,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
 
         {pMats.length > 0 && (
           <div style={{ margin: "10px 0 5px" }}>
-            <div className="uppercase" style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".22em", color: "var(--ft-brand-deep)", marginBottom: 4, breakAfter: "avoid" }}>{optionPrint ? "Setting materials & sundries — shared areas" : "Extras"}</div>
+            <div className="uppercase" style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".22em", color: "var(--ft-brand-deep)", marginBottom: 4, breakAfter: "avoid" }}>{optionPrint ? "Extras — shared areas" : "Extras"}</div>
             <div className="ft-pbox" style={{ background: "var(--ft-paper-band)", borderRadius: 4, padding: "8px 12px" }}>
               <div style={{ columns: 2, columnGap: 28 }}>
                 {groups.map((g, gi) => (
