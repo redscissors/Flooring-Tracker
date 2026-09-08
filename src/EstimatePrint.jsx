@@ -1,4 +1,4 @@
-import { Fragment, useLayoutEffect, useRef, useState } from "react";
+import { Fragment } from "react";
 import { normPrintPricing, tierTag } from "./pricing.js";
 import { num } from "./catalog.js";
 import { money, sf1, wasteNote, wasteMeta, miscQty, rowBlank, quickPrintName } from "./model.js";
@@ -11,11 +11,6 @@ import keimLogo from "./assets/keim-logo-ink.png";
 export const PRINT_DASH = <span style={{ color: "var(--ft-faint)" }}>—</span>;
 
 export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet, materialsCost, freightCost = 0, flooringPrice, miscCost, totalSqft, orderedSqft, grandTotal, optionPrint = null, scopeNote = "" }) {
-  const paperRef = useRef(null);
-  // How many 950px page stripes the on-screen sheet spans — one watermark
-  // copy each (the print copy is a single fixed box the browser repeats).
-  const [wmPages, setWmPages] = useState(1);
-  useLayoutEffect(() => { setWmPages(Math.max(1, Math.ceil((paperRef.current?.offsetHeight || 0) / 950))); });
   // pMats already carries the job's freight as its own trailing "Freight" group
   // (App.jsx appends freightPrintRows), so the breakdown band renders it with
   // everything else — but the band's subtotal has to count it, and the meta line
@@ -253,16 +248,12 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
     // document's name is the hero, the Keim mark steps to the right with the
     // number + date, and one tagline replaces the Rough Estimate badge. The
     // people row prints without run labels — the names speak for themselves.
-    // The watermark sits behind everything at z-index -1; the root's own
-    // stacking context keeps it above the wrapper's white.
     const stackLine = { fontSize: 9.5, lineHeight: 1.35, color: "var(--ft-muted)" };
     // Not on an option print — `areas` is only the shared bucket there, and
     // "1 area selected" under a two-option job misleads.
     const areaCount = !optionPrint && areas.length > 0 ? `${areas.length} ${areas.length === 1 ? "area" : "areas"} selected` : "";
     return (
-      <div ref={paperRef} className="ft-paper" style={{ fontSize: 11, color: "var(--ft-text)" }}>
-        {Array.from({ length: wmPages }, (_, i) => <div key={i} className="ft-pwm ft-pwm-screen" style={{ top: i * 950 }} aria-hidden="true"><span>Selections</span></div>)}
-        <div className="ft-pwm ft-pwm-print" aria-hidden="true"><span>Selections</span></div>
+      <div style={{ fontSize: 11, color: "var(--ft-text)" }}>
         <div className="flex justify-between items-end" style={{ gap: 16, borderBottom: "2px solid var(--ft-text)", paddingBottom: 8 }}>
           <div style={{ minWidth: 0 }}>
             <div className="uppercase" style={{ fontSize: 8, fontWeight: 800, letterSpacing: ".3em", color: "var(--ft-brand-deep)", marginBottom: 3 }}>Flooring &amp; Tile</div>
