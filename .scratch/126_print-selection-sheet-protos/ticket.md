@@ -88,3 +88,7 @@ the right." `?eyebrow=none` (now the default) removes the run above the title;
 round-1 run. `node shot-tag.mjs eyebrow` shoots none and ft —
 `A4-eyebrow-none-*` / `A4-eyebrow-ft-*`. Without the eyebrow the masthead
 loses ~14px (header ~120px).
+
+Owner (2026-09-08): keep the "Flooring & Tile" eyebrow — `?eyebrow=ft` is
+now the default. The standing pick is `?v=A4&wm=fill&tag=b&eyebrow=ft`:
+`A4-eyebrow-ft-masthead.png` / `A4-eyebrow-ft-print-p1.png`.

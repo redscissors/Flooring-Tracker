@@ -62,7 +62,7 @@ const TAGLINES = {
 const TAG = TAGLINES[q.get("tag") || "b"];
 // ?eyebrow=none|ft|keim — the run above the title (owner 2026-09-08: drop the
 // small Keim at the top left, the logo on the right carries the name).
-const EYEBROW = { none: "", ft: "Flooring & Tile", keim: "Keim · Flooring & Tile" }[q.get("eyebrow") || "none"];
+const EYEBROW = { none: "", ft: "Flooring & Tile", keim: "Keim · Flooring & Tile" }[q.get("eyebrow") || "ft"];
 function HeadA({ labels = true, people = true } = {}) {
   return (
     <div>
