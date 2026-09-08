@@ -1,78 +1,44 @@
-Status: prototype — awaiting owner pick
+Status: in progress
 
-Print sheet as a SELECTION SHEET, not a quote (owner, 2026-09-08): "it needs
-to feel more like a selection sheet and less like a quote or an order —
-primarily the header — but what about a watermark in the body?" Answers to
-the clarifying questions: a couple of options to pick from; the body stays
-as-is (header and framing carry the change); the watermark is a "SELECTIONS"
+Print page prototypes (owner, 2026-09-08): "it needs to feel more like a
+selection sheet and less like a quote or an order. Primarily the header — but
+what about a watermark of some sort in the body of the paper?" Body content
+stays as-is (owner: header and framing only); watermark is a SELECTIONS
 wordmark.
 
-## The harness
+## Harness
 
 `proto.html` / `proto.jsx` render the REAL `EstimatePaper`
-(src/EstimatePrint.jsx) over the 090 fixture job (8 areas, 20 lines, built
-through the real math), inside App.jsx's `.ft-light … p-2` print wrapper at
-the true 710px printable width. The real sheet's two header rows are hidden
-by CSS and a prototype masthead sits in their place, so the body under each
-variant is the production body and can't drift. Manrope is served from
-`fonts/` (Google Fonts doesn't load in the container). No Supabase. No `src/`
-changes — throwaway.
+(src/EstimatePrint.jsx) over the 090 fixture job (8 areas, 20 lines) inside
+App.jsx's print wrapper. The real sheet's two header rows are hidden by CSS
+(`!important` — they're inline grids) and a prototype masthead sits in their
+place, so the body can't drift from production. `?v=today|A|B`,
+`?wm=none|outline|fill`. Manrope is served locally from `fonts/` (Google Fonts
+doesn't load in the container). `shot.mjs` shoots every combo off
+`npx vite --port 5199` (needs the global playwright-core; `PW=` overrides the
+path) in screen media and in print media — page 1 and 2 as viewport shots at
+page offsets so the `position:fixed` watermark lands where it lands on paper —
+and PDFs each for the page count.
 
-```
-npx vite --port 5199
-node shot.mjs          # PW=<path to playwright-core> if not the global one
-```
+## Round 1 — A vs B
 
-`?v=today|A|B` picks the masthead, `?wm=none|outline|fill` the watermark.
+- **A — title-led.** "SELECTION SHEET" big at the left, Keim mark small at the
+  right with N-number + date, one quiet disclaimer line, then a Prepared for /
+  Project / Selections by row ("8 areas selected" under the project name).
+- **B — letterhead + stamp.** Keim logo anchors the left, project name large at
+  the right, a tilted outlined "SELECTIONS · not an order" stamp in the middle
+  (`.ft-pbadge` inks it black in print), For / By two-column people row.
+- **Watermark.** Diagonal "SELECTIONS" at 86px/-30° so it fits the 710×950 page
+  box; one `position:fixed` copy in print media (repeats on every page) and
+  absolute copies per 950px stripe on screen. `outline` = transparent fill with
+  a 1.1px 32%-black stroke; `fill` = 6% black. Both print on a mono laser as
+  halftone gray — a solid hairline outline would be the crisp alternative.
 
-## Variants
+Header height (top of the first area band): today 108px · A 146px · B 131px.
+Every combo still prints on 2 pages (the fixture runs 2 today).
 
-**A — title-led.** The document's NAME is the hero: "SELECTION SHEET" at 28px
-across the top with a "Keim · Flooring & Tile" eyebrow; the Keim mark steps
-back to the right over N-number + date. The tan Rough Estimate badge is
-gone — its disclaimer is one quiet line under the title ("Selections and
-planning quantities for this project · not an order · pricing subject to
-change on final order"). The people row reads like a letter: PREPARED FOR /
-PROJECT (with "8 areas selected") / SELECTIONS BY.
+Shots: `A-*`, `B-*`, `today-none-*` — `-screen.png` (on-screen preview),
+`-print-p1.png` / `-print-p2.png` (print media).
 
-**B — letterhead + stamp.** Keim logo stays the anchor at the left (38px,
-"Flooring & Tile" under it); project name set large at the right like a
-cover page under a "Selection sheet" eyebrow, N-number + date beneath. The
-badge becomes a tilted double-ruled rubber-stamp "SELECTIONS / NOT AN ORDER"
-(`.ft-pbadge`, so it inks black in print). People row is a two-column FOR /
-BY block; the pricing disclaimer is a faint one-liner under it.
-
-**Watermark (both).** "SELECTIONS" at 86px, rotated −30°, centered in each
-page box — `position:fixed` in print media (Chromium repeats it on every
-page), absolutely-positioned per 950px stripe in the screen preview. Two
-renderings: `outline` (1.1px stroke at 32% ink, no fill) and `fill` (solid
-6% ink). It sits at z-index −1 inside the paper's stacking context, so the
-black area bands and the Extras box paint over it as they would on paper.
-
-## Measurements (print media, Letter, @page 1.4cm)
-
-| variant | masthead height | pages (8-area fixture) |
-|---|---|---|
-| today | 108px | 2 |
-| A | 146px (+38) | 2 |
-| B | 131px (+23) | 2 |
-
-The watermark never changes the page count (fixed positioning takes no
-flow space). Both mastheads are taller than today's 090 compact header —
-A by about 1.5 product rows, B by about one — a real cost on jobs sitting
-just under a page boundary. Either can be tightened when built in.
-
-## Shots
-
-- `today-none-{screen,print-p1,print-p2}.png` — the untouched real sheet.
-- `{A,B}-{none,outline,fill}-screen.png` — on-screen Print preview (color).
-- `{A,B}-{none,outline,fill}-print-p{1,2}.png` — print media (mono-ink
-  remap), pages 1 and 2 as the printer sees them.
-
-## Mono-laser caveat
-
-Both watermark renderings are gray in print media: a mono laser halftones the
-outline stroke into a dotted hairline and the 6% fill into sparse speckle
-(the same issue 085 fixed for the sheet's labels). If a watermark wins, the
-build-in should try a solid-black 0.5px outline stroke (crisp on any printer)
-against the gray versions before committing.
+**Owner picked A** (2026-09-08): "nice, clean, professional, very obvious that
+that is what this is." Round 2 expands A into three versions.
