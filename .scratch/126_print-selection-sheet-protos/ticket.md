@@ -71,3 +71,11 @@ hidden in both):
 - **A5** — the whole people row goes; the sheet is masthead + areas. Header 80px.
 
 Shots: `A4-fill-*`, `A5-fill-*`.
+
+## Round 4 — the tagline under the title (owner, 2026-09-08)
+
+Owner: "change the print under Selection Sheet to say something like rough
+pricing and quantities for planning purposes only." `?tag=b` is that wording
+verbatim (now the default); `?tag=c` keeps a "· not an order" tail; `?tag=a`
+is the round-1 line. `shot-tag.mjs` shoots A4 + fill with b and c —
+`A4-tagb-*` / `A4-tagc-*` (masthead crop + print page 1).

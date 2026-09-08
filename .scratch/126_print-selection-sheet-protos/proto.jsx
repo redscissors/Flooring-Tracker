@@ -52,6 +52,14 @@ const muted = { fontSize: 9.5, lineHeight: 1.35, color: "var(--ft-muted)" };
 // Keim mark steps back to the right, the tan Rough Estimate badge is gone and
 // its disclaimer is one quiet line under the title. The people row reads like
 // a letter: "Prepared for …" / "Selections by …".
+// ?tag= picks the disclaimer under the title (owner 2026-09-08: "rough pricing
+// and quantities for planning purposes only").
+const TAGLINES = {
+  a: "Selections and planning quantities for this project · not an order · pricing subject to change on final order",
+  b: "Rough pricing and quantities for planning purposes only",
+  c: "Rough pricing and quantities for planning purposes only · not an order",
+};
+const TAG = TAGLINES[q.get("tag") || "b"];
 function HeadA({ labels = true, people = true } = {}) {
   return (
     <div>
@@ -59,7 +67,7 @@ function HeadA({ labels = true, people = true } = {}) {
         <div style={{ minWidth: 0 }}>
           <div className="uppercase" style={{ fontSize: 8, fontWeight: 800, letterSpacing: ".3em", color: "var(--ft-brand-deep)", marginBottom: 3 }}>Keim · Flooring &amp; Tile</div>
           <div className="uppercase" style={{ fontSize: 28, fontWeight: 800, letterSpacing: ".12em", lineHeight: 1 }}>Selection Sheet</div>
-          <div style={{ fontSize: 9, color: "var(--ft-muted)", marginTop: 5 }}>Selections and planning quantities for this project · not an order · pricing subject to change on final order</div>
+          <div style={{ fontSize: 9, color: "var(--ft-muted)", marginTop: 5 }}>{TAG}</div>
         </div>
         <div style={{ textAlign: "right", flexShrink: 0 }}>
           <img src={keimLogo} alt="Keim" style={{ height: 24, width: "auto", display: "inline-block" }} />
