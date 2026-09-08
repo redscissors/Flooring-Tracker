@@ -58,3 +58,16 @@ that is what this is." Round 2 expands A into three versions.
 
 All three print on 2 pages; the outline watermark repeats per page as before.
 Shots: `A1-*`, `A2-*`, `A3-*`.
+
+## Round 3 — back to A with the fill watermark (owner, 2026-09-08)
+
+Owner: "go all the way back to A fill; drop the Prepared for / Project /
+Selections by; drop the Prepared with ned at the bottom — the customer doesn't
+need to see that." Two readings of the first drop, both shot (`wm=fill`, footer
+hidden in both):
+
+- **A4** — the small-caps run labels go, the names stay: customer stack left,
+  project centered, salesperson right-aligned. Header 134px.
+- **A5** — the whole people row goes; the sheet is masthead + areas. Header 80px.
+
+Shots: `A4-fill-*`, `A5-fill-*`.

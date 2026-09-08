@@ -31,6 +31,7 @@ const cust = PEOPLE[0];
 const CSS = `
   [data-v]:not([data-v="today"]) [data-real] > div > div:nth-child(-n+2) { display:none !important }
   [data-shot] { position:relative; z-index:0; overflow:hidden }
+  [data-v="A4"] [data-real] > div > div:last-child, [data-v="A5"] [data-real] > div > div:last-child { display:none !important }
   .wm { position:absolute; left:0; width:100%; height:950px; display:flex; align-items:center; justify-content:center; pointer-events:none; z-index:-1; overflow:hidden }
   .wm-print { display:none }
   .wm > span { font-weight:800; font-size:86px; letter-spacing:.12em; line-height:1; white-space:nowrap; transform:rotate(-30deg); text-transform:uppercase; font-family:var(--ft-ui) }
@@ -51,7 +52,7 @@ const muted = { fontSize: 9.5, lineHeight: 1.35, color: "var(--ft-muted)" };
 // Keim mark steps back to the right, the tan Rough Estimate badge is gone and
 // its disclaimer is one quiet line under the title. The people row reads like
 // a letter: "Prepared for …" / "Selections by …".
-function HeadA() {
+function HeadA({ labels = true, people = true } = {}) {
   return (
     <div>
       <div className="flex justify-between items-end" style={{ gap: 16, borderBottom: "2px solid var(--ft-text)", paddingBottom: 8 }}>
@@ -68,25 +69,27 @@ function HeadA() {
           </div>
         </div>
       </div>
+      {people ? (
       <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr 1fr", gap: 18, padding: "6px 0 7px", borderBottom: "1px solid var(--ft-paper-rule)", marginBottom: 8 }}>
         <div>
-          <L>Prepared for</L>
+          {labels && <L>Prepared for</L>}
           <div style={{ fontSize: 11.5, fontWeight: 800, lineHeight: 1.3 }}>{cust.name}</div>
           <div style={muted}>{cust.address}</div>
           <div style={muted}>{cust.phone}</div>
         </div>
         <div>
-          <L>Project</L>
+          {labels && <L>Project</L>}
           <div style={{ fontSize: 11.5, fontWeight: 800, lineHeight: 1.3 }}>{sel.name}</div>
           <div style={muted}>{tv.proj.categories.length} areas selected</div>
         </div>
-        <div>
-          <L>Selections by</L>
+        <div style={{ textAlign: labels ? "left" : "right" }}>
+          {labels && <L>Selections by</L>}
           <div style={{ fontSize: 11, fontWeight: 700, lineHeight: 1.3 }}>{PROFILE.name}</div>
           <div style={muted}>{PROFILE.phone}</div>
           <div style={muted}>{PROFILE.email}</div>
         </div>
       </div>
+      ) : <div style={{ height: 8 }} />}
     </div>
   );
 }
@@ -270,6 +273,8 @@ createRoot(document.getElementById("preview")).render(
       {V === "A1" && <HeadA1 />}
       {V === "A2" && <HeadA2 />}
       {V === "A3" && <HeadA3 />}
+      {V === "A4" && <HeadA labels={false} />}
+      {V === "A5" && <HeadA people={false} />}
       <div data-real><EstimatePaper sel={sel} people={PEOPLE} profile={PROFILE} tv={tv} jobWaste={wSet.waste} tSet={tSet} {...paperProps} /></div>
     </div>
   </>

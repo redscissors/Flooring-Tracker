@@ -16,7 +16,8 @@ const PAGE_H = 950, W = 726; // 710 paper + p-2 padding
 const ROUND = process.argv[2] || "2";
 const COMBOS = ROUND === "1"
   ? [["today", "none"], ["A", "none"], ["A", "outline"], ["A", "fill"], ["B", "none"], ["B", "outline"], ["B", "fill"]]
-  : [["A1", "none"], ["A1", "outline"], ["A2", "none"], ["A2", "outline"], ["A3", "none"], ["A3", "outline"]];
+  : ROUND === "2" ? [["A1", "none"], ["A1", "outline"], ["A2", "none"], ["A2", "outline"], ["A3", "none"], ["A3", "outline"]]
+  : [["A4", "fill"], ["A5", "fill"]];
 
 const browser = await chromium.launch({ executablePath: process.env.CHROME || "/opt/pw-browsers/chromium", args: ["--no-sandbox"] });
 const ctx = await browser.newContext({ viewport: { width: W, height: PAGE_H }, deviceScaleFactor: 2 });
