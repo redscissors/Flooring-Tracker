@@ -415,11 +415,13 @@ export function floorBase(f) {
 export const gradeName = (f) => (f.sp === LIVE_SAWN_SP ? "" : f.grade === "clear" ? "Clear" : "Character");
 
 export function finishName(f) {
-  const x = FINISHES.find((z) => z.id === f.finish);
   if (f.finish === "unf") return "Unfinished";
   if (f.finish === "est") return `Prefinished ${f.stain || "(pick stain)"} stain`;
   if (f.finish === "nat") return "Prefinished Natural";
-  return `${x.name}${f.stain ? ` “${f.stain}”` : ""}`;
+  // A custom color reads "Custom Stain <name>" — no tier, no quotes (Marcus
+  // 2026-09-09): the vendor keys the order on the stain name; the T-1/2/3
+  // tier still shows in the cost rows via FINISHES.
+  return `Custom Stain${f.stain ? ` ${f.stain}` : ""}`;
 }
 
 // Small-order fee — prefinished jobs under 500/250 sf. Prefinished Natural is
@@ -480,7 +482,7 @@ export function calcFloor(f, sf) {
   if (tex.id !== "smooth") parts.push(tex.name.replace(" (standard)", ""));
   if (edge.id !== "square") parts.push(edge.name);
   if (len.pct) parts.push(len.name.replace(" (standard)", "") + " lengths");
-  parts.push(f.finish === "unf" ? "Unfinished" : `${finishName(f)} ${sc.sheen} sheen`);
+  parts.push(f.finish === "unf" ? "Unfinished" : `${finishName(f)} ${sc.sheen}sheen`);
   const rest = parts.filter(Boolean).join(" ");
   return { desc: `${size} ${rest}`, size, rest, cartonSf: CARTON_SF[f.w] || null, name: `Sheoga ${size} ${f.sp}`, rows, cost, per: "sf", warn, fees };
 }
@@ -535,7 +537,7 @@ export function calcStocked(k, sf) {
   // fills the order from the color + grade + sheen, and "Stocked" is shop-side
   // stock status that only pads the description (Marcus 2026-08-21). The green
   // warn line below still tells the salesperson it ships from stock.
-  const rest = `${it.sp} ${color} ${k.grade === "clear" ? "Clear" : "Character"} Prefinished ${sheen} sheen`;
+  const rest = `${it.sp} ${color} ${k.grade === "clear" ? "Clear" : "Character"} Prefinished ${sheen}sheen`;
   const warn = changed ? ["Non-standard sheen — made to order, not a stock item"] : ["Stocked item — ships from Sheoga stock"];
   return { desc: `${size} ${rest}`, size, rest, cartonSf: CARTON_SF[k.w] || null, name: `Sheoga ${size} ${it.sp} ${it.color}`, rows, cost: round2(p + sc.add), per: "sf", warn, fees };
 }
@@ -596,7 +598,7 @@ export function calcHerringbone(h, sf) {
   const finBits = [];
   if (tex.id !== "smooth") finBits.push(tex.name.replace(" (standard)", ""));
   if (edge.id !== "square") finBits.push(edge.name);
-  if (prefin) finBits.push(`${finishName(h)} ${sc.sheen} sheen`);
+  if (prefin) finBits.push(`${finishName(h)} ${sc.sheen}sheen`);
   // Grade (clear/character) is descriptive order text — the herringbone sheet has
   // no clear/char price split, so it never changes cost, only what's read to Sheoga.
   const grade = h.grade === "clear" ? "Clear" : "Character";
@@ -760,7 +762,7 @@ export function multiWidthBuild(base, widths, sf) {
 export function multiWidthLineItems(base, widths, sf, markupPct = DEFAULT_MARKUP) {
   const b = multiWidthBuild(base, widths, sf);
   const rows = b.lines.filter((l) => l.ok).map((l, i) => ({
-    type: "hardwood", sku: "", sizeText: l.size || "", brandColor: `Sheoga — ${l.rest}`,
+    type: "hardwood", sku: "", sizeText: l.size || "", brandColor: `Sheoga ${l.rest}`,
     qtyType: "sqft", qty: l.sf > 0 ? String(l.sf) : "",
     priceSqft: String(sellOf(l.cost, markupPct)), costSqft: String(round2(l.cost)), markupPct: String(markupPct),
     ...(l.cartonSf ? { cartonSf: String(l.cartonSf) } : {}),
@@ -770,7 +772,7 @@ export function multiWidthLineItems(base, widths, sf, markupPct = DEFAULT_MARKUP
     },
   }));
   const fees = b.fees.map((x) => ({
-    type: "misc", sku: "", sizeText: "", brandColor: `Sheoga — ${x.label}`, qtyType: "count", qty: "1",
+    type: "misc", sku: "", sizeText: "", brandColor: `Sheoga ${x.label}`, qtyType: "count", qty: "1",
     priceSqft: String(x.amt), costSqft: String(x.amt), markupPct: "0",
     sheoga: FEE_MARK,
   }));
@@ -826,18 +828,18 @@ export function lineItems(snap, { sf, markupPct = DEFAULT_MARKUP } = {}) {
   const main =
     c.per === "ea"
       ? {
-          type: "hardwood", sku: "", sizeText: c.size || "", brandColor: `Sheoga — ${c.rest || c.desc}`, qtyType: "count", qty: String(c.qty || 1),
+          type: "hardwood", sku: "", sizeText: c.size || "", brandColor: `Sheoga ${c.rest || c.desc}`, qtyType: "count", qty: String(c.qty || 1),
           priceSqft: String(sell), costSqft: String(round2(c.cost)), markupPct: String(markupPct),
           sheoga,
         }
       : {
-          type: "hardwood", sku: "", sizeText: c.size || "", brandColor: `Sheoga — ${c.rest || c.desc}`, qtyType: "sqft", qty: sf > 0 ? String(sf) : "",
+          type: "hardwood", sku: "", sizeText: c.size || "", brandColor: `Sheoga ${c.rest || c.desc}`, qtyType: "sqft", qty: sf > 0 ? String(sf) : "",
           priceSqft: String(sell), costSqft: String(round2(c.cost)), markupPct: String(markupPct),
           ...(c.cartonSf ? { cartonSf: String(c.cartonSf) } : {}),
           sheoga,
         };
   const fees = (c.fees || []).map((x) => ({
-    type: "misc", sku: "", sizeText: "", brandColor: `Sheoga — ${x.label}`, qtyType: "count", qty: "1",
+    type: "misc", sku: "", sizeText: "", brandColor: `Sheoga ${x.label}`, qtyType: "count", qty: "1",
     priceSqft: String(x.amt), costSqft: String(x.amt), markupPct: "0",
     sheoga: FEE_MARK,
   }));
@@ -863,7 +865,7 @@ const GRADE_SHORT = { Clear: "Clr", Character: "Char" };
 const TEX_SHORT = { smooth: "Smth", aged: "AgdBr", sawcut: "SawCut", bandsawn: "BndSwn", country: "CtryWrn", vintage: "VntChrm", oldmill: "OldMill" };
 const EDGE_SHORT = { square: "Sq", bevel: "MBvl", pillow: "HndPlw", vgroove: "VGrv" };
 const LEN_SHORT = { "1-8": "1-8'", "1-10": "1-10'", "2-8": "2-8'", "2-10": "2-10'", "3-8": "3-8'", "3-10": "3-10'" };
-const FIN_SHORT = { unf: "Unf", nat: "Nat", t1: "T-1", t2: "T-2", t3: "T-3" };
+const FIN_SHORT = { unf: "Unf", nat: "Nat" };
 const STAIN_SHORT = {
   Natural: "Nat", Cattail: "Cattail", Caramel: "Caramel", "Fresh Cut": "FrshCut",
   "Toasted Acorn": "TstdAcrn", Nutmeg: "Nutmeg", Buckeye: "Buckeye", "Hickory Nut": "HickNut", Frost: "Frost",
@@ -872,6 +874,7 @@ const STAIN_SHORT = {
 
 const shortFinish = (f) => {
   if (f.finish === "est") return f.stain ? STAIN_SHORT[f.stain] || f.stain : "Est";
+  if (CUSTOM_FINISHES.includes(f.finish)) return `Cust${f.stain ? ` ${f.stain}` : ""}`;
   return FIN_SHORT[f.finish] || finishName(f);
 };
 
@@ -913,7 +916,7 @@ function floorParts(f) {
   if (f.finish === "unf") out.push({ full: "Unfinished", short: "Unf", rank: 0 });
   else {
     out.push({ full: finishName(f), short: shortFinish(f), rank: 0 });
-    out.push({ full: `${f.sheen || "30"} sheen`, short: `${f.sheen || "30"}sh`, rank: 1 });
+    out.push({ full: `${f.sheen || "30"}sheen`, short: `${f.sheen || "30"}sh`, rank: 1 });
   }
   return out;
 }
@@ -932,7 +935,7 @@ function stockedParts(k) {
     { full: color, short: STAIN_SHORT[color] || color.split(" ").map((w) => STAIN_SHORT[w] || w).join(" "), rank: 0 },
     { full: grade, short: GRADE_SHORT[grade], rank: 0 },
     { full: "Prefinished", short: "Prefin", rank: 2 },
-    { full: `${sheen} sheen`, short: `${sheen}sh`, rank: 1 },
+    { full: `${sheen}sheen`, short: `${sheen}sh`, rank: 1 },
   ];
 }
 

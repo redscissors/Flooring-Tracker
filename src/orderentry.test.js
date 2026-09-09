@@ -107,7 +107,7 @@ test("a Sheoga fee line is Sheoga-sourced but carries no configuration to reopen
 });
 
 const book = { tag: "CT", sizePlain: '12" × 24"', name: "Anatolia Carrara Bianco", sku: "ANA-CAR-1224", coverage: "15.5 SF/CT" };
-const sheogaRow = (cfg) => ({ tag: "CT", sizePlain: '5¼"', name: "Sheoga — ignored, parts win", sku: "", sheoga: { mode: "floor", cfg } });
+const sheogaRow = (cfg) => ({ tag: "CT", sizePlain: '5¼"', name: "Sheoga ignored, parts win", sku: "", sheoga: { mode: "floor", cfg } });
 const floorCfg = { ...defaultConfig("floor"), sp: "White Oak", w: 5.25, grade: "char", cons: "solid", finish: "t1" };
 
 test("orderDescription: with no limit the line flows unit · size · product · SKU · coverage", () => {
@@ -146,7 +146,8 @@ test("orderDescription: a Sheoga row abbreviates from its configuration, the ven
   const d = orderDescription(sheogaRow(floorCfg), 36);
   assert.equal(d.tier, "short");
   // 3 spare chars after abbreviating: species and grade overrun, Solid fits.
-  assert.equal(d.main, 'CT Sheoga 5¼" WO Char Solid T-1 30sh');
+  assert.equal(d.main, 'CT Sheoga 5¼" WO Char Sol Cust 30sh');
+  assert.ok(!d.main.includes("T-1"), "a custom stain abbreviates without its tier (Marcus 2026-09-09)");
   assert.ok(!d.main.includes("ignored"), "structured parts beat the row's name text");
   assert.equal(d.ext, null);
 });
@@ -171,7 +172,7 @@ test("orderDescription: a long Sheoga build splits, and ext holds every category
   assert.equal(d.tier, "split");
   assert.ok(d.main.endsWith("+"));
   assert.ok(d.main.length <= 30);
-  for (const category of ["Band Sawn", "Hand pillowed", "3'–10' lengths", "Toasted Acorn", "30 sheen"]) {
+  for (const category of ["Band Sawn", "Hand pillowed", "3'–10' lengths", "Toasted Acorn", "30sheen"]) {
     assert.ok(d.ext.includes(category), `ext lost "${category}"`);
   }
 });
@@ -206,8 +207,8 @@ test("nameBudget: what the limit leaves the product text after the tag, size, SK
 });
 
 test("orderDescription: a fee line has no structured parts and falls back to its text", () => {
-  const fee = { tag: "", sizePlain: "", name: "Sheoga — Small-order fee — prefinished job under 250 sf", sku: "", sheoga: { fee: true } };
-  assert.equal(orderDescription(fee, 0).main, "Sheoga — Small-order fee — prefinished job under 250 sf");
+  const fee = { tag: "", sizePlain: "", name: "Sheoga Small-order fee — prefinished job under 250 sf", sku: "", sheoga: { fee: true } };
+  assert.equal(orderDescription(fee, 0).main, "Sheoga Small-order fee — prefinished job under 250 sf");
   const d = orderDescription(fee, 30);
   assert.equal(d.tier, "split");
   assert.ok(d.main.startsWith("Sheoga"), "the vendor lead the configurator wrote stays");
