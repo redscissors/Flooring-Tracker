@@ -183,7 +183,8 @@ test("calcFloor: custom color always charges the $750 sample; established stain 
   assert.equal(custom.cost, 4.15 + 4.00);
   assert.deepEqual(custom.fees, [SAMPLE]);
   assert.ok(!custom.warn.some((w) => w.includes("color-match")));
-  assert.ok(custom.desc.includes("Custom color T-2 “ClubHouse Brown”"));
+  assert.ok(custom.desc.includes("Custom Stain ClubHouse Brown 30sheen"), custom.desc);
+  assert.ok(!/T-2|“|”/.test(custom.desc), "no tier, no quotes — Marcus 2026-09-09");
   // Established stain: sample only when the toggle is on.
   assert.deepEqual(calcFloor(floor({ finish: "est" }), 1000).fees, []);
   assert.deepEqual(calcFloor(floor({ finish: "est", sample: true }), 1000).fees, [SAMPLE]);
@@ -200,8 +201,8 @@ test("calcFloor: length shows only when non-standard; sheen rides prefinished", 
   assert.ok(!calcFloor(floor(), 1000).desc.includes("lengths")); // standard 1'–8' omitted
   assert.ok(calcFloor(floor({ len: "2-8" }), 1000).desc.includes("2'–8' lengths"));
   // default sheen 30 on a prefinished finish, and it changes with the config
-  assert.ok(calcFloor(floor({ finish: "nat" }), 1000).desc.endsWith("Prefinished Natural 30 sheen"));
-  assert.ok(calcFloor(floor({ finish: "nat", sheen: "5" }), 1000).desc.endsWith("Natural 5 sheen"));
+  assert.ok(calcFloor(floor({ finish: "nat" }), 1000).desc.endsWith("Prefinished Natural 30sheen"));
+  assert.ok(calcFloor(floor({ finish: "nat", sheen: "5" }), 1000).desc.endsWith("Natural 5sheen"));
   assert.deepEqual(calcFloor(floor({ finish: "nat", sheen: "5" }), 1000).fees, []); // a sheen change is $/sf, never a flat fee
 });
 
@@ -251,7 +252,7 @@ test("calcStocked looks up by species + color, not table position", () => {
   assert.equal(c.cartonSf, 20.5);
   // "Prefinished", never "Stocked" — stock status is the warn line's job, not
   // the description's (Marcus 2026-08-21).
-  assert.equal(c.desc, '5¼" White Oak Natural Character Prefinished 30 sheen');
+  assert.equal(c.desc, '5¼" White Oak Natural Character Prefinished 30sheen');
   assert.deepEqual(c.warn, ["Stocked item — ships from Sheoga stock"]);
   assert.equal(stockedItem({ sp: "White Oak", color: "Natural" }).sheen, 30);
 });
@@ -264,7 +265,7 @@ test("calcStocked: off-standard sheen adds 25¢/sf and the small-order fees of a
   assert.equal(off.cost, 6.45);
   assert.deepEqual(off.rows.find(([l]) => /sheen change/i.test(l)), ["Sheen change — 5-sheen (standard 30)", "+$0.25/sf"]);
   assert.deepEqual(off.fees, []); // 1000 sf: no small-order fee
-  assert.ok(off.desc.endsWith("Prefinished 5 sheen"));
+  assert.ok(off.desc.endsWith("Prefinished 5sheen"));
   assert.ok(off.warn[0].includes("made to order"));
   assert.deepEqual(calcStocked({ ...base, sheen: "5" }, 300).fees, [{ label: "Small-order fee — prefinished job under 500 sf", amt: 300 }]);
   assert.deepEqual(calcStocked({ ...base, sheen: "5" }, 200).fees, [{ label: "Small-order fee — prefinished job under 250 sf", amt: 600 }]);
@@ -348,7 +349,7 @@ test("calcHerringbone: scrape + prefinished stain add the custom-tab $/sf, fees 
   // A textured prefinish's standard is 20, so 30-sheen here is a sheen change (+0.25).
   const fin = calcHerringbone({ ...base, tex: "sawcut", finish: "est", stain: "Cattail" }, 1000);
   assert.equal(fin.cost, 8.40 + 1.5 + 3.15 + 0.25);
-  assert.equal(fin.desc, '4¼" White Oak Character · Solid Herringbone · 18¼"–28" slats · Saw Cut · Prefinished Cattail stain 30 sheen');
+  assert.equal(fin.desc, '4¼" White Oak Character · Solid Herringbone · 18¼"–28" slats · Saw Cut · Prefinished Cattail stain 30sheen');
   assert.ok(fin.rows.some(([l]) => l === "Texture — Saw Cut"));
   assert.ok(fin.rows.some(([l]) => l === "Sheen change — 30-sheen (standard 20)"));
   assert.equal(calcHerringbone({ ...base, tex: "sawcut", finish: "est", stain: "Cattail", sheen: "20" }, 1000).cost, 8.40 + 1.5 + 3.15);
@@ -548,7 +549,7 @@ test("lineItems: sq-ft build → one hardwood row, size-first, carton-aware", ()
   assert.equal(main.qtyType, "sqft");
   assert.equal(main.qty, "600");
   assert.equal(main.sizeText, '5¼"');
-  assert.ok(main.brandColor.startsWith("Sheoga — White Oak Character Solid"));
+  assert.ok(main.brandColor.startsWith("Sheoga White Oak Character Solid"));
   assert.ok(!main.brandColor.includes('5¼"')); // size lives in sizeText, not the name
   assert.equal(main.priceSqft, "5.81");
   assert.equal(main.costSqft, "4.15");
@@ -575,7 +576,7 @@ test("lineItems: fees land as their own misc lines at cost", () => {
     assert.equal(f.sheoga.cfg, undefined);
     assert.equal(f.note, undefined);
   }
-  assert.equal(fee.brandColor, "Sheoga — Small-order fee — prefinished job under 250 sf");
+  assert.equal(fee.brandColor, "Sheoga Small-order fee — prefinished job under 250 sf");
   assert.equal(sample.priceSqft, "750");
 });
 
@@ -587,7 +588,7 @@ test("lineItems: vents are count lines; config snapshot is a deep copy", () => {
   assert.equal(main.cartonSf, undefined);
   // Size lands in the row's size field, not buried in the description.
   assert.equal(main.sizeText, '4×12"');
-  assert.equal(main.brandColor, "Sheoga — Flush vent · Walnut");
+  assert.equal(main.brandColor, "Sheoga Flush vent · Walnut");
   assert.equal(main.costSqft, "20.85");
   assert.equal(main.priceSqft, String(Math.round(20.85 * 1.5 * 100) / 100));
   cfg.qty = 99;
@@ -600,7 +601,7 @@ test("lineItems: dampers carry size + priced-each payload like vents", () => {
   assert.equal(main.qtyType, "count");
   assert.equal(main.qty, "8");
   assert.equal(main.sizeText, '6×14"');
-  assert.equal(main.brandColor, "Sheoga — vent damper (loose)");
+  assert.equal(main.brandColor, "Sheoga vent damper (loose)");
 });
 
 // --- SKU-search entry ---------------------------------------------------------
@@ -683,7 +684,10 @@ test("gradeName / finishName", () => {
   assert.equal(finishName(floor()), "Unfinished");
   assert.equal(finishName(floor({ finish: "nat" })), "Prefinished Natural");
   assert.equal(finishName(floor({ finish: "est", stain: "Nutmeg" })), "Prefinished Nutmeg stain");
-  assert.equal(finishName(floor({ finish: "t3" })), "Custom color T-3");
+  assert.equal(finishName(floor({ finish: "t3" })), "Custom Stain");
+  // Marcus 2026-09-09: the tier and the quotes leave the description — the
+  // vendor reads the stain name; the tier lives in the cost rows.
+  assert.equal(finishName(floor({ finish: "t1", stain: "S-46297 Dark Chocolate" })), "Custom Stain S-46297 Dark Chocolate");
 });
 
 test("established-stain FINISHES entry keys off texture depth", () => {

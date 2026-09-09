@@ -29,8 +29,8 @@ function Preview() {
   const [requests, setRequests] = useState(() => [
     mk(bath, { id: "p1", type: "tile", sku: "GLZ-BC1224", brandColor: "Bianco Carrara", sizeText: "12×24", bookId: "bkGlz" }, [GLAZZIO, SHEOGA]),
     // Saved before the vendor book existed: no id, name only.
-    mk(great, { id: "p2", type: "hardwood", brandColor: 'Sheoga — White Oak Character 5¼" solid, Natural', sheoga: { mode: "floor", cfg: {} } }, [GLAZZIO], { id: "old1" }),
-    mk(kitchen, { id: "p3", type: "hardwood", brandColor: 'Sheoga — Hickory Clear 4¼" engineered, wire-brushed', sheoga: { mode: "floor", cfg: {} } }, [GLAZZIO, SHEOGA]),
+    mk(great, { id: "p2", type: "hardwood", brandColor: 'Sheoga White Oak Character 5¼" solid, Natural', sheoga: { mode: "floor", cfg: {} } }, [GLAZZIO], { id: "old1" }),
+    mk(kitchen, { id: "p3", type: "hardwood", brandColor: 'Sheoga Hickory Clear 4¼" engineered, wire-brushed', sheoga: { mode: "floor", cfg: {} } }, [GLAZZIO, SHEOGA]),
   ]);
   const book = books.find((b) => b.id === "vb1");
   const bookOnly = new URLSearchParams(location.search).get("book") === "1";

@@ -129,7 +129,7 @@ const sizeParts = (r) => (PLANK_TYPES.has(r.type) ? plankSizeParts(r.sizePlain) 
 // (Marcus 2026-08-21) — a Sheoga order is keyed by description, no SKU, so the
 // brand is part of the identity, unlike a book brand (rank 3 below). The
 // structured path prepends it at rank 0; the fallback path (vents, dampers,
-// fees) keeps the "Sheoga — " lead the configurator wrote into the row name.
+// fees) keeps the "Sheoga " lead the configurator wrote into the row name.
 //
 // A line always flows unit · size · product/color · SKU · coverage. The SKU and
 // coverage trail as PINNED parts (Marcus 2026-08-26, reversing the earlier
