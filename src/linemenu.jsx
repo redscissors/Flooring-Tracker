@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Copy, FolderInput, Trash2, ChevronRight, Layers } from "lucide-react";
+import { Copy, FolderInput, Trash2, ChevronRight, Layers, StickyNote } from "lucide-react";
 import { useEscClose } from "./widgets.jsx";
 import { ClaudeMark, CLAUDE_CLAY_DEEP } from "./claudeflag.jsx";
 
@@ -11,7 +11,7 @@ const MENU_W = 236;
 // the dots are the row's one grip — or by right-click anywhere on the row.
 // Fixed at the pointer, clamped to the viewport; "Move to area" expands inline
 // instead of floating a submenu.
-export function LineMenu({ menu, title, subtitle, areas, canDelete, sampleOn, onClose, onDuplicate, onMoveTo, onSample, onFlag, onDelete }) {
+export function LineMenu({ menu, title, subtitle, areas, canDelete, sampleOn, hasNote, onClose, onDuplicate, onMoveTo, onSample, onNote, onFlag, onDelete }) {
   const ref = useRef(null);
   const [moving, setMoving] = useState(false);
   useEscClose(!!menu, onClose);
@@ -33,6 +33,7 @@ export function LineMenu({ menu, title, subtitle, areas, canDelete, sampleOn, on
         {subtitle && <div className="text-[10px] text-slate-400 truncate">{subtitle}</div>}
       </div>
       <button className={mi} onClick={() => { onDuplicate(); onClose(); }}><Copy size={13} className="text-slate-400" /> Duplicate line</button>
+      {onNote && <button className={mi} onClick={() => { onNote(); onClose(); }}><StickyNote size={13} className="text-slate-400" /> {hasNote ? "Edit note" : "Add note"}</button>}
       {areas.length > 0 && (
         <button className={mi} onClick={() => setMoving((v) => !v)}>
           <FolderInput size={13} className="text-slate-400" /> Move to area
