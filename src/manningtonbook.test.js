@@ -217,3 +217,73 @@ test("laminate page maps to laminate type", () => {
   const { items } = run(lam);
   assert.equal(items.find((i) => i.sku === "28210").type, "laminate");
 });
+
+test("a literal (R) mark in the section header doesn't truncate the collection", () => {
+  // The 2026-09 sheet prints the registered mark as text — "ADURA(R)PRO LOOSE
+  // LAY PLANK (APPD)" — and the header reader used to take "(R)" for the
+  // section code, leaving every ADURA Pro floor in a bare "Adura" group with a
+  // name that never said Rigid or Loose Lay (owner, 2026-09-09).
+  const loose = page("LVT", "ADURA(R)PRO LOOSE LAY PLANK (APPD)", [
+    { pattern: "Scandinavian Oak", size: "7X48", color: "Natural", code: "APP102", catalog: "560101",
+      psf: "$3.00", carton: "$60.00", sf: "20.00", trims: [] },
+  ]);
+  const looseTile = page("LVT", "ADURA(R)PRO LOOSE LAY TILE (APRD)", [
+    { pattern: "Loft", size: "12X24", color: "Slate", code: "APR201", catalog: "560102",
+      psf: "$3.00", carton: "$60.00", sf: "20.00", trims: [] },
+  ]);
+  const rigid = page("LVT", "ADURA(R)PRO Rigid SPC Plank (RSPD)", [
+    { pattern: "Scandinavian Oak", size: "7X48", color: "Natural", code: "RSP102", catalog: "560103",
+      psf: "$3.00", carton: "$60.00", sf: "20.00", trims: [] },
+  ]);
+  const rigidTile = page("LVT", "ADURA(R)PRO Rigid SPC TILE (RSRD)", [
+    { pattern: "Loft", size: "12X24", color: "Slate", code: "RSR201", catalog: "560104",
+      psf: "$3.00", carton: "$60.00", sf: "20.00", trims: [] },
+  ]);
+  const { items } = run(loose, looseTile, rigid, rigidTile);
+  const byCode = (c) => items.find((i) => i.sku === c);
+  assert.equal(byCode("APP102").productLine, "Adura Pro Loose Lay");
+  assert.equal(byCode("APR201").productLine, "Adura Pro Loose Lay");   // Tile merges with Plank, like Max
+  assert.equal(byCode("RSP102").productLine, "Adura Pro Rigid");       // "SPC" is a format word too (owner)
+  assert.equal(byCode("RSR201").productLine, "Adura Pro Rigid");
+  // the name the picker searches now says which Pro line it is
+  assert.equal(byCode("APP102").description, "Adura Pro Loose Lay Scandinavian Oak Natural");
+  assert.equal(byCode("RSP102").description, "Adura Pro Rigid Scandinavian Oak Natural");
+  // and they are separate markup groups
+  const keys = markupGroups(items, { groupBy: "productLine", default: 45, byGroup: {} }).map((g) => g.key);
+  assert.deepEqual(keys.filter((k) => /^Adura/.test(k)).sort(), ["Adura Pro Loose Lay", "Adura Pro Rigid"]);
+});
+
+test("hardwood headers with hyphens, quotes and width suffixes are read, and the Wood banner types them", () => {
+  // Headers like "Maison Collection - Artisan Walnut (MSA)" and "Bengal Bay 5\" (BBP)"
+  // used to fail the header pattern outright, so their floors silently took the
+  // PREVIOUS section's collection. The hardwood pages' banner reads "Wood", not
+  // "Hardwood", so those floors also carried the laminate type over.
+  const lam = page("Laminate", "Restoration Collection(R) Long Plank (RST8L)", [
+    { pattern: "Historic Oak", size: "8", color: "Ash", code: "22100", catalog: "553300",
+      psf: "$2.50", carton: "$43.75", sf: "17.50", trims: [] },
+  ]);
+  const lamWide = page("Laminate", "Restoration Collection(R) (RSTV) - 6 3/8 Width", [
+    { pattern: "Historic Oak", size: "6", color: "Timber", code: "22101", catalog: "553301",
+      psf: "$2.50", carton: "$43.75", sf: "17.50", trims: [] },
+  ]);
+  const maison = page("Wood", "Maison Collection - Artisan Walnut (MSA)", [
+    { pattern: "Artisan Walnut", size: "7", color: "Cognac", code: "MSA07CGN1", catalog: "553400",
+      psf: "$8.00", carton: "$160.00", sf: "20.00", trims: [] },
+  ]);
+  const bengal = page("Wood", 'Bengal Bay 5" (BBP)', [
+    { pattern: "Bengal Bay", size: "5", color: "Spice", code: "BBP05SPC1", catalog: "553401",
+      psf: "$5.00", carton: "$100.00", sf: "20.00", trims: [] },
+  ]);
+  const { items } = run(lam, lamWide, maison, bengal);
+  const byCode = (c) => items.find((i) => i.sku === c);
+  assert.equal(byCode("22100").productLine, "Restoration Collection");    // Long/Wide Plank are formats
+  assert.equal(byCode("22101").productLine, "Restoration Collection");    // suffix after the code dropped
+  assert.equal(byCode("22100").type, "laminate");
+  assert.equal(byCode("MSA07CGN1").productLine, "Maison Collection - Artisan Walnut");
+  assert.equal(byCode("MSA07CGN1").type, "hardwood");
+  // the Pattern column repeats the sub-line the header already names — once is enough
+  assert.equal(byCode("MSA07CGN1").description, "Maison Collection - Artisan Walnut Cognac");
+  assert.equal(byCode("BBP05SPC1").description, 'Bengal Bay 5" Spice');
+  assert.equal(byCode("BBP05SPC1").productLine, 'Bengal Bay 5"');
+  assert.equal(byCode("BBP05SPC1").type, "hardwood");
+});
