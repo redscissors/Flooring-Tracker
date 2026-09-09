@@ -46,11 +46,17 @@ const TRIM_X = 485;
 const isCatalog = (s) => /^\d{4,6}[A-Z]?$/.test(str(s));
 
 // The section product line, e.g. "ADURA APEX (APXHP)" → "ADURA APEX". Printed on
-// the same baseline as the Warranty/Thickness notice at the top of each section.
-const sectionOf = (line, leftX) => {
-  const m = line.match(/^([A-Z][A-Za-z0-9()'&. ]+?)\s*\(([A-Z0-9]+)\)/);
-  if (m && (line.includes("Warranty") || line.includes("Thickness")) && leftX < 40) return m[1].trim();
-  return null;
+// the same baseline as the Warranty/Thickness notice at the top of each section;
+// `head` is the text left of that notice. The sheet prints trademark symbols as
+// literal "(R)"/"(TM)" ("ADURA(R)PRO Rigid SPC Plank (RSPD)"), which must not be
+// mistaken for the section code — the code is the LAST all-caps token in
+// parentheses, and anything after it ("(RSTV) - 6 3/8 Width") is a format note.
+// Names carry hyphens and inch marks ("Maison Collection - Artisan Walnut",
+// "Bengal Bay 5\""), so nothing in the name is filtered.
+const sectionOf = (head, line, leftX) => {
+  if (leftX >= 40 || !(line.includes("Warranty") || line.includes("Thickness"))) return null;
+  const m = head.replace(/\((?:R|TM)\)|[®™]/g, " ").match(/^(.*\S)\s*\(([A-Z0-9]+)\)/);
+  return m ? m[1].replace(/\s+/g, " ").trim() : null;
 };
 
 // Clean a stacked trim-column header ("Quarter Round 94\" (Piece)") down to its
@@ -117,19 +123,23 @@ const CANON_MAPPING = {
   groupBy: "productLine",
 };
 
-const CATEGORY_TYPE = { LVT: "vinyl", Laminate: "laminate", Hardwood: "hardwood" };
+const CATEGORY_TYPE = { LVT: "vinyl", Laminate: "laminate", Hardwood: "hardwood", Wood: "hardwood" };
 
 // The dealer brand fronts every product name once picked (stock.js label()); the
 // sheet itself never prints it, so it rides its own canonical column.
 const BRAND = "Mannington";
 
 // The collection header ("ADURA Max Plank") names both the product and the markup
-// group. Drop the trailing format word (Plank / Rectangle / Tile / Hex) so both
-// read at the tier a salesperson quotes — "Adura Max", not "ADURA Max Plank" —
-// and title-case it while leaving short acronyms (XL) intact.
-const titleWord = (w) => (/^[A-Z0-9]{1,3}$/.test(w) ? w : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+// group. Drop the trailing format words (Plank / Rectangle / Tile / Hex, and the
+// Long / Wide / SPC qualifiers in front of them) so both read at the tier a
+// salesperson quotes — "Adura Max", not "ADURA Max Plank"; "Adura Pro Rigid",
+// not "ADURA(R)PRO Rigid SPC Plank" (owner, 2026-09-09) — and title-case it
+// while leaving short acronyms (XL, HB) intact — two letters at most, since the
+// sheet shouts three-letter words too ("PRO LOOSE LAY").
+const titleWord = (w) => (/^[A-Z]{1,2}$|\d/.test(w) ? w : /^and$/i.test(w) ? "and" : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+const abbrev = (s) => s.toLowerCase().replace(/\bherringbone\b/g, "hb");
 const collectionName = (section) =>
-  str(section).replace(/\s+(?:planks?|rectangles?|tiles?|hex)$/i, "").trim()
+  str(section).replace(/(?:\s+(?:long|wide|spc))*\s+(?:planks?|rectangles?|tiles?|hex)$/i, "").trim()
     .split(/\s+/).filter(Boolean).map(titleWord).join(" ");
 
 // True when the pages look like a Mannington Cartons Detail list: some early page
@@ -159,8 +169,8 @@ export function parseManningtonPages(pages, name = "Mannington price list") {
     if (!items.length) continue;
     const rows = clusterRows(items);
 
-    // Page category (LVT / Laminate / Hardwood) sits alone at the very top.
-    const cat = items.find((i) => (i.y ?? 99) < 30 && /^(LVT|Laminate|Hardwood)$/.test(str(i.str)));
+    // Page category (LVT / Laminate / Wood) sits alone at the very top.
+    const cat = items.find((i) => (i.y ?? 99) < 30 && /^(LVT|Laminate|Hardwood|Wood)$/.test(str(i.str)));
     if (cat) category = str(cat.str);
     const rowType = CATEGORY_TYPE[category] || "";
 
@@ -170,7 +180,7 @@ export function parseManningtonPages(pages, name = "Mannington price list") {
       const line = sorted.map((i) => str(i.str)).join(" ");
       const left = row.items.reduce((a, b) => (b.x < a.x ? b : a));
 
-      const sec = sectionOf(line, left.x);
+      const sec = sectionOf(cellIn(row.items, 0, 400), line, left.x);
       if (sec) { section = sec; continue; }
       if (/^Pattern\b/.test(line)) { trimCols = trimColumns(rows, row); continue; }
 
@@ -212,9 +222,14 @@ export function parseManningtonPages(pages, name = "Mannington price list") {
       else if (perSf != null) { cost = perSf; unit = "SF"; }
       else if (carton != null) { cost = carton; unit = "BX"; }
 
+      // The hardwood pages' Pattern column echoes the sub-line the section
+      // header already names ("Maison Collection - Bastille" · "Bastille"), so
+      // the floor name keeps only what the collection doesn't say.
+      const productLine = collectionName(section);
+      const echoed = patternName && abbrev(productLine).includes(abbrev(patternName));
       flooring.push({
-        colorCode, brand: BRAND, name: [patternName, color].filter(Boolean).join(" "),
-        productLine: collectionName(section), color, size,
+        colorCode, brand: BRAND, name: [echoed ? "" : patternName, color].filter(Boolean).join(" "),
+        productLine, color, size,
         sfPerUnit: unit === "BX" ? sf : null, cost, unit, type: rowType,
       });
 
