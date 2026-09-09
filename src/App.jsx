@@ -578,6 +578,12 @@ export default function App({ user, onSignOut }) {
   // row's ⋯ or a right-click on the row. flagCtx feeds the shared popover.
   const [lineMenu, setLineMenu] = useState(null);
   const [flagCtx, setFlagCtx] = useState(null);
+  // The row whose note box is showing before any text exists — the menu's
+  // "Add note" reveals the same box the extras strip shows once a note is
+  // saved (a blurred-empty box hides again). View state, never persisted.
+  const [noteOpen, setNoteOpen] = useState(null);
+  const noteRefs = useRef({});
+  useEffect(() => { const el = noteOpen && noteRefs.current[noteOpen]; if (el) { el.focus(); el.scrollIntoView?.({ block: "nearest" }); } }, [noteOpen]);
   const flaggedRows = useMemo(() => new Set(claudeIssues.filter((i) => !i.done && i.source.productId).map((i) => i.source.productId)), [claudeIssues]);
   // This project's sample requests + a productId lookup for the row icons.
   const projSamples = useMemo(() => sampleRequests.filter((r) => r.projectId === selId), [sampleRequests, selId]);
@@ -1891,8 +1897,9 @@ export default function App({ user, onSignOut }) {
                         const rowOpen = matExpanded && p.type !== "misc";
                         // The note lives inside the tinted wrap, hugging the chip's
                         // bottom edge; rows with no wrap fall back to a cream note row.
+                        const showNote = !!p.note || noteOpen === p.id;
                         const noteInput = (
-                          <input tabIndex={-1} value={p.note} onChange={(e) => updProduct(a.id, p.id, { note: e.target.value })} placeholder="note…" className="w-full min-w-0 text-xs italic text-slate-500 bg-transparent focus:outline-none placeholder:text-slate-300" style={{ padding: "3px 7px 0" }} />
+                          <input tabIndex={-1} ref={(el) => { if (el) noteRefs.current[p.id] = el; }} value={p.note} onChange={(e) => updProduct(a.id, p.id, { note: e.target.value })} onBlur={() => { if (!p.note && noteOpen === p.id) setNoteOpen(null); }} placeholder="note…" className="w-full min-w-0 text-xs italic text-slate-500 bg-transparent focus:outline-none placeholder:text-slate-300" style={{ padding: "3px 7px 0" }} />
                         );
                         const searchMode = rowBlank(p) && !manualRows[p.id];
                         // The last row of an area is the permanent inline "adder";
@@ -2140,7 +2147,7 @@ export default function App({ user, onSignOut }) {
                                 signalling the drawer must be clicked out of — and folds it
                                 when clicked. Each material shows checked (full controls) or
                                 unchecked (slim card, click ✓ to add). */}
-                            {(pInline.length > 0 || warns.length > 0 || (!hasMats && addables.length > 0) || p.note || (matExpanded && p.type !== "misc")) && (
+                            {(pInline.length > 0 || warns.length > 0 || (!hasMats && addables.length > 0) || showNote || (matExpanded && p.type !== "misc")) && (
                             <div style={{ position: "relative" }}>
                             {matExpanded && p.type !== "misc" && (
                               <>
@@ -2379,7 +2386,7 @@ export default function App({ user, onSignOut }) {
                                 <span className="flex-1" />
                                 {matsCost > 0 && <span className="ft-mono" style={{ fontSize: 9, color: "var(--ft-muted)" }}>+ {money(matsCost)}</span>}
                               </button>
-                              {p.note ? noteInput : null}
+                              {showNote ? noteInput : null}
                               </div>
                             )}
                             {stripMats.length === 0 && warns.length === 0 && !hasMats && addables.length > 0 && (
@@ -2391,10 +2398,10 @@ export default function App({ user, onSignOut }) {
                               <button data-mats-pill onClick={openMats} className="ft-noprint flex items-center text-left" style={{ width: "100%", padding: "4px 7px", fontSize: 9.5, color: "var(--ft-muted)", border: "1px dashed var(--ft-border)" }} title={`Extras — click to choose (${addables.join(", ")})`}>
                                 ＋ Extras
                               </button>
-                              {p.note ? noteInput : null}
+                              {showNote ? noteInput : null}
                               </div>
                             )}
-                            {stripMats.length === 0 && warns.length === 0 && (hasMats || addables.length === 0) && p.note && (
+                            {stripMats.length === 0 && warns.length === 0 && (hasMats || addables.length === 0) && showNote && (
                               <div className="flex items-center" style={{ padding: "1px 12px 4px 26px" }}>
                                 {noteInput}
                               </div>
@@ -2746,6 +2753,7 @@ export default function App({ user, onSignOut }) {
           onMoveTo={(toAid) => moveProduct(a.id, p.id, toAid, sel.categories.find((c) => c.id === toAid)?.products.length ?? 0)}
           sampleOn={sampleByProduct.has(p.id)}
           onSample={() => toggleSample(a, ai, p)}
+          hasNote={!!p.note} onNote={() => setNoteOpen(p.id)}
           onFlag={() => setFlagCtx({ source: jobSource(sel, { name: areaLabel(a, ai) }, p) })}
           onDelete={() => setConfirmProd({ aid: a.id, pid: p.id })} />;
       })()}

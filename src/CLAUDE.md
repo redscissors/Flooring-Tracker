@@ -209,6 +209,12 @@ src/
                     # are the row's one grip; no tip line, the grab cursor is
                     # the affordance) or a right-click on the row (suppressed
                     # inside fields so native paste keeps working). Duplicate /
+                    # Add note ("Edit note" once one exists — issue 131: the
+                    # ONE per-line `note`, the same box the extras strip shows;
+                    # App.jsx `noteOpen` reveals + focuses it before any text
+                    # exists, so a misc line — which has no extras drawer to
+                    # reach it through — gets a note too; a box blurred empty
+                    # hides again) /
                     # Move to area (inline expand, no floating submenu) /
                     # Request sample (spec 2026-08-28 — toggles a shared
                     # sample_requests row for this line, see samples.js) / Flag
