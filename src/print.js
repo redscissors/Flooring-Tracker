@@ -23,25 +23,29 @@ export function printProduct(p, s) {
   const line = lineTotal(p, C, PC, num(p.priceSqft));
   const j = JOINTS.find((x) => x.v === num(p.grout?.joint))?.label;
   const mats = [];
+  // Employee (ADR 0018 amendment): a priced extra with no cost stays retail, and
+  // the strip says so. Off the lensed pair the flag reads the same on every
+  // tier — the caller shows it only under Employee.
+  const noCost = (price, cost) => num(price) > 0 && !(num(cost) > 0);
   if (p.type === "tile" && p.grout?.checked) {
     // Show selected grout even when the quantity can't be computed (e.g. tile
     // thickness/joint not entered) so it prints like mortar/backer instead of
     // silently vanishing; blank order/price when uncomputed.
-    mats.push({ kind: "Grout", key: `g|${p.grout.product}|${p.grout.color || ""}`, name: p.grout.product, spec: p.grout.color || "", sku: p.grout.sku || "", detail: [j ? `${j} joint` : "", G && G.round ? "penny round" : ""].filter(Boolean).join(" · "), inline: true, order: G ? G.order : 0, unit: G ? G.unit : (s.grouts[p.grout.product]?.unit || ""), exact: G ? G.exact : 0, price: G ? G.price : num(s.grouts[p.grout.product]?.price), cost: G && G.price > 0 ? G.order * G.price : 0 });
+    mats.push({ kind: "Grout", key: `g|${p.grout.product}|${p.grout.color || ""}`, name: p.grout.product, spec: p.grout.color || "", sku: p.grout.sku || "", detail: [j ? `${j} joint` : "", G && G.round ? "penny round" : ""].filter(Boolean).join(" · "), inline: true, order: G ? G.order : 0, unit: G ? G.unit : (s.grouts[p.grout.product]?.unit || ""), exact: G ? G.exact : 0, price: G ? G.price : num(s.grouts[p.grout.product]?.price), cost: G && G.price > 0 ? G.order * G.price : 0, noCost: noCost(s.grouts[p.grout.product]?.price, s.grouts[p.grout.product]?.cost) });
     const ck = num(p.grout.caulk);
-    if (ck > 0) mats.push({ kind: "Caulk", key: `c|${p.grout.product}|${p.grout.color || ""}`, name: `${p.grout.product} matching caulk`, spec: p.grout.color || "", sku: p.grout.caulkSku || "", detail: "", inline: true, order: ck, unit: "tubes", exact: ck, price: num(p.grout.caulkPrice), cost: ck * num(p.grout.caulkPrice) });
+    if (ck > 0) mats.push({ kind: "Caulk", key: `c|${p.grout.product}|${p.grout.color || ""}`, name: `${p.grout.product} matching caulk`, spec: p.grout.color || "", sku: p.grout.caulkSku || "", detail: "", inline: true, order: ck, unit: "tubes", exact: ck, price: num(p.grout.caulkPrice), cost: ck * num(p.grout.caulkPrice), noCost: noCost(p.grout.caulkPrice, p.grout.caulkCost) });
   }
-  if (M) mats.push({ kind: "Mortar", key: `m|${M.product}`, name: M.product, spec: "", detail: "", inline: true, order: M.order, unit: M.unit, exact: M.exact, price: M.price, cost: M.price > 0 ? M.order * M.price : 0 });
-  if (U && U.product) mats.push({ kind: underlayLabel(p.type), key: `u|${U.product}`, name: U.product, spec: "", detail: IN.length ? "+ install materials" : "", inline: true, order: U.order, unit: U.unit, exact: U.exact, price: U.price, cost: U.price > 0 ? U.order * U.price : 0 });
+  if (M) mats.push({ kind: "Mortar", key: `m|${M.product}`, name: M.product, spec: "", detail: "", inline: true, order: M.order, unit: M.unit, exact: M.exact, price: M.price, cost: M.price > 0 ? M.order * M.price : 0, noCost: noCost(M.price, M.unitCost) });
+  if (U && U.product) mats.push({ kind: underlayLabel(p.type), key: `u|${U.product}`, name: U.product, spec: "", detail: IN.length ? "+ install materials" : "", inline: true, order: U.order, unit: U.unit, exact: U.exact, price: U.price, cost: U.price > 0 ? U.order * U.price : 0, noCost: noCost(U.price, U.unitCost) });
   IN.forEach((m) => mats.push(m.kind === "mortar"
-    ? { kind: "Mortar", key: `m|${m.name}`, name: m.name, spec: "", detail: "", inline: false, order: m.order, unit: m.unit, exact: m.exact, price: m.price, cost: m.price > 0 ? m.order * m.price : 0 }
-    : { kind: "Install", key: `i|${m.name}`, name: m.name, spec: U?.product ? `installs ${U.product}` : "", sku: m.sku || "", detail: "", inline: false, order: m.order, unit: m.unit, exact: m.exact, price: m.price, cost: m.price > 0 ? m.order * m.price : 0 }));
+    ? { kind: "Mortar", key: `m|${m.name}`, name: m.name, spec: "", detail: "", inline: false, order: m.order, unit: m.unit, exact: m.exact, price: m.price, cost: m.price > 0 ? m.order * m.price : 0, noCost: noCost(m.price, m.unitCost) }
+    : { kind: "Install", key: `i|${m.name}`, name: m.name, spec: U?.product ? `installs ${U.product}` : "", sku: m.sku || "", detail: "", inline: false, order: m.order, unit: m.unit, exact: m.exact, price: m.price, cost: m.price > 0 ? m.order * m.price : 0, noCost: noCost(m.price, m.unitCost) }));
   // Add-on categories (ADR 0016) print inline under the product and roll into
   // the bottom breakdown, keyed by category + product name; the category name
   // is the material "kind" (no fixed KSHORT — labels fall back to it).
   for (const cat of (s.catalog?.categories || [])) {
     const A = getAttached(p, s, cat); if (!A) continue;
-    mats.push({ kind: cat.name, addon: true, key: `x|${cat.id}|${A.product}`, name: A.product, spec: "", sku: s.attached?.[cat.id]?.[A.product]?.sku || "", detail: "", inline: true, order: A.order, unit: A.unit, exact: A.exact, price: A.price, cost: A.price > 0 ? A.order * A.price : 0 });
+    mats.push({ kind: cat.name, addon: true, key: `x|${cat.id}|${A.product}`, name: A.product, spec: "", sku: s.attached?.[cat.id]?.[A.product]?.sku || "", detail: "", inline: true, order: A.order, unit: A.unit, exact: A.exact, price: A.price, cost: A.price > 0 ? A.order * A.price : 0, noCost: noCost(A.price, A.unitCost) });
   }
   const thickSuffix = p.type === "tile" && p.thickness ? ` × ${THICK.find((t) => t.v === String(p.thickness))?.label || p.thickness + '"'}` : "";
   const size = p.type === "tile" ? (p.sizeText ? `${p.sizeText}${thickSuffix}` : `${p.L}" × ${p.W}"${thickSuffix}`) : (p.sizeText || "");

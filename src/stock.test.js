@@ -462,6 +462,13 @@ test("stockBaseCompanion builds the catalog base at a 1:1 ratio, null when none"
   assert.equal(stockBaseCompanion(pigment("Latasil Caulk"), stock), null);
 });
 
+test("stockBaseCompanion carries the base row's cost, 0 when the book has none", () => {
+  const stock = baseStock();
+  assert.equal(stockBaseCompanion(pigment("Spectralock Part C"), stock).cost, 0);
+  const costed = stock.map((it) => (it.sku === "1518983" ? { ...it, cost: 80.5 } : it));
+  assert.equal(stockBaseCompanion(pigment("Spectralock Part C"), costed).cost, 80.5);
+});
+
 // --- ADR 0007: grout color families ----------------------------------------------
 
 const colorItem = (sku, product, color, price, over = {}) =>
@@ -520,12 +527,20 @@ test("groutSnapshotPatch bundles color SKU + caulk SKU/price; empty on a miss", 
     colorItem("1519067", "Laticrete Latasil Caulk", "Almond", 12.5),
   ];
   assert.deepEqual(groutSnapshotPatch(stock, "Laticrete Permacolor Color Kit", "Almond"),
-    { sku: "1519025", caulkSku: "1519067", caulkPrice: "12.5" });
+    { sku: "1519025", caulkSku: "1519067", caulkPrice: "12.5", caulkCost: "" });
   assert.deepEqual(groutSnapshotPatch(stock, "Laticrete Permacolor Color Kit", "Nope"),
-    { sku: "", caulkSku: "", caulkPrice: "" });
+    { sku: "", caulkSku: "", caulkPrice: "", caulkCost: "" });
   assert.deepEqual(groutSnapshotPatch([], "Laticrete Permacolor Color Kit", "Almond"),
-    { sku: "", caulkSku: "", caulkPrice: "" });
-  assert.deepEqual(groutSnapshotPatch(stock, "", "Almond"), { sku: "", caulkSku: "", caulkPrice: "" });
+    { sku: "", caulkSku: "", caulkPrice: "", caulkCost: "" });
+  assert.deepEqual(groutSnapshotPatch(stock, "", "Almond"), { sku: "", caulkSku: "", caulkPrice: "", caulkCost: "" });
+});
+
+test("groutSnapshotPatch stamps the caulk row's cost beside its price (ADR 0018 amendment)", () => {
+  const stock = [
+    colorItem("1519025", "Laticrete Permacolor Color Kit", "Almond", 5.39),
+    colorItem("1519067", "Laticrete Latasil Caulk", "Almond", 12.5, { cost: 6.1 }),
+  ];
+  assert.equal(groutSnapshotPatch(stock, "Laticrete Permacolor Color Kit", "Almond").caulkCost, "6.1");
 });
 
 // --- disabled switch (importer-upgrades spec, PR A) ----------------------------

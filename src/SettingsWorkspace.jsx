@@ -231,7 +231,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
   const setProduct = (cid, kind, pid, patch) => onChange({ ...catalog, companies: catalog.companies.map((co) => co.id === cid ? { ...co, [kind]: co[kind].map((p) => p.id === pid ? { ...p, ...patch } : p) } : co) });
   const setInstallItem = (cid, u, mid, patch) => setProduct(cid, "underlayments", u.id, { install: (u.install || []).map((m) => m.id === mid ? { ...m, ...patch } : m) });
   const delInstallItem = (cid, u, mid) => setProduct(cid, "underlayments", u.id, { install: (u.install || []).filter((m) => m.id !== mid) });
-  const newInstallItem = (kind) => kind === "mortar" ? { id: uid(), kind: "mortar", product: "", coverage: "" } : { id: uid(), kind: "custom", name: "", coverage: "", unit: "units", price: "", sku: "" };
+  const newInstallItem = (kind) => kind === "mortar" ? { id: uid(), kind: "mortar", product: "", coverage: "" } : { id: uid(), kind: "custom", name: "", coverage: "", unit: "units", price: "", cost: "", sku: "" };
   const addInstallItem = (cid, u, kind) => setProduct(cid, "underlayments", u.id, { install: [...(u.install || []), newInstallItem(kind)] });
   // Switching a row's kind rebuilds it (the field sets don't overlap), keeping
   // only the id and coverage.
@@ -244,7 +244,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
   // An attached product's chip default lives on ITS category (only reachable
   // while that category is the open one, so customCat is the right scope).
   const isCategoryDefault = (p) => !!customCat && String(customCat.default || "").trim().toLowerCase() === String(p?.name || "").trim().toLowerCase() && customCat.default !== "";
-  const startAdd = (companyId, kind) => { setAdding({ companyId, kind }); setSel(null); setConfirmDel(null); setRename(null); setDraft(kind === "attached" ? { name: "", coverage: "", unit: "units", price: "", sku: "", categoryId: cat } : kind === "grouts" ? { name: "", coverage: "", unit: "units", price: "", sku: "", book: "", base: null } : kind === "mortars" ? { name: "", tier1: "", tier2: "", tier3: "", unit: "units", price: "", sku: "" } : { name: "", coverage: "", unit: "rolls", price: "", sku: "", types: [] }); setError(""); };
+  const startAdd = (companyId, kind) => { setAdding({ companyId, kind }); setSel(null); setConfirmDel(null); setRename(null); setDraft(kind === "attached" ? { name: "", coverage: "", unit: "units", price: "", cost: "", sku: "", categoryId: cat } : kind === "grouts" ? { name: "", coverage: "", unit: "units", price: "", cost: "", sku: "", book: "", base: null } : kind === "mortars" ? { name: "", tier1: "", tier2: "", tier3: "", unit: "units", price: "", cost: "", sku: "" } : { name: "", coverage: "", unit: "rolls", price: "", cost: "", sku: "", types: [] }); setError(""); };
   const cancelAdd = () => { setAdding(null); setError(""); };
   const pickProduct = (companyId, kind, productId) => { setSel({ companyId, kind, productId }); setAdding(null); setConfirmDel(null); setRename(null); };
   const submitAdd = () => {
@@ -279,6 +279,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
     name: it.product || it.description,
     sku: it.sku,
     ...(it.price != null ? { price: String(it.price) } : it.priceSqft != null ? { price: String(it.priceSqft) } : {}),
+    ...(it.cost != null ? { cost: String(it.cost) } : {}),
     ...(adding.kind !== "mortars" && it.coverage != null ? { coverage: String(it.coverage) } : {}),
     ...(adding.kind === "grouts" ? { base: stockBaseCompanion(it, bookItems) } : {}),
     // A pick from the Grout & Caulk color matrix also suggests the color
@@ -538,7 +539,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
         {state !== "ok" && bookItems.length > 0 && (
           <div className="mt-1.5 max-w-xl">
             <StockSearch stock={bookItems} inp={inp} placeholder="Relink — search the stock books…"
-              onPick={(it) => it.bookId && setProduct(co.id, kind, p.id, { link: { bookId: it.bookId, sku: it.sku }, sku: it.sku, ...(it.price != null ? { price: String(it.price) } : {}) })} />
+              onPick={(it) => it.bookId && setProduct(co.id, kind, p.id, { link: { bookId: it.bookId, sku: it.sku }, sku: it.sku, ...(it.price != null ? { price: String(it.price) } : {}), ...(it.cost != null ? { cost: String(it.cost) } : {}) })} />
           </div>
         )}
       </>
@@ -560,6 +561,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
           <div className="w-36">{numField("Cov. sq ft/unit", g.coverage, (v) => setProduct(co.id, "grouts", g.id, { coverage: v }))}</div>
           <div className="w-24">{txtField("Unit", g.unit, (v) => setProduct(co.id, "grouts", g.id, { unit: v }))}</div>
           <div className="w-28">{numField("$/unit", g.price, (v) => setProduct(co.id, "grouts", g.id, { price: v }))}</div>
+          <div className="w-28">{numField("Cost", g.cost, (v) => setProduct(co.id, "grouts", g.id, { cost: v }))}</div>
           <div className="w-36">{txtField("SKU", g.sku || "", (v) => setProduct(co.id, "grouts", g.id, { sku: v }))}</div>
           <HelpTip className="pb-2.5" w={300} tip={<>Coverage is calibrated here — the book doesn't carry one. Enter the manufacturer's sq ft per unit for a <b>12×12 tile, 3/8" thick, 1/8" joint</b> (the baseline on the bag's coverage chart). Each job row rescales it for its own tile size, joint and thickness, then divides the row's sq ft plus waste by that coverage and rounds up.</>} />
         </div>
@@ -595,18 +597,19 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
         <div className="mt-6 max-w-2xl">
           <label className={lbl}>Base unit <span className="text-slate-400 font-normal normal-case tracking-normal">(a two-part grout's base — ordered with the kits and shown in the order summary; "per" = kits one base covers)</span></label>
           {g.base ? (
-            <div className="grid gap-1.5 items-end grid-cols-[1.6fr_.9fr_.6fr_.7fr_.7fr_auto]">
+            <div className="grid gap-1.5 items-end grid-cols-[1.6fr_.9fr_.6fr_.7fr_.7fr_.7fr_auto]">
               {txtField("Name", g.base.name, (v) => setProduct(co.id, "grouts", g.id, { base: { ...g.base, name: v } }))}
               {txtField("SKU", g.base.sku, (v) => setProduct(co.id, "grouts", g.id, { base: { ...g.base, sku: v } }))}
               {numField("Per", g.base.per, (v) => setProduct(co.id, "grouts", g.id, { base: { ...g.base, per: v } }))}
               {txtField("Unit", g.base.unit, (v) => setProduct(co.id, "grouts", g.id, { base: { ...g.base, unit: v } }))}
               {numField("$/unit", g.base.price, (v) => setProduct(co.id, "grouts", g.id, { base: { ...g.base, price: v } }))}
+              {numField("Cost", g.base.cost, (v) => setProduct(co.id, "grouts", g.id, { base: { ...g.base, cost: v } }))}
               <button onClick={() => setProduct(co.id, "grouts", g.id, { base: null })} title="Remove base unit" className="text-slate-300 hover:text-red-500 pb-2"><X size={14} /></button>
             </div>
           ) : (
             <div>
-              {bookItems.length > 0 && <StockSearch stock={bookItems} inp={inp} placeholder="Search the stock books for the base unit…" onPick={(it) => setProduct(co.id, "grouts", g.id, { base: { sku: it.sku, name: it.description || it.product, unit: it.unit || "units", price: it.price ?? 0, per: 1 } })} />}
-              <button onClick={() => setProduct(co.id, "grouts", g.id, { base: { sku: "", name: "", unit: "units", price: "", per: 1 } })} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"><Plus size={12} /> Base unit</button>
+              {bookItems.length > 0 && <StockSearch stock={bookItems} inp={inp} placeholder="Search the stock books for the base unit…" onPick={(it) => setProduct(co.id, "grouts", g.id, { base: { sku: it.sku, name: it.description || it.product, unit: it.unit || "units", price: it.price ?? 0, cost: it.cost ?? 0, per: 1 } })} />}
+              <button onClick={() => setProduct(co.id, "grouts", g.id, { base: { sku: "", name: "", unit: "units", price: "", cost: "", per: 1 } })} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"><Plus size={12} /> Base unit</button>
             </div>
           )}
         </div>
@@ -625,6 +628,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
         <div className="w-28">{numField('> 15"', m.tier3, (v) => setProduct(co.id, "mortars", m.id, { tier3: v }))}</div>
         <div className="w-24">{txtField("Unit", m.unit, (v) => setProduct(co.id, "mortars", m.id, { unit: v }))}</div>
         <div className="w-28">{numField("$/unit", m.price, (v) => setProduct(co.id, "mortars", m.id, { price: v }))}</div>
+        <div className="w-28">{numField("Cost", m.cost, (v) => setProduct(co.id, "mortars", m.id, { cost: v }))}</div>
         <div className="w-36">{txtField("SKU", m.sku || "", (v) => setProduct(co.id, "mortars", m.id, { sku: v }))}</div>
         <HelpTip className="pb-2.5" tip="Coverage sq ft per unit, tiered by the tile's longest side." />
       </div>
@@ -640,6 +644,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
         <div className="w-36">{numField("Cov. sq ft/unit", u.coverage, (v) => setProduct(co.id, "underlayments", u.id, { coverage: v }))}</div>
         <div className="w-24">{txtField("Unit", u.unit, (v) => setProduct(co.id, "underlayments", u.id, { unit: v }))}</div>
         <div className="w-28">{numField("$/unit", u.price, (v) => setProduct(co.id, "underlayments", u.id, { price: v }))}</div>
+        <div className="w-28">{numField("Cost", u.cost, (v) => setProduct(co.id, "underlayments", u.id, { cost: v }))}</div>
         <div className="w-36">{txtField("SKU", u.sku || "", (v) => setProduct(co.id, "underlayments", u.id, { sku: v }))}</div>
       </div>
       <div className="mt-4">{typeChips(u.types, (v) => setProduct(co.id, "underlayments", u.id, { types: v }))}</div>
@@ -664,6 +669,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
               {numField("Cov. sq ft/unit", m.coverage, (v) => setInstallItem(co.id, u, m.id, { coverage: v }))}
               {m.kind !== "mortar" && txtField("Unit", m.unit, (v) => setInstallItem(co.id, u, m.id, { unit: v }))}
               {m.kind !== "mortar" && numField("$/unit", m.price, (v) => setInstallItem(co.id, u, m.id, { price: v }))}
+              {m.kind !== "mortar" && numField("Cost", m.cost, (v) => setInstallItem(co.id, u, m.id, { cost: v }))}
               {m.kind !== "mortar" && txtField("SKU", m.sku || "", (v) => setInstallItem(co.id, u, m.id, { sku: v }))}
               <button onClick={() => delInstallItem(co.id, u, m.id)} title="Remove install material" className="text-slate-300 hover:text-red-500 pb-2"><X size={14} /></button>
             </div>
@@ -672,7 +678,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
             <button onClick={() => addInstallItem(co.id, u, "mortar")} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"><Plus size={12} /> Mortar</button>
             <button onClick={() => addInstallItem(co.id, u, "custom")} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"><Plus size={12} /> Other (screws, tape…)</button>
           </div>
-          {bookItems.length > 0 && <StockSearch stock={bookItems} inp={inp} placeholder="Add from the price book — screws, tape, sealer… (keeps the SKU for the order summary)" onPick={(it) => setProduct(co.id, "underlayments", u.id, { install: [...(u.install || []), { id: uid(), kind: "custom", name: it.description || it.product, coverage: it.coverage != null ? String(it.coverage) : "", unit: it.unit || "units", price: it.price != null ? String(it.price) : "", sku: it.sku }] })} />}
+          {bookItems.length > 0 && <StockSearch stock={bookItems} inp={inp} placeholder="Add from the price book — screws, tape, sealer… (keeps the SKU for the order summary)" onPick={(it) => setProduct(co.id, "underlayments", u.id, { install: [...(u.install || []), { id: uid(), kind: "custom", name: it.description || it.product, coverage: it.coverage != null ? String(it.coverage) : "", unit: it.unit || "units", price: it.price != null ? String(it.price) : "", cost: it.cost != null ? String(it.cost) : "", sku: it.sku }] })} />}
         </div>
       </div>
     </div>
@@ -686,6 +692,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
         {customCat?.math === "coverage" && <div className="w-36">{numField("Cov. sq ft/unit", p.coverage, (v) => setProduct(co.id, "attached", p.id, { coverage: v }))}</div>}
         <div className="w-24">{txtField("Unit", p.unit, (v) => setProduct(co.id, "attached", p.id, { unit: v }))}</div>
         <div className="w-28">{numField("$/unit", p.price, (v) => setProduct(co.id, "attached", p.id, { price: v }))}</div>
+        <div className="w-28">{numField("Cost", p.cost, (v) => setProduct(co.id, "attached", p.id, { cost: v }))}</div>
         <div className="w-36">{txtField("SKU", p.sku || "", (v) => setProduct(co.id, "attached", p.id, { sku: v }))}</div>
         <HelpTip className="pb-2.5" tip={<>{customCat?.math === "coverage" ? "One unit covers this many sq ft — quantities scale off the row's area plus waste." : "Ordered by a typed per-row quantity — no coverage math."} A SKU lets price-book imports refresh the price.</>} />
       </div>
@@ -700,7 +707,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
         <input autoFocus placeholder="Product name" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") submitAdd(); if (e.key === "Escape") { e.preventDefault(); cancelAdd(); } }} className={inp} />
         {draft.link && (
           <div className="flex items-center gap-2 text-xs text-slate-500 rounded-md border border-indigo-100 bg-indigo-50/40 px-2.5 py-1.5">
-            <Link2 size={12} className="shrink-0" /><span className="flex-1">Linked to <b>{bookName(draft.link.bookId)}</b> · <span className="ft-mono">{draft.link.sku}</span> — re-imports refresh the price</span>
+            <Link2 size={12} className="shrink-0" /><span className="flex-1">Linked to <b>{bookName(draft.link.bookId)}</b> · <span className="ft-mono">{draft.link.sku}</span> — re-imports refresh the price and cost</span>
             <button onClick={() => setDraft({ ...draft, link: null, _desc: undefined })} title="Don't link" className="text-slate-300 hover:text-red-500 shrink-0"><X size={13} /></button>
           </div>
         )}
@@ -708,18 +715,20 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
           <button onClick={() => setFamSeed({ bookId: draft.link.bookId, description: draft._desc, forDraft: true })} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">Set up color family…</button>
         )}
         {adding.kind === "attached" ? (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
             {customCat?.math === "coverage" && numField("Cov. sq ft/unit", draft.coverage, (v) => setDraft({ ...draft, coverage: v }))}
             {txtField("Unit", draft.unit, (v) => setDraft({ ...draft, unit: v }))}
             {numField("$/unit", draft.price, (v) => setDraft({ ...draft, price: v }))}
+            {numField("Cost", draft.cost, (v) => setDraft({ ...draft, cost: v }))}
             {txtField("SKU", draft.sku, (v) => setDraft({ ...draft, sku: v }))}
           </div>
         ) : adding.kind === "grouts" ? (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
               {numField("Cov. sq ft/unit", draft.coverage, (v) => setDraft({ ...draft, coverage: v }))}
               {txtField("Unit", draft.unit, (v) => setDraft({ ...draft, unit: v }))}
               {numField("$/unit", draft.price, (v) => setDraft({ ...draft, price: v }))}
+              {numField("Cost", draft.cost, (v) => setDraft({ ...draft, cost: v }))}
               {txtField("SKU", draft.sku, (v) => setDraft({ ...draft, sku: v }))}
             </div>
             {draft.book && (
@@ -736,20 +745,22 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
             )}
           </>
         ) : adding.kind === "mortars" ? (
-          <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-7 gap-2">
             {numField('Tile < 8"', draft.tier1, (v) => setDraft({ ...draft, tier1: v }))}
             {numField('8"–15"', draft.tier2, (v) => setDraft({ ...draft, tier2: v }))}
             {numField('> 15"', draft.tier3, (v) => setDraft({ ...draft, tier3: v }))}
             {txtField("Unit", draft.unit, (v) => setDraft({ ...draft, unit: v }))}
             {numField("$/unit", draft.price, (v) => setDraft({ ...draft, price: v }))}
+            {numField("Cost", draft.cost, (v) => setDraft({ ...draft, cost: v }))}
             {txtField("SKU", draft.sku, (v) => setDraft({ ...draft, sku: v }))}
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
               {numField("Cov. sq ft/unit", draft.coverage, (v) => setDraft({ ...draft, coverage: v }))}
               {txtField("Unit", draft.unit, (v) => setDraft({ ...draft, unit: v }))}
               {numField("$/unit", draft.price, (v) => setDraft({ ...draft, price: v }))}
+              {numField("Cost", draft.cost, (v) => setDraft({ ...draft, cost: v }))}
               {txtField("SKU", draft.sku, (v) => setDraft({ ...draft, sku: v }))}
             </div>
             {typeChips(draft.types, (v) => setDraft({ ...draft, types: v }))}
@@ -967,7 +978,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
               // its auto-pick, so stockBaseCompanion can hardcode per:1 — but
               // FamilyConfirm's radios let a user mark the COMMERCIAL row as
               // default, and a Commercial unit covers 4 kits (catalog.js:138).
-              const base = baseRow ? { sku: baseRow.sku, name: baseRow.description || baseRow.product, unit: baseRow.unit || "units", price: baseRow.price ?? 0, per: /commercial/i.test(baseRow.description || "") ? 4 : 1 } : null;
+              const base = baseRow ? { sku: baseRow.sku, name: baseRow.description || baseRow.product, unit: baseRow.unit || "units", price: baseRow.price ?? 0, cost: baseRow.cost ?? 0, per: /commercial/i.test(baseRow.description || "") ? 4 : 1 } : null;
               if (famSeed.forProduct) onChange({ ...next, companies: next.companies.map((co) => co.id === famSeed.forProduct.coId ? { ...co, grouts: co.grouts.map((g) => g.id === famSeed.forProduct.gId ? { ...g, book: fam.name, ...(base ? { base } : {}) } : g) } : co) });
               else { onChange(next); setDraft((d) => ({ ...d, book: fam.name, ...(base ? { base } : {}) })); }
               setFamSeed(null);

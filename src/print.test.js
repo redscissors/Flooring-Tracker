@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeSettings } from "./catalog.js";
+import { normalizeSettings, resolveCatalog } from "./catalog.js";
 import { newProduct } from "./model.js";
 import { printProduct, orderLineCost, printMatList, areaPrintLabel, orderEntryRow } from "./print.js";
 
@@ -214,4 +214,24 @@ test("orderEntryRow: the book's brand label rides the row for the fit ladder", (
   assert.ok(tight.desc.ext.includes("Glazzio"), "the extended text keeps the whole line");
   // No entry for the row's book → nothing changes.
   assert.equal(orderEntryRow(p, s, "Kitchen", 0, new Set(), new Map()).brand, "");
+});
+
+test("printProduct marks each extra the Employee lens could not reprice (priced, no cost)", () => {
+  const s2 = normalizeSettings({ catalog: undefined, wastePct: 10 });
+  s2.catalog.companies.forEach((co) => {
+    co.grouts.forEach((g) => { if (g.name === "PermaColor Select") { g.price = 20; g.cost = 12; } });
+    co.mortars.forEach((m) => { if (m.name === "ProLite") { m.price = 30; m.cost = 0; } });
+  });
+  const s3 = { ...s2, ...resolveCatalog(s2.catalog) };
+  const p = { ...newProduct(), type: "tile", qty: "100", L: "12", W: "12", priceSqft: "5",
+    grout: { ...newProduct().grout, checked: true, product: "PermaColor Select", caulk: "2", caulkPrice: "12.50", caulkCost: "" },
+    mortar: { checked: true, product: "ProLite", manual: "" } };
+  const byKind = Object.fromEntries(printProduct(p, s3).mats.map((m) => [m.kind, m]));
+  assert.equal(byKind.Grout.noCost, false);
+  assert.equal(byKind.Mortar.noCost, true);
+  assert.equal(byKind.Caulk.noCost, true);
+  // An unpriced extra is invisible in the totals, so it is never flagged.
+  s3.catalog.companies.forEach((co) => co.mortars.forEach((m) => { if (m.name === "ProLite") m.price = 0; }));
+  const s4 = { ...s3, ...resolveCatalog(s3.catalog) };
+  assert.equal(printProduct(p, s4).mats.find((m) => m.kind === "Mortar").noCost, false);
 });

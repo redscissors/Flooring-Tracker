@@ -80,6 +80,29 @@ const mapProducts = (proj, fn) => ({
   categories: (proj.categories || []).map((a) => ({ ...a, products: (a.products || []).map(fn) })),
 });
 
+// Employee on the extras (ADR 0018 amendment 2026-09-10): the catalog's
+// material maps carry the book row's cost beside the shop price, so a costed
+// extra reprices exactly like a costed flooring row; an uncosted one stays
+// retail (the screen flags it — never a pseudo-cost). Same guards as
+// tierUnitPrice: no price, no lens.
+const employeePrice = (cost, price) => (num(cost) > 0 && num(price) > 0 ? round2(num(cost) * EMPLOYEE_MARKUP) : null);
+const employeeEntry = (e) => { const up = employeePrice(e?.cost, e?.price); return up == null ? e : { ...e, price: up }; };
+const hasCost = (e) => num(e?.cost) > 0 && num(e?.price) > 0;
+const anyMaterialCost = (s) =>
+  Object.values(s?.grouts || {}).some((g) => hasCost(g) || hasCost(g?.base)) ||
+  Object.values(s?.mortars || {}).some(hasCost) ||
+  Object.values(s?.underlayments || {}).some((u) => hasCost(u) || (u?.install || []).some(hasCost)) ||
+  Object.values(s?.attached || {}).some((m) => Object.values(m || {}).some(hasCost));
+// Identity when nothing carries a cost, so an Employee job on a catalog that
+// predates costs pays nothing and reads exactly as before.
+const employeeSettings = (s) => !anyMaterialCost(s) ? s : {
+  ...s,
+  grouts: mapVals(s.grouts, (g) => ({ ...employeeEntry(g), ...(g.base ? { base: employeeEntry(g.base) } : {}) })),
+  mortars: mapVals(s.mortars, employeeEntry),
+  underlayments: mapVals(s.underlayments, (u) => ({ ...employeeEntry(u), install: (u.install || []).map((d) => (d.kind === "mortar" ? d : employeeEntry(d))) })),
+  attached: mapVals(s.attached, (m) => mapVals(m, employeeEntry)),
+};
+
 const anyTierPrice = (proj) => (proj.categories || []).some((a) => (a.products || []).some(hasTierPrice));
 
 // The tier-priced { proj, settings } pair. Identity (same references) for
@@ -95,9 +118,15 @@ export function tierView(proj, settings) {
   if (tier === "employee") {
     const mapped = mapProducts(proj, (p) => {
       const up = tierUnitPrice(p, "employee", 0);
-      return up == null ? p : { ...p, priceSqft: String(up) };
+      const ck = employeePrice(p.grout?.caulkCost, p.grout?.caulkPrice);
+      if (up == null && ck == null) return p;
+      return {
+        ...p,
+        ...(up != null ? { priceSqft: String(up) } : {}),
+        ...(ck != null ? { grout: { ...p.grout, caulkPrice: String(ck) } } : {}),
+      };
     });
-    return { proj: mapped, settings, tier, pct };
+    return { proj: mapped, settings: employeeSettings(settings), tier, pct };
   }
   const f = 1 - pct / 100;
   // Rows go through tierUnitPrice so the grid's per-row price and the mapped

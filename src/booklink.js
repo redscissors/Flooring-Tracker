@@ -209,7 +209,7 @@ export function resolveFamily(fam, itemsByBook) {
       const token = matchRule(fam.caulk, it.description);
       if (!token) continue;
       const { num, name } = parseColorToken(token);
-      const entry = { sku: it.sku, price: numOr(it.price) };
+      const entry = { sku: it.sku, price: numOr(it.price), cost: numOr(it.cost) };
       if (num && !byNum.has(num)) byNum.set(num, entry);
       if (name && !byName.has(name.toLowerCase())) byName.set(name.toLowerCase(), entry);
     }
@@ -240,7 +240,7 @@ export function projectFamilies(bookFamilies, itemsByBook) {
     for (const c of colors) {
       out.push({ ...flags, sku: c.sku, sheet: "Grout & Caulk", section: `bookfam:${fam.id}`, product: fam.name, color: c.color, price: c.price, unit: c.unit, description: "" });
       const ck = caulkByColor.get(c.color.toLowerCase());
-      if (ck) out.push({ ...flags, sku: ck.sku, sheet: "Grout & Caulk", section: `bookfam:${fam.id}`, product: `${fam.name} Caulk`, color: c.color, price: ck.price, unit: "", description: "" });
+      if (ck) out.push({ ...flags, sku: ck.sku, sheet: "Grout & Caulk", section: `bookfam:${fam.id}`, product: `${fam.name} Caulk`, color: c.color, price: ck.price, cost: ck.cost, unit: "", description: "" });
     }
     for (const b of bases) out.push({ ...flags, sku: b.sku, sheet: "Grout & Caulk", section: "Bulk & Base Units", product: fam.name, color: "", price: numOr(b.price), unit: str(b.unit), description: str(b.description) });
   }
@@ -266,6 +266,11 @@ export function linkedItemState(link, itemsByBook) {
   return !it ? "missing" : it.active === false ? "inactive" : "ok";
 }
 
+// Cost rides the price refresh silently: it is the Employee lens's input, not
+// a number the team quotes, so it never logs a `changes` entry. A book row
+// without a cost leaves the catalog's own cost standing.
+const costDrifts = (have, incoming) => numOr(incoming) != null && Math.abs((parseFloat(have) || 0) - incoming) > 0.005;
+
 export function syncLinkedCatalog(catalog, bookId, items) {
   const live = new Map(liveRows(items).map((it) => [it.sku, it]));
   const all = new Map((items || []).map((it) => [it.sku, it]));
@@ -284,6 +289,7 @@ export function syncLinkedCatalog(catalog, bookId, items) {
         if (Math.abs(from - to) > 0.005) changes.push({ name: p.name, from, to, sku: it.sku });
         next = { ...next, price: to, unit, sku: it.sku };
       }
+      if (costDrifts(p.cost, it.cost)) next = { ...next, cost: it.cost };
     }
     // A grout base companion linked into this book rides the same refresh.
     if (next.base && str(next.base.sku) && all.has(str(next.base.sku))) {
@@ -292,6 +298,7 @@ export function syncLinkedCatalog(catalog, bookId, items) {
         changes.push({ name: `${next.name} — base`, from: parseFloat(next.base.price) || 0, to: numOr(b.price, 0), sku: b.sku });
         next = { ...next, base: { ...next.base, price: numOr(b.price, 0) } };
       }
+      if (b && costDrifts(next.base.cost, b.cost)) next = { ...next, base: { ...next.base, cost: b.cost } };
     }
     if (next !== p) dirty = true;
     return next;

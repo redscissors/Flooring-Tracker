@@ -114,7 +114,7 @@ Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
            sku, L, W, thickness, sizeText, brandColor, priceSqft,
            qtyType:"sqft|count", qty,
            cartonSf, cartonPc, cartonUnit, cartonManual, note,
-           grout:{checked,product,color,sku,joint,manual,caulk,caulkSku,caulkPrice}, mortar:{checked,product,manual},
+           grout:{checked,product,color,sku,joint,manual,caulk,caulkSku,caulkPrice,caulkCost}, mortar:{checked,product,manual},
            // grout.sku = the picked color's own price-book SKU, snapshotted at
            // color-pick time when the grout is linked to a book family
            // (ADR 0007); display-only, outranks the catalog product SKU on
@@ -122,7 +122,10 @@ Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
            // section's color-matched caulk (the matrix's caulk column in that
            // color), snapshotted at the same moment; the SKU shows on caulk
            // lines and tubes × caulkPrice joins the estimate totals (rows
-           // without a snapshot price cost $0, as before).
+           // without a snapshot price cost $0, as before). grout.caulkCost =
+           // the same caulk row's book cost (ADR 0018 amendment 2026-09-10),
+           // the Employee lens's input for the caulk line; blank on rows
+           // picked before it existed, which stay retail under Employee.
            underlay:{checked,product,manual,install},
            attached:{ [categoryId]: {checked,product,manual} },
            freight: "" | "off",
@@ -198,6 +201,12 @@ Att      { id, name, type, size }   // file bytes live in Storage, not here
 Settings { wastePct, mortars{...}, grouts{...},
            pricing: { builderPct: 8, salePct: 10, wediBuilderPct: 18,
                       quickMarkups: [30,50,100], descLimit: 30 } }
+           // Every catalog material entry (grout, mortar, underlayment, custom
+           // install item, add-on, grout base companion) carries `cost` beside
+           // `price` (ADR 0018 amendment 2026-09-10): filled from the linked
+           // book row's Base Price on pick and re-import sync, or hand-typed
+           // in Settings; default 0. Employee prices a costed extra at
+           // cost × 1.06; an uncosted one stays retail and is flagged.
            // builderPct/salePct = Builder/Sale tier %s (ADR 0018).
            // wediBuilderPct = wedi's own Builder discount (issue 066) — 18
            // resolves to the owner's × 0.82 stamp, which every wedi line
@@ -254,8 +263,9 @@ but unread.
 underlayment products carry an optional price-book `sku` — a display/refresh
 attribute only (jobs still link materials by name, and nothing reads the stock
 table at calc time). It shows on every material line in the order summary and
-print, and lets the import refresh that product's price by exact SKU. A grout
-product can also carry a `base` companion `{ sku, name, unit, price, per }` —
+print, and lets the import refresh that product's price (and, since ADR 0018's
+2026-09-10 amendment, its cost) by exact SKU. A grout
+product can also carry a `base` companion `{ sku, name, unit, price, cost, per }` —
 the two-part grout's base unit — ordered from the **consolidated** kit counts
 (`ceil(total kits / per)`, Commercial unit = per 4) via `groutBaseList`, and
 shown with the grout family in the order summary, estimate breakdown, and
