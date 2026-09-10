@@ -106,7 +106,9 @@ src/
                     # the move-time staleness check)
   print.js          # print/order math: `printProduct`, `orderLineCost`, `lineTotal`,
                     # `printAreaFloor`, `areaPrintLabel`, `orderEntryRow`,
-                    # `ESTIMATE_PRINT_LAYOUT`… (print.test.js)
+                    # `ESTIMATE_PRINT_LAYOUT`… (print.test.js). Each
+                    # printProduct mat carries `noCost` (priced, no cost) so
+                    # the extras strip can say why Employee left it at retail
   options.js        # quote options (ADR 0031): fixed slots A–L (letters live in
                     # model.js, re-exported here; A–C → A–F 2026-08-19, → A–L
                     # 2026-08-26) + the ONE shared option tint (per-slot colors
@@ -385,7 +387,16 @@ src/
                     # columns eating the detail pane; the low ZOOM_FLOOR is a
                     # sub-phone backstop (owner: scale first, revert if the
                     # type gets too small), below which the overlay scrolls
-  catalog.js        # settings normalization + material math + shared catalog
+  catalog.js        # settings normalization + material math + shared catalog.
+                    # Every material entry carries `cost` beside `price` (ADR
+                    # 0018 amendment 2026-09-10) and the getters expose it as
+                    # `unitCost` — the Employee lens's input, never the totals'
+  pricing.js        # price tiers as a display lens (ADR 0018): `tierView` maps
+                    # the raw { project, settings } pair to the tier-priced pair
+                    # every total/print reads. Employee = cost × 1.06 on costed
+                    # flooring rows AND (2026-09-10 amendment) on every costed
+                    # extra in the material maps + the row caulk snapshot;
+                    # identity for retail and for a catalog with no costs
   pricebook.js      # generic mapped import for registry books (ADR 0009) +
                     # vendor template recognizers (VTC EFT, ERP Vendor SKU
                     # Analysis); the retired shop workbook's hand-built
@@ -435,10 +446,12 @@ src/
                     # the Settings/pricebook lazy chunk
   stock.js          # stock-item search / SKU fill snapshot / drift / base
                     # companions / grout families, over stock-shaped items
-                    # (the ADR 0027 book items + projected family rows)
+                    # (the ADR 0027 book items + projected family rows).
+                    # groutSnapshotPatch stamps caulkCost beside caulkPrice
   booklink.js       # catalog ↔ ERP stock-book links (ADR 0027): link/family rule shapes,
                     # series-rule + color-token parsing, family resolution + projection into
-                    # stock-shaped items, import-time sync, migration link proposals
+                    # stock-shaped items, import-time sync (price + cost, the
+                    # cost silently — no `changes` entry), migration link proposals
   orderbook.js      # special-order ("order") book helpers (ADR 0009): item shape,
                     # cost/markup/sell (`bookNoMarkup` — the sells-at-cost red —
                     # skips a book `bookPublishesPrice` says maps a `price`

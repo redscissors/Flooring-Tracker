@@ -461,3 +461,9 @@ test("normC keeps a stored distance and drops a malformed one", () => {
   assert.equal(normC({ distance: { minutes: 27 } }).distance, null);
   assert.equal(normC({}).distance, null);
 });
+
+test("normP carries the caulk cost snapshot beside caulkPrice, blank when absent", () => {
+  assert.equal(normP({ grout: { caulkPrice: "9.50", caulkCost: "5.25" } }).grout.caulkCost, "5.25");
+  assert.equal(normP({ grout: { caulkPrice: "9.50" } }).grout.caulkCost, "");
+  assert.equal(newProduct().grout.caulkCost, "");
+});

@@ -117,9 +117,9 @@ export function mortarExact(p, s) {
 export function getMortar(p, s) {
   if (p.type !== "tile" || !p.mortar.checked) return null;
   const m = s.mortars[p.mortar.product] || {};
-  if (p.mortar.manual !== "" && p.mortar.manual != null) { const v = num(p.mortar.manual); return { exact: v, order: v, unit: m.unit, price: num(m.price), product: p.mortar.product }; }
+  if (p.mortar.manual !== "" && p.mortar.manual != null) { const v = num(p.mortar.manual); return { exact: v, order: v, unit: m.unit, price: num(m.price), unitCost: num(m.cost), product: p.mortar.product }; }
   const ex = mortarExact(p, s); if (ex == null) return null;
-  return { exact: ex, order: ceilQty(ex), unit: m.unit, price: num(m.price), product: p.mortar.product };
+  return { exact: ex, order: ceilQty(ex), unit: m.unit, price: num(m.price), unitCost: num(m.cost), product: p.mortar.product };
 }
 
 // A penny round (or any round chip) leaves grout at the four corners its circle
@@ -147,9 +147,9 @@ export function groutExact(p, s) {
 export function getGrout(p, s) {
   if (p.type !== "tile" || !p.grout.checked) return null;
   const g = s.grouts[p.grout.product] || {};
-  if (p.grout.manual !== "" && p.grout.manual != null) { const v = num(p.grout.manual); return { exact: v, order: v, unit: g.unit, price: num(g.price), sku: g.sku || "", product: p.grout.product, color: p.grout.color, round: isRoundTile(p) }; }
+  if (p.grout.manual !== "" && p.grout.manual != null) { const v = num(p.grout.manual); return { exact: v, order: v, unit: g.unit, price: num(g.price), unitCost: num(g.cost), sku: g.sku || "", product: p.grout.product, color: p.grout.color, round: isRoundTile(p) }; }
   const ex = groutExact(p, s); if (ex == null) return null;
-  return { exact: ex, order: ceilQty(ex), unit: g.unit, price: num(g.price), sku: g.sku || "", product: p.grout.product, color: p.grout.color, round: isRoundTile(p) };
+  return { exact: ex, order: ceilQty(ex), unit: g.unit, price: num(g.price), unitCost: num(g.cost), sku: g.sku || "", product: p.grout.product, color: p.grout.color, round: isRoundTile(p) };
 }
 
 // The base unit a two-part grout drags along (ADR 0006). One base per grout kit,
@@ -251,9 +251,9 @@ export function getUnderlay(p, s) {
   // state survives a type switch.
   if (p.type === "misc" || !p.underlay?.checked) return null;
   const u = s.underlayments?.[p.underlay.product] || {};
-  if (p.underlay.manual !== "" && p.underlay.manual != null) { const v = num(p.underlay.manual); return { exact: v, order: v, unit: u.unit, price: num(u.price), product: p.underlay.product }; }
+  if (p.underlay.manual !== "" && p.underlay.manual != null) { const v = num(p.underlay.manual); return { exact: v, order: v, unit: u.unit, price: num(u.price), unitCost: num(u.cost), product: p.underlay.product }; }
   const ex = underlayExact(p, s); if (ex == null) return null;
-  return { exact: ex, order: ceilQty(ex), unit: u.unit, price: num(u.price), product: p.underlay.product };
+  return { exact: ex, order: ceilQty(ex), unit: u.unit, price: num(u.price), unitCost: num(u.cost), product: p.underlay.product };
 }
 
 // The extra materials to put the underlayment itself down (mortar bed, screws),
@@ -282,9 +282,9 @@ export function getUnderlayInstall(p, s) {
       const name = p.underlay.installMortars?.[d.id] || d.product;
       if (!name) continue;
       const m = s.mortars[name];
-      out.push({ kind: "mortar", defId: d.id, name, exact, order: ceilQty(exact), unit: m?.unit ?? "units", price: num(m?.price) });
+      out.push({ kind: "mortar", defId: d.id, name, exact, order: ceilQty(exact), unit: m?.unit ?? "units", price: num(m?.price), unitCost: num(m?.cost) });
     } else {
-      out.push({ kind: "custom", defId: d.id, name: d.name, sku: d.sku || "", exact, order: ceilQty(exact), unit: d.unit, price: num(d.price) });
+      out.push({ kind: "custom", defId: d.id, name: d.name, sku: d.sku || "", exact, order: ceilQty(exact), unit: d.unit, price: num(d.price), unitCost: num(d.cost) });
     }
   }
   return out.length ? out : null;
@@ -377,19 +377,19 @@ const SEED_UNDERLAYMENTS = [
 const baseCompanion = (b) => {
   const name = String(b?.name ?? "").trim(), sku = String(b?.sku ?? "").trim();
   if (!name && !sku) return null;
-  return { sku, name, unit: b?.unit ?? "units", price: b?.price ?? 0, per: num(b?.per) > 0 ? num(b.per) : 1 };
+  return { sku, name, unit: b?.unit ?? "units", price: b?.price ?? 0, cost: b?.cost ?? 0, per: num(b?.per) > 0 ? num(b.per) : 1 };
 };
 const skuField = (p) => String(p?.sku ?? "").trim();
 // `book` (ADR 0007): the price-book grout family this product offers its
 // colors from — the stock items' `product` name. Empty = standard color list.
-const groutFields = (g) => ({ coverage: g?.coverage ?? 0, unit: g?.unit ?? "units", price: g?.price ?? 0, sku: skuField(g), book: String(g?.book ?? "").trim(), base: baseCompanion(g?.base), link: normLink(g?.link) });
-const mortarFields = (m) => ({ tier1: m?.tier1 ?? 0, tier2: m?.tier2 ?? 0, tier3: m?.tier3 ?? 0, unit: m?.unit ?? "units", price: m?.price ?? 0, sku: skuField(m), link: normLink(m?.link) });
+const groutFields = (g) => ({ coverage: g?.coverage ?? 0, unit: g?.unit ?? "units", price: g?.price ?? 0, cost: g?.cost ?? 0, sku: skuField(g), book: String(g?.book ?? "").trim(), base: baseCompanion(g?.base), link: normLink(g?.link) });
+const mortarFields = (m) => ({ tier1: m?.tier1 ?? 0, tier2: m?.tier2 ?? 0, tier3: m?.tier3 ?? 0, unit: m?.unit ?? "units", price: m?.price ?? 0, cost: m?.cost ?? 0, sku: skuField(m), link: normLink(m?.link) });
 // Items stored before the mortar link existed have no `kind` — they normalize
 // to "custom" with their fields intact.
 const installItem = (m) => m?.kind === "mortar"
   ? ({ id: m?.id || cid(), kind: "mortar", product: String(m?.product ?? "").trim(), coverage: m?.coverage ?? 0 })
-  : ({ id: m?.id || cid(), kind: "custom", name: String(m?.name ?? "").trim(), coverage: m?.coverage ?? 0, unit: m?.unit ?? "units", price: m?.price ?? 0, sku: skuField(m) });
-const underlayFields = (u) => ({ coverage: u?.coverage ?? 0, unit: u?.unit ?? "rolls", price: u?.price ?? 0, sku: skuField(u), types: (Array.isArray(u?.types) ? u.types : []).filter((t) => FLOOR_TYPES.includes(t)), install: (Array.isArray(u?.install) ? u.install : []).map(installItem), link: normLink(u?.link) });
+  : ({ id: m?.id || cid(), kind: "custom", name: String(m?.name ?? "").trim(), coverage: m?.coverage ?? 0, unit: m?.unit ?? "units", price: m?.price ?? 0, cost: m?.cost ?? 0, sku: skuField(m) });
+const underlayFields = (u) => ({ coverage: u?.coverage ?? 0, unit: u?.unit ?? "rolls", price: u?.price ?? 0, cost: u?.cost ?? 0, sku: skuField(u), types: (Array.isArray(u?.types) ? u.types : []).filter((t) => FLOOR_TYPES.includes(t)), install: (Array.isArray(u?.install) ? u.install : []).map(installItem), link: normLink(u?.link) });
 const seedInstallFor = (name) => SEED_UNDERLAYMENTS.find((u) => u.install && normName(u.name) === normName(name))?.install;
 const seedUnderlay = (u) => ({ id: cid(), name: u.name, enabled: true, ...underlayFields(u) });
 const seedUnderlaysFor = (companyName) => SEED_UNDERLAYMENTS.filter((u) => u.company === companyName).map(seedUnderlay);
@@ -641,7 +641,7 @@ export function updateCategory(catalog, categoryId, patch) {
   return { ...catalog, categories: (catalog?.categories || []).map((c) => c.id === categoryId ? normCategory({ ...c, ...patch, id: c.id }) : c) };
 }
 
-const attachedFields = (p) => ({ categoryId: String(p?.categoryId ?? ""), coverage: p?.coverage ?? 0, unit: p?.unit ?? "units", price: p?.price ?? 0, sku: skuField(p), link: normLink(p?.link) });
+const attachedFields = (p) => ({ categoryId: String(p?.categoryId ?? ""), coverage: p?.coverage ?? 0, unit: p?.unit ?? "units", price: p?.price ?? 0, cost: p?.cost ?? 0, sku: skuField(p), link: normLink(p?.link) });
 const normAttachedProduct = (p) => ({ id: p?.id || cid(), name: p?.name || "", enabled: p?.enabled !== false, ...attachedFields(p) });
 
 // Attached names are unique within their category (a "RENO-U" trim and a
@@ -677,14 +677,14 @@ export function getAttached(p, s, category) {
   if (!a || !a.checked) return null;
   const prod = (s.attached?.[category.id] || {})[a.product];
   if (!prod) return null;
-  const unit = prod.unit || "units", price = num(prod.price), product = a.product;
-  if (category.math === "manual") { const v = num(a.manual); return { exact: v, order: v, unit, price, product }; }
-  if (a.manual !== "" && a.manual != null) { const v = num(a.manual); return { exact: v, order: v, unit, price, product }; }
+  const unit = prod.unit || "units", price = num(prod.price), unitCost = num(prod.cost), product = a.product;
+  if (category.math === "manual") { const v = num(a.manual); return { exact: v, order: v, unit, price, unitCost, product }; }
+  if (a.manual !== "" && a.manual != null) { const v = num(a.manual); return { exact: v, order: v, unit, price, unitCost, product }; }
   if (p.qtyType !== "sqft") return null;
-  const sqft = num(p.qty); if (!sqft) return { exact: 0, order: 0, unit, price, product };
+  const sqft = num(p.qty); if (!sqft) return { exact: 0, order: 0, unit, price, unitCost, product };
   const cov = num(prod.coverage); if (!cov) return null;
   const exact = sqft * wasteFor(p, s) / cov;
-  return { exact, order: ceilQty(exact), unit, price, product };
+  return { exact, order: ceilQty(exact), unit, price, unitCost, product };
 }
 
 // Whole-job add-on materials, aggregated one line per (category, product):

@@ -72,3 +72,36 @@ which needs the row's cost, not a percentage.
   covers costed lines — adding a cost column to the shop stock book would
   widen its coverage (future work, as is a per-builder discount override and
   preferring a vendor's published contractor `tierPrice`).
+
+## Amendment (2026-09-10): Employee reprices costed extras
+
+Decision item 4 left the extras — grout, base unit, caulk, mortar,
+underlayment, install materials, add-ons — at retail under Employee because
+the catalog's material maps carried a `price` and nothing else. Every linked
+material now points at an ERP stock-book row that carries "Base Price (Cost)",
+so the cost exists; it was simply never stored beside the price. Owner
+request 2026-09-10: "add a cost field to the extras so employee pricing works".
+
+- **Every extra carries a `cost`** beside its `price`: grout, mortar,
+  underlayment, custom install item, add-on, and the grout base companion
+  (`catalog.js` field sets, default 0 — no migration, old records stay valid).
+  A job row's caulk snapshot gains `grout.caulkCost` beside `caulkPrice`
+  (`normP`, blank when absent).
+- **The book fills it.** Every Settings pick that writes `price` from a book
+  row writes `cost` from the same row; the re-import sync
+  (`booklink.js` `syncLinkedCatalog`) refreshes cost with price on linked
+  products and base companions — silently, never a `changes` entry, since cost
+  is the lens's input and not a number the team quotes. A book row without a
+  cost leaves the catalog's own cost standing. A **Cost** box beside each
+  $/unit box takes a hand-typed value for anything unlinked. The color-pick
+  snapshot (`groutSnapshotPatch`) stamps `caulkCost` from the family's caulk
+  row.
+- **The Employee lens reprices them** (`pricing.js` `tierView`): a priced entry
+  with a cost becomes `round2(cost × 1.06)` — the same rule as a costed
+  flooring row — across the material maps and the row caulk snapshot. An
+  uncosted entry stays retail, and the extras strip marks it **Retail** the
+  way the price cell marks an uncosted line. When no extra carries a cost the
+  settings object passes through by identity, so a pre-amendment catalog reads
+  exactly as before.
+- Item 3 is unchanged: Builder/Sale/Custom scale the retail price and ignore
+  cost. Item 5 (order entry), item 6 (the tag) and freight are unchanged.

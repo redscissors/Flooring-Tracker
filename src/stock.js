@@ -456,7 +456,7 @@ export function stockBaseVariant(item, stock) {
 export function stockBaseCompanion(item, stock) {
   const base = stockCompanionBase(item, stock);
   if (!base) return null;
-  return { sku: base.sku, name: base.description || base.product, unit: base.unit || "units", price: base.price ?? 0, per: 1 };
+  return { sku: base.sku, name: base.description || base.product, unit: base.unit || "units", price: base.price ?? 0, cost: base.cost ?? 0, per: 1 };
 }
 
 // --- Grout color families (ADR 0007) ----------------------------------------------
@@ -508,6 +508,6 @@ export function groutCaulkItem(stock, family, color) {
 export function groutSnapshotPatch(stock, family, color) {
   const it = groutColorItem(stock, family, color);
   const ck = groutCaulkItem(stock, family, color);
-  return { sku: it ? it.sku : "", caulkSku: ck ? ck.sku : "", caulkPrice: ck && ck.price != null ? String(ck.price) : "" };
+  return { sku: it ? it.sku : "", caulkSku: ck ? ck.sku : "", caulkPrice: ck && ck.price != null ? String(ck.price) : "", caulkCost: ck && ck.cost != null ? String(ck.cost) : "" };
 }
 

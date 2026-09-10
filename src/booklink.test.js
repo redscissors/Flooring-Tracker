@@ -100,7 +100,7 @@ const SHEET1_ITEMS = [
 // exports carry caulk colors a family never uses. LAT53 is the messy real
 // row (glued "10.3 OZ" before the frame's own "10.3 OZ" suffix repeats).
 const CAULK1_ITEMS = [
-  { sku: "LAT85", active: true, disabled: false, description: "10.3 OZ LATASIL 85 ALMOND - 100% SILICONE CAULK", price: 12.25, unit: "EA" },
+  { sku: "LAT85", active: true, disabled: false, description: "10.3 OZ LATASIL 85 ALMOND - 100% SILICONE CAULK", price: 12.25, cost: 6.1, unit: "EA" },
   { sku: "LAT44", active: true, disabled: false, description: "10.3 OZ LATASIL  44 BRIGHT WHITE - 100% SILICONE CAULK", price: 12.25, unit: "EA" },
   { sku: "LATCLR", active: true, disabled: false, description: "10.3 OZ LATASIL CLEAR - 100% SILICONE CAULK", price: 12.25, unit: "EA" },
   { sku: "LAT53", active: true, disabled: false, description: "10.3 OZ LATASIL 53 TWILIGHT BLUE 10.3 OZ- 100% SILICONE CAULK", price: 12.75, unit: "EA" },
@@ -290,7 +290,7 @@ test("projectFamilies output works unchanged through stock.js's grout & base-uni
   assert.equal(groutCaulkItem(projected, "SpectraLock Pro", "Natural Grey").sku, "LAT24");
 
   assert.deepEqual(groutSnapshotPatch(projected, "SpectraLock Pro", "Natural Grey"), {
-    sku: "PC24", caulkSku: "LAT24", caulkPrice: "12.25",
+    sku: "PC24", caulkSku: "LAT24", caulkPrice: "12.25", caulkCost: "",
   });
 
   // A pigment-shaped item (any raw book row mentioning "SpectraLock ... Part C")
@@ -451,14 +451,14 @@ test("resolveFamily never lists base-smelling rows as colors even when they matc
 // epsilon pair, and two rows for the family cache-refresh case. GONE-SKU is
 // deliberately absent (a linked SKU the ERP dropped).
 const B1_ITEMS = [
-  { sku: "GSKU", active: true, price: 12, unit: "BX", description: "Grout main" },
+  { sku: "GSKU", active: true, price: 12, cost: 7.2, unit: "BX", description: "Grout main" },
   { sku: "GSKU2", active: true, price: 20, unit: "EA", description: "Grout w/ base" },
-  { sku: "BASE-SKU", active: true, price: 215, unit: "EA", description: "Base unit" },
+  { sku: "BASE-SKU", active: true, price: 215, cost: 120, unit: "EA", description: "Base unit" },
   { sku: "EPSKU", active: true, price: 10.004, unit: "EA", description: "Epsilon grout" },
   { sku: "EPSKU2", active: true, price: 10.006, unit: "EA", description: "Epsilon grout 2" },
-  { sku: "MSKU", active: true, price: 33, unit: "bg", description: "Mortar main" },
+  { sku: "MSKU", active: true, price: 33, cost: 20, unit: "bg", description: "Mortar main" },
   { sku: "USKU", active: true, price: 15, unit: "roll", description: "Underlayment main" },
-  { sku: "ASKU", active: true, price: 9.5, unit: "EA", description: "Attached main" },
+  { sku: "ASKU", active: true, price: 9.5, cost: 5, unit: "EA", description: "Attached main" },
   { sku: "TG10", active: true, price: 5, unit: "EA", description: "9LB TESTGROUT 10 RED PART C" },
   { sku: "TG20", active: true, price: 6, unit: "EA", description: "9LB TESTGROUT 20 BLUE PART C" },
   { sku: "INACTIVE-SKU", active: false, price: 99, unit: "EA", description: "Inactive item" },
@@ -788,4 +788,43 @@ test("applyProposals stamps link on proposed products only, round-tripping throu
   assert.equal(none.link, null);
   const alreadyLinked = next.companies[0].grouts.find((p) => p.id === "p-linked");
   assert.deepEqual(alreadyLinked.link, { bookId: "b1", sku: "X1" });
+});
+
+// --- Extras cost (ADR 0018 amendment 2026-09-10) ------------------------------
+
+test("syncLinkedCatalog refreshes a linked product's cost from the book row", () => {
+  const { catalog, dirty } = syncLinkedCatalog(makeSyncCatalog(), "b1", B1_ITEMS);
+  const co = catalog.companies[0];
+  assert.equal(co.grouts.find((p) => p.id === "g-ok").cost, 7.2);
+  assert.equal(co.mortars.find((p) => p.id === "m-ok").cost, 20);
+  assert.equal(co.attached.find((p) => p.id === "a-ok").cost, 5);
+  assert.equal(co.grouts.find((p) => p.id === "g-base").base.cost, 120);
+  assert.equal(dirty, true);
+});
+
+test("syncLinkedCatalog leaves a catalog cost alone when the book row carries none", () => {
+  const cat = makeSyncCatalog();
+  cat.companies[0].underlayments[0].cost = "9.75";
+  const { catalog } = syncLinkedCatalog(cat, "b1", B1_ITEMS);
+  assert.equal(catalog.companies[0].underlayments.find((p) => p.id === "u-ok").cost, "9.75");
+});
+
+test("syncLinkedCatalog reports dirty on a cost-only refresh", () => {
+  const cat = makeSyncCatalog();
+  const g = cat.companies[0].grouts.find((p) => p.id === "g-ok");
+  Object.assign(g, { price: 12, unit: "BX", sku: "GSKU", cost: "1.00" });
+  const items = B1_ITEMS.filter((it) => it.sku === "GSKU");
+  const { catalog, dirty } = syncLinkedCatalog({ companies: [{ ...cat.companies[0], grouts: [g] }] }, "b1", items);
+  assert.equal(catalog.companies[0].grouts[0].cost, 7.2);
+  assert.equal(dirty, true);
+});
+
+test("resolveFamily and projectFamilies carry the caulk row's cost", () => {
+  const fam = normBookFamily(SPECTRA_FAMILY);
+  const r = resolveFamily(fam, ITEMS_BY_BOOK);
+  assert.equal(r.caulkByColor.get("almond").cost, 6.1);
+  assert.equal(r.caulkByColor.get("natural grey").cost, null);
+  const projected = projectFamilies([SPECTRA_FAMILY], ITEMS_BY_BOOK);
+  assert.equal(projected.find((it) => it.sku === "LAT85").cost, 6.1);
+  assert.equal(projected.find((it) => it.sku === "LAT24").cost, null);
 });

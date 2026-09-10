@@ -217,3 +217,48 @@ test("tierTag labels non-retail tiers", () => {
   assert.equal(tierTag("custom", 0), "");
   assert.equal(tierTag("employee", 0), "Employee pricing");
 });
+
+// --- Employee reprices costed extras (ADR 0018 amendment 2026-09-10) ----------
+
+const COSTED = {
+  ...SETTINGS,
+  grouts: { "PermaColor Select": { coverage: 30, unit: "bags", price: 20, cost: 12.5, sku: "PC1", base: { sku: "B1", name: "Base", unit: "kits", price: 50, cost: 30, per: 1 } }, "Uncosted": { coverage: 30, unit: "bags", price: 18, cost: 0, sku: "" } },
+  mortars: { "ProLite": { tier1: 90, tier2: 63, tier3: 45, unit: "bags", price: 30, cost: "18.00", sku: "M1" } },
+  underlayments: { "Ditra": { coverage: 175, unit: "rolls", price: 400, cost: 250, sku: "U1", types: ["tile"], install: [{ id: "i1", kind: "custom", name: "Screws", price: 25, cost: 14, coverage: 100, unit: "boxes" }, { id: "i2", kind: "mortar", product: "ProLite", coverage: 50 }] } },
+  attached: { cat1: { "Transition strip": { price: 12, cost: 7, sku: "A1", coverage: 0, unit: "pcs" } } },
+};
+
+test("employee view reprices every costed extra at cost x 1.06 and leaves uncosted ones at retail", () => {
+  const tv = tierView(proj({ priceTier: "employee" }), COSTED);
+  const s = tv.settings;
+  assert.equal(s.grouts["PermaColor Select"].price, 13.25);
+  assert.equal(s.grouts["PermaColor Select"].base.price, 31.8);
+  assert.equal(s.grouts["Uncosted"].price, 18);
+  assert.equal(s.mortars["ProLite"].price, 19.08);
+  assert.equal(s.underlayments["Ditra"].price, 265);
+  assert.equal(s.underlayments["Ditra"].install[0].price, 14.84);
+  assert.deepEqual(s.underlayments["Ditra"].install[1], COSTED.underlayments["Ditra"].install[1], "a mortar-kind install row prices off its mortar");
+  assert.equal(s.attached.cat1["Transition strip"].price, 7.42);
+  // The lens is a view: the shop record is untouched.
+  assert.equal(COSTED.grouts["PermaColor Select"].price, 20);
+});
+
+test("employee view reprices a row's caulk snapshot from its caulk cost", () => {
+  const costed = row({ grout: { checked: true, product: "PermaColor Select", caulk: "2", caulkPrice: "12.50", caulkCost: "6.10" } });
+  const old = row({ id: "p2", grout: { checked: true, product: "PermaColor Select", caulk: "2", caulkPrice: "12.50", caulkCost: "" } });
+  const tv = tierView(proj({ priceTier: "employee" }, [costed, old]), COSTED);
+  const [r1, r2] = tv.proj.categories[0].products;
+  assert.equal(r1.grout.caulkPrice, "6.47");
+  assert.equal(r2.grout.caulkPrice, "12.50");
+});
+
+test("employee view keeps the settings identity when no extra carries a cost", () => {
+  const tv = tierView(proj({ priceTier: "employee" }), SETTINGS);
+  assert.equal(tv.settings, SETTINGS);
+});
+
+test("discount tiers ignore cost: builder scales the retail price of a costed extra", () => {
+  const tv = tierView(proj({ priceTier: "builder" }), COSTED);
+  assert.equal(tv.settings.grouts["PermaColor Select"].price, 18.4);
+  assert.equal(tv.settings.grouts["PermaColor Select"].cost, 12.5);
+});

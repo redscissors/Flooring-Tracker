@@ -2376,6 +2376,7 @@ export default function App({ user, onSignOut }) {
                                 {stripMats.map((m, i) => (
                                   <span key={i} className="inline-flex items-center" style={{ gap: 4 }}>
                                     <span style={{ fontWeight: 700, color: accent }}>{KSHORT[m.kind] || m.kind}</span>{m.order > 0 ? ` ${m.order}` : ""} · {m.kind === "Caulk" ? "Matching caulk" : m.name}{m.spec && m.kind !== "Caulk" ? <> — {m.spec}</> : ""}{m.detail ? <span style={{ color: "var(--ft-faint)" }}> · {m.detail}</span> : ""}
+                                    {tv.tier === "employee" && m.noCost && <span style={{ fontWeight: 700, color: "#dc2626" }} title="No cost on this extra — Employee can't compute cost + 6%, so it stays at retail. Add the cost in Settings → Materials & add-ons.">· Retail</span>}
                                   </span>
                                 ))}
                                 {warns.map((w) => (

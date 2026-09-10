@@ -648,7 +648,7 @@ test("a stored pre-link install item (no kind) normalizes to a custom row with i
   const legacy = { companies: seeded.companies.map((co) => ({ ...co, underlayments: co.underlayments.map((u) => u.name === "HardieBacker" ? { ...u, install: [legacyItem] } : u) })) };
   const norm = normalizeCatalog(legacy);
   const hardie = norm.companies.find((c) => c.name === "James Hardie").underlayments.find((u) => u.name === "HardieBacker");
-  assert.deepEqual(hardie.install, [{ id: "old1", kind: "custom", name: "Backer mortar", coverage: 40, unit: "bags", price: 12, sku: "" }]);
+  assert.deepEqual(hardie.install, [{ id: "old1", kind: "custom", name: "Backer mortar", coverage: 40, unit: "bags", price: 12, cost: 0, sku: "" }]);
 });
 
 test("backfill: a stored catalog without the install field gains the seed defaults once", () => {
@@ -1386,4 +1386,58 @@ test("settings round-trip carries the shop address, and omits the key entirely w
   const withShop = serializeSettings(normalizeSettings({ shop: { address: "1 Shop St" } }));
   assert.deepEqual(withShop.shop, { address: "1 Shop St" });
   assert.equal("shop" in serializeSettings(normalizeSettings({})), false);
+});
+
+// --- Extras cost (ADR 0018 amendment 2026-09-10): every extra carries a cost ---
+
+test("resolveCatalog carries a cost on every extra kind, defaulting to 0 when absent", () => {
+  const cat = normalizeCatalog({ companies: [{ id: "co", name: "Co", grouts: [
+    { id: "g1", name: "Grout A", price: 20, cost: 12.5, base: { sku: "B1", name: "Base", price: 50, cost: 30 } },
+    { id: "g2", name: "Grout B", price: 20 },
+  ], mortars: [{ id: "m1", name: "Mortar A", price: 30, cost: 18 }], underlayments: [
+    { id: "u1", name: "Under A", price: 400, cost: 250, install: [{ id: "i1", kind: "custom", name: "Screws", price: 25, cost: 14 }, { id: "i2", kind: "mortar", product: "Mortar A", coverage: 50 }] },
+  ], attached: [{ id: "a1", name: "Strip", categoryId: "c1", price: 12, cost: 7 }] }] });
+  const s = resolveCatalog(cat);
+  assert.equal(s.grouts["Grout A"].cost, 12.5);
+  assert.equal(s.grouts["Grout A"].base.cost, 30);
+  assert.equal(s.grouts["Grout B"].cost, 0);
+  assert.equal(s.grouts["Grout B"].base, null);
+  assert.equal(s.mortars["Mortar A"].cost, 18);
+  assert.equal(s.underlayments["Under A"].cost, 250);
+  assert.equal(s.underlayments["Under A"].install[0].cost, 14);
+  assert.equal("cost" in s.underlayments["Under A"].install[1], false, "a mortar-kind install row resolves its money from the mortar");
+  assert.equal(s.attached.c1["Strip"].cost, 7);
+});
+
+test("a stored record without costs normalizes with cost 0 everywhere (old settings stay valid)", () => {
+  const s = normalizeSettings(undefined);
+  assert.ok(Object.values(s.grouts).every((g) => g.cost === 0));
+  assert.ok(Object.values(s.mortars).every((m) => m.cost === 0));
+  assert.ok(Object.values(s.underlayments).every((u) => u.cost === 0 && (u.install || []).filter((i) => i.kind === "custom").every((i) => i.cost === 0)));
+});
+
+test("the material getters expose the catalog entry's unit cost beside its price", () => {
+  const s = catWithGrout({ name: "PermaColor Select", coverage: 110, unit: "units", price: 5.39, cost: 3.1, sku: "1519025" });
+  assert.equal(getGrout(tile(), s).unitCost, 3.1);
+  const s2 = normalizeSettings({ catalog: undefined, wastePct: 10 });
+  s2.catalog.companies.forEach((co) => {
+    co.mortars.forEach((m) => { if (m.name === "ProLite") { m.price = 20; m.cost = 11; } });
+    co.underlayments.forEach((u) => { if (u.name === "HardieBacker") { u.price = 30; u.cost = 17; u.install.forEach((d) => { if (d.kind === "custom") { d.price = 9; d.cost = 4; } }); } });
+  });
+  const s3 = { ...s2, ...resolveCatalog(s2.catalog) };
+  assert.equal(getMortar(tile(), s3).unitCost, 11);
+  assert.equal(getUnderlay(hb(), s3).unitCost, 17);
+  const items = getUnderlayInstall(hb(), s3);
+  assert.equal(items.find((i) => i.kind === "mortar").unitCost, 11);
+  assert.equal(items.find((i) => i.kind === "custom").unitCost, 4);
+  assert.equal(getGrout(tile(), normalizeSettings(undefined)).unitCost, 0, "an uncosted entry reads 0");
+});
+
+test("getAttached exposes the add-on's unit cost", () => {
+  const catalog = addCategory({ companies: [{ id: "co", name: "Co", grouts: [], mortars: [], underlayments: [], attached: [] }], categories: [] }, { name: "Trim", floorTypes: [], math: "manual" });
+  const cat = catalog.categories[0];
+  catalog.companies[0].attached.push({ id: "a1", name: "Strip", categoryId: cat.id, price: 12, cost: 7, unit: "pcs", coverage: 0 });
+  const s = { ...normalizeSettings({ catalog }), ...resolveCatalog(catalog) };
+  const p = { ...tile(), attached: { [cat.id]: { checked: true, product: "Strip", manual: "3" } } };
+  assert.equal(getAttached(p, s, cat).unitCost, 7);
 });
