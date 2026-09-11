@@ -104,6 +104,18 @@ test("trims: per-column price, cleaned label, trim marker, fits the floor SKU", 
   assert.equal(items.find((i) => i.sku === "EM815CEP").trim, false);
 });
 
+// The column header is the one place the sheet prints a molding's length
+// ("T-Molding (94.5\")", "Round Stair Tread 48\""); Hallmark/Tarkett keep it as
+// the trim's size (Marcus 2026-08-31) and TrueTouch must not be the odd one out.
+test("trims keep the length their column header prints as the row's size", () => {
+  const { items } = run(page1, page2);
+  assert.equal(items.find((i) => i.sku === "EM815TMD").size, '94.5"');
+  assert.equal(items.find((i) => i.sku === "408TTF295R").size, '48"');
+  assert.equal(items.find((i) => i.sku === "HWHOSTN").size, '94"');
+  // the description still names the molding, not its length
+  assert.doesNotMatch(items.find((i) => i.sku === "EM815TMD").description, /94/);
+});
+
 test("a color row split across two baselines still reads as one row", () => {
   const { items } = run(page1, page2);
   const floor = items.find((i) => i.sku === "EM824CPP");
@@ -241,6 +253,14 @@ test("xls trims: column price + label, tread note, N/A stays a priceless listing
   assert.equal(na.cost, null);
   assert.equal(na.priceUnit, "PC");
   assert.equal(items.find((i) => i.sku === "W88711FSTN").cost, 66.49);
+});
+
+test("xls trims keep the length their column header prints as the row's size", () => {
+  const { items } = runSheet();
+  assert.equal(items.find((i) => i.sku === "EM815TMD").size, '94.5"');
+  assert.equal(items.find((i) => i.sku === "408TTF295R").size, '48"');
+  assert.equal(items.find((i) => i.sku === "W88711FSTN").size, '94"');
+  assert.doesNotMatch(items.find((i) => i.sku === "EM815TMD").description, /94/);
 });
 
 test("xls: one trim shared by both Hawaii thicknesses fits both floors", () => {

@@ -85,6 +85,16 @@ of their current sheet to pick the lengths up. Marcus's existing job line keeps
 its blank size until the row is re-picked (snapshot doctrine, ADR 0003) — size
 is not a drifting field, so no chip will offer it.
 
+**Amendment 2026-09-11 — TrueTouch was a third outlier.** The owner reimported
+TrueTouch and its trims still showed no size: `truetouchbook.js` has its own
+`trimLabel` that stripped the header length the same way, and the 9/1 fix only
+touched `ovfbook.js`. The same `trimLength` now lives in the TrueTouch parser
+(PDF and .xls paths, shared emit) — `T-Molding (94.5")` → `94.5"`, `Round
+Stair Tread 48"` → `48"`, Hawaii `Nose (94")` → `94"`; descriptions unchanged.
+The PDF path also had to admit a letterless `(94.5")` item as label text, since
+the sheet prints the length on its own line under "T-Molding". Takes effect on
+the next TrueTouch import.
+
 ## 3. Glazzio CLNL289 — "why is this still showing a +" — NO CHANGE, ALREADY GONE
 
 Asked again by the owner 9/1: the field is set to 70, shouldn't that make the
