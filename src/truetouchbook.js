@@ -57,8 +57,14 @@ const titleWord = (w) => (/^[A-Z]{4,}$/.test(w) ? w.charAt(0) + w.slice(1).toLow
 
 // Clean a stacked trim-column label down to its molding name: "T-Molding
 // (94.5\")" → "T-Molding", "Round Stair / Tread 48\" / 3 ctn min" → "Round Stair
-// Tread". The length annotations vary per collection and carry no product
-// meaning; the carton-minimum note is kept separately.
+// Tread". The length is read out separately by trimLength as the row's size;
+// the carton-minimum note is kept separately too.
+// The molding length the same header prints ('T-Molding (94.5")' → 94.5",
+// 'Round Stair Tread 48"' → 48"): the one size a trim row has, kept as its size
+// the way the Hallmark/Tarkett moldings keep theirs (Marcus 2026-08-31). The
+// inch mark is required so a bare digit run ("3 ctn min") can't read as one.
+const trimLength = (label) => { const m = str(label).match(/(\d{2,3}(?:\.\d+)?)\s*["”″]/); return m ? `${m[1]}"` : ""; };
+
 function trimLabel(parts) {
   const s = parts.join(" ")
     .replace(/\([^)]*\)/g, " ")
@@ -75,13 +81,15 @@ function trimLabel(parts) {
 function trimColumns(pageItems, priceRow, toks) {
   // The account line ("Prepared especially for …") can sit inside the band when
   // a section's grid opens a page (Hawaii on page 2) — it is never a label.
+  // A length can print as its own item ('(94.5")' under "T-Molding"), so a
+  // letterless inch token counts as label text too.
   const labelItems = pageItems.filter((i) =>
     i.y < priceRow.y - 3 && i.y > priceRow.y - 42 && i.x >= TRIM_X - 12 &&
-    /[A-Za-z]/.test(str(i.str)) && !priceTok(i.str) && !/prepared especially/i.test(str(i.str)));
+    (/[A-Za-z]/.test(str(i.str)) || /\d\s*["”″]/.test(str(i.str))) && !priceTok(i.str) && !/prepared especially/i.test(str(i.str)));
   return toks.filter((t) => (t.unit === "EA" || t.unit === "PC") && t.x >= TRIM_X).map((t) => {
     const parts = labelItems.filter((l) => Math.abs(l.x - t.x) < 30).sort((a, b) => a.y - b.y || a.x - b.x).map((l) => str(l.str));
     const note = parts.map((p) => p.match(/\d+\s*ctn\s*min/i)?.[0]).find(Boolean) || "";
-    return { x: t.x, cost: t.cost, unit: t.unit, label: trimLabel(parts), note };
+    return { x: t.x, cost: t.cost, unit: t.unit, label: trimLabel(parts), size: trimLength(parts.join(" ")), note };
   });
 }
 
@@ -130,7 +138,7 @@ function bookResult(name, flooring, trims) {
     const parent = [...t.names][0] || "";
     const label = t.note ? `${t.label} (${t.note})` : t.label;
     const desc = [parent ? `${parent} — ${label}` : label, fits.length && `· fits ${fits.join(" ")}`].filter(Boolean).join(" ");
-    out.push([t.sku, desc, t.collection, "", "", "", t.cost != null ? String(t.cost) : "", t.unit, "", "trim", BRAND, fits.join(" ")]);
+    out.push([t.sku, desc, t.collection, "", t.size || "", "", t.cost != null ? String(t.cost) : "", t.unit, "", "trim", BRAND, fits.join(" ")]);
   }
   const warnings = flooring.length ? [] : ["No TrueTouch product rows were recognized — is this the OVF TrueTouch price sheet?"];
   return { name, rows: out, mapping: { ...TRUETOUCH_MAPPING }, warnings, meta: { flooring: flooring.length, trims: trims.size } };
@@ -221,10 +229,11 @@ export function parseTrueTouchPages(pages, name = "TrueTouch price list") {
         const col = trimCols.filter((c) => Math.abs(c.x - it.x) < 30).sort((a, b) => Math.abs(a.x - it.x) - Math.abs(b.x - it.x))[0];
         const tsku = str(it.str);
         const rec = trims.get(tsku) || {
-          sku: tsku, label: col?.label || "Trim", cost: col?.cost ?? null, unit: col?.unit || "EA",
+          sku: tsku, label: col?.label || "Trim", size: col?.size || "", cost: col?.cost ?? null, unit: col?.unit || "EA",
           note: col?.note || "", collection, fits: new Set(), names: new Set(),
         };
         if (rec.cost == null && col?.cost != null) { rec.cost = col.cost; rec.label = col.label; rec.unit = col.unit; }
+        if (!rec.size && col?.size) rec.size = col.size;
         rec.fits.add(floorSku);
         if (color) rec.names.add(color);
         trims.set(tsku, rec);
@@ -291,7 +300,7 @@ export function parseTrueTouchSheet(rows, name = "TrueTouch price list") {
         const t = priceTok(cells[c]);
         if (!t || (t.unit !== "EA" && t.unit !== "PC")) continue;
         const label = header[c] || "";
-        trimCols.push({ col: c, cost: t.cost, unit: t.unit, label: trimLabel(label.split(/\n/)), note: label.match(/\d+\s*ctn\s*min/i)?.[0] || "" });
+        trimCols.push({ col: c, cost: t.cost, unit: t.unit, label: trimLabel(label.split(/\n/)), size: trimLength(label), note: label.match(/\d+\s*ctn\s*min/i)?.[0] || "" });
       }
       continue;
     }
@@ -305,10 +314,11 @@ export function parseTrueTouchSheet(rows, name = "TrueTouch price list") {
         const tsku = str(cells[col.col]);
         if (!looksTrimSku(tsku)) continue;
         const rec = trims.get(tsku) || {
-          sku: tsku, label: col.label, cost: col.cost, unit: col.unit,
+          sku: tsku, label: col.label, size: col.size, cost: col.cost, unit: col.unit,
           note: col.note, collection, fits: new Set(), names: new Set(),
         };
         if (rec.cost == null && col.cost != null) { rec.cost = col.cost; rec.label = col.label; rec.unit = col.unit; }
+        if (!rec.size && col.size) rec.size = col.size;
         rec.fits.add(floorSku);
         if (color) rec.names.add(color);
         trims.set(tsku, rec);
