@@ -114,7 +114,7 @@ Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
            sku, L, W, thickness, sizeText, brandColor, priceSqft,
            qtyType:"sqft|count", qty,
            cartonSf, cartonPc, cartonUnit, cartonManual, note,
-           grout:{checked,product,color,sku,joint,manual,caulk,caulkSku,caulkPrice,caulkCost}, mortar:{checked,product,manual},
+           grout:{checked,product,color,sku,joint,manual,caulk,caulkSku,caulkPrice,caulkCost,bookId}, mortar:{checked,product,manual},
            // grout.sku = the picked color's own price-book SKU, snapshotted at
            // color-pick time when the grout is linked to a book family
            // (ADR 0007); display-only, outranks the catalog product SKU on
@@ -126,6 +126,11 @@ Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
            // the same caulk row's book cost (ADR 0018 amendment 2026-09-10),
            // the Employee lens's input for the caulk line; blank on rows
            // picked before it existed, which stay retail under Employee.
+           // grout.bookId = the book the picked color's SKU came from (ADR
+           // 0027 amendment 2026-09-13): the family's stock book, or the
+           // order-kind book of its special-order source — the one signal
+           // that files the grout line as special order at order entry
+           // (`isSpecialMat`). "" on rows picked before it existed (stock).
            underlay:{checked,product,manual,install},
            attached:{ [categoryId]: {checked,product,manual} },
            freight: "" | "off",
@@ -291,7 +296,13 @@ underlayment install items also carry an optional `sku`. Families are defined
 by `catalog.bookFamilies` — a matching rule over linked ERP stock books,
 projected into the same stock-shaped items the retired workbook's parser
 produced, so this resolution logic runs unchanged (ADR 0027); a grout whose
-`book` names a family with no rule resolves like an unlinked grout.
+`book` names a family with no rule resolves like an unlinked grout. A family
+may also carry an `order: { bookId, prefix, suffix }` source over an order-kind
+book (ADR 0027 amendment 2026-09-13): the vendor's unstocked colors join the
+dropdown under "Special order", price at the family's catalog price, and file
+with the special orders — set from the grout's Settings page ("Add
+special-order colors from a vendor price list…"), which needs that price list
+imported as an order-kind book first.
 Settings itself is a near-fullscreen workspace (`SettingsWorkspace` in
 `SettingsWorkspace.jsx`): left-nav sections (General · Price book · Materials & add-ons ·
 Backup & restore; the built-in Grout / Mortar / Underlayment categories

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isSpecialOrder, orderCopyText, orderDescription, nameBudget, sheetNominal, tightSize } from "./orderentry.js";
+import { isSpecialOrder, isSpecialMat, orderCopyText, orderDescription, nameBudget, sheetNominal, tightSize } from "./orderentry.js";
 import { DEFAULT_DESC_LIMIT } from "./descfit.js";
 import { lineItems, multiWidthLineItems, defaultConfig } from "./sheoga.js";
 
@@ -398,4 +398,13 @@ test("sheetNominal: a landed sheet size reads nominal, anything else passes thro
   assert.equal(sheetNominal("12x24"), "");
   assert.equal(sheetNominal('2" Hex'), "");
   assert.equal(sheetNominal(""), "");
+});
+
+test("isSpecialMat: a grout color from an order-book source is special; stock-book or unstamped colors are not", () => {
+  const stockIds = new Set(["doit"]);
+  assert.equal(isSpecialMat({ bookId: "lat" }, stockIds), true);
+  assert.equal(isSpecialMat({ bookId: "doit" }, stockIds), false);
+  assert.equal(isSpecialMat({ bookId: "" }, stockIds), false);
+  assert.equal(isSpecialMat({}, stockIds), false);
+  assert.equal(isSpecialMat({ bookId: "lat" }, null), false);
 });

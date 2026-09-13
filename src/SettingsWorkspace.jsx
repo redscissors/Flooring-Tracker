@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Plus, Trash2, Download, Upload, X, Check, ChevronRight, Pencil, Percent, BookOpen, Package, Paintbrush, Layers, Database, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, User, Lock, Star, Tag } from "lucide-react";
 import { offeredGrouts, offeredMortars, isOffered, setCatalogDefault, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct, addCategory, updateCategory, removeCategory, isDuplicateCategoryName, isDuplicateAttachedName, offeredAttached } from "./catalog.js";
 import { stockBaseCompanion } from "./stock.js";
-import { deriveSeriesRule, matchRule, parseColorToken, normBookFamily, familyWarnings, linkedItemState, proposeLinks, applyProposals, looksLikeBase } from "./booklink.js";
+import { deriveSeriesRule, matchRule, parseColorToken, normBookFamily, resolveFamily, familyWarnings, linkedItemState, proposeLinks, applyProposals, looksLikeBase } from "./booklink.js";
 import { uid } from "./model.js";
 import { DotMenu, Modal, HelpTip, AddressField, lookupErrText } from "./widgets.jsx";
 import { StockSearch, FamilySearch, SeriesSearch } from "./search.jsx";
@@ -123,6 +123,69 @@ export function FamilyConfirm({ seed, bookStock, books, existingNames, inp, lbl,
   );
 }
 
+// Special-order colors for a family (ADR 0027 amendment 2026-09-13): a second
+// rule over an order-kind book — the vendor's full price list — seeded from
+// any one of its rows the way the caulk line is. The preview runs the real
+// resolver, so colors the stock rule already offers are counted, not listed:
+// a stocked color is never offered twice.
+function OrderSourceConfirm({ fam, books, bookStock, orderBookStock, loadFamilyBook, inp, lbl, onSave, onClose }) {
+  const orderBooks = books.filter((b) => b.kind === "order" && b.active !== false);
+  const [bookId, setBookId] = useState(fam.order?.bookId || orderBooks[0]?.id || "");
+  const [rule, setRule] = useState(fam.order ? { prefix: fam.order.prefix, suffix: fam.order.suffix } : null);
+  const [error, setError] = useState("");
+  useEffect(() => { if (bookId && !(bookId in orderBookStock)) loadFamilyBook(bookId); }, [bookId, orderBookStock, loadFamilyBook]);
+  const items = orderBookStock[bookId];
+  const live = (items || []).filter((it) => it.active !== false && !it.disabled);
+  const matched = rule ? live.filter((it) => matchRule(rule, it.description)).length : 0;
+  const preview = rule ? resolveFamily(normBookFamily({ ...fam, order: { bookId, ...rule } }), { ...bookStock, [bookId]: live }).colors.filter((c) => c.special) : [];
+  const pickBook = (id) => { setBookId(id); setRule(null); setError(""); };
+  const save = () => {
+    if (!bookId) { setError("Pick the vendor's price book."); return; }
+    if (!rule || !(rule.prefix.trim() || rule.suffix.trim())) { setError("Pick a row of the color line to seed the rule."); return; }
+    if (!preview.length) { setError("The rule adds no colors beyond the stocked ones — adjust the prefix/suffix."); return; }
+    onSave({ bookId, prefix: rule.prefix.trim(), suffix: rule.suffix.trim() });
+  };
+  return (
+    <Modal title={`Special-order colors — ${fam.name}`} onClose={onClose}>
+      <p className="text-xs text-slate-500">Colors the shop doesn't stock, offered from the vendor's full price list. They price at the family's catalog price and file with the special orders at order entry.</p>
+      <label className={lbl + " mt-3"}>Vendor price book</label>
+      {orderBooks.length === 0 ? (
+        <p className="text-xs text-amber-600">No special-order price book is imported yet — add the vendor's price list in Settings → Price book first.</p>
+      ) : (
+        <select className={inp} value={bookId} onChange={(e) => pickBook(e.target.value)}>
+          {orderBooks.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+        </select>
+      )}
+      {bookId && (items == null ? (
+        <p className="text-xs text-slate-400 mt-2">Loading the book…</p>
+      ) : (
+        <div className="mt-3">
+          <label className={lbl}>Pick any one row of the color line (e.g. "spectralock 1 raven")</label>
+          <StockSearch stock={live} inp={inp} placeholder="Search the vendor's price book…"
+            onPick={(it) => { setRule(deriveSeriesRule(it.description, live.map((i) => i.description))); setError(""); }} />
+        </div>
+      ))}
+      {rule && (
+        <>
+          <div className="grid grid-cols-2 gap-2 mt-3">
+            <div><label className={lbl}>Rows start with</label><input className={inp} value={rule.prefix} onChange={(e) => setRule({ ...rule, prefix: e.target.value })} /></div>
+            <div><label className={lbl}>…and end with</label><input className={inp} value={rule.suffix} onChange={(e) => setRule({ ...rule, suffix: e.target.value })} /></div>
+          </div>
+          <div className="mt-2 rounded-lg border border-slate-200 p-2.5 max-h-40 overflow-y-auto">
+            <div className="text-[11px] text-slate-400 mb-1">{matched} rows match — {preview.length} special-order color{preview.length === 1 ? "" : "s"}{matched > preview.length ? ` (${matched - preview.length} already stocked, kept as stock)` : ""}</div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">{preview.map((c) => <div key={c.sku} className="flex items-baseline gap-2 text-xs"><span className="truncate">{c.color}</span><span className="ft-mono text-[10px] text-slate-400 ml-auto shrink-0">{c.sku}</span></div>)}</div>
+          </div>
+        </>
+      )}
+      {error && <div className="text-xs text-red-500 mt-2">{error}</div>}
+      <div className="flex justify-end gap-2 mt-4">
+        <button onClick={onClose} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button>
+        <button onClick={save} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700">{fam.order ? "Save" : "Add colors"}</button>
+      </div>
+    </Modal>
+  );
+}
+
 // Assisted migration pass (spec 2026-07-21 §5): proposes a link for every
 // catalog product that carries a SKU but no link yet, matching it against the
 // imported stock books. All proposals start checked; unmatched rows (no book
@@ -169,7 +232,7 @@ function LinkMigration({ catalog, bookStock, books, onApply, onClose }) {
   );
 }
 
-export default function SettingsWorkspace({ onClose, settings, setSettings, gFamilies, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, headerLayout, setHeaderLayout, profile, saveProfile, user, books, addBook, updateBook, confirmBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setBookItemIssue, addClaudeIssue, bookStock = {}, bookStockReady, refreshBookStock, initialSection, onSectionChange, ping }) {
+export default function SettingsWorkspace({ onClose, settings, setSettings, gFamilies, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, headerLayout, setHeaderLayout, profile, saveProfile, user, books, addBook, updateBook, confirmBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setBookItemIssue, addClaudeIssue, bookStock = {}, orderBookStock = {}, loadFamilyBook = () => { }, bookStockReady, refreshBookStock, initialSection, onSectionChange, ping }) {
   const catalog = settings.catalog;
   const onChange = (c) => setSettings({ catalog: c });
   // initialSection/onSectionChange: the refresh-restore hooks (App's
@@ -196,6 +259,8 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
   const [catRename, setCatRename] = useState(null); // { value, error } — renaming the open custom category
   const [confirmDelCat, setConfirmDelCat] = useState(false);
   const [famSeed, setFamSeed] = useState(null); // FamilyConfirm opener: { pick, query? } | { bookId, description, rule?, name?, forDraft|forProduct }
+  const [orderSrc, setOrderSrc] = useState(null); // OrderSourceConfirm opener: the book family being edited
+  const setFamilyOrder = (famId, order) => onChange({ ...catalog, bookFamilies: (catalog.bookFamilies || []).map((f) => f.id === famId ? normBookFamily({ ...f, order }) : f) });
   const [showLinkMigration, setShowLinkMigration] = useState(false); // LinkMigration opener
   const [probe, setProbe] = useState(null);
   const [probing, setProbing] = useState(false);
@@ -552,6 +617,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
     // resolveFamily), so this warns instead of the color list silently going
     // stale with no signal.
     const zeroMatch = familyWarnings(catalog.bookFamilies, bookStock).some((w) => w.kind === "zero-match" && w.name.toLowerCase() === (g.book || "").toLowerCase());
+    const bookFam = (catalog.bookFamilies || []).find((f) => f.name.toLowerCase() === (g.book || "").toLowerCase()) || null;
     return (
       <div key={g.id}>
         {detailHeader(co, "grouts", g, "Grout")}
@@ -577,11 +643,25 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
                 {family.colors.map((c) => (
                   <div key={c.sku} className="flex items-baseline gap-2 text-xs py-0.5 min-w-0">
                     <span className="truncate">{c.color}</span>
+                    {c.special && <span className="text-[9px] uppercase tracking-wide text-indigo-600 shrink-0" title="Special order — from the vendor's price list">SO</span>}
                     <span className="ft-mono text-[10px] text-slate-400 ml-auto shrink-0">{c.sku}</span>
                   </div>
                 ))}
               </div>
             </div>
+            {bookFam && (
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                {bookFam.order ? (
+                  <>
+                    <span className="text-slate-500">{family.colors.filter((c) => c.special).length} special-order color{family.colors.filter((c) => c.special).length === 1 ? "" : "s"} from {bookName(bookFam.order.bookId)}</span>
+                    <button onClick={() => setOrderSrc(bookFam)} className="text-indigo-600 hover:text-indigo-700 font-medium">Change…</button>
+                    <button onClick={() => setFamilyOrder(bookFam.id, null)} className="text-slate-400 hover:text-red-500">Remove</button>
+                  </>
+                ) : (
+                  <button onClick={() => setOrderSrc(bookFam)} className="text-indigo-600 hover:text-indigo-700 font-medium">Add special-order colors from a vendor price list…</button>
+                )}
+              </div>
+            )}
           </>
         ) : (
           <div className="mt-2 flex items-center gap-1.5 text-xs text-amber-600 rounded-md border border-amber-200 px-3 py-2"><Link2Off size={12} className="shrink-0" /> Linked to "{g.book}", which isn't in the imported book — re-import the price book or re-link below.</div>
@@ -983,6 +1063,11 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
               else { onChange(next); setDraft((d) => ({ ...d, book: fam.name, ...(base ? { base } : {}) })); }
               setFamSeed(null);
             }} />
+        )}
+        {orderSrc && (
+          <OrderSourceConfirm fam={orderSrc} books={books} bookStock={bookStock} orderBookStock={orderBookStock} loadFamilyBook={loadFamilyBook} inp={inp} lbl={lbl}
+            onClose={() => setOrderSrc(null)}
+            onSave={(order) => { setFamilyOrder(orderSrc.id, order); setOrderSrc(null); }} />
         )}
         {showLinkMigration && (
           <LinkMigration catalog={catalog} bookStock={bookStock} books={books}

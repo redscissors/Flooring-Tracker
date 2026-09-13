@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { Search, Plus, X, Check, ChevronRight, ChevronDown, Trash2, StickyNote, Settings, Layers } from "lucide-react";
 import { SAMPLE_LABEL, SAMPLE_CHIP } from "./samples.js";
 import { num, wasteFor, groutExact, mortarExact, getGrout, getMortar, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, offeredAttached, offeredCategories, getAttached } from "./catalog.js";
-import { groutSnapshotPatch } from "./stock.js";
+import { groutSnapshotPatch, groutColorOptions } from "./stock.js";
 import { tierUnitPrice, employeeNoCost } from "./pricing.js";
 import { queryHit as sheogaQueryHit, parseQuery as sheogaParseQuery, querySummary as sheogaQuerySummary } from "./sheoga.js";
 // wediquery.js, never wedi.js — the boot chunk pays for the recognizer only
@@ -16,7 +16,7 @@ import { money, sf1, miscQty, rowBlank } from "./model.js";
 import { lineTotal, printProduct, KSHORT } from "./print.js";
 import { unitCode, bundleUnit } from "./units.js";
 import { MARKUP_PRESETS, unitMargin, editCost, editMarkup, editPrice } from "./costentry.js";
-import { FitSelect, useEscClose } from "./widgets.jsx";
+import { FitSelect, GroutColorOptions, useEscClose } from "./widgets.jsx";
 import { ClaudeMark } from "./claudeflag.jsx";
 import { Hit, hitKey, matchSummary, useMergedResults, NearMatchNote } from "./search.jsx";
 import { GridSizeInput } from "./grid.jsx";
@@ -248,7 +248,7 @@ export function MobileProductRow({ p, settings, tv, onOpen, onPointerDown }) {
 // editors can't drift on write paths. The SKU field opens MobileSearchSheet
 // (full-screen, per the keyboard plan); picks flow through onPickStock, the
 // caller's addStockProducts, exactly like a grid SKU pick.
-export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutStock, stockReady, bookStockReady, isBookFam, gFamilies, searchOrder, bookName, tv, markups = MARKUP_PRESETS, onPatch, onPickStock, onOpenVendor, onDelete, sample, onSample, onFlag, onClose, qtyRef, notify, strictness, fallback }) {
+export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutStock, stockReady, bookStockReady, isBookFam, gFamilies, stockBookIds, searchOrder, bookName, tv, markups = MARKUP_PRESETS, onPatch, onPickStock, onOpenVendor, onDelete, sample, onSample, onFlag, onClose, qtyRef, notify, strictness, fallback }) {
   const [searching, setSearching] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
   const [insExpanded, setInsExpanded] = useState(false);
@@ -270,8 +270,8 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutS
   const groutOpts = groutNames.includes(p.grout.product) ? groutNames : [p.grout.product, ...groutNames];
   const gBook = settings.grouts[p.grout.product]?.book || "";
   const gFam = gBook ? gFamilies.find((f) => f.product.toLowerCase() === gBook.toLowerCase()) : null;
-  const colorBase = gFam ? gFam.colors.map((c) => c.color) : colorsFor(p.grout.product);
-  const colorOpts = (!p.grout.color || colorBase.includes(p.grout.color)) ? colorBase : [p.grout.color, ...colorBase];
+  const colorGroups = groutColorOptions(gFam, p.grout.color, colorsFor(p.grout.product));
+  const groutSpecial = !!p.grout.bookId && !stockBookIds?.has(p.grout.bookId);
   // Book-linked picks snapshot from the stock-book cache at click time
   // (ADR 0007 mechanics, groutSnapshotPatch) — while that cache is still
   // loading the pick would blank an existing snapshot, so refuse loudly
@@ -495,8 +495,9 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutS
                   <div className="pb-2.5 -mt-1 space-y-2">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <FitSelect sm value={p.grout.product} display={p.grout.product} onChange={(e) => pickGroutProduct(e.target.value)}>{groutOpts.map((g) => <option key={g} value={g}>{g}</option>)}</FitSelect>
-                      <FitSelect sm value={p.grout.color} display={p.grout.color || "Color…"} onChange={(e) => pickGroutColor(e.target.value)}><option value="">Color…</option>{colorOpts.map((c) => <option key={c}>{c}</option>)}</FitSelect>
+                      <FitSelect sm value={p.grout.color} display={p.grout.color || "Color…"} onChange={(e) => pickGroutColor(e.target.value)}><option value="">Color…</option><GroutColorOptions groups={colorGroups} /></FitSelect>
                       {(p.grout.sku || settings.grouts[p.grout.product]?.sku) && <span className="ft-mono text-[10px] text-slate-400 shrink-0" title="This color's price book SKU — prints on the order summary">{p.grout.sku || settings.grouts[p.grout.product]?.sku}</span>}
+                      {groutSpecial && <span className="text-[10px] text-indigo-600 shrink-0">special order</span>}
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="flex rounded-md border border-slate-200 overflow-hidden text-[11px] shrink-0">{JOINTS.map((j) => <button key={j.v} onClick={() => onPatch({ grout: { ...p.grout, joint: j.v } })} className={`px-2 py-1.5 ${num(p.grout.joint) === j.v ? "" : "ft-field text-slate-500"}`} style={num(p.grout.joint) === j.v ? { background: accent, color: "var(--ft-type-ink)" } : undefined}>{j.label}</button>)}</div>
