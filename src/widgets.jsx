@@ -56,6 +56,16 @@ export const FitSelect = ({ display, className = "", sm, children, ...rest }) =>
   );
 };
 
+// A grout color dropdown's options (stock.js groutColorOptions): flat while
+// the family is stock-only; grouped "In stock" / "Special order" once it has
+// an order-book source.
+export const GroutColorOptions = ({ groups }) => groups.special.length === 0
+  ? groups.stock.map((c) => <option key={c}>{c}</option>)
+  : <>
+    <optgroup label="In stock">{groups.stock.map((c) => <option key={c}>{c}</option>)}</optgroup>
+    <optgroup label="Special order">{groups.special.map((c) => <option key={c}>{c}</option>)}</optgroup>
+  </>;
+
 // Dropdown panels render in a portal on <body>: the product-row field bar and
 // the settings modal both clip absolutely-positioned children (overflow), so
 // the panel anchors to the input with fixed coordinates instead. Returns the

@@ -4,10 +4,10 @@ import { supabase } from "./lib/supabase.js";
 import { listSelect, lightRow, loadProjects, loadPeople, loadBuilders, loadTodos, loadClaudeIssues, loadBooks, loadSettingsRow, resolveSharedSettings, loadSampleRequests } from "./bootload.js";
 import { bootTrace, traceRows } from "./boottrace.js";
 import { num, wasteFor, withProjWaste, normalizeSettings, serializeSettings, groutExact, mortarExact, getGrout, getMortar, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, offeredAttached, offeredCategories, getAttached, qtyDrift } from "./catalog.js";
-import { findStock, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant, groutFamilies, groutSnapshotPatch } from "./stock.js";
+import { findStock, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant, groutFamilies, groutSnapshotPatch, groutColorOptions } from "./stock.js";
 import { pricedItem, orderPatch, orderDrift, rowCostSqft, skuKeys } from "./orderbook.js";
 import { OrderEntryPanel } from "./orderentry.jsx";
-import { isSpecialOrder, nameBudget, orderQty } from "./orderentry.js";
+import { isSpecialOrder, isSpecialMat, nameBudget, orderQty } from "./orderentry.js";
 import { SamplesPanel } from "./samples.jsx";
 import { requestFrom, sampleCounts, projectSampleTally, sampleContactFor, sampleBookFor, SAMPLE_LABEL, SAMPLE_COLOR } from "./samples.js";
 import { sheogaMarkups } from "./vendorbook.js";
@@ -27,10 +27,10 @@ import { seedFromQuery as wediSeed } from "./wediquery.js";
 import { seedFromQuery as schluterSeed } from "./schluterquery.js";
 import { STOCK_LOADING_MSG, TYPES, TLBL, underlayLabel, TYPE_ACCENT, ROW_WASH, TOTAL_WASH, JOINTS, colorsFor, ATT_BUCKET, TIER_COLOR, tierBadgeText, PROJECT_NAME_MAX, AUTO_KEEP, QUICK_SWEEP_DAYS } from "./uiconst.js";
 import { uid, money, sf1, miscQty, blobToDataURL, dataURLToBlob, wasteNote, newProduct, newArea, areaLabel, rowBlank, catSig, newProject, newPerson, newBuilder, normC, personData, quickAutoName, isRealProjectName, QUICK_DEFAULT_NAME, stampKit, landKitLines, appendKitLines, moveKitEntries, placedKits, removeKitLines, kitRows } from "./model.js";
-import { lineTotal, printProduct, printAreaFloor, KSHORT, u1, orderEntryRow } from "./print.js";
+import { lineTotal, printProduct, printAreaFloor, KSHORT, u1, orderEntryRow, matOrderRow } from "./print.js";
 import { jobTotals } from "./jobtotals.js";
 import { OPTION_SLOTS, OPTION_COLOR, optionsUsed, bucketCats, scopedCats, optionTitle, optionShort, duplicateInto, compareOptionsPatch } from "./options.js";
-import { LazyBoundary, FitSelect, BuilderCombo, MetaChip, SalespersonPop, SegBar, WasteBar, ThemeSwitch, MarginLine, Modal, useEscClose, HelpTip, AddressField } from "./widgets.jsx";
+import { LazyBoundary, FitSelect, GroutColorOptions, BuilderCombo, MetaChip, SalespersonPop, SegBar, WasteBar, ThemeSwitch, MarginLine, Modal, useEscClose, HelpTip, AddressField } from "./widgets.jsx";
 import { escPush } from "./escstack.js";
 import { TypeSelect, GRID_COLS, GridPriceCell, GridSizeInput, GridProductBox, GridOmniSearch } from "./grid.jsx";
 import { MobileSheet, MobileProductRow, MobileRowSheet } from "./mobile.jsx";
@@ -180,7 +180,10 @@ export default function App({ user, onSignOut }) {
     loadBookVersions, loadBookVersionSnapshot, pinBookVersion,
     updateBookItem, reviewBookItemFlags, setBookItemsDisabled, setBookItemIssue,
   } = useBooks({ user, profile, ping, flashSaved });
-  const { bookStock, bookStockReady, loadAllBookStock, refreshBookStock } = useBookStock({ books, loadBookItems });
+  // Order-kind books a grout family's special-order source names (ADR 0027
+  // amendment 2026-09-13) — loaded beside the stock cache, kept apart from it.
+  const familyBookIds = useMemo(() => [...new Set((settings.catalog.bookFamilies || []).map((f) => f.order?.bookId).filter(Boolean))], [settings.catalog.bookFamilies]);
+  const { bookStock, orderBookStock, familyItems, bookStockReady, loadAllBookStock, refreshBookStock, loadFamilyBook } = useBookStock({ books, loadBookItems, familyBookIds });
   const { trimsFor, ensureTrims, clearTrims } = useTrims({ books });
   // Flips once the boot's stage-2 books fetch has landed (success OR
   // failure — books may legitimately hydrate to [], no pricebooks.sql yet).
@@ -207,7 +210,12 @@ export default function App({ user, onSignOut }) {
       return next;
     });
     clearTrims();
-    if (books.find((b) => b.id === bookId)?.kind !== "stock") return;
+    if (books.find((b) => b.id === bookId)?.kind !== "stock") {
+      // A re-dropped vendor list that feeds a family's special-order colors
+      // refreshes those colors; nothing in the catalog links to its rows.
+      if (familyBookIds.includes(bookId)) { try { await refreshBookStock(bookId); } catch (x) { } }
+      return;
+    }
     try {
       const items = await refreshBookStock(bookId);
       const { catalog, changes, lost, newColors, dirty } = syncLinkedCatalog(settings.catalog, bookId, items);
@@ -705,7 +713,7 @@ export default function App({ user, onSignOut }) {
   // Grout color families (ADR 0007 mechanics over ADR 0027 rules): family rows
   // projected from the stock-book cache — read at edit time only (color
   // dropdowns, Settings linking), never at calc time.
-  const groutStock = useMemo(() => projectFamilies(settings.catalog.bookFamilies, bookStock), [settings.catalog.bookFamilies, bookStock]);
+  const groutStock = useMemo(() => projectFamilies(settings.catalog.bookFamilies, familyItems), [settings.catalog.bookFamilies, familyItems]);
   const gFamilies = useMemo(() => groutFamilies(groutStock), [groutStock]);
   // A grout linked to a book-backed family (ADR 0009/0027) waits on the
   // stock-book cache before a pick may snapshot (stockBusy below).
@@ -1792,8 +1800,8 @@ export default function App({ user, onSignOut }) {
                         // the row. Unlinked grouts keep the standard code list.
                         const gBook = settings.grouts[p.grout.product]?.book || "";
                         const gFam = gBook ? gFamilies.find((f) => f.product.toLowerCase() === gBook.toLowerCase()) : null;
-                        const colorBase = gFam ? gFam.colors.map((c) => c.color) : colorsFor(p.grout.product);
-                        const colorOpts = (!p.grout.color || colorBase.includes(p.grout.color)) ? colorBase : [p.grout.color, ...colorBase];
+                        const colorGroups = groutColorOptions(gFam, p.grout.color, colorsFor(p.grout.product));
+                        const groutSpecial = isSpecialMat(p.grout, stockBookIds);
                         // A book-linked pick snapshots from the stock-book cache at
                         // click time (ADR 0007 mechanics, groutSnapshotPatch) — while
                         // that cache is still loading the pick would blank an existing
@@ -1967,7 +1975,7 @@ export default function App({ user, onSignOut }) {
                           </div>
                         ) : null;
                         const rowEditor = !isWide && rowSheet?.pid === p.id ? (
-                          <MobileRowSheet p={p} areaName={areaLabel(a, ai)} canDelete={a.products.length > 1 && !(rowBlank(p) && isAdder)}
+                          <MobileRowSheet p={p} stockBookIds={stockBookIds} areaName={areaLabel(a, ai)} canDelete={a.products.length > 1 && !(rowBlank(p) && isAdder)}
                             settings={wSet} stock={stockItems} groutStock={groutStock} stockReady={bookStockReady} bookStockReady={bookStockReady} isBookFam={isBookFam} gFamilies={gFamilies} searchOrder={searchOrder} bookName={bookName} tv={tv} notify={ping} strictness={searchStrictness} fallback={searchFallback} markups={quickMarkups}
                             onPatch={(patch) => updProduct(a.id, p.id, patch)}
                             sample={sampleByProduct.get(p.id) || null}
@@ -2183,8 +2191,9 @@ export default function App({ user, onSignOut }) {
                                       <span className="text-sm font-medium">Grout</span>
                                       <div className="order-1 md:order-none basis-full md:basis-0 md:grow min-w-0 flex flex-wrap items-center gap-1.5">
                                         <FitSelect sm value={p.grout.product} display={p.grout.product} onChange={(e) => pickGroutProduct(e.target.value)}>{groutOpts.map((g) => <option key={g} value={g}>{g}</option>)}</FitSelect>
-                                        <FitSelect sm value={p.grout.color} display={p.grout.color || "Color…"} onChange={(e) => pickGroutColor(e.target.value)}><option value="">Color…</option>{colorOpts.map((c) => <option key={c}>{c}</option>)}</FitSelect>
+                                        <FitSelect sm value={p.grout.color} display={p.grout.color || "Color…"} onChange={(e) => pickGroutColor(e.target.value)}><option value="">Color…</option><GroutColorOptions groups={colorGroups} /></FitSelect>
                                         {(p.grout.sku || settings.grouts[p.grout.product]?.sku) && <span className="ft-mono text-[10px] text-slate-400 shrink-0" title="This color's price book SKU — prints on the order summary">{p.grout.sku || settings.grouts[p.grout.product]?.sku}</span>}
+                                        {groutSpecial && <span className="text-[10px] text-indigo-600 shrink-0" title="This color isn't stocked — it's ordered from the vendor's price list">special order</span>}
                                         <div className="flex rounded-md border border-slate-200 overflow-hidden text-[11px] shrink-0">{JOINTS.map((j) => <button tabIndex={-1} key={j.v} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, joint: j.v } })} className={`px-1.5 py-1 ${num(p.grout.joint) === j.v ? "" : "ft-field text-slate-500 hover:bg-slate-50"}`} style={num(p.grout.joint) === j.v ? { background: accent, color: "var(--ft-type-ink)" } : undefined}>{j.label}</button>)}</div>
                                       </div>
                                       <span className="ml-auto flex items-center gap-1 text-sm shrink-0" style={{ color: accent }}>{gEx != null && <span className="text-slate-400 text-xs whitespace-nowrap">{gEx.toFixed(2)} →</span>}<input tabIndex={-1} type="number" value={G ? String(G.order) : ""} onChange={(e) => updProduct(a.id, p.id, { grout: { ...p.grout, manual: e.target.value } })} placeholder="—" title="Total — type to override the calculated amount" className="!w-12 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" /><span className="font-semibold">{gUnit}</span></span>
@@ -2443,7 +2452,7 @@ export default function App({ user, onSignOut }) {
                       <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)", borderBottom: "1px solid var(--ft-row-line)", paddingBottom: 4, marginBottom: 8 }}>Grout</div>
                       {gList.length + bList.length + cList.length === 0 ? <div className="text-sm text-slate-400">—</div> : [...gList, ...bList.map((b) => ({ product: b.name, sku: b.sku, color: "—", order: b.order, unit: b.unit, cost: b.cost, price: b.price, pending: b.pending })), ...cList.map((c) => ({ ...c, product: `${c.product} caulk` }))].map((g, i) => (
                         <div key={"g" + i} className="flex justify-between gap-2.5 py-1" style={{ fontSize: 12 }}>
-                          <span className="font-medium min-w-0">{g.product}{g.color !== "—" && <span className="text-slate-500 font-normal"> · {g.color}</span>}{g.sku && <span className="ft-mono block font-normal" style={{ fontSize: 9.5, color: "var(--ft-faint)" }}>{g.sku}</span>}</span>
+                          <span className="font-medium min-w-0">{g.product}{g.color !== "—" && <span className="text-slate-500 font-normal"> · {g.color}</span>}{isSpecialMat(g, stockBookIds) && <span className="text-indigo-600 font-normal" style={{ fontSize: 10 }}> · special order</span>}{g.sku && <span className="ft-mono block font-normal" style={{ fontSize: 9.5, color: "var(--ft-faint)" }}>{g.sku}</span>}</span>
                           <span className="ft-mono text-slate-500 whitespace-nowrap text-right" style={{ fontSize: 11 }}>{g.pending ? "—" : <>{g.order} {g.unit}</>}{g.cost > 0 ? <span className="block" style={{ fontSize: 10, color: "var(--ft-faint)" }}>{money(g.cost)}</span> : g.pending && g.price > 0 ? <span className="block" style={{ fontSize: 10, color: "var(--ft-faint)" }}>{money(g.price)}/{u1(1, g.unit)}</span> : null}</span>
                         </div>
                       ))}
@@ -2616,7 +2625,7 @@ export default function App({ user, onSignOut }) {
                 {osT.matLines.map((m, i) => (
                   <tr key={"mat" + i} className="border-b border-slate-200 align-baseline">
                     <td className="py-1.5 text-center text-slate-400">☐</td>
-                    <td className="py-1.5 pr-2">{m.product} <span className="text-slate-400 text-[10.5px]">{m.kind}</span></td>
+                    <td className="py-1.5 pr-2">{m.product} <span className="text-slate-400 text-[10.5px]">{m.kind}{isSpecialMat(m, stockBookIds) ? " · special order" : ""}</span></td>
                     <td className="py-1.5 pr-2 ft-mono text-[11px]">{m.sku || ""}</td>
                     <td className="py-1.5 pr-2 text-slate-500">all areas</td>
                     <td className="py-1.5 text-right font-semibold whitespace-nowrap">{m.order} {m.unit} <span className="text-slate-400 font-normal text-[10.5px]">({m.exact.toFixed(2)})</span></td>
@@ -2676,7 +2685,7 @@ export default function App({ user, onSignOut }) {
           inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} theme={theme} setTheme={setTheme} headerLayout={headerLayout} setHeaderLayout={setHeaderLayout}
           profile={profile} saveProfile={saveProfile} user={user}
           books={books} addBook={addBook} updateBook={updateBook} confirmBook={confirmBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImportSynced}
-          bookStock={bookStock} bookStockReady={bookStockReady} refreshBookStock={refreshBookStock}
+          bookStock={bookStock} orderBookStock={orderBookStock} loadFamilyBook={loadFamilyBook} bookStockReady={bookStockReady} refreshBookStock={refreshBookStock}
           loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} setBookItemIssue={setBookItemIssue} addClaudeIssue={addClaudeIssue} />
         </Suspense>
         </LazyBoundary>
@@ -2938,15 +2947,18 @@ export default function App({ user, onSignOut }) {
         const oeT = scope === "all" ? T : jobTotals({ ...tv.proj, categories: scopedCats(tv.proj.categories, scope) }, { ...sel, categories: scopedCats(sel.categories, scope) }, tSet, wSet, settings, books);
         const rows = [];
         (oeCats || []).forEach((a, ai) => a.products.forEach((p) => { if (!rowBlank(p)) rows.push(orderEntryRow(p, wSet, areaLabel(a, ai), descLimit, stockBookIds, bookBrands, stockSkus)); }));
-        const mats = oeT.matAll.map((m, i) => {
+        // A grout color from a family's order-book source is a vendor order,
+        // not a warehouse pull — it files with the special orders.
+        const mats = oeT.matAll.filter((m) => !isSpecialMat(m, stockBookIds)).map((m, i) => {
           const { qty, qtyAssumed } = orderQty(m.order);
           return { id: "mat" + i, sku: m.sku || "", qty, qtyAssumed, qtyText: `${qty} ${u1(qty, m.unit)}`, name: m.product, kind: m.kind };
         });
+        const specialMats = oeT.matAll.filter((m) => isSpecialMat(m, stockBookIds)).map((m) => matOrderRow(m, descLimit, bookBrands));
         // Freight files with the special orders: it's billed by the same vendor
         // on the same order, and like a Sheoga line it has no SKU to key.
         const freightRows = oeT.fList.map((l) => freightOrderRow(l, descLimit));
         const name = optsUsed.length && scope !== "all" ? `${sel.name} — ${optionShort(sel, scope)}` : sel.name;
-        return <OrderEntryPanel name={name} special={[...rows.filter((r) => r.special), ...freightRows]} stock={[...rows.filter((r) => !r.special), ...mats]} descLimit={descLimit} onClose={() => { setShowOrderCopy(false); setOrderScope(null); }} />;
+        return <OrderEntryPanel name={name} special={[...rows.filter((r) => r.special), ...specialMats, ...freightRows]} stock={[...rows.filter((r) => !r.special), ...mats]} descLimit={descLimit} onClose={() => { setShowOrderCopy(false); setOrderScope(null); }} />;
       })()}
 
       {/* Samples panel — the project's sample requests grouped by vendor.

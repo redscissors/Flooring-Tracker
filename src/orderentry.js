@@ -40,6 +40,11 @@ import { skuKeys } from "./orderbook.js";
 // Matching runs over skuKeys spellings both ways so a hand-typed manufacturer
 // form of a stocked code ("KST965/810BF" vs the shop's re-lettered twin) still
 // files as stock. Without the set (cache not ready) behavior is unchanged.
+// A materials line (grout color) picked from a family's order-book source
+// files as special order; a stock-book color, or a pre-source row with no
+// book stamped, stays a stock line.
+export const isSpecialMat = (m, stockBookIds) => !!m?.bookId && !!stockBookIds && !stockBookIds.has(m.bookId);
+
 export const isSpecialOrder = (p, stockBookIds, stockSkus) =>
   (!!p.bookId && !stockBookIds?.has(p.bookId)) ? true
   : !!p.sheoga ? true

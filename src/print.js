@@ -125,6 +125,23 @@ export function printMatList(cust, s) {
   return [...rows, ...bases].sort((x, y) => rank(x.kind) - rank(y.kind));
 }
 
+// A materials line whose grout color came from an order-kind book (a family's
+// special-order source) files with the special orders: the same row shape a
+// special-order product takes, keyed by the color's own SKU; the sell is the
+// family's catalog price (special-order colors are not repriced), the cost the
+// catalog product's.
+export function matOrderRow(m, descLimit, bookBrands) {
+  const { qty, qtyAssumed } = orderQty(m.order);
+  const r = {
+    id: `mat|${m.kind}|${m.product}`, special: true, byDesc: false, area: "all areas", type: "",
+    tag: "", sizePlain: "", sizeTrue: "", name: m.product, brand: (m.bookId && bookBrands?.get(m.bookId)) || "", sku: m.sku || "", coverage: "",
+    qty, qtyAssumed, unitCode: String(m.unit || "EA"), qtyText: `${qty} ${u1(qty, m.unit)}`,
+    perCost: num(m.unitCost), perSell: num(m.price),
+  };
+  const desc = orderDescription(r, descLimit);
+  return { ...r, desc, copy: orderCopyText({ ...r, desc }) };
+}
+
 // One product row → the fields the order-entry panel shows. Special-order rows
 // (bookId set) carry a snapshotted cost; the sell is the row's line total, and
 // the cost is the honest vendor cost carried through the same quantity math

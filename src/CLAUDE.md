@@ -303,7 +303,12 @@ src/
   usebookstock.js   # `useBookStock` — stock-kind registry books' items, a bounded cache
                     # background-loaded after the books metadata (ADR 0026); feeds the row
                     # search's instant stock tier, the grout family projection, the Settings
-                    # picker, and link warnings (ADR 0027)
+                    # picker, and link warnings (ADR 0027). The order-kind books a
+                    # family's special-order source names (`familyBookIds`, ADR 0027
+                    # amendment 2026-09-13) load beside it into `orderBookStock`,
+                    # never into `bookStock` (a vendor list is not shop stock);
+                    # `familyItems` is the union the family projection reads,
+                    # `loadFamilyBook` the on-demand loader Settings' source dialog uses
   usetodos.js       # `useTodos` — team to-do/issue list state + write paths (issue 006);
                     # the central Claude bucket lives beside it in useclaudeissues.js
   uselabels.js      # `useLabels` — Apps hub label-set state + write paths
@@ -451,7 +456,11 @@ src/
   booklink.js       # catalog ↔ ERP stock-book links (ADR 0027): link/family rule shapes,
                     # series-rule + color-token parsing, family resolution + projection into
                     # stock-shaped items, import-time sync (price + cost, the
-                    # cost silently — no `changes` entry), migration link proposals
+                    # cost silently — no `changes` entry), migration link proposals.
+                    # A family's optional `order` source (a second rule over an
+                    # order-kind book, amendment 2026-09-13) appends the vendor's
+                    # unstocked colors flagged `special` with their `bookId`; a
+                    # stocked color (same number, or same name) is never listed twice
   orderbook.js      # special-order ("order") book helpers (ADR 0009): item shape,
                     # cost/markup/sell (`bookNoMarkup` — the sells-at-cost red —
                     # skips a book `bookPublishesPrice` says maps a `price`

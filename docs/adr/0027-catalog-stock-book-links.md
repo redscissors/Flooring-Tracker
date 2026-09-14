@@ -68,6 +68,24 @@ one hand-kept sheet that is going away.
    unread (hide-never-delete); old workbook-sourced rows keep their snapshots
    but no longer show drift/retired chips.
 
+   *Amendment 2026-09-13 — special-order colors from an order-kind book.* A
+   family may carry a second rule, `order: { bookId, prefix, suffix }`, over an
+   **order-kind** book (the vendor's full price list — the first is Laticrete's
+   for SpectraLOCK 1, whose ERP export stocks 9 of ~40 colors). `resolveFamily`
+   runs it after the stock rule and appends only the colors the stock rule did
+   not produce (deduped by color number, or by name when either side has none),
+   each tagged `special: true` with its `bookId`; a stocked color always wins
+   over its price-list twin. The projection carries both fields, so the job's
+   dropdown groups "In stock" / "Special order", the pick snapshots
+   `grout.bookId` beside the SKU, and the summary, order sheet and order-entry
+   panel file the line as special order (`isSpecialMat`: a bookId that is not
+   a stock-kind book). The colors are **not repriced**: a special-order color
+   costs the family's catalog price like a stocked one (owner, 2026-09-13); the
+   price-list row's cost is display-only. The order books a family names load
+   into their own cache (`orderBookStock`) so the instant stock search tier,
+   the family seed picker and the link migration never see a vendor list as
+   shop stock. The zero-match warning still watches the stock rule alone.
+
 ## Why
 
 - **IDs over text match:** `syncCatalogPrices`'s name/SKU text match is

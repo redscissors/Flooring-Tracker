@@ -218,7 +218,7 @@ test("resolveFamily falls back to cached colors on zero live matches", () => {
   const fam = normBookFamily(GHOST_FAMILY);
   const r = resolveFamily(fam, ITEMS_BY_BOOK);
   assert.equal(r.usedCache, true);
-  assert.deepEqual(r.colors, GHOST_FAMILY.cache);
+  assert.deepEqual(r.colors, GHOST_FAMILY.cache.map((c) => ({ ...c, bookId: "sheet1", special: false })));
 });
 
 test("resolveFamily reports empty bases when the defined base SKU is absent", () => {
@@ -290,7 +290,7 @@ test("projectFamilies output works unchanged through stock.js's grout & base-uni
   assert.equal(groutCaulkItem(projected, "SpectraLock Pro", "Natural Grey").sku, "LAT24");
 
   assert.deepEqual(groutSnapshotPatch(projected, "SpectraLock Pro", "Natural Grey"), {
-    sku: "PC24", caulkSku: "LAT24", caulkPrice: "12.25", caulkCost: "",
+    sku: "PC24", caulkSku: "LAT24", caulkPrice: "12.25", caulkCost: "", bookId: "sheet1",
   });
 
   // A pigment-shaped item (any raw book row mentioning "SpectraLock ... Part C")
@@ -827,4 +827,80 @@ test("resolveFamily and projectFamilies carry the caulk row's cost", () => {
   const projected = projectFamilies([SPECTRA_FAMILY], ITEMS_BY_BOOK);
   assert.equal(projected.find((it) => it.sku === "LAT85").cost, 6.1);
   assert.equal(projected.find((it) => it.sku === "LAT24").cost, null);
+});
+
+// --- special-order colors from an order-kind book (ADR 0027 amendment 2026-09-13) ---
+
+// A Laticrete price list imported as an order-kind book: the WHOLE color range,
+// the stocked colors again beside the special-order rest, plus a retired row
+// and a sibling line the rule must not catch.
+const LAT_ORDER_ITEMS = [
+  { sku: "LAT-SL1-24", active: true, description: "SPECTRALOCK 1 PRE-MIXED GROUT 24 NATURAL GREY 1 GAL", price: 60 },
+  { sku: "LAT-SL1-85", active: true, description: "SPECTRALOCK 1 PRE-MIXED GROUT 85 ALMOND 1 GAL", price: 60 },
+  { sku: "LAT-SL1-CLR", active: true, description: "SPECTRALOCK 1 PRE-MIXED GROUT CLEAR 1 GAL", price: 60 },
+  { sku: "LAT-SL1-18", active: true, description: "SPECTRALOCK 1 PRE-MIXED GROUT 18 SAUTERNE 1 GAL", price: 60 },
+  { sku: "LAT-SL1-45", active: true, description: "SPECTRALOCK 1 PRE-MIXED GROUT 45 RAVEN 1 GAL", price: 60 },
+  { sku: "LAT-SL1-99", active: false, description: "SPECTRALOCK 1 PRE-MIXED GROUT 99 RETIRED 1 GAL", price: 60 },
+  { sku: "LAT-SL1-KIT", active: true, description: "SPECTRALOCK 1 PRE-MIXED GROUT FULL UNIT 1 GAL", price: 60 },
+  { sku: "LAT-PRO-24", active: true, description: "SPECTRALOCK PRO PART C 24 NATURAL GREY", price: 60 },
+];
+const ITEMS_WITH_ORDER = { ...ITEMS_BY_BOOK, lat: LAT_ORDER_ITEMS };
+const SO_FAMILY = { ...SPECTRA_FAMILY, id: "spectra-so", order: { bookId: "lat", prefix: "SPECTRALOCK 1 PRE-MIXED GROUT", suffix: "1 GAL" } };
+
+test("normBookFamily carries an order source, defaulting to none", () => {
+  assert.equal(normBookFamily(SPECTRA_FAMILY).order, null);
+  assert.deepEqual(normBookFamily(SO_FAMILY).order, { bookId: "lat", prefix: "SPECTRALOCK 1 PRE-MIXED GROUT", suffix: "1 GAL" });
+  // a source with no rule is no source; one with no book is no source either
+  assert.equal(normBookFamily({ ...SO_FAMILY, order: { bookId: "lat", prefix: "", suffix: "" } }).order, null);
+  assert.equal(normBookFamily({ ...SO_FAMILY, order: { bookId: "", prefix: "X", suffix: "" } }).order, null);
+});
+
+test("resolveFamily appends the order book's colors as special order, stocked colors winning", () => {
+  const r = resolveFamily(normBookFamily(SO_FAMILY), ITEMS_WITH_ORDER);
+  assert.equal(r.usedCache, false);
+  const stock = r.colors.filter((c) => !c.special), so = r.colors.filter((c) => c.special);
+  // the stock list is exactly what it was without the order source
+  assert.deepEqual(stock.map((c) => c.sku).sort(), ["PC-CLR", "PC24", "PC53", "PC85"]);
+  assert.ok(stock.every((c) => c.bookId === "sheet1"));
+  // stocked colors are deduped by number (24, 85) and by name (Clear); the
+  // retired row, the kit row and the sibling PRO line never join
+  assert.deepEqual(so.map((c) => c.sku).sort(), ["LAT-SL1-18", "LAT-SL1-45"]);
+  assert.deepEqual(so.map((c) => c.color).sort(), ["Raven", "Sauterne"]);
+  assert.ok(so.every((c) => c.bookId === "lat" && c.special === true));
+  // stock colors come first in the list, special-order after
+  assert.equal(r.colors.findIndex((c) => c.special), stock.length);
+  // caulk still matches the stocked colors; the base rows are untouched
+  assert.equal(r.caulkByColor.get("almond").sku, "LAT85");
+  assert.deepEqual(r.bases.map((b) => b.sku).sort(), ["SL-COMM", "SL-FULL"]);
+});
+
+test("resolveFamily with a dead stock rule serves the cache AND the order colors, still flagged", () => {
+  const fam = normBookFamily({ ...GHOST_FAMILY, order: SO_FAMILY.order });
+  const r = resolveFamily(fam, ITEMS_WITH_ORDER);
+  assert.equal(r.usedCache, true);
+  assert.deepEqual(r.colors.map((c) => c.sku), ["OLD-1", "LAT-SL1-24", "LAT-SL1-85", "LAT-SL1-CLR", "LAT-SL1-18", "LAT-SL1-45"]);
+  assert.ok(familyWarnings([fam], ITEMS_WITH_ORDER).some((w) => w.kind === "zero-match"));
+  // an order source alone never hides an empty stock rule
+  const bare = normBookFamily({ ...GHOST_FAMILY, cache: [], order: SO_FAMILY.order });
+  assert.ok(familyWarnings([bare], ITEMS_WITH_ORDER).some((w) => w.kind === "zero-match"));
+});
+
+test("resolveFamily ignores the order source when its book isn't loaded", () => {
+  const r = resolveFamily(normBookFamily(SO_FAMILY), ITEMS_BY_BOOK);
+  assert.deepEqual(r.colors.map((c) => c.sku).sort(), ["PC-CLR", "PC24", "PC53", "PC85"]);
+});
+
+test("projectFamilies marks special-order color items with their source book", () => {
+  const projected = projectFamilies([SO_FAMILY], ITEMS_WITH_ORDER);
+  const colors = projected.filter((it) => it.product === "SpectraLock Pro" && it.color);
+  const raven = colors.find((it) => it.color === "Raven"), grey = colors.find((it) => it.color === "Natural Grey");
+  assert.equal(raven.special, true); assert.equal(raven.bookId, "lat"); assert.equal(raven.sku, "LAT-SL1-45");
+  assert.equal(grey.special, false); assert.equal(grey.bookId, "sheet1");
+  // through stock.js: the family lists the flag, and a pick stamps the source book
+  const fam = groutFamilies(projected).find((f) => f.product === "SpectraLock Pro");
+  assert.deepEqual(fam.colors.filter((c) => c.special).map((c) => c.color).sort(), ["Raven", "Sauterne"]);
+  assert.deepEqual(groutSnapshotPatch(projected, "SpectraLock Pro", "Raven"), {
+    sku: "LAT-SL1-45", caulkSku: "", caulkPrice: "", caulkCost: "", bookId: "lat",
+  });
+  assert.equal(groutSnapshotPatch(projected, "SpectraLock Pro", "Natural Grey").bookId, "sheet1");
 });

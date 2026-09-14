@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { normalizeSettings, resolveCatalog } from "./catalog.js";
 import { newProduct } from "./model.js";
-import { printProduct, orderLineCost, printMatList, areaPrintLabel, orderEntryRow } from "./print.js";
+import { printProduct, orderLineCost, printMatList, areaPrintLabel, orderEntryRow, matOrderRow } from "./print.js";
 
 const s = normalizeSettings();
 
@@ -234,4 +234,24 @@ test("printProduct marks each extra the Employee lens could not reprice (priced,
   s3.catalog.companies.forEach((co) => co.mortars.forEach((m) => { if (m.name === "ProLite") m.price = 0; }));
   const s4 = { ...s3, ...resolveCatalog(s3.catalog) };
   assert.equal(printProduct(p, s4).mats.find((m) => m.kind === "Mortar").noCost, false);
+});
+
+test("matOrderRow: a special-order grout color files as a described special line", () => {
+  const m = { kind: "Grout", product: "SpectraLOCK 1 — Raven", sku: "LAT-SL1-45", order: 3, unit: "units", price: 60, unitCost: 41.2, bookId: "lat" };
+  const r = matOrderRow(m, 0, new Map([["lat", "Laticrete"]]));
+  assert.equal(r.special, true);
+  assert.equal(r.byDesc, false);
+  assert.equal(r.name, "SpectraLOCK 1 — Raven");
+  assert.equal(r.brand, "Laticrete");
+  assert.equal(r.sku, "LAT-SL1-45");
+  assert.equal(r.qty, 3);
+  assert.equal(r.qtyAssumed, false);
+  assert.equal(r.qtyText, "3 units");
+  assert.equal(r.perSell, 60);
+  assert.equal(r.perCost, 41.2);
+  assert.ok(r.copy.includes("LAT-SL1-45"));
+  // a line with no computable quantity keys as one, flagged, like every order line
+  const r0 = matOrderRow({ ...m, order: 0 }, 0);
+  assert.equal(r0.qty, 1); assert.equal(r0.qtyAssumed, true);
+  assert.equal(r0.brand, "");
 });

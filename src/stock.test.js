@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { searchStock, hitRank, relaxSearchWords, findStock, parseTileSize, parseThickness, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, groutSnapshotPatch, deriveSquareDim } from "./stock.js";
+import { searchStock, hitRank, relaxSearchWords, findStock, parseTileSize, parseThickness, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, groutSnapshotPatch, deriveSquareDim, groutColorOptions } from "./stock.js";
 import { normOrderItem } from "./orderbook.js";
 import { groutExact, mortarExact, mergeSettings, ceilQty } from "./catalog.js";
 
@@ -527,12 +527,12 @@ test("groutSnapshotPatch bundles color SKU + caulk SKU/price; empty on a miss", 
     colorItem("1519067", "Laticrete Latasil Caulk", "Almond", 12.5),
   ];
   assert.deepEqual(groutSnapshotPatch(stock, "Laticrete Permacolor Color Kit", "Almond"),
-    { sku: "1519025", caulkSku: "1519067", caulkPrice: "12.5", caulkCost: "" });
+    { sku: "1519025", caulkSku: "1519067", caulkPrice: "12.5", caulkCost: "", bookId: "" });
   assert.deepEqual(groutSnapshotPatch(stock, "Laticrete Permacolor Color Kit", "Nope"),
-    { sku: "", caulkSku: "", caulkPrice: "", caulkCost: "" });
+    { sku: "", caulkSku: "", caulkPrice: "", caulkCost: "", bookId: "" });
   assert.deepEqual(groutSnapshotPatch([], "Laticrete Permacolor Color Kit", "Almond"),
-    { sku: "", caulkSku: "", caulkPrice: "", caulkCost: "" });
-  assert.deepEqual(groutSnapshotPatch(stock, "", "Almond"), { sku: "", caulkSku: "", caulkPrice: "", caulkCost: "" });
+    { sku: "", caulkSku: "", caulkPrice: "", caulkCost: "", bookId: "" });
+  assert.deepEqual(groutSnapshotPatch(stock, "", "Almond"), { sku: "", caulkSku: "", caulkPrice: "", caulkCost: "", bookId: "" });
 });
 
 test("groutSnapshotPatch stamps the caulk row's cost beside its price (ADR 0018 amendment)", () => {
@@ -590,4 +590,15 @@ test("a typed roll-sold floor orders in whole rolls off its coverage", () => {
   assert.equal(patch.cartonSf, "240");
   assert.equal(patch.cartonUnit, "RL");
   assert.equal(patch.priceSqft, "3");
+});
+
+test("groutColorOptions splits a family's colors into stock and special-order groups", () => {
+  const fam = { product: "SpectraLock 1", colors: [{ color: "Almond", sku: "A" }, { color: "Raven", sku: "R", special: true }, { color: "Clear", sku: "C", special: false }] };
+  assert.deepEqual(groutColorOptions(fam, ""), { stock: ["Almond", "Clear"], special: ["Raven"] });
+  // a stored color the family no longer offers is injected back, first, so it still shows
+  assert.deepEqual(groutColorOptions(fam, "Gone"), { stock: ["Gone", "Almond", "Clear"], special: ["Raven"] });
+  assert.deepEqual(groutColorOptions(fam, "Raven"), { stock: ["Almond", "Clear"], special: ["Raven"] });
+  // no family: the fallback list, no special group
+  assert.deepEqual(groutColorOptions(null, "Bright White", ["Bright White", "Almond"]), { stock: ["Bright White", "Almond"], special: [] });
+  assert.deepEqual(groutColorOptions(null, "Custom", ["Almond"]), { stock: ["Custom", "Almond"], special: [] });
 });

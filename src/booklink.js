@@ -102,6 +102,11 @@ export function normBookFamily(f) {
     caulk: f?.caulk && (str(f.caulk.prefix) || str(f.caulk.suffix))
       ? { bookId: str(f.caulk.bookId) || str(f?.bookId), prefix: str(f.caulk.prefix), suffix: str(f.caulk.suffix) }
       : null,
+    // Special-order colors: a second rule over an order-kind book (the vendor's
+    // full price list), appended after the stock rule's colors.
+    order: f?.order && str(f.order.bookId) && (str(f.order.prefix) || str(f.order.suffix))
+      ? { bookId: str(f.order.bookId), prefix: str(f.order.prefix), suffix: str(f.order.suffix) }
+      : null,
     cache: (Array.isArray(f?.cache) ? f.cache : []).map((c) => ({
       color: str(c?.color), num: str(c?.num), sku: str(c?.sku), price: numOr(c?.price), unit: str(c?.unit),
     })),
@@ -200,8 +205,33 @@ export function resolveFamily(fam, itemsByBook) {
     if (!token) continue;
     const { num, name } = parseColorToken(token);
     if (!name && !num) continue;
-    colors.push({ color: name || num, num, sku: it.sku, price: numOr(it.price), unit: str(it.unit) });
+    colors.push({ color: name || num, num, sku: it.sku, price: numOr(it.price), unit: str(it.unit), bookId: fam.bookId, special: false });
   }
+  // Zero matches after a re-drop (supplier rewrote every description) must not
+  // blank a job's color dropdown — serve the cached colors, flagged, until the
+  // rule is re-confirmed (spec §6).
+  const usedCache = !colors.length && fam.cache.length > 0;
+  const stockColors = usedCache ? fam.cache.map((c) => ({ ...c, bookId: fam.bookId, special: false })) : colors;
+  // The order book's colors join after the stock ones; a color the shop stocks
+  // is never offered twice — same number, or same name when either side has
+  // no number (Clear).
+  const soColors = [];
+  if (fam.order) {
+    const nums = new Set(stockColors.map((c) => c.num).filter(Boolean));
+    const names = new Set(stockColors.map((c) => c.color.toLowerCase()));
+    for (const it of liveRows(itemsByBook?.[fam.order.bookId])) {
+      if (looksLikeBase(it.description)) continue;
+      const token = matchRule(fam.order, it.description);
+      if (!token) continue;
+      const { num, name } = parseColorToken(token);
+      if (!name && !num) continue;
+      const color = name || num;
+      if ((num && nums.has(num)) || names.has(color.toLowerCase())) continue;
+      nums.add(num); names.add(color.toLowerCase());
+      soColors.push({ color, num, sku: it.sku, price: numOr(it.price), unit: str(it.unit), bookId: fam.order.bookId, special: true });
+    }
+  }
+  const all = [...stockColors, ...soColors];
   const caulkByColor = new Map();
   if (fam.caulk) {
     const byNum = new Map(), byName = new Map();
@@ -213,17 +243,13 @@ export function resolveFamily(fam, itemsByBook) {
       if (num && !byNum.has(num)) byNum.set(num, entry);
       if (name && !byName.has(name.toLowerCase())) byName.set(name.toLowerCase(), entry);
     }
-    for (const c of colors) {
+    for (const c of all) {
       const hit = (c.num && byNum.get(c.num)) || byName.get(c.color.toLowerCase());
       if (hit) caulkByColor.set(c.color.toLowerCase(), hit);
     }
   }
   const bases = liveRows(itemsByBook?.[fam.bookId]).filter((it) => baseSet.has(it.sku));
-  // Zero matches after a re-drop (supplier rewrote every description) must not
-  // blank a job's color dropdown — serve the cached colors, flagged, until the
-  // rule is re-confirmed (spec §6).
-  if (!colors.length && fam.cache.length) return { colors: fam.cache, caulkByColor, bases, usedCache: true };
-  return { colors, caulkByColor, bases, usedCache: false };
+  return { colors: all, caulkByColor, bases, usedCache };
 }
 
 // Families → stock-shaped items, so ADR 0006/0007 stock.js helpers (and every
@@ -238,7 +264,7 @@ export function projectFamilies(bookFamilies, itemsByBook) {
     const { colors, caulkByColor, bases } = resolveFamily(fam, itemsByBook);
     const flags = { active: true, disabled: false, discontinued: false };
     for (const c of colors) {
-      out.push({ ...flags, sku: c.sku, sheet: "Grout & Caulk", section: `bookfam:${fam.id}`, product: fam.name, color: c.color, price: c.price, unit: c.unit, description: "" });
+      out.push({ ...flags, sku: c.sku, sheet: "Grout & Caulk", section: `bookfam:${fam.id}`, product: fam.name, color: c.color, price: c.price, unit: c.unit, description: "", bookId: c.bookId || fam.bookId, special: !!c.special });
       const ck = caulkByColor.get(c.color.toLowerCase());
       if (ck) out.push({ ...flags, sku: ck.sku, sheet: "Grout & Caulk", section: `bookfam:${fam.id}`, product: `${fam.name} Caulk`, color: c.color, price: ck.price, cost: ck.cost, unit: "", description: "" });
     }
@@ -253,7 +279,7 @@ export function familyWarnings(bookFamilies, itemsByBook) {
     const fam = normBookFamily(raw);
     if (!fam.name || !fam.bookId) continue;
     const r = resolveFamily(fam, itemsByBook);
-    if (r.usedCache || (!r.colors.length && !fam.cache.length)) out.push({ familyId: fam.id, name: fam.name, kind: "zero-match" });
+    if (r.usedCache || (!r.colors.some((c) => !c.special) && !fam.cache.length)) out.push({ familyId: fam.id, name: fam.name, kind: "zero-match" });
     else if ((fam.baseSkus.default || fam.baseSkus.variant) && !r.bases.length) out.push({ familyId: fam.id, name: fam.name, kind: "base-missing" });
   }
   return out;

@@ -9,6 +9,7 @@ test("normP fills every field a grid row reads from a bare object", () => {
   assert.equal(p.qtyType, "sqft");
   assert.equal(p.grout.joint, 0.125);
   assert.equal(p.grout.checked, false);
+  assert.equal(p.grout.bookId, "");
   assert.deepEqual(p.attached, {});
   assert.equal(p.underlay.install, false);
 });
@@ -466,4 +467,9 @@ test("normP carries the caulk cost snapshot beside caulkPrice, blank when absent
   assert.equal(normP({ grout: { caulkPrice: "9.50", caulkCost: "5.25" } }).grout.caulkCost, "5.25");
   assert.equal(normP({ grout: { caulkPrice: "9.50" } }).grout.caulkCost, "");
   assert.equal(newProduct().grout.caulkCost, "");
+});
+
+test("normP keeps a grout color's source book (special-order colors, ADR 0027 amendment)", () => {
+  assert.equal(normP({ id: "r", grout: { checked: true, product: "SpectraLOCK 1", color: "Raven", sku: "LAT-45", bookId: "lat" } }).grout.bookId, "lat");
+  assert.equal(newProduct().grout.bookId, "");
 });

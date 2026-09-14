@@ -77,3 +77,19 @@ test("freight consolidates over the union: one line per book, no double-minimum"
   // Strictly less: the union's 20 sf still only trips the minimum once.
   assert.ok(union.freightCost < shared.freightCost + bucketA.freightCost);
 });
+
+test("gList carries the grout color's source book and the catalog unit cost for order entry", () => {
+  const settings2 = normalizeSettings({ grouts: { "PermaColor Select": { unit: "units", price: 18.95, cost: 9.5, coverage: 100 } } });
+  const cats = normC({ id: "j2", name: "J", categories: [{ name: "A", option: "", products: [
+    tile(100, { grout: { checked: true, product: "PermaColor Select", color: "Raven", sku: "LAT-45", bookId: "lat", joint: 0.125 } }),
+    tile(50, { grout: { checked: true, product: "PermaColor Select", color: "Raven", sku: "LAT-45", bookId: "lat", joint: 0.125 } }),
+    tile(50, { grout: { checked: true, product: "PermaColor Select", color: "Almond", sku: "PC85", joint: 0.125 } }),
+  ] }] }).categories;
+  const w2 = withProjWaste(settings2, proj);
+  const t = jobTotals({ ...proj, categories: cats }, { ...proj, categories: cats }, w2, w2, settings2, []);
+  const raven = t.gList.find((g) => g.color === "Raven"), almond = t.gList.find((g) => g.color === "Almond");
+  assert.equal(raven.bookId, "lat");
+  assert.equal(almond.bookId, "");
+  assert.equal(raven.unitCost, 9.5);
+  assert.equal(t.matAll.find((m) => m.kind === "Grout" && /Raven/.test(m.product)).bookId, "lat");
+});

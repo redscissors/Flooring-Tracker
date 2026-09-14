@@ -474,7 +474,7 @@ export function groutFamilies(stock) {
   for (const it of stock) {
     if (!it.active || it.discontinued || it.disabled || !isGroutColorItem(it)) continue;
     const f = fams.get(it.product) || { product: it.product, brand: it.brand || "", price: null, colors: [] };
-    f.colors.push({ color: it.color, sku: it.sku });
+    f.colors.push({ color: it.color, sku: it.sku, special: !!it.special });
     if (f.price == null && it.price != null) f.price = it.price;
     fams.set(it.product, f);
   }
@@ -508,6 +508,19 @@ export function groutCaulkItem(stock, family, color) {
 export function groutSnapshotPatch(stock, family, color) {
   const it = groutColorItem(stock, family, color);
   const ck = groutCaulkItem(stock, family, color);
-  return { sku: it ? it.sku : "", caulkSku: ck ? ck.sku : "", caulkPrice: ck && ck.price != null ? String(ck.price) : "", caulkCost: ck && ck.cost != null ? String(ck.cost) : "" };
+  return { sku: it ? it.sku : "", caulkSku: ck ? ck.sku : "", caulkPrice: ck && ck.price != null ? String(ck.price) : "", caulkCost: ck && ck.cost != null ? String(ck.cost) : "", bookId: it ? str(it.bookId) : "" };
+}
+
+// The job's color dropdown, grouped: the family's stocked colors, then its
+// special-order ones (an order-book source on the family). A stored color the
+// family no longer offers is injected back first so the row still shows it.
+// No family: the fallback code list, no special group.
+export function groutColorOptions(family, current, fallback = []) {
+  const base = family ? family.colors : fallback.map((c) => ({ color: c }));
+  const stock = base.filter((c) => !c.special).map((c) => c.color);
+  const special = base.filter((c) => c.special).map((c) => c.color);
+  const cur = str(current);
+  if (cur && !stock.includes(cur) && !special.includes(cur)) stock.unshift(cur);
+  return { stock, special };
 }
 
