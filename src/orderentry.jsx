@@ -23,19 +23,30 @@
 // a zero qty blanks the per-unit pricing — and the whole row turns amber so the
 // salesperson can see the panel supplied that number, not the estimate.
 //
+// Two views (owner 2026-09-14): the panel opens MERGED & SORTED — lines
+// sharing a SKU combine into one (mergeOrderLines), and both lists band by
+// vendor group in the desk's order (groupOrderLines) — because ERP One keeps
+// two pasted lines with one SKU as two lines. A merged line wears a moss pill
+// (×N areas) that opens its per-area breakdown; a line held apart on purpose
+// (same SKU, different unit or price) says so in a quiet note. SHEET ORDER is
+// the list exactly as the estimate reads it, banded by area (sheetBands).
+// The copies follow whichever view is showing.
+//
 // Pure presentation: App.jsx builds the row objects (orderEntryRow) from the
 // snapshotted product rows and passes them in. Nothing here mutates state,
 // touches Supabase, or prints — so it can be mounted in isolation for preview.
 // Docks as a right sidebar on wide screens, becomes a full-screen module below.
+// Loaded lazily by App.jsx: the vendor classifiers orderlines.js leans on pull
+// the wedi and Schluter catalogs, which stay out of the boot chunk (ADR 0026).
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Copy, Check, X } from "lucide-react";
+import { CopyBtn, DONE_MOSS, writeClipboard } from "./copybtn.jsx";
+import { mergeOrderLines, groupOrderLines, sheetBands } from "./orderlines.js";
+
+export { CopyBtn } from "./copybtn.jsx";
 
 const money = (n) => `$${(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-// "Copied / done" affordance — a filled moss chip matching the stock rows'
-// checkboxes (accent-color: --ft-brand), white check on moss. Set inline rather
-// than via Tailwind's emerald utilities, which this theme's build does not render.
-const DONE_MOSS = { color: "#fff", background: "var(--ft-brand)", borderColor: "var(--ft-brand)" };
 // A line whose quantity the panel supplied itself (orderQty — no qty on the
 // row, so it keys as 1). Amber is already this app's "we changed this, look at
 // it" signal: the grid rings a missing Sq Ft cell in the same amber, and the
@@ -51,27 +62,42 @@ const ASSUMED_TITLE = "No quantity on this line — the panel keyed it as 1. Set
 // "/sf", the rest stay uppercase codes (CT/SH/PC/EA).
 const perUnit = (code) => "/" + (code === "SF" ? "sf" : code);
 
-// Text copy button with a brief "Copied" confirmation (used for the stock bulk
-// copies). Falls back to execCommand when the async clipboard API is
-// unavailable (older/insecure context).
-export function CopyBtn({ text, label = "Copy", disabled = false, className = "" }) {
-  const [done, setDone] = useState(false);
-  const copy = async () => {
-    try { await navigator.clipboard.writeText(text); }
-    catch {
-      const ta = document.createElement("textarea");
-      ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
-      document.body.appendChild(ta); ta.select();
-      try { document.execCommand("copy"); } catch {}
-      document.body.removeChild(ta);
-    }
-    setDone(true); setTimeout(() => setDone(false), 1400);
-  };
+const KEPT_TEXT = { unit: "same SKU · unit differs", price: "same SKU · price differs" };
+const KEPT_TITLE = {
+  unit: "Another line on this order has the same SKU in a different sell unit. They were not combined — a summed quantity would mix units.",
+  price: "Another line on this order has the same SKU at a different per-unit cost or sell. They were not combined — a merged line can carry only one price.",
+};
+
+// Merged-line pill: how many areas (or lines, when one area repeated a SKU)
+// fed the line; click opens the breakdown beneath.
+function MergedPill({ r, open, onToggle }) {
+  const areas = new Set(r.from.map((f) => f.area)).size;
+  const label = areas > 1 ? `×${areas} areas` : `×${r.from.length} lines`;
   return (
-    <button onClick={copy} disabled={disabled || !text} style={done ? DONE_MOSS : undefined}
-      className={"inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] font-semibold border transition-colors disabled:opacity-40 disabled:cursor-default " + (done ? "" : "border-slate-200 hover:bg-slate-50 ") + className}>
-      {done ? <><Check size={13} /> Copied</> : <><Copy size={13} /> {label}</>}
-    </button>
+    <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggle(); }} aria-expanded={open}
+      title={open ? "Hide where this line came from" : "Show where this line came from"}
+      className="inline-flex shrink-0 items-center rounded-full px-1.5 py-px ml-1.5 text-[9.5px] font-extrabold tracking-[.04em] align-[1px] border-0 cursor-pointer whitespace-nowrap"
+      style={DONE_MOSS}>{label}</button>
+  );
+}
+function KeptNote({ r }) {
+  return (
+    <span title={KEPT_TITLE[r.kept]}
+      className="inline-block shrink-0 rounded-full px-1.5 py-px ml-1.5 text-[9.5px] font-bold tracking-[.03em] align-[1px] border border-slate-200 bg-slate-100 text-slate-500 whitespace-nowrap">
+      {KEPT_TEXT[r.kept]}
+    </span>
+  );
+}
+function FromList({ r, unit }) {
+  return (
+    <div className="flex flex-wrap gap-x-2.5 gap-y-0.5 mt-1 text-[11px] text-slate-500 ft-mono">
+      {r.from.map((f, i) => (
+        <span key={i}>
+          <span className="inline-block w-[5px] h-[5px] rounded-full mr-1 align-[1px]" style={{ background: "var(--ft-brand)" }} />
+          {f.area || "—"} {f.qty} {unit}{f.qtyAssumed && <span className="ft-eyebrow text-[8px] font-extrabold tracking-[.06em] ml-1" style={{ color: ASSUMED_INK }}>assumed</span>}
+        </span>
+      ))}
+    </div>
   );
 }
 
@@ -79,27 +105,17 @@ const GRID = { display: "grid", gridTemplateColumns: "24px minmax(0,1fr) 42px 76
 
 // One special-order line. The copy button copies the whole item (with tag) and
 // latches to a green check so the salesperson can see what's already entered.
-const writeClipboard = async (text) => {
-  try { await navigator.clipboard.writeText(text); }
-  catch {
-    const ta = document.createElement("textarea");
-    ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
-    document.body.appendChild(ta); ta.select();
-    try { document.execCommand("copy"); } catch {}
-    document.body.removeChild(ta);
-  }
-};
-
 function SpecialRow({ r, alt, descLimit }) {
   const [copied, setCopied] = useState(false);
   const [copiedExt, setCopiedExt] = useState(false);
+  const [showFrom, setShowFrom] = useState(false);
   const copy = async () => { await writeClipboard(r.copy); setCopied(true); };
   const copyExt = async () => { await writeClipboard(r.desc.ext); setCopiedExt(true); };
   const d = r.desc;
   return (
     <div style={{ ...GRID, padding: "9px 12px", background: alt ? "var(--ft-prod)" : "transparent", ...(r.qtyAssumed ? ASSUMED_ROW : null) }}
       title={r.qtyAssumed ? ASSUMED_TITLE : undefined}
-      className="border-t border-slate-100 first:border-t-0">
+      className="border-t border-slate-100">
       <button onClick={copy} title="Copy the description field" style={copied ? DONE_MOSS : undefined}
         className={"grid place-items-center w-[26px] h-[26px] rounded-md border transition-colors " +
           (copied ? "" : "border-transparent text-slate-400 hover:border-slate-200 hover:bg-white")}>
@@ -115,8 +131,16 @@ function SpecialRow({ r, alt, descLimit }) {
           {r.name && <> <span className="font-bold">{r.name}</span></>}
         </div>
         <div className="truncate text-[11px] leading-tight text-slate-400 ft-mono">
-          <span className="font-semibold text-slate-500">{r.byDesc ? "by description — no SKU" : r.sku || "—"}</span>{r.coverage && ` ${r.coverage}`}
+          <span className="font-semibold text-slate-500">{r.byDesc ? (r.freight ? "by vendor — no SKU" : "by description — no SKU") : r.sku || "—"}</span>{r.coverage && ` ${r.coverage}`}
+          {r.kept && !r.from && r.area && <span className="text-slate-400"> · {r.area}</span>}
         </div>
+        {(r.from || r.kept) && (
+          <div className="mt-0.5 flex flex-wrap items-center gap-1 [&>*]:ml-0">
+            {r.from && <MergedPill r={r} open={showFrom} onToggle={() => setShowFrom((v) => !v)} />}
+            {r.kept && <KeptNote r={r} />}
+          </div>
+        )}
+        {r.from && showFrom && <FromList r={r} unit={r.unitCode} />}
 
         {/* What will actually land in the description field, shown only once it
             stops being the plain description — so an abbreviation is never a
@@ -151,47 +175,82 @@ function SpecialRow({ r, alt, descLimit }) {
   );
 }
 
+// A band heading inside a list: a vendor group in the merged view, an area in
+// sheet order.
+function Band({ label, area, first }) {
+  return (
+    <div className={"px-3 py-1 ft-eyebrow text-[9.5px] tracking-[.12em] border-slate-100 " + (first ? "" : "border-t ") + (area ? "bg-slate-50 text-slate-400" : "bg-slate-100 text-slate-500")}>
+      {label}
+    </div>
+  );
+}
+
+// One stock line: SKU, quantity, name — plus the merged pill / kept note and
+// the breakdown the pill opens.
+function StockRow({ r, sel, onToggle, unit }) {
+  const [showFrom, setShowFrom] = useState(false);
+  return (
+    <label title={r.qtyAssumed ? ASSUMED_TITLE : undefined}
+      style={r.qtyAssumed ? ASSUMED_ROW : undefined}
+      className={"flex items-center gap-2 px-3 py-2 text-[12.5px] border-t border-slate-100 " + (r.sku ? "cursor-pointer hover:bg-slate-50" : "cursor-default")}>
+      <span className={"ft-mono shrink-0 w-24 truncate " + (r.sku ? "text-slate-400" : "font-semibold text-red-600")} title={r.sku}>{r.sku || "no SKU"}</span>
+      <span className={"ft-mono font-semibold shrink-0 min-w-[56px] whitespace-nowrap" + (r.sku ? "" : " text-red-600")}
+        style={r.qtyAssumed ? { color: ASSUMED_INK } : undefined}>{r.qtyText}{r.qtyAssumed && <span className="ft-eyebrow text-[8px] font-extrabold tracking-[.06em] ml-1">assumed</span>}</span>
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center min-w-0">
+          <span className={"truncate" + (r.sku ? "" : " text-red-600")}>
+            {r.name}{r.kind && <span className={"text-[11px] " + (r.sku ? "text-slate-400" : "text-red-400")}> {r.kind}</span>}
+          </span>
+          {r.from && <MergedPill r={r} open={showFrom} onToggle={() => setShowFrom((v) => !v)} />}
+          {r.kept && <KeptNote r={r} />}
+        </span>
+        {r.from && showFrom && <FromList r={r} unit={unit} />}
+      </span>
+      <input type="checkbox" checked={sel} onChange={onToggle} disabled={!r.sku}
+        className="w-[17px] h-[17px] shrink-0 cursor-pointer disabled:opacity-30 disabled:cursor-default" style={{ accentColor: "var(--ft-brand)" }} />
+    </label>
+  );
+}
+
 // Checkbox list with "Copy all" / "Copy selected": one line per item, SKU then
 // a tab then the bare order quantity — the format the shop's order desk pastes
 // (SKU⇥qty), matching Cut & Order. A row with no SKU shows red and stays out
-// of the copies — a pasted blank would key the wrong thing silently.
-function CopySection({ title, rows, emptyText, hint }) {
+// of the copies — a pasted blank would key the wrong thing silently. `bands`
+// is the list in the order it copies, already merged or as entered.
+function CopySection({ title, bands, areaBands, count, emptyText, hint, note }) {
   const [sel, setSel] = useState(() => new Set());
   const toggle = (id) => setSel((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const rows = bands.flatMap((b) => b.rows);
   const line = (r) => `${r.sku}\t${r.qty}`;
   const copyable = rows.filter((r) => r.sku);
   const assumed = rows.filter((r) => r.qtyAssumed).length;
   const bulk = copyable.map(line).join("\n");
-  const selected = copyable.filter((r) => sel.has(r.id)).map(line).join("\n");
+  const picked = copyable.filter((r) => sel.has(r.id));
+  const selected = picked.map(line).join("\n");
   return (
     <section>
       <div className="flex items-center justify-between mb-2 gap-2">
-        <h4 className="ft-eyebrow text-[10px] tracking-[.12em] text-slate-500">{title} · {rows.length}</h4>
+        <h4 className="ft-eyebrow text-[10px] tracking-[.12em] text-slate-500">{title} · {count}</h4>
         {rows.length > 0 && (
           <div className="flex items-center gap-2">
             <CopyBtn text={bulk} label="Copy all" />
-            <CopyBtn text={selected} disabled={sel.size === 0} label={sel.size ? `Copy selected (${sel.size})` : "Copy selected"} />
+            <CopyBtn text={selected} disabled={picked.length === 0} label={picked.length ? `Copy selected (${picked.length})` : "Copy selected"} />
           </div>
         )}
       </div>
       {rows.length === 0 ? (
         <p className="text-[13px] text-slate-400 rounded-lg border border-dashed border-slate-200 px-3 py-3">{emptyText}</p>
       ) : (
-        <div className="rounded-lg border border-slate-200 divide-y divide-slate-100">
-          {rows.map((r) => (
-            <label key={r.id} title={r.qtyAssumed ? ASSUMED_TITLE : undefined}
-              style={r.qtyAssumed ? ASSUMED_ROW : undefined}
-              className={"flex items-center gap-2 px-3 py-2 text-[12.5px] " + (r.sku ? "cursor-pointer hover:bg-slate-50" : "cursor-default")}>
-              <span className={"ft-mono shrink-0 w-24 truncate " + (r.sku ? "text-slate-400" : "font-semibold text-red-600")} title={r.sku}>{r.sku || "no SKU"}</span>
-              <span className={"ft-mono font-semibold shrink-0 min-w-[56px] whitespace-nowrap" + (r.sku ? "" : " text-red-600")}
-                style={r.qtyAssumed ? { color: ASSUMED_INK } : undefined}>{r.qtyText}{r.qtyAssumed && <span className="ft-eyebrow text-[8px] font-extrabold tracking-[.06em] ml-1">assumed</span>}</span>
-              <span className={"truncate flex-1" + (r.sku ? "" : " text-red-600")}>{r.name}{r.kind && <span className={"text-[11px] " + (r.sku ? "text-slate-400" : "text-red-400")}> {r.kind}</span>}</span>
-              <input type="checkbox" checked={sel.has(r.id)} onChange={() => toggle(r.id)} disabled={!r.sku}
-                className="w-[17px] h-[17px] shrink-0 cursor-pointer disabled:opacity-30 disabled:cursor-default" style={{ accentColor: "var(--ft-brand)" }} />
-            </label>
+        <div className="rounded-lg border border-slate-200 overflow-hidden">
+          {bands.map((b, bi) => (
+            <div key={b.label} className="contents">
+              <Band label={b.label} area={areaBands} first={bi === 0} />
+              {b.rows.map((r) => <StockRow key={r.id} r={r} sel={sel.has(r.id)} onToggle={() => toggle(r.id)} unit={r.unitCode || ""} />)}
+            </div>
           ))}
-          <div className="px-3 py-1.5 text-[11px] text-slate-400">
+          <div className="px-3 py-1.5 text-[11px] text-slate-400 border-t border-slate-100">
             {hint}
+            {note}
             {assumed > 0 && <span className="text-amber-700"> {assumed === 1 ? "One amber line has" : `${assumed} amber lines have`} no quantity on the estimate — copied as 1.</span>}
             {copyable.length < rows.length && <span className="text-red-600"> Red lines have no SKU and are not copied.</span>}
           </div>
@@ -201,18 +260,55 @@ function CopySection({ title, rows, emptyText, hint }) {
   );
 }
 
+// "N lines combined into M" / "K kept apart" for a section's footer.
+function mergeNote(rows) {
+  const merged = rows.filter((r) => r.from);
+  const sources = merged.reduce((n, r) => n + r.from.length, 0);
+  const kept = rows.filter((r) => r.kept).length;
+  if (!merged.length && !kept) return null;
+  return (
+    <>
+      {merged.length > 0 && <span className="font-semibold" style={{ color: "var(--ft-brand-deep)" }}> {sources} lines combined into {merged.length}.</span>}
+      {kept > 0 && <span> {kept === 1 ? "One line kept apart" : `${kept} lines kept apart`}: same SKU, different unit or price.</span>}
+    </>
+  );
+}
+
+// Merged-and-sorted vs sheet-order views of one list, keyed off the panel's
+// switch. Computed once per row set — the rows are rebuilt by App.jsx only when
+// the project changes.
+const useViews = (rows) => useMemo(() => {
+  const merged = mergeOrderLines(rows);
+  return { merged: { rows: merged, bands: groupOrderLines(merged) }, sheet: { rows, bands: sheetBands(rows) } };
+}, [rows]);
+
 export function OrderEntryPanel({ name, special = [], stock = [], descLimit = 0, onClose }) {
+  const [view, setView] = useState("merged");
+  const sp = useViews(special), st = useViews(stock);
+  const spv = sp[view], stv = st[view];
+  const specialRows = spv.bands.flatMap((b) => b.rows);
   // Only MARKED splits count — a line whose sole losses are soft parts (brand,
   // "Collection") pastes a whole spec and needs no amber warning.
-  const splits = special.filter((r) => r.desc && r.desc.cut).length;
-  const assumed = special.filter((r) => r.qtyAssumed).length;
+  const splits = specialRows.filter((r) => r.desc && r.desc.cut).length;
+  const assumed = specialRows.filter((r) => r.qtyAssumed).length;
+  const isMerged = view === "merged";
+  const segBtn = (v, label) => (
+    <button type="button" onClick={() => setView(v)} aria-pressed={view === v}
+      className={"rounded-md px-2.5 py-1 text-[12px] font-semibold transition-colors " + (view === v ? "" : "text-slate-500 hover:bg-slate-100")}
+      style={view === v ? DONE_MOSS : undefined}>{label}</button>
+  );
   return (
     <div className="print:hidden fixed inset-0 z-50 flex justify-end" style={{ background: "rgba(20,15,10,.4)" }} onClick={onClose}>
       <div className="flex flex-col bg-white border-l border-slate-200 shadow-2xl w-full lg:w-[560px] max-w-full h-full" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 shrink-0">
+        <div className="flex items-start justify-between px-4 py-3 border-b border-slate-200 shrink-0 gap-3">
           <div className="min-w-0">
             <div className="ft-serif text-xl leading-tight">Copy for order entry</div>
             <div className="text-[12px] text-slate-400 truncate">{name}</div>
+            <div className="inline-flex items-center gap-0.5 mt-2 p-0.5 rounded-lg border border-slate-200 bg-slate-50" role="group" aria-label="List view"
+              title="Merged & sorted combines lines that share a SKU and groups them by vendor. Sheet order is the list exactly as the estimate reads.">
+              {segBtn("merged", "Merged & sorted")}
+              {segBtn("sheet", "Sheet order")}
+            </div>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 shrink-0"><X size={18} /></button>
         </div>
@@ -221,9 +317,9 @@ export function OrderEntryPanel({ name, special = [], stock = [], descLimit = 0,
           {/* Special order — two-line items, copied one at a time (no bulk copy) */}
           <section>
             <div className="flex items-baseline justify-between mb-2">
-              <h4 className="ft-eyebrow text-[10px] tracking-[.12em] text-slate-500">Special order · {special.length}</h4>
+              <h4 className="ft-eyebrow text-[10px] tracking-[.12em] text-slate-500">Special order · {specialRows.length}</h4>
             </div>
-            {special.length === 0 ? (
+            {specialRows.length === 0 ? (
               <p className="text-[13px] text-slate-400 rounded-lg border border-dashed border-slate-200 px-3 py-3">No special-order items in this project.</p>
             ) : (
               <div className="rounded-lg border border-slate-200 overflow-hidden">
@@ -234,10 +330,16 @@ export function OrderEntryPanel({ name, special = [], stock = [], descLimit = 0,
                   <span className="ft-eyebrow text-[9px] tracking-[.09em] text-slate-500 text-right">Cost</span>
                   <span className="ft-eyebrow text-[9px] tracking-[.09em] text-slate-500 text-right">Sell</span>
                 </div>
-                {special.map((r, i) => <SpecialRow key={r.id} r={r} alt={i % 2 === 1} descLimit={descLimit} />)}
+                {(() => { let i = 0; return spv.bands.map((b) => (
+                  <div key={b.label} className="contents">
+                    <Band label={b.label} area={!isMerged} />
+                    {b.rows.map((r) => <SpecialRow key={r.id} r={r} alt={i++ % 2 === 1} descLimit={descLimit} />)}
+                  </div>
+                )); })()}
                 <div className="px-3 py-1.5 text-[11px] text-slate-400 border-t border-slate-100">
                   A copied line stays a green check so you can track your place · Cost &amp; Sell are per the buy/sell unit.
                   {descLimit > 0 && <> · Descriptions are fitted to {descLimit} characters.</>}
+                  {isMerged && mergeNote(specialRows)}
                   {assumed > 0 && (
                     <span className="text-amber-700">
                       {" "}{assumed === 1 ? "One amber line has" : `${assumed} amber lines have`} no quantity on the estimate — priced and keyed as <b>1</b>.
@@ -254,8 +356,9 @@ export function OrderEntryPanel({ name, special = [], stock = [], descLimit = 0,
           </section>
 
           {/* Stock — products + estimated materials; check lines, then Copy all / Copy selected */}
-          <CopySection title="Stock" rows={stock} emptyText="No stock items in this project."
-            hint="Each line copies as SKU + tab + quantity, ready to paste." />
+          <CopySection key={view} title="Stock" bands={stv.bands} areaBands={!isMerged} count={stv.rows.length}
+            emptyText="No stock items in this project."
+            hint="Each line copies as SKU + tab + quantity, ready to paste." note={isMerged ? mergeNote(stv.rows) : null} />
         </div>
       </div>
     </div>

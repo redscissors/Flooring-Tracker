@@ -7,7 +7,7 @@
 // onOrdered/onRemove into useSamples. Same right-dock shell as order entry.
 
 import { X, Layers, Mail } from "lucide-react";
-import { CopyBtn } from "./orderentry.jsx";
+import { CopyBtn } from "./copybtn.jsx";
 import { sampleGroups, repEmail, mailtoHref, contactLabel, SAMPLE_LABEL, SAMPLE_CHIP, SAMPLE_COLOR, SAMPLE_STATUSES } from "./samples.js";
 
 const dateShort = (at) => (at ? new Date(at).toLocaleDateString(undefined, { month: "numeric", day: "numeric" }) : "");

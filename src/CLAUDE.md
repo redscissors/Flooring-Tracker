@@ -243,7 +243,12 @@ src/
                     # OrderEntryPanel over rows built through the REAL
                     # orderEntryRow, no Supabase — preview proof for the
                     # 2026-08 job-line flag batch (.scratch/104: stock-SKU
-                    # special-order rule, Sheoga lead kept, CT-only tag);
+                    # special-order rule, Sheoga lead kept, CT-only tag) and,
+                    # since 2026-09-14 (.scratch/137), a three-area job that
+                    # repeats SKUs — two wedi showers off the live catalog's
+                    # stocked rows, a Daltile special in three rooms with one
+                    # hand-edited sell, a quantity-less bullnose — so the
+                    # merge/sort views have something to show;
                     # not part of the app build
   custbrowser.js    # customer-browser pure logic (issue 040): rows/filter/sort +
                     # group-by-salesman over the boot's light rows (custbrowser.test.js).
@@ -1746,7 +1751,47 @@ src/
                     # keyed 1 EA at that vendor's whole charge: the parts and
                     # the destination justify the price on the ESTIMATE, but the
                     # desk keys shipping as a single charge and pallets/feet/
-                    # pieces can't share a quantity column
+                    # pieces can't share a quantity column.
+                    # Two views (owner 2026-09-14, .scratch/137): opens
+                    # MERGED & SORTED — mergeOrderLines + groupOrderLines
+                    # over both lists, vendor-group bands, a moss "×N areas"
+                    # pill on a merged line that opens its per-area
+                    # breakdown, a quiet "same SKU · unit/price differs"
+                    # note on a line held apart — with a SHEET ORDER switch
+                    # (the as-entered list banded by area) under the project
+                    # name; copies follow the visible view, selection resets
+                    # on a switch. A `React.lazy` chunk in App.jsx (ADR
+                    # 0026): orderlines.js pulls wedi.js + schluter.js for
+                    # the grouping, which must stay off boot — which is also
+                    # why CopyBtn lives in copybtn.jsx (samples.jsx imports
+                    # it statically)
+  orderlines.js     # merge-and-sort for the panel (owner 2026-09-14): ERP One
+                    # keeps two pasted lines with one SKU as two lines, so
+                    # `mergeOrderLines` combines them — same SKU in any
+                    # skuKeys spelling (the first line's spelling pastes) AND
+                    # the same sell unit, the special side ALSO needing
+                    # per-unit cost and sell to agree to the cent (a merged PO
+                    # line carries one price); a group that disagrees stays
+                    # apart and EVERY line in it says why (`kept`: unit |
+                    # price). An assumed 1 (orderQty) is a stand-in, never a
+                    # count: real quantities absorb it, and only an
+                    # all-assumed merge stays an assumed 1. No-SKU lines
+                    # (Sheoga by description, freight) never merge; a line
+                    # left alone is the same object. `lineGroup`/
+                    # `groupOrderLines` file lines in the desk's order — wedi
+                    # by catalog group off the row's marker (rowItemKey →
+                    # item().group; building panels RIGHT AFTER curbs, owner)
+                    # · Schluter by family (`classify` over the marker's
+                    # manufacturer code — the sheet sku is the shop number,
+                    # which the grammar can't read) · Sheoga · book brands
+                    # A–Z · Other items (hand-typed) · Materials (print-sheet
+                    # kind order) · Freight; SKU breaks ties. `sheetBands`
+                    # bands the as-entered list by consecutive area
+                    # (orderlines.test.js)
+  copybtn.jsx       # `CopyBtn` + `DONE_MOSS` + `writeClipboard` — the copy
+                    # button both the order-entry and samples panels mount,
+                    # in its own file so samples.jsx (boot chunk) never
+                    # imports orderentry.jsx (lazy, catalog-bearing)
   samples.js        # sample-ordering pure logic (spec 2026-08-28, reworked off
                     # the issue 115 v1): request rows are the ONE source —
                     # shared `sample_requests` rows (snapshot + live ids, the
