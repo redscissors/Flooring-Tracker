@@ -71,3 +71,10 @@ export const isMeasureUnit = (u) => MEASURE_RE.test(clean(u));
 // (Marcus 2026-08-31, the Catch Ivory Glossy line). Every other spelling —
 // CT, SH, RL, a vendor's own word — passes through untouched.
 export const bundleUnit = (u, fallback = "CT") => (clean(u) && !isMeasureUnit(u) ? String(u).trim() : fallback);
+
+// What a hand-typed row can pick (2026-09-14). A price-book pick snapshots the
+// vendor's word; a manual row had no way to say "sheet" and read CT forever.
+// BUNDLE_UNITS are what a coverage (SF/…) or a pieces-per (PC/…) counts in;
+// COUNT_UNITS are what ONE of a counted line is.
+export const BUNDLE_UNITS = ["CT", "SH", "BX", "BD", "RL", "PK"];
+export const COUNT_UNITS = ["EA", "PC", "SH", "RL", "BX", "CT", "BD", "PK", "BG", "GL"];

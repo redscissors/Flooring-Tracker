@@ -31,7 +31,7 @@ import { jobTotals } from "./jobtotals.js";
 import { OPTION_SLOTS, OPTION_COLOR, optionsUsed, bucketCats, scopedCats, optionTitle, optionShort, duplicateInto, compareOptionsPatch } from "./options.js";
 import { LazyBoundary, FitSelect, GroutColorOptions, BuilderCombo, MetaChip, SalespersonPop, SegBar, WasteBar, ThemeSwitch, MarginLine, Modal, useEscClose, HelpTip, AddressField } from "./widgets.jsx";
 import { escPush } from "./escstack.js";
-import { TypeSelect, GRID_COLS, GridPriceCell, GridSizeInput, GridProductBox, GridOmniSearch } from "./grid.jsx";
+import { TypeSelect, GRID_COLS, GridPriceCell, GridSizeInput, GridProductBox, GridOmniSearch, UnitPick } from "./grid.jsx";
 import { MobileSheet, MobileProductRow, MobileRowSheet } from "./mobile.jsx";
 import { TeamTodos } from "./TeamTodos.jsx";
 import { EstimatePaper, PRINT_DASH } from "./EstimatePrint.jsx";
@@ -45,7 +45,7 @@ import { useOrderSearch } from "./useordersearch.js";
 import { useTrims } from "./usetrims.js";
 import { seedTrimPlan, applyTrimPlan, existingTrimRows, mergeTrimOptions, vendorKeys } from "./trims.js";
 import TrimsPopup from "./TrimsPopup.jsx";
-import { unitCode, unitNoun, bundleUnit } from "./units.js";
+import { unitCode, unitNoun, bundleUnit, BUNDLE_UNITS, COUNT_UNITS } from "./units.js";
 import { useTodos } from "./usetodos.js";
 import { useClaudeIssues } from "./useclaudeissues.js";
 import { jobSource } from "./claudeissues.js";
@@ -2080,10 +2080,10 @@ export default function App({ user, onSignOut }) {
                               <div style={{ ...gridCell, fontSize: 9.5 }} className="ft-mono">
                                 {p.type !== "misc" && p.qtyType === "sqft" ? (<>
                                   <input tabIndex={p.sku ? -1 : 0} type="number" value={p.cartonSf} onChange={(e) => updProduct(a.id, p.id, { cartonSf: e.target.value })} data-c="cov" className="ft-cell text-right" style={{ flex: 1, minWidth: 0, padding: "6px 2px" }} placeholder="—" title="Sq ft per carton/sheet — filled from the price book when the SKU has one. With this set, quantities and totals are figured by whole cartons." />
-                                  {num(p.cartonSf) > 0 && p.cartonUnit && <span className="shrink-0 pr-0.5" style={{ fontSize: 6.5, letterSpacing: "-0.02em", color: "var(--ft-muted)" }}>SF/{bundleUnit(p.cartonUnit).toUpperCase()}</span>}
+                                  {num(p.cartonSf) > 0 && <UnitPick prefix="SF/" value={bundleUnit(p.cartonUnit)} options={BUNDLE_UNITS} onChange={(v) => updProduct(a.id, p.id, { cartonUnit: v })} title="What the coverage is sold in — carton, sheet, box, bundle, roll, pack" />}
                                 </>) : p.type === "misc" ? (<>
                                   <input tabIndex={p.sku ? -1 : 0} type="number" value={p.cartonPc} onChange={(e) => updProduct(a.id, p.id, { cartonPc: e.target.value })} data-c="cov" className="ft-cell text-right" style={{ flex: 1, minWidth: 0, padding: "6px 2px" }} placeholder="—" title="Pieces per carton — filled from the price book when the SKU is sold by the carton only. With this set, pieces needed round up to whole cartons." />
-                                  {num(p.cartonPc) > 0 && <span className="shrink-0 pr-0.5" style={{ fontSize: 6.5, letterSpacing: "-0.02em", color: "var(--ft-muted)" }}>PC/{bundleUnit(p.cartonUnit).toUpperCase()}</span>}
+                                  {num(p.cartonPc) > 0 && <UnitPick prefix="PC/" value={bundleUnit(p.cartonUnit)} options={BUNDLE_UNITS} onChange={(v) => updProduct(a.id, p.id, { cartonUnit: v })} title="What the pieces come packed in — carton, sheet, box, bundle, roll, pack" />}
                                 </>) : <span className="px-2" style={{ color: "var(--ft-faint)" }}>—</span>}
                               </div>
                               <div style={gridCell}>
@@ -2091,7 +2091,7 @@ export default function App({ user, onSignOut }) {
                                   <input ref={(el) => { if (el) qtyRefs.current[p.id] = el; }} type="number" value={p.qty} onChange={(e) => updProduct(a.id, p.id, { qty: e.target.value })} data-c="sf" className={`ft-cell text-right ${qtyMissing ? "ring-2 ring-inset ring-amber-400 bg-amber-50 rounded" : ""}`} placeholder="0" title={qtyMissing ? "Enter square footage" : "Square feet"} />
                                 ) : (<>
                                   <input ref={(el) => { if (el) qtyRefs.current[p.id] = el; }} type="number" value={p.qtyType === "count" ? p.qty : ""} onChange={(e) => updProduct(a.id, p.id, { qty: e.target.value, qtyType: "count" })} data-c="sf" className={`ft-cell text-right ${qtyMissing ? "ring-2 ring-inset ring-amber-400 bg-amber-50 rounded" : ""}`} placeholder={p.type === "misc" ? "1" : "0"} title={PC ? `Pieces needed — the order rounds up to whole ${PC.unit.toUpperCase()}s of ${PC.per}` : `Quantity — counted by the ${unitNoun(1, countUnit)}`} />
-                                  <span className="shrink-0 pr-0.5" style={{ fontSize: 6.5, letterSpacing: "-0.02em", color: "var(--ft-muted)" }}>{countUnit}</span>
+                                  <UnitPick value={countUnit} options={COUNT_UNITS} onChange={(v) => updProduct(a.id, p.id, { sellUnit: v === "EA" ? "" : v })} title="What one of this line is — each, piece, sheet, roll, box…" />
                                 </>)}
                               </div>
                               <div style={{ ...gridCell, background: totalTint }}>
