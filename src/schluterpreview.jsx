@@ -19,12 +19,16 @@ import { FIXTURE_ITEMS } from "./schluterfixture.js";
 import { normOrderItem } from "./orderbook.js";
 import { newProduct, newArea, landKitLines, appendKitLines, moveKitEntries, placedKits, removeKitLines, kitRows } from "./model.js";
 
+// Live rows lead with "Schluter" since ADR 0041 (the EFT import stamps it; the
+// ERP export already spells it), so the harness names carry the lead too —
+// the popup strips it for display and the shots must prove that.
+const lead = (name) => (/^schluter/i.test(name) ? name : `Schluter ${name}`);
 const stockRows = FIXTURE_ITEMS.filter((i) => i.stock).map((i) => normOrderItem({
-  sku: i.erp || i.sku, bookId: "bk_stock", description: i.name, vendorSkus: i.erp ? [i.sku] : [],
+  sku: i.erp || i.sku, bookId: "bk_stock", description: lead(i.name), vendorSkus: i.erp ? [i.sku] : [],
   size: i.size || "", unit: i.unit, price: i.price, cost: i.cost, leadTime: i.lead || "",
 }));
 const eftRows = FIXTURE_ITEMS.filter((i) => !i.stock).map((i) => normOrderItem({
-  sku: i.sku, bookId: "bk_eft", description: i.name, size: i.size || "", unit: i.unit,
+  sku: i.sku, bookId: "bk_eft", description: lead(i.name), size: i.size || "", unit: i.unit,
   cost: i.cost, price: i.price, leadTime: i.lead || "",
 }));
 // The live stock book's garbled ½" board (a markless "0.5 X 48 X 96"
@@ -43,7 +47,7 @@ stockRows[badBoard] = normOrderItem({ ...stockRows[badBoard], description: "X96 
 // the Kits tab is a regression.
 eftRows.push(normOrderItem({
   sku: "SLRKST965810BF", bookId: "bk_eft", unit: "EA", cost: 84.52,
-  description: "KERDI-SHOWER-KIT KERDI-SHOWER TT 38 X 32", leadTime: "READY SHIP",
+  description: "Schluter Kerdi-Shower-Kit Kerdi-Shower TT 38 X 32", leadTime: "READY SHIP",
 }));
 
 // The harness "sheet" — the placed rows as the job sheet holds them, with a

@@ -607,6 +607,8 @@ test("schluterDescription: a profile spec or face height is not a tile thickness
   assert.deepEqual(prof("DILEX-STF STRUCTURAL MVMT JNT 22/40 10'", "DILEX"), { size: "10'", thickness: "", name: "Schluter Dilex-STF Structural Movement Joint 22/40" });
   // BARA balcony edges and DESIGNBASE bases print their face HEIGHT — it stays in the name.
   assert.deepEqual(prof("BARA-RW BALCONY EDGE 4-3/4 IN ALUM CLASSIC GREY", "BARA"), { size: "", thickness: "", name: `Schluter Bara-RW Balcony Edge 4-3/4" Classic Grey` });
+  assert.deepEqual(prof(`BARA-RW RAD BALC EDGE 4-3/4" ALU ANTH GR`, "BARA").name, `Schluter Bara-RW Radius Balcony Edge 4-3/4" Anthracite Grey`);
+  assert.deepEqual(prof("DILEX-AHK OUT CRN SQ 90 DEG POLISHED CHROME ANOD ALUM", "DILEX").name, "Schluter Dilex-AHK Out Corner Square 90° Polished Chrome Anodized");
   assert.deepEqual(prof("BARA-RW RADIUS BALCONY EDGE 9/16 IN ALUM CLASSIC GREY", "BARA").name, `Schluter Bara-RW Radius Balcony Edge 9/16" Classic Grey`);
   assert.deepEqual(prof("DESIGNBASE-SL OUT CRN 2-3/8 ALUM SATIN 90 DEG", "DESIGNBASE"), { size: "", thickness: "", name: `Schluter Designbase-SL Out Corner 2-3/8" Satin 90°` });
   // A ramp's width rides with a real tile thickness: the LAST tile-sized fraction is the thickness.
@@ -651,6 +653,103 @@ test("Schluter EFT: profile rows import like the stock book's, other rows keep t
   assert.equal(board.description, "Schluter Kerdiboard, Panel");
   // A description that already says Schluter is not doubled.
   assert.equal(by("SLRSETA50W").description, "Schluter All Set White Mod 50 LB White Modified");
+  for (const it of items) assert.deepEqual(rowAdvisories(it), [], `${it.sku}: ${it.description}`);
+});
+
+// --- Schluter accessories (owner, 2026-09-14, second pass) --------------------
+// The non-profile rows — KERDI, KERDI-BOARD, KERDI-LINE, drains, DITRA, kits —
+// keep the generic split but get the same treatment: spaced inch words and
+// space-spelled fractions marked, pack counts out of the name and into
+// pieces-per-unit (and a stock-book-style "N ct" size, which is what the
+// configurator counts fasteners from), dims kept whole, more shorthand.
+
+test("splitSizeFromDescription: a mixed number's fraction tail is never a thickness, nor is a width", () => {
+  assert.deepEqual(splitSizeFromDescription('KERDI-BOARD 1-5/8" SCREWS AND WASHERS'), { size: "", thickness: "", name: 'Kerdi-Board 1-5/8" Screws And Washers', sheetSize: "" });
+  assert.deepEqual(splitSizeFromDescription('KERDI-BOARD-ZSD 3-1/2" ANCHOR'), { size: "", thickness: "", name: 'Kerdi-Board-Zsd 3-1/2" Anchor', sheetSize: "" });
+  assert.equal(splitSizeFromDescription('TAPE 1/2" WIDTH DOUBLE SIDED').thickness, "");
+  assert.equal(splitSizeFromDescription('OAK PLANK 5X48 3/8"').thickness, '3/8"'); // a real trailing thickness still reads
+});
+
+test("splitSizeFromDescription: a marked three-dim board up to 2\" thick is a board; a bare roll width is inches", () => {
+  assert.deepEqual(splitSizeFromDescription('KERDI-BOARD-V 2"X 24.5"X 96" GROOVED BUILDING PANEL'), { size: "24.5x96", thickness: '2"', name: "Kerdi-Board-V Grooved Building Panel", sheetSize: "" });
+  // The bare side of a feet roll is inches ("5 X 98 FT 5" is a 5" strip).
+  assert.equal(splitSizeFromDescription("KERDI-FLEX WATERPROOFING STRIP 5 X 98 FT 5").size, `5"x98'5"`);
+  // Spaced bare inches before ROLL count as inches ("16 FT 5 ROLL" is 16'5").
+  assert.deepEqual(splitSizeFromDescription("KERDI-WATERPROOFING MEMBRANE 3 FT 3 X 16 FT 5 ROLL"), { size: `3'3"x16'5"`, thickness: "", name: "Kerdi-Waterproofing Membrane Roll", sheetSize: "" });
+});
+
+const SLR_ACCESSORY_ROWS = [
+  ["", "SLR", "KD3", "FLKE", "SLRKD3FLKE", "KERDI-DRAIN FLANGE KIT 3 IN STAINLESS STEEL", "KERDI DRAIN KIT", "READY SHIP", 50, 50, "PC", "PC", "N/A", "N/A", ""],
+  ["", "SLR", "KBSC", "115150152", "SLRKBSC115150152", "KERDI-BOARD-SC CURB 60 X 6 X 4 1/2", "KERDI BOARD", "READY SHIP", 59.1, 59.1, "PC", "PC", "N/A", "N/A", ""],
+  ["", "SLR", "KBZS", "35GT32Z10", "SLRKBZS35GT32Z10", "KERDI-BOARD 1-5/8\" SCREWS AND WASHERS (100/EA)", "KERDI BOARD", "READY SHIP", 15.82, 15.82, "EA", "EA", "N/A", "N/A", ""],
+  ["", "SLR", "KERECK", "FA2", "SLRKERECKFA2", "KERDI-KERECK-F PRE-FORMED OUT CORNER (2 PACK)", "KERDI", "READY SHIP", 10.85, 10.85, "PK", "PK", "N/A", "N/A", ""],
+  ["", "SLR", "KM", "511722", "SLRKM511722", "KERDI-KM PIPE COLLARS 7X7 (5)", "KERDI", "READY SHIP", 20, 20, "PK", "PK", "N/A", "N/A", ""],
+  ["", "SLR", "TRL", "DIT", "SLRTRLDIT", "DITRA-TROWEL 11/64\" X 11/64\" SQUARE NOTCH", "DITRA", "READY SHIP", 18.78, 18.78, "PC", "PC", "N/A", "N/A", ""],
+  ["", "SLR", "KBSB", "410TA", "SLRKBSB410TA", "KERDI-BOARD-SB BENCH 16 X 16 X 20 TRIANGULAR", "KERDI", "READY SHIP", 108.47, 108.47, "PC", "PC", "N/A", "N/A", ""],
+  ["", "SLR", "KERS", "20L", "SLRKERS20L", "KERDI-KERS SIDE CORNER LEFT H=20 MM", "KERDI", "READY SHIP", 12, 12, "PC", "PC", "N/A", "N/A", ""],
+  ["", "SLR", "KST", "965BF", "SLRKST965BF", "KERDI-SHOWER-TT TRAY 38X38 CENTER DRA PLACEMENT", "KERDI", "READY SHIP", 71.64, 71.64, "PC", "PC", "N/A", "N/A", ""],
+  ["", "SLR", "KST", "965810BF", "SLRKST965810BF", "KERDI-SHOWER-TRAY-THIN 38X32 CENTER DRAIN", "KERDI SHOWER KIT", "READY SHIP", 84.52, 84.52, "PC", "PC", "N/A", "N/A", ""],
+  ["", "SLR", "SPWS", "19AE", "SLRSPWS19AE", "SHOWERPROFILE-WS SPLASHGUARD TRIM 8 FT 2.5 IN", "KERDI SHOWER RAMP", "READY SHIP", 40, 40, "PC", "PC", "N/A", "N/A", ""],
+  ["", "SLR", "DITRA", "XL", "SLRDITRAXL", "DITRA XL UNCPLING / WATRPROOF 3 FT 3 IN X 53 FT 3 IN=175 SF", "DITRA", "READY SHIP", 1.5, 1.5, "SF", "RL", "N/A", "N/A", ""],
+  ["", "SLR", "KD2", "ABSEKIT", "SLRKD2ABSEKIT", "KERDI-DRAIN KIT ABS 4 INCH SS (DRAIN,CORNERS,SEALS)", "KERDI DRAIN KIT", "READY SHIP", 120, 120, "EA", "EA", "N/A", "N/A", ""],
+  ["", "SLR", "DHERT", "103BW", "SLRDHERT103BW", "DITRA-HEAT THERMOSTAT W/GFCI NON-PROGRAMMABLE", "DITRA HEAT", "READY SHIP", 150, 150, "EA", "EA", "N/A", "N/A", ""],
+  ["", "SLR", "EKBZA", "38EB", "SLREKBZA38EB", "KERDI-BOARD-ZA/E 1.5\" OUT CRN FOR ZA  BRUSHED ST STEEL", "KERDI BOARD", "READY SHIP", 30, 30, "PC", "PC", "N/A", "N/A", ""],
+  ["", "SLR", "KBZDK", "1210M", "SLRKBZDK1210M", "KERDI-BOARD-ZDK 1/2\" WIDTH DOUBLE SIDED TAPE (33 LF/RL)", "KERDI BOARD", "READY SHIP", 20, 20, "RL", "RL", "N/A", "N/A", ""],
+  ["", "SLR", "KL1AR", "19MGS70", "SLRKL1AR19MGS70", "KERDI-LINE 3/4\" FRAME 28\" SOLID GRATE MATTE BLACK", "KERDI LINE", "READY SHIP", 200, 200, "PC", "PC", "N/A", "N/A", ""],
+  ["", "SLR", "KL1B", "30EB120", "SLRKL1B30EB120", "KERDI-LINE 1-1/8 FRAME 48 IN PERFORATED GRATE", "KERDI LINE", "READY SHIP", 300, 300, "PC", "PC", "N/A", "N/A", ""],
+  ["", "SLR", "KLVR", "ID13MGS12", "SLRKLVRID13MGS12", "KERDI-LINE-VARIO 4' D13-HERRINGBONE MATTE BLACK", "KERDI LINE", "READY SHIP", 250, 250, "PC", "PC", "N/A", "N/A", ""],
+  ["", "SLR", "KMS", "1017220", "SLRKMS1017220", "KERDI-SEAL PS 3/4 IN PIPE SEAL W/OVERMOLD RUBBER GASKET 10 PK", "KERDI", "READY SHIP", 50, 50, "PK", "PK", "N/A", "N/A", ""],
+  ["", "SLR", "ETV", "60SG", "SLRETV60SG", "TREP-V 60 END CAP STONE GREY (R+L)", "TREP", "READY SHIP", 5, 5, "PC", "PC", "N/A", "N/A", ""],
+  ["", "SLR", "SWS", "1D5TSOB", "SLRSWS1D5TSOB", "SHELF RECTANGULAR WALL FLORAL BRONZE (ALUM)", "SHELF", "READY SHIP", 60, 60, "PC", "PC", "N/A", "N/A", ""],
+  ["", "SLR", "KBZSD", "110Z", "SLRKBZSD110Z", "KERDI-BOARD-ZSD 4-5/16\" ANCHOR (25 ANCHORS/BOX) GALV STEEL", "KERDI BOARD", "READY SHIP", 30, 30, "EA", "EA", "N/A", "N/A", ""],
+  ["", "SLR", "AKWS", "160PG", "SLRAKWS160PG", "DILEX-AKWS 5/8 ALU W/ 1/4 JOINT CL GREY", "DILEX", "READY SHIP", 20, 20, "PC", "PC", "N/A", "N/A", ""],
+  ["", "SLR", "KSLT", "9151830S", "SLRKSLT9151830S", "KERDI-SHOWER-LTS TRAY 36X72 PERIMETER DRAIN 36 INCH SIDE", "KERDI LINE", "READY SHIP", 204.2, 204.2, "PC", "PC", "N/A", "N/A", ""],
+  ["", "SLR", "QK", "125ABGB", "SLRQK125ABGB", "QUADEC-K W/O ANCHORING LEG 1/2 BRUSHED ANTIQUE BRONZE ANOD AL", "QUADEC", "READY SHIP", 20, 20, "PC", "PC", "N/A", "N/A", ""],
+];
+const SLR_ACCESSORY_WORKBOOK = [{ name: "MFG Data", rows: [...SLR_WORKBOOK[0].rows.slice(0, 5), ...SLR_ACCESSORY_ROWS] }];
+
+test("Schluter EFT accessories: inch words marked, dims kept whole, pack counts out of the name, shorthand spelled out", () => {
+  const m = detectVtcEft(SLR_ACCESSORY_WORKBOOK);
+  const { items } = parseMapped(SLR_ACCESSORY_WORKBOOK[0].rows, m);
+  const by = (sku) => items.find((i) => i.sku === sku);
+  const row = (sku, size, thickness, description) => {
+    const it = by(sku);
+    assert.deepEqual({ size: it.size, thickness: it.thickness, description: it.description }, { size, thickness, description }, sku);
+  };
+  row("SLRKD3FLKE", "", "", 'Schluter Kerdi-Drain Flange Kit 3" Stainless Steel');
+  row("SLRKBSC115150152", `60"x6"x4-1/2"`, "", "Schluter Kerdi-Board-SC Curb");
+  row("SLRKBZS35GT32Z10", "100 ct", "", 'Schluter Kerdi-Board 1-5/8" Screws and Washers');
+  assert.equal(by("SLRKBZS35GT32Z10").pcPerUnit, 100);
+  row("SLRKERECKFA2", "2 ct", "", "Schluter Kerdi-Kereck-F Pre-Formed Out Corner");
+  assert.equal(by("SLRKERECKFA2").pcPerUnit, 2);
+  row("SLRKM511722", "7x7", "", "Schluter Kerdi-KM Pipe Collars");
+  assert.equal(by("SLRKM511722").pcPerUnit, 5);
+  row("SLRTRLDIT", `11/64"x11/64"`, "", "Schluter Ditra-Trowel Square Notch");
+  row("SLRKBSB410TA", `16"x16"x20"`, "", "Schluter Kerdi-Board-SB Bench Triangular");
+  row("SLRKERS20L", "", "", "Schluter Kerdi-KERS Side Corner Left H=20 MM");
+  row("SLRKST965BF", "38x38", "", "Schluter Kerdi-Shower-TT Tray Center Drain Placement");
+  row("SLRKST965810BF", "38x32", "", "Schluter Kerdi-Shower-Tray-Thin Center Drain");
+  row("SLRSPWS19AE", "8'", "", "Schluter Showerprofile-WS Splashguard Trim");
+  row("SLRDITRAXL", `3'3"x53'3"`, "", "Schluter Ditra XL Uncoupling Waterproof");
+  assert.equal(by("SLRDITRAXL").sfPerUnit, 175);
+  row("SLRKD2ABSEKIT", "", "", 'Schluter Kerdi-Drain Kit ABS 4" Stainless Steel (Drain, Corners, Seals)');
+  row("SLRDHERT103BW", "", "", "Schluter Ditra-Heat Thermostat with GFCI Non-Programmable");
+  row("SLREKBZA38EB", "", "", 'Schluter Kerdi-Board-ZA/E 1.5" Out Corner for ZA Brushed Stainless Steel');
+  row("SLRKBZDK1210M", "", "", 'Schluter Kerdi-Board-ZDK 1/2" Width Double Sided Tape');
+  // A lone marked fraction on an accessory is a frame height or a pipe size,
+  // never a tile thickness; a KERDI-LINE's grate length is its size.
+  row("SLRKL1AR19MGS70", '28"', "", 'Schluter Kerdi-Line 3/4" Frame Solid Grate Matte Black');
+  row("SLRKL1B30EB120", '48"', "", 'Schluter Kerdi-Line 1-1/8" Frame Perforated Grate');
+  row("SLRKLVRID13MGS12", "4'", "", "Schluter Kerdi-Line-Vario D13-Herringbone Matte Black");
+  row("SLRKMS1017220", "10 ct", "", 'Schluter Kerdi-Seal PS 3/4" Pipe Seal with Overmold Rubber Gasket');
+  assert.equal(by("SLRKMS1017220").pcPerUnit, 10);
+  row("SLRETV60SG", "", "", "Schluter Trep-V 60 End Cap Stone Grey (R+L)");
+  row("SLRSWS1D5TSOB", "", "", "Schluter Shelf Rectangular Wall Floral Bronze");
+  row("SLRKBZSD110Z", "", "", 'Schluter Kerdi-Board-ZSD 4-5/16" Anchor Galvanized Steel');
+  row("SLRAKWS160PG", `5/8"x8'`, `5/8"`, `Schluter Dilex-AKWS with 1/4" Joint Clear Grey`);
+  row("SLRQK125ABGB", `1/2"x8'`, `1/2"`, "Schluter Quadec-K without Anchoring Leg Brushed Antique Bronze Anodized");
+  // Virginia Tile files the LTS trays under "KERDI LINE": the grate-length rule is for KERDI-LINE drains only.
+  row("SLRKSLT9151830S", "36x72", "", 'Schluter Kerdi-Shower-LTS Tray Perimeter Drain 36" Side');
   for (const it of items) assert.deepEqual(rowAdvisories(it), [], `${it.sku}: ${it.description}`);
 });
 
