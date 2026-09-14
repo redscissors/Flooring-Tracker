@@ -419,7 +419,7 @@ const SCHLUTER_ABBR = {
   DK: "Dark", LT: "Light", BRT: "Bright", ANTH: "Anthracite", WHT: "White", BLK: "Black", BRN: "Brown", BRWN: "Brown", BEIG: "Beige",
   UNCPLING: "Uncoupling", WATRPROOF: "Waterproof", SPLASHGAURD: "Splashguard", TRANSP: "Transparent", ADHES: "Adhesive", ADHSTRIP: "Adhesive Strip",
   STAINL: "Stainless", SEALG: "Sealing", BONDG: "Bonding", DRA: "Drain", GSKT: "Gasket", PERF: "Perforated", RESIS: "Resistant",
-  AND: "and", FOR: "for", OF: "of", TO: "to",
+  AND: "and", FOR: "for", OF: "of", TO: "to", WITH: "with",
   GR: "Grey", CL: "Clear", SQ: "Square", AL: "", CRNR: "Corner", GALV: "Galvanized", "W/O": "without",
 };
 const SCHLUTER_KEEP_UPPER = /^(PVC|LED|LB|OZ|SF|ABS|XL|GFCI|LF|RL|QT|MM)$/;
@@ -451,8 +451,15 @@ export function schluterWords(text) {
     const wrapped = t.match(/^\((\w+)\)$/); // "(ALUM)" is the same shorthand in parens
     if (wrapped && wrapped[1] in SCHLUTER_ABBR) { if (SCHLUTER_ABBR[wrapped[1]]) out.push(`(${SCHLUTER_ABBR[wrapped[1]]})`); continue; }
     if (/^(DEG|DEGREE)$/.test(t) && /^\d+$/.test(out[out.length - 1] || "")) { out[out.length - 1] += "°"; continue; }
-    if (t in SCHLUTER_ABBR) { if (SCHLUTER_ABBR[t]) out.push(SCHLUTER_ABBR[t]); continue; }
-    out.push(schluterCase(t));
+    // Shorthand keeps its meaning behind a comma ("PVC,") and across a slash ("CRN/SEAL").
+    const punct = (t.match(/[,.;:]+$/) || [""])[0];
+    const core = t.slice(0, t.length - punct.length);
+    if (core in SCHLUTER_ABBR) { if (SCHLUTER_ABBR[core]) out.push(SCHLUTER_ABBR[core] + punct); continue; }
+    if (core.includes("/") && !core.includes("-") && core.split("/").some((seg) => seg in SCHLUTER_ABBR)) {
+      out.push(core.split("/").map((seg) => (seg in SCHLUTER_ABBR ? SCHLUTER_ABBR[seg] : schluterWord(seg))).join("/") + punct);
+      continue;
+    }
+    out.push(schluterCase(core) + punct);
   }
   if (/^\d+°$/.test(out[0] || "")) {
     const angle = out.shift();
@@ -499,7 +506,7 @@ const MAX_TILE_THICKNESS = 1.5;
 // text — a bare triple with no thickness-sized side (a curb's "60 X 6 X 4
 // 1/2", a bench's "16 X 16 X 20") and a trowel notch's fraction pair.
 export function schluterAccessory(desc, productLine) {
-  let s = str(desc).replace(/(\d)\/\s+(\d)/g, "$1/$2").replace(/\bST STEEL\b/gi, "STAINLESS STEEL");
+  let s = str(desc).replace(/(\d)\/\s+(\d)/g, "$1/$2").replace(/\bST\.?\s+STEEL\b/gi, "STAINLESS STEEL");
   s = s.replace(/\b(\d+) (\d+\/\d+)\b/g, "$1-$2");
   s = s.replace(/(\d[\d\-/.]*)\s+IN(?:CH(?:ES)?)?\b(?!\s*(?:CRN|CORNER))/gi, '$1"');
   // A bare inch fraction ("1/2 PIPE SEAL", "1-1/8 FRAME") gets its mark — but

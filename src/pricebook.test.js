@@ -704,6 +704,8 @@ const SLR_ACCESSORY_ROWS = [
   ["", "SLR", "KBZSD", "110Z", "SLRKBZSD110Z", "KERDI-BOARD-ZSD 4-5/16\" ANCHOR (25 ANCHORS/BOX) GALV STEEL", "KERDI BOARD", "READY SHIP", 30, 30, "EA", "EA", "N/A", "N/A", ""],
   ["", "SLR", "AKWS", "160PG", "SLRAKWS160PG", "DILEX-AKWS 5/8 ALU W/ 1/4 JOINT CL GREY", "DILEX", "READY SHIP", 20, 20, "PC", "PC", "N/A", "N/A", ""],
   ["", "SLR", "KSLT", "9151830S", "SLRKSLT9151830S", "KERDI-SHOWER-LTS TRAY 36X72 PERIMETER DRAIN 36 INCH SIDE", "KERDI LINE", "READY SHIP", 204.2, 204.2, "PC", "PC", "N/A", "N/A", ""],
+  ["", "SLR", "KDH2", "PVCFL", "SLRKDH2PVCFL", "KERDI-DRAIN WITH HORIZONTAL OUTLET, 2 IN PVC, W/O CRN/SEAL", "KERDI DRAIN KIT", "READY SHIP", 90, 90, "EA", "EA", "N/A", "N/A", ""],
+  ["", "SLR", "KD2", "ETHFL", "SLRKD2ETHFL", "KERDI-DRAIN ST. STEEL THREADED FLANGE KIT 2 IN", "KERDI DRAIN KIT", "READY SHIP", 80, 80, "PC", "PC", "N/A", "N/A", ""],
   ["", "SLR", "QK", "125ABGB", "SLRQK125ABGB", "QUADEC-K W/O ANCHORING LEG 1/2 BRUSHED ANTIQUE BRONZE ANOD AL", "QUADEC", "READY SHIP", 20, 20, "PC", "PC", "N/A", "N/A", ""],
 ];
 const SLR_ACCESSORY_WORKBOOK = [{ name: "MFG Data", rows: [...SLR_WORKBOOK[0].rows.slice(0, 5), ...SLR_ACCESSORY_ROWS] }];
@@ -750,6 +752,9 @@ test("Schluter EFT accessories: inch words marked, dims kept whole, pack counts 
   row("SLRQK125ABGB", `1/2"x8'`, `1/2"`, "Schluter Quadec-K without Anchoring Leg Brushed Antique Bronze Anodized");
   // Virginia Tile files the LTS trays under "KERDI LINE": the grate-length rule is for KERDI-LINE drains only.
   row("SLRKSLT9151830S", "36x72", "", 'Schluter Kerdi-Shower-LTS Tray Perimeter Drain 36" Side');
+  // Shorthand keeps its meaning behind a comma or across a slash (the CTNS sheet's drain rows).
+  row("SLRKDH2PVCFL", "", "", 'Schluter Kerdi-Drain with Horizontal Outlet, 2" PVC, without Corner/Seal');
+  row("SLRKD2ETHFL", "", "", 'Schluter Kerdi-Drain Stainless Steel Threaded Flange Kit 2"');
   for (const it of items) assert.deepEqual(rowAdvisories(it), [], `${it.sku}: ${it.description}`);
 });
 

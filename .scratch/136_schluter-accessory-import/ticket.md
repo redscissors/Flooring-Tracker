@@ -44,3 +44,24 @@ list strip it too. Shot by `shot.mjs` (vite on :5199).
 
 Tests: pricebook.test.js (accessory workbook of real rows, generic splitter
 goldens). 1,413 pass. No SQL. Reaches the live book on the next re-drop.
+
+## Addendum — the CTNS EFT (owner, 2026-09-14)
+
+"Make sure the CTNS EFT 26 01 15 price book also works like this, it also has
+Schluter." It is Virginia Tile's multi-brand "Horizon (CTNS) Display" EFT:
+10,013 rows across 20+ manufacturer codes, 5,629 of them coded SLR. The brand
+line is not Schluter's, so the rules now gate per row on the VTC MFG code
+(ADR 0041 amendment). Whole-sheet diff, deployed parser vs this branch:
+
+- 5,583 SLR rows: every one loses the wrong "tile" type (all 5,583 were typed
+  tile before), 4,708 sizes and 3,940 thicknesses land, every description
+  reads like the Schluter EFT's.
+- 4,384 rows of the other brands: byte-identical. Advisory counts identical
+  (452 sheet-coverage, 22 trim-as-area, 25 name-litter — all pre-existing on
+  the tile brands, none Schluter's).
+- The Schluter EFT and the ERP stock export parse identically, apart from 8
+  descriptions the sheet's dotted / comma'd shorthand improved ("PVC,",
+  "CRN/SEAL", "ST. STEEL").
+
+The configurator only reads order books named with "Schluter", so the CTNS
+book's Schluter rows are search-and-order rows, not configurator parts.
