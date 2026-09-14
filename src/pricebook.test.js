@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import { rowAdvisories } from "./orderbook.js";
 import assert from "node:assert/strict";
-import { parseMapped, mappedSkuRe, splitSizeFromDescription, mmToFraction, guessBookField, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft, detectVendorSkuAnalysis, floorTypeFromDescription } from "./pricebook.js";
+import { parseMapped, mappedSkuRe, splitSizeFromDescription, mmToFraction, guessBookField, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft, detectVendorSkuAnalysis, floorTypeFromDescription, schluterDescription } from "./pricebook.js";
 
 const sheet = (name, rows) => ({ name, rows });
 const bySku = (items, sku) => items.find((i) => i.sku === sku);
@@ -491,6 +491,7 @@ test("Schluter EFT: the brand line switches off the tile default and reads cover
   assert.equal(m.title, "Schluter Systems");
   assert.equal(m.defaultType, null);
   assert.ok(m.sfFromDescription);
+  assert.ok(m.schluter, "the Schluter word/profile rules ride the mapping");
   const { items, warnings } = parseMapped(SLR_WORKBOOK[0].rows, m);
   assert.equal(items.length, 12);
   assert.ok(items.every((i) => i.type == null), "nothing types as flooring — Schluter sells none");
@@ -500,12 +501,13 @@ test("Schluter EFT: the brand line switches off the tile default and reads cover
   const ditra = by("SLRDITRA30M");
   assert.equal(ditra.size, `3'3"x98'5"`);
   assert.equal(ditra.sfPerUnit, 323);
-  assert.equal(ditra.description, "Ditra Uncoupling/Waterproof");
+  assert.equal(ditra.description, "Schluter Ditra Uncoupling/Waterproof");
   // Spaced feet-inches with the coverage after "=".
   const heat = by("SLRDH512M");
   assert.equal(heat.size, `3'3"x41'1"`);
   assert.equal(heat.sfPerUnit, 134.5);
-  assert.match(heat.description, /^Ditra Heat/);
+  // Was "Ditra Heat Ditra-Heat Membrane Roll": the EFT product line no longer fronts a Schluter name.
+  assert.equal(heat.description, "Schluter Ditra-Heat Membrane Roll");
   // Quote-less feet-inches ("3'3 X 41'1") — the inches close on their marks.
   assert.equal(by("SLRDHPS512M").size, `3'3"x41'1"`);
   // No stated coverage at all: the feet L×W IS the roll's area (SF-priced,
@@ -545,6 +547,111 @@ test("Schluter EFT: the brand line switches off the tile default and reads cover
   // the pallet-sold board is the one unfamiliar unit.
   assert.equal(warnings.length, 1, warnings.join(" | "));
   assert.match(warnings[0], /PA/);
+});
+
+// --- Schluter profiles (owner, 2026-09-14) ------------------------------------
+// The EFT's 5,800 profile rows print the thickness as a BARE fraction ("RONDEC
+// BULLNOSE TRIM 3/8 ALUM TEXTURED IVORY"), state no length on a standard
+// 8'2-1/2" stick, and file every Rondec under the "RONDEC CORNERS" product
+// line. The owner wants them to read like the ERP stock book's own rows
+// ("3/8\"x8' Schluter Rondec - …"): thickness × length in the size field (the
+// implied stick shortened to 8'), the vendor shorthand spelled out, the bare
+// ALUM dropped (aluminum is Schluter's default), a Schluter lead, and no
+// product-line prefix. Real rows, real SKUs.
+const prof = (desc, pl = "RONDEC CORNERS") => schluterDescription(desc, pl);
+
+test("schluterDescription: a straight profile lands thickness × implied 8' stick, clean words, Schluter lead", () => {
+  assert.deepEqual(prof("RONDEC BULLNOSE TRIM 3/8 ALUM TEXTURED IVORY"), { size: `3/8"x8'`, thickness: `3/8"`, name: "Schluter Rondec Bullnose Trim Textured Ivory" });
+  // PVC is not the default material, so it stays; a hyphen suffix code keeps its caps.
+  assert.deepEqual(prof("JOLLY-P EDGE TRIM 3/8 PVC BAHAMA", "JOLLY"), { size: `3/8"x8'`, thickness: `3/8"`, name: "Schluter Jolly-P Edge Trim PVC Bahama" });
+  // A stated length wins over the implied stick; feet words normalize.
+  assert.deepEqual(prof("QUADEC SQUARE TRIM 3/8 ALUM GREIGE 10'", "QUADEC"), { size: `3/8"x10'`, thickness: `3/8"`, name: "Schluter Quadec Square Trim Greige" });
+  assert.deepEqual(prof("TREP-FL STAIR EDG 11/32IN BRH SS 4FT11IN", "TREP"), { size: `11/32"x4'11"`, thickness: `11/32"`, name: "Schluter Trep-FL Stair Edge Brushed Stainless Steel" });
+  assert.deepEqual(prof(`TREP-V 42 7/16" SAND PEBBLE 4' 11"`, "TREP"), { size: `7/16"x4'11"`, thickness: `7/16"`, name: "Schluter Trep-V 42 Sand Pebble" });
+  // "SS STAINLESS STEEL" says it twice; the alloy grade keeps its caps.
+  assert.deepEqual(prof("QUADEC SQUARE EDGE 5/16 SS STAINLESS STEEL V4A", "QUADEC"), { size: `5/16"x8'`, thickness: `5/16"`, name: "Schluter Quadec Square Edge Stainless Steel V4A" });
+  // A marked fraction with a spaced IN word: the word goes with the number.
+  assert.deepEqual(prof("DECO-SG SHADOW GAP 7/16 IN BRUSH STN STEEL 15MM", "DECO"), { size: `7/16"x8'`, thickness: `7/16"`, name: "Schluter Deco-SG Shadow Gap Brushed Stainless Steel 15MM" });
+  // The vendor's trailing period is punctuation, not information.
+  assert.deepEqual(prof("VINPRO-S EDGE TRIM 5/16\" ALUM BRUSH BRONZE.", "VINPRO"), { size: `5/16"x8'`, thickness: `5/16"`, name: "Schluter Vinpro-S Edge Trim Brushed Bronze" });
+});
+
+test("schluterDescription: corners, connectors and end caps have no length — thickness only, or nothing", () => {
+  // A leading angle moves behind the corner words.
+  assert.deepEqual(prof("90 DEGREE JOLLY OUT CORNER 3/8 ALUM BRONZE", "JOLLY"), { size: `3/8"`, thickness: `3/8"`, name: "Schluter Jolly Out Corner 90° Bronze" });
+  assert.deepEqual(prof("RONDEC-CT IN CRN 90 DEG 3/8 BRUSHED BRASS ALUM"), { size: `3/8"`, thickness: `3/8"`, name: "Schluter Rondec-CT In Corner 90° Brushed Brass" });
+  assert.deepEqual(prof("RONDEC/QUADEC CONNECTOR 5/16 STAINLESS STEEL"), { size: `5/16"`, thickness: `5/16"`, name: "Schluter Rondec/Quadec Connector Stainless Steel" });
+  assert.deepEqual(prof("QUADEC IN/OUT CRN 1/4 ALUM BLACK BROWN", "QUADEC"), { size: `1/4"`, thickness: `1/4"`, name: "Schluter Quadec In/Out Corner Black Brown" });
+  assert.deepEqual(prof("DILEX-AHKA END CAP RIGHT TEXTURED ALUM PEWTER", "DILEX"), { size: "", thickness: "", name: "Schluter Dilex-AHKA End Cap Right Textured Pewter" });
+  // A 90° EDGE TRIM is a straight stick, not a corner — the angle still moves behind the type words.
+  assert.deepEqual(prof("90 DEGREE JOLLY EDGE TRIM 3/8 ALUM SATIN NICKEL 10'", "JOLLY"), { size: `3/8"x10'`, thickness: `3/8"`, name: "Schluter Jolly Edge Trim 90° Satin Nickel" });
+});
+
+test("schluterDescription: a width or joint fraction is not a thickness and stays in the name with its inch mark", () => {
+  // DILEX movement joints print the JOINT width first and the tile thickness after it.
+  assert.deepEqual(prof("DILEX-BWA 3/8 MVMT JNT 5/16 SAND PEBBLE.", "DILEX"), { size: `5/16"x8'`, thickness: `5/16"`, name: `Schluter Dilex-BWA 3/8" Movement Joint Sand Pebble` });
+  assert.deepEqual(prof("DILEX-KSN 3/8 ALU W/ 7/16 JNT GROUT GREY", "DILEX"), { size: `3/8"x8'`, thickness: `3/8"`, name: `Schluter Dilex-KSN with 7/16" Joint Grout Grey` });
+  assert.deepEqual(prof(`DECO 1/4" WIDE REVEAL 3/8" SATIN ANOD ALUMINUM`, "DECO"), { size: `3/8"x8'`, thickness: `3/8"`, name: `Schluter Deco 1/4" Wide Reveal Satin Anodized` });
+  assert.deepEqual(prof("RENO-T 9/16 WIDE TRANSITION BRASS", "RENO"), { size: "", thickness: "", name: `Schluter Reno-T 9/16" Wide Transition Brass` });
+  // ECK angles print W/H-suffixed leg dims and a mid-string length: no thickness, the stated length only.
+  assert.deepEqual(prof("ECK-K 1-9/32W 10 FT STAINLESS STEEL", "ECK"), { size: "10'", thickness: "", name: `Schluter Eck-K 1-9/32" Wide Stainless Steel` });
+  // A cove's two leg dims are an L×W of fractions: kept as vendor text, never a decimal tile size.
+  assert.deepEqual(prof("DILEX-HKS COVE 5/16 X 11/32 SS V4A / CLASSIC GREY", "DILEX"), { size: `5/16"x11/32"`, thickness: "", name: "Schluter Dilex-HKS Cove Stainless Steel V4A Classic Grey" });
+  // A whole-inch leg, and the vendor's "9/ 32" typo.
+  assert.deepEqual(prof("DILEX-HKS COVE 1 X 7/16 SS GREY", "DILEX").size, `1"x7/16"`);
+  assert.deepEqual(prof("DILEX-EHK COVE 9/ 32 X 9/32\" BRUSHED SS", "DILEX").size, `9/32"x9/32"`);
+});
+
+test("schluterDescription: a profile spec or face height is not a tile thickness", () => {
+  // "22/40" is a DILEX-STF joint spec (no inch denominator), never a dimension.
+  assert.deepEqual(prof("DILEX-STF STRUCTURAL MVMT JNT 22/40 10'", "DILEX"), { size: "10'", thickness: "", name: "Schluter Dilex-STF Structural Movement Joint 22/40" });
+  // BARA balcony edges and DESIGNBASE bases print their face HEIGHT — it stays in the name.
+  assert.deepEqual(prof("BARA-RW BALCONY EDGE 4-3/4 IN ALUM CLASSIC GREY", "BARA"), { size: "", thickness: "", name: `Schluter Bara-RW Balcony Edge 4-3/4" Classic Grey` });
+  assert.deepEqual(prof("BARA-RW RADIUS BALCONY EDGE 9/16 IN ALUM CLASSIC GREY", "BARA").name, `Schluter Bara-RW Radius Balcony Edge 9/16" Classic Grey`);
+  assert.deepEqual(prof("DESIGNBASE-SL OUT CRN 2-3/8 ALUM SATIN 90 DEG", "DESIGNBASE"), { size: "", thickness: "", name: `Schluter Designbase-SL Out Corner 2-3/8" Satin 90°` });
+  // A ramp's width rides with a real tile thickness: the LAST tile-sized fraction is the thickness.
+  assert.deepEqual(prof("RENO-RAMP 2-1/2 REDUCER 3/8 SATIN ALUM", "RENO"), { size: `3/8"x8'`, thickness: `3/8"`, name: `Schluter Reno-Ramp 2-1/2" Reducer Satin` });
+  assert.deepEqual(prof("TREP-GB 2-5/32IN STAIR NOSING 9/16IN SS CLEAR 8FT", "TREP"), { size: `9/16"x8'`, thickness: `9/16"`, name: `Schluter Trep-GB 2-5/32" Stair Nosing Stainless Steel Clear` });
+  // A mixed fraction printed tight ("111/32IN" = 1-11/32) reads whole, like the board rows' "471/4IN".
+  assert.deepEqual(prof("TREPGKS 111/32IN STAIR NOSING SS CLEAR RETROFIT 8FT", "TREP").thickness, `1-11/32"`);
+  // Thick-stone SCHIENE profiles really are 1-3/16" thick.
+  assert.deepEqual(prof("SCHIENE EDGE TRIM 1-3/16 ALUMINUM SATIN", "SCHIENE"), { size: `1-3/16"x8'`, thickness: `1-3/16"`, name: "Schluter Schiene Edge Trim Satin" });
+  // Slash-wrapped material tokens ("/ALU BASE/") are the same shorthand.
+  assert.deepEqual(prof("TREPB 3/8IN /ALU BASE/ 21/8IN PVC YELLOW", "TREP"), { size: `3/8"x8'`, thickness: `3/8"`, name: `Schluter Trepb Base 2-1/8" PVC Yellow` });
+  // "1IN" spells out like any other inch token.
+  assert.deepEqual(prof("TREP-B INSERT 2-1/8IN PVC LT BEIGE 8FT", "TREP"), { size: "8'", thickness: "", name: `Schluter Trep-B Insert 2-1/8" PVC Light Beige` });
+});
+
+const SLR_PROFILE_ROWS = [
+  ["", "SLR", "RO10", "0TSI", "SLRRO100TSI", "RONDEC BULLNOSE TRIM 3/8 ALUM TEXTURED IVORY", "RONDEC CORNERS                ", "READY SHIP", 26.68, 26.68, "PC", "PC", "N/A", "N/A", ""],
+  ["", "SLR", "EVJ1", "00TSOB", "SLREVJ100TSOB", "90 DEGREE JOLLY OUT CORNER 3/8 ALUM BRONZE", "JOLLY", "READY SHIP", 9.1, 9.1, "EA", "PC", "N/A", "N/A", ""],
+  ["", "SLR", "BWA8", "0SP", "SLRBWA80SP", "DILEX-BWA 3/8 MVMT JNT 5/16 SAND PEBBLE.", "DILEX", "IMPORT", 13.77, 13.77, "PC", "PC", "N/A", "N/A", ""],
+  ["", "SLR", "KB15", "12203050", "SLRKB1512203050", "KERDIBOARD, PANEL 5/8IN X 48IN X 120IN", "KERDI BOARD", "IMPORT", 111.65, 111.65, "SH", "SH", "N/A", "N/A", ""],
+  ["", "SLR", "SET", "A50W", "SLRSETA50W", "SCHLUTER ALL SET WHITE MOD 50 LB WHITE MODIFIED", "THIN SETS", "READY SHIP", 27.49, 27.49, "BG", "BG", "N/A", "N/A", ""],
+];
+const SLR_PROFILE_WORKBOOK = [{ name: "MFG Data", rows: [...SLR_WORKBOOK[0].rows.slice(0, 5), ...SLR_PROFILE_ROWS] }];
+
+test("Schluter EFT: profile rows import like the stock book's, other rows keep the generic split plus the Schluter words", () => {
+  const m = detectVtcEft(SLR_PROFILE_WORKBOOK);
+  const { items } = parseMapped(SLR_PROFILE_WORKBOOK[0].rows, m);
+  const by = (sku) => items.find((i) => i.sku === sku);
+  const ro = by("SLRRO100TSI");
+  assert.equal(ro.size, `3/8"x8'`);
+  assert.equal(ro.thickness, `3/8"`);
+  // No "Rondec Corners" prefix: the EFT's product line is a grouping label, not a series.
+  assert.equal(ro.description, "Schluter Rondec Bullnose Trim Textured Ivory");
+  assert.equal(ro.productLine, "RONDEC CORNERS");
+  assert.equal(by("SLREVJ100TSOB").size, `3/8"`);
+  assert.equal(by("SLREVJ100TSOB").description, "Schluter Jolly Out Corner 90° Bronze");
+  assert.equal(by("SLRBWA80SP").description, `Schluter Dilex-BWA 3/8" Movement Joint Sand Pebble`);
+  // A board is not a profile: the three-dim split still runs, the words still clean.
+  const board = by("SLRKB1512203050");
+  assert.equal(board.size, "48x120");
+  assert.equal(board.thickness, `5/8"`);
+  assert.equal(board.description, "Schluter Kerdiboard, Panel");
+  // A description that already says Schluter is not doubled.
+  assert.equal(by("SLRSETA50W").description, "Schluter All Set White Mod 50 LB White Modified");
+  for (const it of items) assert.deepEqual(rowAdvisories(it), [], `${it.sku}: ${it.description}`);
 });
 
 test("detectVtcEft: returns null when the signature is absent", () => {

@@ -381,6 +381,152 @@ export function splitSizeFromDescription(desc, opts) {
   return { size, thickness, name, sheetSize, ...(pcHint != null ? { pcHint } : {}) };
 }
 
+// --- Schluter EFT: profile dims + vendor shorthand (owner, 2026-09-14) ---------
+//
+// Virginia Tile's Schluter EFT prints a profile's thickness as a BARE fraction
+// ("RONDEC BULLNOSE TRIM 3/8 ALUM TEXTURED IVORY"), states no length on the
+// standard 2.5 m stick, and files every Rondec — straight or corner — under
+// the "RONDEC CORNERS" product line. The owner wants those rows to read like
+// the ERP stock book's own ("3/8\"x8' Schluter Rondec - …"): thickness × stick
+// in the size field, the shorthand spelled out, a Schluter lead, no product
+// line prefix. Everything here rides the mapping's `schluter` flag (the EFT
+// brand line, detectVtcEft): a tile sheet never sees a markless fraction as a
+// thickness, so a "22/40" spec stays a name there.
+//
+// The implied stick: Schluter's standard profile is 2.5 m = 8'2-1/2", and the
+// sheet only states a length on the other sizes (10', 4'11"). A straight
+// profile with a thickness and no stated length lands as 8' — the stock
+// book's own spelling, shortened at the owner's ask (2026-09-14) because the
+// ERP field is 70 characters. This IS invented data, accepted knowingly: a
+// family whose real stick differs reads wrong until its sheet says so.
+const SCHLUTER_PROFILE_LINES = /^(JOLLY|RONDEC|SCHIENE|QUADEC|DILEX|RENO|TREP|DECO|VINPRO|FINEC|ECK|DESIGNBASE|BARA|INDEC|DESIGNLINE)\b/i;
+export const isSchluterProfileLine = (pl) => SCHLUTER_PROFILE_LINES.test(str(pl));
+
+// Vendor shorthand → words. "" drops the token: bare aluminum is Schluter's
+// default material and says nothing on a row; PVC, stainless and brass stay.
+const SCHLUTER_ABBR = {
+  ALUM: "", ALU: "", ALUMINUM: "", "/": "", "W/": "with",
+  CRN: "Corner", JNT: "Joint", MVMT: "Movement", EDG: "Edge", RPLCMT: "Replacement", TRANS: "Transition", ADJ: "Adjustable", RAD: "Radius", BALC: "Balcony",
+  BRH: "Brushed", BRSH: "Brushed", BRUSH: "Brushed", BR: "Brushed", STN: "Stainless", SS: "Stainless Steel", ANOD: "Anodized", POL: "Polished", POLISH: "Polished", SAT: "Satin", MAT: "Matte", MATT: "Matte",
+  CHROM: "Chrome", CPPR: "Copper", BRAS: "Brass", NICKL: "Nickel", ANT: "Antique",
+  DK: "Dark", LT: "Light", BRT: "Bright", ANTH: "Anthracite", WHT: "White", BLK: "Black", BRN: "Brown", BRWN: "Brown", BEIG: "Beige",
+};
+const SCHLUTER_KEEP_UPPER = /^(PVC|LED|LB|OZ|SF)$/;
+// A hyphen segment after the family word is a model code (RONDEC-CT, DILEX-AHKA,
+// TREP-FL) unless it is one of the short real words Schluter hyphenates.
+const SCHLUTER_SEG_WORDS = /^(STEP|RAMP|LINE|BASE|BAND|DUO|PLUS|HEAT|FIX|SEAL|TRAY|EDGE|TRIM|FLEX|KIT)$/;
+const schluterWord = (w) => (SCHLUTER_KEEP_UPPER.test(w) || /\d/.test(w) ? w : w.charAt(0) + w.slice(1).toLowerCase());
+const schluterCode = (w) => (w.length <= 4 && !SCHLUTER_SEG_WORDS.test(w) ? w : schluterWord(w));
+const schluterCase = (t) => t.split("-").map((seg, i) => seg.split("/").map(i ? schluterCode : schluterWord).join("/")).join("-");
+const SCHLUTER_TYPE_WORD = /^(Corner|Trim|Edge|Base|Joint)$/;
+
+// The words of a Schluter row: shorthand expanded, "N DEG" → "N°" (a leading
+// angle moves behind the type words so the family word leads), the vendor's
+// repeats collapsed ("SS STAINLESS STEEL"), and a Schluter lead unless the
+// text already says it.
+export function schluterWords(text) {
+  const toks = str(text).replace(/\s*\.$/, "").toUpperCase().split(/\s+/).filter(Boolean);
+  const out = [];
+  for (const t0 of toks) {
+    const t = t0 === "W/" ? t0 : t0.replace(/^\/+|\/+$/g, ""); // "/ALU BASE/" wraps a token in slashes
+    if (!t) continue;
+    if (/^(DEG|DEGREE)$/.test(t) && /^\d+$/.test(out[out.length - 1] || "")) { out[out.length - 1] += "°"; continue; }
+    if (t in SCHLUTER_ABBR) { if (SCHLUTER_ABBR[t]) out.push(SCHLUTER_ABBR[t]); continue; }
+    out.push(schluterCase(t));
+  }
+  if (/^\d+°$/.test(out[0] || "")) {
+    const angle = out.shift();
+    let at = out.findIndex((w) => SCHLUTER_TYPE_WORD.test(w));
+    if (at < 0) at = out.length - 1;
+    while (SCHLUTER_TYPE_WORD.test(out[at + 1] || "")) at++; // "Edge Trim" is one run
+    out.splice(at + 1, 0, angle);
+  }
+  if (!/^schluter$/i.test(out[0] || "")) out.unshift("Schluter");
+  return out.join(" ").replace(/\b(\w+(?: \w+)?) \1\b/gi, "$1");
+}
+
+const SCHLUTER_CORNER_RE = /^(CRN|CORNERS?|CONNECTORS?|CONNECT|CAP|INSERT|SET|LIP)$/i;
+// BARA balcony edges, DESIGNBASE bases and ECK angles print a face HEIGHT or
+// leg width, never a tile thickness.
+const SCHLUTER_HEIGHT_LINES = /^(BARA|DESIGNBASE|ECK)\b/i;
+// A profile dimension is an inch fraction: proper, over a power-of-two
+// denominator ("22/40" and "40/40" are DILEX-STF joint specs). A whole number
+// may lead ("1-3/16") or be printed tight against the fraction ("111/32IN" is
+// 1-11/32, the board rows' "471/4IN" idiom). A bare whole inch counts too
+// ("1 X 7/16", "1IN"). Returns { text, val } or null.
+function schluterInch(t) {
+  const m = str(t).match(/^(?:(\d+)-)?(\d+)(?:\/(\d+))?(?:IN|")?$/i);
+  if (!m) return null;
+  if (!m[3]) return m[1] ? null : { text: `${m[2]}"`, val: +m[2] };
+  const d = +m[3];
+  if (![2, 4, 8, 16, 32, 64].includes(d)) return null;
+  let whole = m[1] ? +m[1] : 0, num = +m[2];
+  if (num >= d) {
+    if (m[1]) return null;
+    for (let k = 1; k < m[2].length && num >= d; k++) { const n = +m[2].slice(k); if (n > 0 && n < d) { whole = +m[2].slice(0, k); num = n; } }
+    if (num >= d) return null;
+  }
+  return { text: `${whole ? `${whole}-` : ""}${num}/${d}"`, val: whole + num / d };
+}
+const MAX_TILE_THICKNESS = 1.5;
+
+// A profile-family row's dims. The thickness is the LAST tile-sized fraction
+// that isn't a width or a joint (DILEX prints "3/8 MVMT JNT 5/16": joint
+// first, tile thickness after; "W/ 7/16 JNT" the other way round; RENO-RAMP
+// "2-1/2 REDUCER 3/8" leads with the ramp width) and isn't half of an L×W (a
+// DILEX-HKS cove's two legs, "5/16 X 11/32" — kept as vendor text, never a
+// decimal tile size). A spaced inch word goes with its number except before a
+// corner word, where "IN" means inside. Corners, connectors and end caps have
+// no length. Fractions left in the name get their inch mark; the ECK angles'
+// W/H-suffixed leg dims spell out.
+export function schluterDescription(desc, productLine) {
+  let s = str(desc).replace(/\s*\.$/, "").replace(/(\d)\/\s+(\d)/g, "$1/$2");
+  if (!isSchluterProfileLine(productLine)) return { size: "", thickness: "", name: schluterWords(s) };
+  let len = "";
+  const tail = s.match(new RegExp(`(?:^|\\s)(${FT_DIM})\\s*$`, "i"));
+  if (tail) { len = rollSide(tail[1]); s = s.slice(0, s.length - tail[0].length); }
+  else {
+    // ECK prints the length mid-string ("ECK-K 1-9/32W 10 FT STAINLESS STEEL",
+    // "… 8 FT 2-1/2 STAINLESS STEEL"): a feet token with optional bare inches.
+    const mid = s.match(new RegExp(`(?:^|\\s)(\\d+\\s*(?:${FT_MARK}))(?:\\s+(\\d+(?:-\\d+/\\d+)?))?(?=\\s|$)`, "i"));
+    if (mid) { len = rollSide(mid[1]) + (mid[2] ? `${mid[2]}"` : ""); s = `${s.slice(0, mid.index)} ${s.slice(mid.index + mid[0].length)}`; }
+  }
+  if (len === `8'2-1/2"`) len = "8'";
+  const toks = s.split(/\s+/).filter(Boolean);
+  const inch = (t) => schluterInch(t);
+  const isFrac = (t) => /\//.test(t) && !!inch(t);
+  let size = "", thickness = "";
+  for (let i = 0; i < toks.length && !size; i++) {
+    const tight = toks[i].match(/^([^x×\s]+)[x×]([^x×\s]+)$/i);
+    if (tight && isFrac(tight[1]) !== isFrac(tight[2]) ? false : tight && (isFrac(tight[1]) || isFrac(tight[2])) && inch(tight[1]) && inch(tight[2])) { size = `${inch(tight[1]).text}x${inch(tight[2]).text}`; toks.splice(i, 1); }
+    else if (/^[x×]$/i.test(toks[i + 1] || "") && (isFrac(toks[i]) || isFrac(toks[i + 2] || "")) && inch(toks[i]) && inch(toks[i + 2] || "")) { size = `${inch(toks[i]).text}x${inch(toks[i + 2]).text}`; toks.splice(i, 3); }
+  }
+  if (!size && !SCHLUTER_HEIGHT_LINES.test(str(productLine))) {
+    let at = -1;
+    for (let i = 0; i < toks.length; i++) {
+      const f = isFrac(toks[i]) ? inch(toks[i]) : null;
+      if (!f || f.val > MAX_TILE_THICKNESS) continue;
+      if (/^(W\/|[x×])$/i.test(toks[i - 1] || "") || /^([x×]|MVMT|JNT|JOINT|WIDE)$/i.test(toks[i + 1] || "")) continue;
+      at = i;
+    }
+    if (at >= 0) {
+      thickness = inch(toks[at]).text;
+      toks.splice(at, 1);
+      if (/^(IN|")$/i.test(toks[at] || "") && !SCHLUTER_CORNER_RE.test(toks[at + 1] || "")) toks.splice(at, 1);
+    }
+  }
+  const corner = toks.some((t) => SCHLUTER_CORNER_RE.test(t));
+  if (!size) size = thickness ? (corner ? thickness : `${thickness}x${len || "8'"}`) : len;
+  const rest = [];
+  for (let i = 0; i < toks.length; i++) {
+    const m = toks[i].match(/^(.+?)(W|H)?$/i);
+    const f = /\d\/\d|IN$/i.test(toks[i]) ? inch(m[1]) : null;
+    if (!f) { rest.push(toks[i]); continue; }
+    rest.push(`${f.text}${m[2] ? (/w/i.test(m[2]) ? " Wide" : " High") : ""}`);
+    if (/^(IN|")$/i.test(toks[i + 1] || "") && !SCHLUTER_CORNER_RE.test(toks[i + 2] || "")) i++;
+  }
+  return { size, thickness, name: schluterWords(rest.join(" ")) };
+}
 // `review` (sku → flagReview, from the book's existing items) mutes the
 // warnings for problems a human already confirmed or ignored — a reviewed row
 // must not re-nag on every re-import of the same file.
@@ -528,7 +674,12 @@ function mappedItem(mapping, raw, sku, sem) {
     // it's pulled; interior ones are the vendor's own punctuation and stay.
     if (sf && (/\//.test(sf[0]) || bundledUnit)) { sfPerUnit = numOrNull(sf[1]); descText = str(descText.replace(sf[0], " ")).replace(/(?:\s*[-–—·,=.])+\s*$/, ""); }
   }
-  if (!size && descText) {
+  const schluterProfile = !!mapping.schluter && isSchluterProfileLine(raw.productLine);
+  if (schluterProfile) {
+    const p = schluterDescription(descText, raw.productLine);
+    ({ size, thickness } = p);
+    descText = p.name;
+  } else if (!size && descText) {
     const split = splitSizeFromDescription(descText, { leadWidth: !!mapping.leadWidthSize });
     if (split.size) size = split.size;
     if (split.thickness && !thickness) thickness = split.thickness;
@@ -542,6 +693,7 @@ function mappedItem(mapping, raw, sku, sem) {
   // PEBBLE.") — dropped here as well as in the split, so rows where nothing
   // extracts don't keep it and read as a mis-split (NAME_LITTER_RE).
   descText = str(descText).replace(/\s*\.$/, "");
+  if (mapping.schluter && !schluterProfile) descText = schluterWords(descText);
   // An SF-priced roll/sheet with no stated coverage can still price: its
   // feet-marked L×W IS the area one sell unit covers (DITRA-HEAT-DUO-PS
   // "3'3\" X 33'" ≈ 107 sf/roll). Gated on the row NEEDING coverage to price —
@@ -572,7 +724,9 @@ function mappedItem(mapping, raw, sku, sem) {
   // spelled out or abbreviated — has that lead replaced by the full spelling,
   // so VTC's "EARTH" line doesn't read "Earth Earth Ash Gray" and Marazzi's
   // "MOROCCAN CONC …" doesn't read "Moroccan Concrete Moroccan Conc …".
-  const pl = smartCase(str(raw.productLine));
+  // The Schluter EFT's product line is a grouping label ("RONDEC CORNERS" over
+  // every Rondec, straight or corner), not a series — it never fronts the name.
+  const pl = mapping.schluter ? "" : smartCase(str(raw.productLine));
   // smartCase here as well as in the split: a row where nothing extracted (an
   // accessory with no size in its text) still carries the vendor's raw CAPS,
   // and joining a Title-Cased product line onto it would produce mixed case
@@ -792,7 +946,7 @@ export function detectVtcEft(sheets) {
         flags: { xx: "discontinued", "*": "freight", "†": "freight", "•": "madeToOrder", "◪": "transitioning" },
         groupBy: "mfg",
         defaultType: schluter ? null : "tile",
-        ...(schluter ? { sfFromDescription: true } : {}),
+        ...(schluter ? { sfFromDescription: true, schluter: true } : {}),
       };
     }
   }
