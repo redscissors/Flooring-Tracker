@@ -413,7 +413,15 @@ src/
                     # feet-and-inches roll/board sizes out of the description
                     # in every spelling Schluter prints (3'3"x98'5",
                     # "3 FT 3 X 98 FT 5", 82FTX3-1/8INX5/16IN, trailing 10'
-                    # stick lengths, 5/8IN X 48IN X 120IN boards)
+                    # stick lengths, 5/8IN X 48IN X 120IN boards). Its
+                    # `schluter` mapping flag (ADR 0041, 2026-09-14) also
+                    # drives `schluterDescription`/`schluterWords`: profile
+                    # families read a bare-fraction thickness and land
+                    # thickness×stick in size (`3/8"x8'`, the implied 2.5 m
+                    # stick shortened to 8'), the vendor shorthand spells out
+                    # (CRN/JNT/BRH/SS…), bare ALUM drops, a Schluter lead
+                    # fronts every row and the product-line column never
+                    # does (it is a grouping label — "RONDEC CORNERS")
   pdfbook.js        # text-PDF vendor price list -> canonical rows + mapping,
                     # header-driven per page, feeds the mapped import (ADR 0010)
   manningtonbook.js # Mannington "Cartons Detail" price list -> canonical rows,

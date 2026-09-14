@@ -1814,6 +1814,7 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
     sfFromDescription: !!saved?.sfFromDescription,
     leadWidthSize: !!saved?.leadWidthSize,
     typeFromDescription: !!saved?.typeFromDescription,
+    schluter: !!saved?.schluter,
   }));
   const [reading, setReading] = useState(false);
   const [err, setErr] = useState("");
@@ -1953,6 +1954,7 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
       sfFromDescription: !!m.sfFromDescription,
       leadWidthSize: !!m.leadWidthSize,
       typeFromDescription: !!m.typeFromDescription,
+      schluter: !!m.schluter,
     });
   };
 
@@ -1974,7 +1976,7 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
     return next;
   });
 
-  const mapping = { sheet: sheetName, headerRow: headerRow >= 0 ? headerRow : undefined, columns, skuPattern, flags, groupBy: groupBy || undefined, defaultType: defaultType || undefined, sfFromDescription: descFlags.sfFromDescription || undefined, leadWidthSize: descFlags.leadWidthSize || undefined, typeFromDescription: descFlags.typeFromDescription || undefined };
+  const mapping = { sheet: sheetName, headerRow: headerRow >= 0 ? headerRow : undefined, columns, skuPattern, flags, groupBy: groupBy || undefined, defaultType: defaultType || undefined, sfFromDescription: descFlags.sfFromDescription || undefined, leadWidthSize: descFlags.leadWidthSize || undefined, typeFromDescription: descFlags.typeFromDescription || undefined, schluter: descFlags.schluter || undefined };
   // Flag verdicts already on the book's rows (confirmed / ignored) mute those
   // codes in the parse warnings and the problem list below — a reviewed row
   // must not re-nag on every re-import of the same file.
