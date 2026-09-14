@@ -65,7 +65,7 @@ function VendorGroup({ g, custInfo, onOrdered, onRemove }) {
                 <span className="font-bold">{r.item.name}</span>
               </div>
               <div className="truncate text-[11px] leading-tight text-slate-400">
-                {r.item.sku && <span className="ft-mono font-semibold text-slate-500">{r.item.sku} · </span>}{r.areaName}
+                {r.item.mfg && <span className="ft-mono font-semibold text-slate-500" title="Manufacturer's code">{r.item.mfg} · </span>}{r.areaName}
                 {r.status === "ordered" && r.orderedAt && <span style={{ color: SAMPLE_COLOR.ordered }}> · ordered {dateShort(r.orderedAt)}{r.orderedBy ? ` · ${r.orderedBy}` : ""}</span>}
               </div>
             </div>

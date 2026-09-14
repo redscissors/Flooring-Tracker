@@ -899,7 +899,7 @@ export default function App({ user, onSignOut }) {
     const existing = sampleByProduct.get(p.id);
     if (existing) { delSampleRequest(existing.id); ping("Sample request removed"); return; }
     const custName = data.people.find((c) => c.id === sel.customerId)?.name || sel.name || "";
-    addSampleRequest(requestFrom({ project: sel, custName, area: a, areaIndex: ai, product: p, books, by: profile.name || user.email || "" }));
+    addSampleRequest(requestFrom({ project: sel, custName, area: a, areaIndex: ai, product: p, books, stockItem: floorStockItem(p), by: profile.name || user.email || "" }));
     ping("Sample requested — see Samples in the header");
   };
 

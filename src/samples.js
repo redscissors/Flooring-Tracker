@@ -35,11 +35,21 @@ export const normSampleRequest = (r) => {
     areaName: str(r.areaName), productId: str(r.productId),
     bookId: str(r.bookId), bookName: str(r.bookName) || OTHER,
     item: {
-      name: str(r.item?.name), sku: str(r.item?.sku),
+      name: str(r.item?.name), sku: str(r.item?.sku), mfg: str(r.item?.mfg),
       size: str(r.item?.size), type: str(r.item?.type),
     },
   };
 };
+
+// The code the vendor sees (owner 2026-09-14). A stock-book line's SKU is the
+// shop's own ERP code, which means nothing to the manufacturer, so the request
+// carries the stock item's sheet-stated manufacturer codes instead — and
+// nothing at all when the item has none (rows requested before the cache is
+// up, or imports without the code columns). Every other line's SKU already is
+// the vendor's (order-book pricelists, Schluter, wedi, a hand-typed code).
+// `item.sku` stays stored, unshown, as the row's identity.
+const vendorCodeFor = (book, p, stockItem) =>
+  book?.kind === "stock" ? (stockItem?.vendorSkus || []).filter(Boolean).join(" ") : (p.sku || "");
 
 // A new request: the line frozen at request time. Vendor resolves once, here —
 // the book's brand label over its name, Sheoga-configurator lines under the
@@ -47,7 +57,7 @@ export const normSampleRequest = (r) => {
 // Hardwood" name, everything else (hand rows, wedi's table-based lines) under
 // Other.
 export const bookLabel = (book) => (book.data?.brandLabel || "").trim() || book.name || "Price book";
-export const requestFrom = ({ project, custName, area, areaIndex, product: p, books = [], by = "" }) => {
+export const requestFrom = ({ project, custName, area, areaIndex, product: p, books = [], stockItem = null, by = "" }) => {
   const book = (p.bookId ? books.find((b) => b.id === p.bookId) : null) || vendorBookForRow(p, books);
   const bookName = book ? bookLabel(book) : p.sheoga ? "Sheoga Hardwood" : OTHER;
   return normSampleRequest({
@@ -58,6 +68,7 @@ export const requestFrom = ({ project, custName, area, areaIndex, product: p, bo
     item: {
       name: (p.brandColor || "").trim() || p.sku || TLBL[p.type] || "This line",
       sku: p.sku || "",
+      mfg: vendorCodeFor(book, p, stockItem),
       size: p.sizeText || (p.L && p.W ? `${p.L}×${p.W}` : ""),
       type: p.type || "",
     },
@@ -149,7 +160,7 @@ export const contactLabel = (contact) => {
 // 2026-08-28).
 export const repEmail = ({ rows, custName, address, phone, repName }) => {
   const items = rows.map((r) =>
-    "- " + [r.item.size, r.item.name].filter(Boolean).join(" ") + (r.item.sku ? ` — ${r.item.sku}` : ""));
+    "- " + [r.item.size, r.item.name].filter(Boolean).join(" ") + (r.item.mfg ? ` — ${r.item.mfg}` : ""));
   const ship = [custName, address, phone].filter(Boolean);
   const body = [
     repName ? `Hi ${repName.trim().split(/\s+/)[0]},` : "Hi,",
