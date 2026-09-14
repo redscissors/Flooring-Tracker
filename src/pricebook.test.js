@@ -704,6 +704,8 @@ const SLR_ACCESSORY_ROWS = [
   ["", "SLR", "KBZSD", "110Z", "SLRKBZSD110Z", "KERDI-BOARD-ZSD 4-5/16\" ANCHOR (25 ANCHORS/BOX) GALV STEEL", "KERDI BOARD", "READY SHIP", 30, 30, "EA", "EA", "N/A", "N/A", ""],
   ["", "SLR", "AKWS", "160PG", "SLRAKWS160PG", "DILEX-AKWS 5/8 ALU W/ 1/4 JOINT CL GREY", "DILEX", "READY SHIP", 20, 20, "PC", "PC", "N/A", "N/A", ""],
   ["", "SLR", "KSLT", "9151830S", "SLRKSLT9151830S", "KERDI-SHOWER-LTS TRAY 36X72 PERIMETER DRAIN 36 INCH SIDE", "KERDI LINE", "READY SHIP", 204.2, 204.2, "PC", "PC", "N/A", "N/A", ""],
+  ["", "SLR", "KDH2", "PVCFL", "SLRKDH2PVCFL", "KERDI-DRAIN WITH HORIZONTAL OUTLET, 2 IN PVC, W/O CRN/SEAL", "KERDI DRAIN KIT", "READY SHIP", 90, 90, "EA", "EA", "N/A", "N/A", ""],
+  ["", "SLR", "KD2", "ETHFL", "SLRKD2ETHFL", "KERDI-DRAIN ST. STEEL THREADED FLANGE KIT 2 IN", "KERDI DRAIN KIT", "READY SHIP", 80, 80, "PC", "PC", "N/A", "N/A", ""],
   ["", "SLR", "QK", "125ABGB", "SLRQK125ABGB", "QUADEC-K W/O ANCHORING LEG 1/2 BRUSHED ANTIQUE BRONZE ANOD AL", "QUADEC", "READY SHIP", 20, 20, "PC", "PC", "N/A", "N/A", ""],
 ];
 const SLR_ACCESSORY_WORKBOOK = [{ name: "MFG Data", rows: [...SLR_WORKBOOK[0].rows.slice(0, 5), ...SLR_ACCESSORY_ROWS] }];
@@ -750,7 +752,46 @@ test("Schluter EFT accessories: inch words marked, dims kept whole, pack counts 
   row("SLRQK125ABGB", `1/2"x8'`, `1/2"`, "Schluter Quadec-K without Anchoring Leg Brushed Antique Bronze Anodized");
   // Virginia Tile files the LTS trays under "KERDI LINE": the grate-length rule is for KERDI-LINE drains only.
   row("SLRKSLT9151830S", "36x72", "", 'Schluter Kerdi-Shower-LTS Tray Perimeter Drain 36" Side');
+  // Shorthand keeps its meaning behind a comma or across a slash (the CTNS sheet's drain rows).
+  row("SLRKDH2PVCFL", "", "", 'Schluter Kerdi-Drain with Horizontal Outlet, 2" PVC, without Corner/Seal');
+  row("SLRKD2ETHFL", "", "", 'Schluter Kerdi-Drain Stainless Steel Threaded Flange Kit 2"');
   for (const it of items) assert.deepEqual(rowAdvisories(it), [], `${it.sku}: ${it.description}`);
+});
+
+// Another brand's EFT that carries Schluter rows (the owner's "CTNS EFT 26 01
+// 15"): the brand line says nothing about Schluter, so the row's own VTC MFG
+// code (SLR) is what says the row is Schluter — same rules, per row, while
+// the brand's own rows keep the tile default and the generic split.
+const CTNS_WORKBOOK = [{ name: "MFG Data", rows: [
+  ["Account Name: KEIM LUMBER"], ["p VIRGINIATILE"],
+  [null, "CTNS"], [],
+  ["", "VTC MFG", "VTC Color", "VTC Pattern", "VTC Item Code", "VTC Description", "Product Line Name", "VTC ESTIMATED LEAD TIME", "CONSUMER LEVEL PRICE (Dealer to Consumer)", "DEALER PRICE (VTC to Dealer)", "Price U/M", "No Broken U/M", "PC/CT", "SF/CT", "Additional Comments"],
+  ["", "CTN", "EAAS", "1224", "CTNEARTHAS1224", "EARTH ASH GRAY 12X24 10MM", "EARTH", "READY SHIP", 5.2, 3.1, "SF", "CT", 8, 15.5, ""],
+  ["", "SLR", "RO10", "0TSI", "SLRRO100TSI", "RONDEC BULLNOSE TRIM 3/8 ALUM TEXTURED IVORY", "RONDEC CORNERS", "READY SHIP", 26.68, 26.68, "PC", "PC", "N/A", "N/A", ""],
+  ["", "SLR", "DIT", "30M", "SLRDITRA30M", "DITRA UNCOUPLING/WATERPROOF 3 FT 3 IN X 98 FT 5 IN=323 SF", "DITRA", "IMPORT", 1.17, 1.17, "SF", "RL", "N/A", "N/A", ""],
+] }];
+
+test("another brand's EFT: a row whose VTC MFG is SLR gets the Schluter rules; the brand's rows don't", () => {
+  const m = detectVtcEft(CTNS_WORKBOOK);
+  assert.equal(m.title, "CTNS");
+  assert.ok(!m.schluter, "the brand line is not Schluter's");
+  assert.equal(m.defaultType, "tile");
+  const { items } = parseMapped(CTNS_WORKBOOK[0].rows, m);
+  const by = (sku) => items.find((i) => i.sku === sku);
+  const tile = by("CTNEARTHAS1224");
+  assert.equal(tile.type, "tile");
+  assert.equal(tile.size, "12x24");
+  assert.equal(tile.description, "Earth Ash Gray");
+  const ro = by("SLRRO100TSI");
+  assert.equal(ro.type, null, "Schluter sells no flooring, whatever sheet it rides");
+  assert.equal(ro.size, `3/8"x8'`);
+  assert.equal(ro.thickness, `3/8"`);
+  assert.equal(ro.description, "Schluter Rondec Bullnose Trim Textured Ivory");
+  const ditra = by("SLRDITRA30M");
+  assert.equal(ditra.type, null);
+  assert.equal(ditra.size, `3'3"x98'5"`);
+  assert.equal(ditra.sfPerUnit, 323, "coverage rides the description on a Schluter row even when the sheet's mapping doesn't say so");
+  assert.equal(ditra.description, "Schluter Ditra Uncoupling/Waterproof");
 });
 
 test("detectVtcEft: returns null when the signature is absent", () => {

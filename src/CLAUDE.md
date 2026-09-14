@@ -414,7 +414,8 @@ src/
                     # in every spelling Schluter prints (3'3"x98'5",
                     # "3 FT 3 X 98 FT 5", 82FTX3-1/8INX5/16IN, trailing 10'
                     # stick lengths, 5/8IN X 48IN X 120IN boards). Its
-                    # `schluter` mapping flag (ADR 0041, 2026-09-14) also
+                    # `schluter` mapping flag (ADR 0041, 2026-09-14) — or,
+                    # per row, a VTC MFG of SLR on any other brand's EFT — also
                     # drives `schluterDescription`/`schluterWords`: profile
                     # families read a bare-fraction thickness and land
                     # thickness×stick in size (`3/8"x8'`, the implied 2.5 m
