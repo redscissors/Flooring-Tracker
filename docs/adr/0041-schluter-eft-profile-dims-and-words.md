@@ -130,3 +130,15 @@ Configurator check, same 331 recognized parts before and after: 6 real
 differences, all fixes — the 1.5" and 2" KERDI-BOARD panels read 24.5×96
 (16.3 sf) instead of a 0.3 sf sliver, and the two fastener boxes count 40 and
 100 instead of 0. Everything else is display size text.
+
+## Amendment 2026-09-14 — Schluter rows on another brand's EFT
+
+Owner: "make sure the CTNS EFT 26 01 15 price book also works like this, it
+also has Schluter." Virginia Tile's template carries a **VTC MFG** code on
+every row, and a Schluter line on another brand's sheet is coded `SLR`. The
+Schluter rules are therefore gated **per row**: a row is Schluter when the
+sheet's brand line is Schluter's (the mapping flag) OR its VTC MFG is `SLR`.
+Such a row never takes the sheet's tile default and its coverage rides the
+description, exactly as on Schluter's own EFT; the brand's own rows keep the
+tile default and the generic split. The Schluter EFT and the ERP stock
+export parse identically before and after.

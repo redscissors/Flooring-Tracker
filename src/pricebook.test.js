@@ -753,6 +753,42 @@ test("Schluter EFT accessories: inch words marked, dims kept whole, pack counts 
   for (const it of items) assert.deepEqual(rowAdvisories(it), [], `${it.sku}: ${it.description}`);
 });
 
+// Another brand's EFT that carries Schluter rows (the owner's "CTNS EFT 26 01
+// 15"): the brand line says nothing about Schluter, so the row's own VTC MFG
+// code (SLR) is what says the row is Schluter — same rules, per row, while
+// the brand's own rows keep the tile default and the generic split.
+const CTNS_WORKBOOK = [{ name: "MFG Data", rows: [
+  ["Account Name: KEIM LUMBER"], ["p VIRGINIATILE"],
+  [null, "CTNS"], [],
+  ["", "VTC MFG", "VTC Color", "VTC Pattern", "VTC Item Code", "VTC Description", "Product Line Name", "VTC ESTIMATED LEAD TIME", "CONSUMER LEVEL PRICE (Dealer to Consumer)", "DEALER PRICE (VTC to Dealer)", "Price U/M", "No Broken U/M", "PC/CT", "SF/CT", "Additional Comments"],
+  ["", "CTN", "EAAS", "1224", "CTNEARTHAS1224", "EARTH ASH GRAY 12X24 10MM", "EARTH", "READY SHIP", 5.2, 3.1, "SF", "CT", 8, 15.5, ""],
+  ["", "SLR", "RO10", "0TSI", "SLRRO100TSI", "RONDEC BULLNOSE TRIM 3/8 ALUM TEXTURED IVORY", "RONDEC CORNERS", "READY SHIP", 26.68, 26.68, "PC", "PC", "N/A", "N/A", ""],
+  ["", "SLR", "DIT", "30M", "SLRDITRA30M", "DITRA UNCOUPLING/WATERPROOF 3 FT 3 IN X 98 FT 5 IN=323 SF", "DITRA", "IMPORT", 1.17, 1.17, "SF", "RL", "N/A", "N/A", ""],
+] }];
+
+test("another brand's EFT: a row whose VTC MFG is SLR gets the Schluter rules; the brand's rows don't", () => {
+  const m = detectVtcEft(CTNS_WORKBOOK);
+  assert.equal(m.title, "CTNS");
+  assert.ok(!m.schluter, "the brand line is not Schluter's");
+  assert.equal(m.defaultType, "tile");
+  const { items } = parseMapped(CTNS_WORKBOOK[0].rows, m);
+  const by = (sku) => items.find((i) => i.sku === sku);
+  const tile = by("CTNEARTHAS1224");
+  assert.equal(tile.type, "tile");
+  assert.equal(tile.size, "12x24");
+  assert.equal(tile.description, "Earth Ash Gray");
+  const ro = by("SLRRO100TSI");
+  assert.equal(ro.type, null, "Schluter sells no flooring, whatever sheet it rides");
+  assert.equal(ro.size, `3/8"x8'`);
+  assert.equal(ro.thickness, `3/8"`);
+  assert.equal(ro.description, "Schluter Rondec Bullnose Trim Textured Ivory");
+  const ditra = by("SLRDITRA30M");
+  assert.equal(ditra.type, null);
+  assert.equal(ditra.size, `3'3"x98'5"`);
+  assert.equal(ditra.sfPerUnit, 323, "coverage rides the description on a Schluter row even when the sheet's mapping doesn't say so");
+  assert.equal(ditra.description, "Schluter Ditra Uncoupling/Waterproof");
+});
+
 test("detectVtcEft: returns null when the signature is absent", () => {
   assert.equal(detectVtcEft([{ name: "Sheet1", rows: [["Name", "Price"], ["Oak", 5]] }]), null);
   assert.equal(guessHeaderRow([["nope"], ["still nope"]]), -1);

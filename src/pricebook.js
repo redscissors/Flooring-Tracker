@@ -712,7 +712,12 @@ export function floorTypeFromDescription(text, size) {
 }
 
 function mappedItem(mapping, raw, sku, sem) {
-  let type = str(raw.type) || mapping.defaultType || null;
+  // A Schluter row is one on Schluter's own EFT (the brand line, mapping
+  // flag) OR any Virginia Tile row whose VTC MFG code is SLR — another brand's
+  // EFT carries Schluter lines too (the CTNS sheet, owner 2026-09-14). It
+  // never takes the sheet's tile default and its coverage rides the text.
+  const schluter = !!mapping.schluter || /^SLR$/i.test(str(raw.mfg));
+  let type = str(raw.type) || (schluter ? null : mapping.defaultType) || null;
   const cost = numOrNull(raw.cost);
   const price = numOrNull(raw.price);
   const noteBits = [str(raw.note)];
@@ -732,7 +737,7 @@ function mappedItem(mapping, raw, sku, sem) {
   const coverage = numOrNull(raw.coverage);
   // Does any of the row's units bundle coverage (carton/bundle/sheet/roll)?
   const bundledUnit = [raw.unit, raw.orderUnit, raw.priceUnit].some((u) => COVERAGE_SOLD_RE.test(str(u)));
-  if (mapping.sfFromDescription && sfPerUnit == null && descText) {
+  if ((mapping.sfFromDescription || schluter) && sfPerUnit == null && descText) {
     const sf = descText.match(SF_DESC_RE);
     // A suffixed coverage ("10.64sf/c", "134.5sf/roll") is per-unit wherever it
     // appears; a BARE "N SF" is only coverage when the sell basis bundles it —
@@ -743,12 +748,12 @@ function mappedItem(mapping, raw, sku, sem) {
     // it's pulled; interior ones are the vendor's own punctuation and stay.
     if (sf && (/\//.test(sf[0]) || bundledUnit)) { sfPerUnit = numOrNull(sf[1]); descText = str(descText.replace(sf[0], " ")).replace(/(?:\s*[-–—·,=.])+\s*$/, ""); }
   }
-  const schluterProfile = !!mapping.schluter && isSchluterProfileLine(raw.productLine);
+  const schluterProfile = !!schluter && isSchluterProfileLine(raw.productLine);
   if (schluterProfile) {
     const p = schluterDescription(descText, raw.productLine);
     ({ size, thickness } = p);
     descText = p.name;
-  } else if (mapping.schluter && !size && descText && (() => {
+  } else if (schluter && !size && descText && (() => {
     const acc = schluterAccessory(descText, raw.productLine);
     descText = acc.text;
     if (acc.pc != null) pcHint = acc.pc;
@@ -759,7 +764,7 @@ function mappedItem(mapping, raw, sku, sem) {
   } else if (!size && descText) {
     // A Schluter accessory's lone fraction is a pipe size or a frame height,
     // never a tile thickness (only the three-dim board rule reads one there).
-    const split = splitSizeFromDescription(descText, { leadWidth: !!mapping.leadWidthSize, mm: !mapping.schluter, fracThickness: !mapping.schluter });
+    const split = splitSizeFromDescription(descText, { leadWidth: !!mapping.leadWidthSize, mm: !schluter, fracThickness: !schluter });
     if (split.size) size = split.size;
     if (split.thickness && !thickness) thickness = split.thickness;
     // A sheet dimension only stands in when the description gave no chip size —
@@ -768,14 +773,14 @@ function mappedItem(mapping, raw, sku, sem) {
     if (split.pcHint != null) pcHint = split.pcHint;
     // A Schluter row always takes the cleaned name: its packaging tokens go
     // even when nothing else extracted (schluterWords recases it anyway).
-    if (split.size || split.thickness || split.sheetSize || split.pcHint != null || mapping.schluter) descText = split.name;
+    if (split.size || split.thickness || split.sheetSize || split.pcHint != null || schluter) descText = split.name;
   }
   // A bare trailing period is vendor punctuation, not information ("…SAND
   // PEBBLE.") — dropped here as well as in the split, so rows where nothing
   // extracts don't keep it and read as a mis-split (NAME_LITTER_RE).
   descText = str(descText).replace(/\s*\.$/, "");
-  if (mapping.schluter && !schluterProfile) descText = schluterWords(descText);
-  if (mapping.schluter) {
+  if (schluter && !schluterProfile) descText = schluterWords(descText);
+  if (schluter) {
     size = schluterStick(size);
     // A counted pack with no size of its own reads "N ct" — the stock book's
     // spelling, and what the configurator counts board fasteners from.
@@ -814,7 +819,7 @@ function mappedItem(mapping, raw, sku, sem) {
   // "MOROCCAN CONC …" doesn't read "Moroccan Concrete Moroccan Conc …".
   // The Schluter EFT's product line is a grouping label ("RONDEC CORNERS" over
   // every Rondec, straight or corner), not a series — it never fronts the name.
-  const pl = mapping.schluter ? "" : smartCase(str(raw.productLine));
+  const pl = schluter ? "" : smartCase(str(raw.productLine));
   // smartCase here as well as in the split: a row where nothing extracted (an
   // accessory with no size in its text) still carries the vendor's raw CAPS,
   // and joining a Title-Cased product line onto it would produce mixed case
