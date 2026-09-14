@@ -24,7 +24,10 @@ const BOOKS = [
 ];
 const PROJECT = { id: "c1", name: "Marsh — whole first floor", address: "214 Old Mill Rd, Chagrin Falls", phone: "(555) 210-0114" };
 const area = (id, name) => normA({ id, name, products: [{}] });
-const mk = (a, p, over = {}) => ({ ...requestFrom({ project: PROJECT, custName: "Kathy Marsh", area: a, areaIndex: 0, product: p, books: BOOKS, by: "Dana" }), ...over });
+// Stock-book lines pass their cached item so the request carries the
+// manufacturer's codes (owner 2026-09-14) — p3 has them, p6 doesn't.
+const STOCK = { "05153": { sku: "05153", vendorSkus: ["HAN-WM-1224"] }, "GLZ-STK-44": { sku: "GLZ-STK-44", vendorSkus: [] } };
+const mk = (a, p, over = {}) => ({ ...requestFrom({ project: PROJECT, custName: "Kathy Marsh", area: a, areaIndex: 0, product: p, books: BOOKS, stockItem: STOCK[p.sku] || null, by: "Dana" }), ...over });
 
 const kitchen = area("a1", "Kitchen"), bath = area("a2", "Master bath");
 const SEED = [

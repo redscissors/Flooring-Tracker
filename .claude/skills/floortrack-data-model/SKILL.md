@@ -55,9 +55,15 @@ claude_issue row : { id (text pk), data: { text, done, doneAt, createdBy, create
 sample_request row : { id (text pk), data: { status: "need"|"ordered",
                   createdBy, createdAt, orderedBy, orderedAt,
                   projectId, custName, areaName, productId, bookId, bookName,
-                  item: { name, sku, size, type } } }
+                  item: { name, sku, mfg, size, type } } }
                   // sample-ordering workflow (spec 2026-08-28), shared like
                   // todos; snapshot + live ids (the claude_issues doctrine).
+                  // item.mfg = the code the vendor sees (owner 2026-09-14):
+                  // a stock-book line's manufacturer codes (the item's
+                  // vendorSkus, "" when it has none), any other line's own
+                  // sku. The panel and rep email print ONLY item.mfg; item.sku
+                  // (the shop's ERP code on stock lines) stays stored, unshown.
+                  // Pre-2026-09-14 rows normalize to mfg "" and show no code.
                   // Product rows carry NO sample field — these rows are the
                   // one source for the row icon, project panel, header badge,
                   // and the customer browser's samples column. Written only

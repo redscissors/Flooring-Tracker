@@ -13,7 +13,7 @@ const BOOKS = [
 const req = (over = {}) => normSampleRequest({
   id: "r1", status: "need", createdBy: "Dana", createdAt: 1000,
   projectId: "c1", custName: "Kathy Marsh", areaName: "Kitchen", productId: "p1",
-  bookId: "b1", bookName: "Glazzio", item: { name: "Calacatta Gold", sku: "CM1224", size: "12×24", type: "tile" },
+  bookId: "b1", bookName: "Glazzio", item: { name: "Calacatta Gold", sku: "CM1224", mfg: "CM1224", size: "12×24", type: "tile" },
   ...over,
 });
 
@@ -37,7 +37,7 @@ test("requestFrom: snapshots the line, resolves the vendor, stamps the creator",
   assert.equal(r.areaName, "Kitchen");
   assert.equal(r.productId, "p1");
   assert.deepEqual([r.bookId, r.bookName], ["b1", "Glazzio"]);
-  assert.deepEqual(r.item, { name: "Calacatta Gold", sku: "CM1224", size: "12×24", type: "tile" });
+  assert.deepEqual(r.item, { name: "Calacatta Gold", sku: "CM1224", mfg: "CM1224", size: "12×24", type: "tile" });
   assert.equal(r.createdBy, "Dana");
   assert.ok(r.id && r.createdAt > 0);
 });
@@ -52,6 +52,30 @@ test("requestFrom: sheoga rows file under Sheoga, hand rows under Other, name fa
   assert.equal(hand.item.name, "X1");
   assert.equal(requestFrom({ ...base, product: { id: "p3", type: "vinyl" } }).item.name, "Vinyl");
   assert.equal(sheoga.areaName, "Area 1");
+});
+
+// The code the vendor sees (owner 2026-09-14): a stock-book line's SKU is the
+// shop's own, so the request carries the item's manufacturer codes instead —
+// nothing when the item has none. Every other line's SKU already is the
+// vendor's, so it passes through.
+test("requestFrom: a stock-book line carries the item's mfg codes, never the shop SKU", () => {
+  const area = normA({ id: "a1", name: "Kitchen", products: [{ id: "p1" }] });
+  const base = { project: { id: "c1" }, custName: "K", area, areaIndex: 0, books: BOOKS, by: "D" };
+  const stock = { id: "p1", type: "tile", sku: "05153", brandColor: "Hanoi White Matte", bookId: "b2" };
+  const withCodes = requestFrom({ ...base, product: stock, stockItem: { sku: "05153", vendorSkus: ["HAN-WM-1224", "9981"] } });
+  assert.equal(withCodes.item.mfg, "HAN-WM-1224 9981");
+  assert.equal(withCodes.item.sku, "05153");
+  assert.equal(requestFrom({ ...base, product: stock, stockItem: { sku: "05153", vendorSkus: [] } }).item.mfg, "");
+  assert.equal(requestFrom({ ...base, product: stock }).item.mfg, "");
+  const order = requestFrom({ ...base, product: { id: "p2", type: "tile", sku: "CM1224", bookId: "b1" }, stockItem: { vendorSkus: ["IGNORED"] } });
+  assert.equal(order.item.mfg, "CM1224");
+  assert.equal(requestFrom({ ...base, product: { id: "p3", type: "tile", sku: "HAND-1" } }).item.mfg, "HAND-1");
+});
+
+test("normSampleRequest: a pre-2026-09-14 row (no item.mfg) normalizes to an empty mfg", () => {
+  const r = normSampleRequest({ id: "r9", bookId: "b2", item: { name: "Old", sku: "05153" } });
+  assert.equal(r.item.mfg, "");
+  assert.equal(r.item.sku, "05153");
 });
 
 test("sampleGroups: groups by vendor in encounter order, Other last", () => {
@@ -112,12 +136,21 @@ test("sampleCounts + projectSampleTally", () => {
 });
 
 test("repEmail: item lines + ship-to, greeting by first name, NO salesperson info", () => {
-  const rows = [req(), req({ id: "r2", item: { name: "Hand entered", sku: "", size: "", type: "tile" } })];
+  const rows = [
+    req(), req({ id: "r2", item: { name: "Hand entered", sku: "", size: "", type: "tile" } }),
+    // A stock line: the email prints the mfg codes, never the shop SKU; a
+    // codeless one prints just size + name.
+    req({ id: "r3", bookId: "b2", item: { name: "Hanoi White Matte", sku: "05153", mfg: "HAN-WM-1224", size: "12×24", type: "tile" } }),
+    req({ id: "r4", bookId: "b2", item: { name: "Carrara Hex", sku: "GLZ-STK-44", mfg: "", size: "", type: "tile" } }),
+  ];
   const { subject, body } = repEmail({ rows, custName: "Kathy Marsh", address: "214 Old Mill Rd", phone: "(555) 210-0114", repName: "Jeff Krejci" });
   assert.equal(subject, "Sample request — Kathy Marsh");
   assert.ok(body.startsWith("Hi Jeff,"));
   assert.ok(body.includes("- 12×24 Calacatta Gold — CM1224"));
-  assert.ok(body.includes("- Hand entered"));
+  assert.ok(body.includes("- Hand entered\n"));
+  assert.ok(body.includes("- 12×24 Hanoi White Matte — HAN-WM-1224"));
+  assert.ok(body.includes("- Carrara Hex\n"));
+  assert.ok(!body.includes("05153") && !body.includes("GLZ-STK-44"));
   assert.ok(body.includes("Ship to:\nKathy Marsh\n214 Old Mill Rd\n(555) 210-0114"));
   assert.ok(!/sales/i.test(body));
   const bare = repEmail({ rows, custName: "", address: "", phone: "", repName: "" });
