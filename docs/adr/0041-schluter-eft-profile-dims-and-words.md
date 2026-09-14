@@ -84,3 +84,49 @@ the brand line), so no tile sheet is touched.
 - Left alone on purpose: the 92 KERDI/KERDI-LINE rows that spell "4 1/2 IN"
   (non-profile, generic path), and the ECK-E rows' W/H leg dims beyond
   spelling them out.
+
+## Amendment 2026-09-14 — the non-profile rows, and the popup
+
+Owner: "apply the same cleanup to the Kerdi rows too". The KERDI, KERDI-BOARD,
+KERDI-LINE, drain, DITRA, shower-kit and shelf rows keep the generic split,
+after a Schluter pre-pass (`schluterAccessory`) has made the sheet's spellings
+the generic regexes' own:
+
+- Spaced inch words and space-spelled mixed fractions get their mark (`3 IN`
+  → `3"`, `4 1/2` → `4-1/2"`); so does a bare inch fraction (`1/2 PIPE SEAL`).
+- A pack count leaves the name and lands as pieces-per-unit — `(2 PACK)`,
+  `(5)`, `10 PK`, `1EA`, alongside the existing `(100/EA)` — and a counted
+  row with no size of its own reads **`N ct`**, the stock book's spelling and
+  what the configurator counts board fasteners from (the EFT's KBZS boxes
+  counted zero before).
+- Dims the generic split would mangle are kept whole as text: a bare triple
+  with no thickness-sized side (a curb's `60"x6"x4-1/2"`, a bench's
+  `16"x16"x20"`) and a trowel notch's fraction pair (`11/64"x11/64"`).
+- **A lone marked fraction on an accessory is never a thickness** — it is a
+  pipe size or a frame height and stays in the name. Only the three-dim board
+  rule reads one. A KERDI-LINE drain's size is its grate length (`28"`, `4'`).
+- More shorthand: UNCPLING, WATRPROOF, SPLASHGAURD, TRANSP, ADHES, STAINL,
+  ST STEEL, SEALG/BONDG, DRA, GSKT, PERF, RESIS, GALV, CRNR, GR, CL, SQ,
+  `W/X` → with X, `W/O` → without; ABS/XL/GFCI/LED and two-letter codes
+  (PS, MV, ZA, EB) stay upper; `(DRAIN,CORNERS,SEALS)` cases word by word;
+  a wrapped `(ALUM)` drops like a bare one.
+
+Three generic fixes ride along because they are plain bugs in the shared
+splitter: a mixed number's fraction tail is never a thickness (`1-5/8"
+SCREWS` left "1-" litter), a `1/2" WIDTH` is never a thickness, a marked
+three-dim board may be a full 2" thick (the 2" KERDI-BOARD read as a 2×24.5
+panel), a bare roll side beside a feet side is inches (`5 X 98 FT 5`), and
+spaced bare inches before ROLL count (`16 FT 5 ROLL`). The ERP stock export
+moves on exactly one row — the garbled `2"x2x8' Kerdi Board` line now reads
+`2"x8'` instead of `2x8'`.
+
+**The configurator popup drops the lead.** Inside a Schluter-only popup the
+"Schluter" lead is noise, so every displayed name (build lines, kits list,
+extras chips, cut list, print sheet) strips it — display only; landed product
+rows and order entry keep the book text. Preview proof:
+`.scratch/136_schluter-accessory-import/popup-no-lead.png`.
+
+Configurator check, same 331 recognized parts before and after: 6 real
+differences, all fixes — the 1.5" and 2" KERDI-BOARD panels read 24.5×96
+(16.3 sf) instead of a 0.3 sf sliver, and the two fastener boxes count 40 and
+100 instead of 0. Everything else is display size text.

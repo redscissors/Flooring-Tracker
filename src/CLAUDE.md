@@ -421,7 +421,12 @@ src/
                     # stick shortened to 8'), the vendor shorthand spells out
                     # (CRN/JNT/BRH/SS…), bare ALUM drops, a Schluter lead
                     # fronts every row and the product-line column never
-                    # does (it is a grouping label — "RONDEC CORNERS")
+                    # does (it is a grouping label — "RONDEC CORNERS").
+                    # `schluterAccessory` (ADR 0041 amendment) pre-passes
+                    # the non-profile rows for the generic split: inch words
+                    # and pack counts ("N ct" size), whole curb/bench/notch
+                    # dims, no lone-fraction thickness, KERDI-LINE grate
+                    # length as size
   pdfbook.js        # text-PDF vendor price list -> canonical rows + mapping,
                     # header-driven per page, feeds the mapped import (ADR 0010)
   manningtonbook.js # Mannington "Cartons Detail" price list -> canonical rows,

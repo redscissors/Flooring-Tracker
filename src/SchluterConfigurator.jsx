@@ -75,7 +75,11 @@ const endLabel = (x) => ((x.edge === "back" || x.edge === "entry")
 
 // Add-on chip labels: the catalog names are long; the chips keep the part
 // that differs (the prototype's replacements).
-const extraLbl = (name) => String(name || "")
+// The popup is Schluter's own: the book rows' "Schluter" lead (ADR 0041) is
+// noise here, so every displayed name drops it. Display only — the landed
+// product rows keep the full book text.
+const shown = (name) => String(name || "").replace(/^schluter\s+(?:—\s*)?/i, "");
+const extraLbl = (name) => shown(name)
   .replace(/kerdi-board-sn-lt lighted niche/i, "Lit niche")
   .replace(/kerdi-board-sn niche/i, "Niche")
   .replace(/kerdi-board-sb bench/i, "Bench")
@@ -944,7 +948,7 @@ export default function SchluterConfigurator({
     const chCut = ch && (ch.note || "").match(/cut to [\d.]+"/);
     if (chCut) out.push(`✂ Trim the Vario channel + grate ${chCut[0].replace("cut to ", "to ")} — end caps supplied, min 10"`);
     const cl = build.lines.find((l) => l.g === "Curb" && l.item.len);
-    if (cl && /cut/.test(cl.note || "")) out.push(`✂ ${cl.qty > 1 ? cl.qty + "× " : ""}${cl.item.name} — ${(cl.note || "").split(" — ")[0]}`);
+    if (cl && /cut/.test(cl.note || "")) out.push(`✂ ${cl.qty > 1 ? cl.qty + "× " : ""}${shown(cl.item.name)} — ${(cl.note || "").split(" — ")[0]}`);
     cornerCuts.forEach((c) => {
       const lbl = (CORNER_LBL.find((x) => x[0] === c.corner) || [])[1] || c.corner;
       out.push(`✂ Corner cut at ${lbl} — ${c.h}″ × ${c.v}″ legs (45°); cut the tray on site, glass or framing runs the line`);
@@ -1161,7 +1165,7 @@ export default function SchluterConfigurator({
                   {usual != null && t.stock !== usual && (
                     <span className={"tag" + (t.stock ? "" : " so")}>{t.stock ? "stock" : "special order"}</span>
                   )}
-                  <span className="sku">{t.sku} — {t.name}</span>
+                  <span className="sku">{t.sku} — {shown(t.name)}</span>
                   <span className="pr" style={{ color: tierColor }} title="the full shelf kit at this size">{fm(kitTotals[t.sku] != null ? kitTotals[t.sku] : tierOf(t))}</span>
                 </button>
               );
@@ -1555,7 +1559,7 @@ export default function SchluterConfigurator({
                   return (
                     <div className={"bline" + (l.noteOnly ? " note" : "")} key={g + (e.sku || e.name) + li}>
                       <div className="bn">
-                        <div className="n">{e.name}
+                        <div className="n">{shown(e.name)}
                           {!l.noteOnly && !e.stock && <span className="sotag">special order</span>}</div>
                         <div className="m" title={meta.join(" · ") || undefined}>{meta.map((s2, k) => (k ? " · " + s2 : <b key="k">{s2}</b>))}</div>
                       </div>
@@ -1926,7 +1930,7 @@ export default function SchluterConfigurator({
           {pres.map((e) => (
             <button key={e.sku} className={"srow" + (e.stock ? " stk" : "")} onClick={() => add({ part: e.sku })} data-schluter-bench-pre={e.sku}>
               <span className={"sdot" + (e.stock ? "" : " so")} />
-              <span className="n">{e.name}<small>{[e.size, e.sku, e.stock ? "stock" : "special order"].filter(Boolean).join(" · ")}</small></span>
+              <span className="n">{shown(e.name)}<small>{[e.size, e.sku, e.stock ? "stock" : "special order"].filter(Boolean).join(" · ")}</small></span>
               <span className="p">{fm(tierOf(e))}</span>
             </button>
           ))}
@@ -1958,7 +1962,7 @@ export default function SchluterConfigurator({
           )}
           {norm.build === "premade" && (
             <div className="wm-note">
-              {(itemBySku(row.part) || {}).name || row.part}{(itemBySku(row.part) || {}).size ? " — " + itemBySku(row.part).size : ""}
+              {shown((itemBySku(row.part) || {}).name) || row.part}{(itemBySku(row.part) || {}).size ? " — " + itemBySku(row.part).size : ""}
               {norm.kind === "corner" ? `. ${norm.size}″ out along each wall, triangle across the front.` : "."} Sits on the finished tray, 20″ high, sloped top.
             </div>
           )}
@@ -2054,7 +2058,7 @@ export default function SchluterConfigurator({
             <button key={e.sku} className={"srow" + (e.stock ? " stk" : "")} disabled={!freeSide}
               onClick={add("wall", { part: e.sku })} data-schluter-benchpick={e.sku}>
               <span className={"sdot" + (e.stock ? "" : " so")} />
-              <span className="n">{e.name}<small>{[e.size, e.sku, e.stock ? "stock" : "special order"].filter(Boolean).join(" · ")}</small></span>
+              <span className="n">{shown(e.name)}<small>{[e.size, e.sku, e.stock ? "stock" : "special order"].filter(Boolean).join(" · ")}</small></span>
               <span className="p">{fm(tierOf(e))}</span>
             </button>
           ))}
@@ -2062,7 +2066,7 @@ export default function SchluterConfigurator({
             <button key={e.sku} className={"srow" + (e.stock ? " stk" : "")} disabled={!freeCorner}
               onClick={add("corner", { part: e.sku })} data-schluter-benchpick={e.sku}>
               <span className={"sdot" + (e.stock ? "" : " so")} />
-              <span className="n">{e.name}<small>{[e.size, e.sku, e.stock ? "stock" : "special order", "corner"].filter(Boolean).join(" · ")}</small></span>
+              <span className="n">{shown(e.name)}<small>{[e.size, e.sku, e.stock ? "stock" : "special order", "corner"].filter(Boolean).join(" · ")}</small></span>
               <span className="p">{fm(tierOf(e))}</span>
             </button>
           ))}
@@ -2079,7 +2083,7 @@ export default function SchluterConfigurator({
                   <button key={e.sku} className={"srow" + (n ? " on" : e.stock ? " stk" : "")}
                     onClick={() => setQty(e.sku, n ? 0 : 1)} data-schluter-benchkit={e.sku}>
                     <span className={"sdot" + (e.stock ? "" : " so")} />
-                    <span className="n">{(n ? "✓ " : "") + e.name}<small>{[e.size, e.sku, e.stock ? "stock" : "special order"].filter(Boolean).join(" · ")}</small></span>
+                    <span className="n">{(n ? "✓ " : "") + shown(e.name)}<small>{[e.size, e.sku, e.stock ? "stock" : "special order"].filter(Boolean).join(" · ")}</small></span>
                     <span className="p">{fm(tierOf(e))}</span>
                   </button>
                 );
@@ -2098,7 +2102,7 @@ export default function SchluterConfigurator({
             <button key={e.sku} className={"srow" + (n ? " on" : e.stock ? " stk" : "")}
               onClick={() => setQty(e.sku, n ? 0 : 1)} data-schluter-pick={e.sku}>
               <span className={"sdot" + (e.stock ? "" : " so")} />
-              <span className="n">{(n ? "✓ " : "") + e.name}<small>{[e.size, e.sku, e.stock ? "stock" : "special order"].filter(Boolean).join(" · ")}</small></span>
+              <span className="n">{(n ? "✓ " : "") + shown(e.name)}<small>{[e.size, e.sku, e.stock ? "stock" : "special order"].filter(Boolean).join(" · ")}</small></span>
               <span className="p">{fm(tierOf(e))}</span>
             </button>
           );
@@ -2123,7 +2127,7 @@ export default function SchluterConfigurator({
           <button key={e.sku} className={"srow" + (e.sku === line.item.sku ? " on" : "") + (e.stock ? " stk" : "")}
             onClick={() => { ch.set(e.sku); setSwap(null); }} data-schluter-swaprow={e.sku}>
             <span className={"sdot" + (e.stock ? "" : " so")} />
-            <span className="n">{e.name}<small>{[e.size, e.sku, e.stock ? "stock" : "special order"].filter(Boolean).join(" · ")}</small></span>
+            <span className="n">{shown(e.name)}<small>{[e.size, e.sku, e.stock ? "stock" : "special order"].filter(Boolean).join(" · ")}</small></span>
             <span className="p">{fm(tierOf(e))}</span>
           </button>
         ))}
@@ -2167,7 +2171,7 @@ export default function SchluterConfigurator({
         <div className="ps-sec">Cuts &amp; install notes</div>
         {cutList.map((r, i) => <div className="ps-warn" key={i}>{r}</div>)}
         {build.lines.filter((l) => l.noteOnly).map((l, i) => (
-          <div className="ps-warn" key={"n" + i}>• {l.item.name}{l.note ? " — " + l.note : ""}</div>
+          <div className="ps-warn" key={"n" + i}>• {shown(l.item.name)}{l.note ? " — " + l.note : ""}</div>
         ))}
       </>)}
       <div className="ps-sec">Materials</div>

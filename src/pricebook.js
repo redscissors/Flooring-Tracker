@@ -166,7 +166,7 @@ const FT_MARK = `'|\\s*f(?:oo|ee)?t\\.?${WORD_END}`;
 // "16 FT5"), or spaced AND bare ("KERDI 3 FT 3 X 98 FT 5 = 323 SF") — that
 // last one only counts when the next thing is the ×, the =, or the end, so a
 // trailing count ("10 FT 2 PACK") can't read as inches.
-const FT_DIM = `\\d+(?:\\.\\d+)?\\s*(?:${FT_MARK})(?:\\s*\\.?\\s*(?:${DIM})\\s*(?:${IN_WORD})|\\d+(?:-\\d+/\\d+)?|\\s+\\d+(?:-\\d+/\\d+)?(?=\\s*(?:[x×=]|$)))?`;
+const FT_DIM = `\\d+(?:\\.\\d+)?\\s*(?:${FT_MARK})(?:\\s*\\.?\\s*(?:${DIM})\\s*(?:${IN_WORD})|\\d+(?:-\\d+/\\d+)?|\\s+\\d+(?:-\\d+/\\d+)?(?=\\s*(?:[x×=]|$|rolls?\\b)))?`;
 const ROLL_SIZE_RE = new RegExp(`(${FT_DIM})\\s*[x×]\\s*(${FT_DIM}|(?:${DIM})\\s*(?:${IN_WORD})?)|((?:${DIM})\\s*(?:${IN_WORD})?)\\s*[x×]\\s*(${FT_DIM})`, "i");
 // A third ×-dimension right behind a roll size is the goods' thickness —
 // BEKOTEC edge strips print "82FTX3-1/8INX5/16IN". Inch mark required, so a
@@ -217,7 +217,9 @@ const PACKAGING_RE = /\(\s*([^)]*?)\s*\/\s*(sh|sht|ct|ctn|pc|pcs|ea|cs|bx|box|pk
 // chip size is entered by hand on the row (ADR 0014).
 const SHEET_TOKEN_RE = new RegExp(`\\(?\\s*(${DIMS})\\s*["']?\\s*[x×]\\s*(${DIMS})\\s*["']?\\s*(?:sheets?|shts?)\\b\\s*\\)?`, "i");
 const THICK_MM_RE = /(\d+(?:\.\d+)?)\s*mm\b/i;
-const THICK_FRAC_RE = /(\d+)\s*\/\s*(\d+)\s*"/; // fraction thickness must carry the inch mark
+// A fraction thickness must carry the inch mark, must not be the tail of a
+// mixed number ('1-5/8" SCREWS' is a length), and must not be a width.
+const THICK_FRAC_RE = /(?<![\d-])(\d+)\s*\/\s*(\d+)\s*"(?!\s*(?:wide|width|w\b))/i;
 // A penny round is one shape however the sheet spells it ("PENNY ROUND",
 // "PENNY RND", "PENNY") and is always labeled "Penny" — so "PENNY ROUND" never
 // reads as the separate shape word "Round". Its chip size can sit right before
@@ -279,13 +281,15 @@ export function splitSizeFromDescription(desc, opts) {
     s = s.replace(sheetTok[0], " ");
   }
   // Thickness first, so "10MM" can't be mistaken for part of a size.
-  const mm = s.match(THICK_MM_RE);
+  const mm = opts?.mm === false ? null : s.match(THICK_MM_RE);
   if (mm) { thickness = mmToFraction(mm[1]); s = s.replace(mm[0], " "); }
   const roll = s.match(ROLL_SIZE_RE);
   if (roll) {
     // A foot mark on either side makes the L×W a roll/sheet-goods size — kept
     // whole as the vendor spells it, stripped from the name like SIZE_RE does.
-    size = `${rollSide(roll[1] || roll[3])}x${rollSide(roll[2] || roll[4])}`;
+    // A markless first side beside a feet side is inches ("5 X 98 FT 5").
+    const first = rollSide(roll[1] || roll[3]);
+    size = `${/["']$/.test(first) ? first : `${first}"`}x${rollSide(roll[2] || roll[4])}`;
     let cut = roll[0].length;
     const third = s.slice(roll.index + cut).match(ROLL_THICK_RE);
     if (third) {
@@ -296,12 +300,15 @@ export function splitSizeFromDescription(desc, opts) {
   }
   let t3 = !size ? s.match(THREE_IN_RE) : null;
   let t3vals = t3 ? [t3[1], t3[2], t3[3]].map(dimVal) : null;
-  if (!size && !(t3 && Math.min(...t3vals) < 1.5)) {
+  // A marked triple's odd one out may be a full 2" (the 2" KERDI-BOARD); a
+  // bare triple stays under 1.5" so "12 X 24 X 36" never reads as a board.
+  let t3max = 2;
+  if (!size && !(t3 && Math.min(...t3vals) <= t3max)) {
     const bare = s.match(THREE_BARE_RE);
     const bv = bare ? [bare[1], bare[2], bare[3]].map(dimVal) : null;
-    if (bare && bv.filter((v) => v < 1.5).length === 1) { t3 = bare; t3vals = bv; }
+    if (bare && bv.filter((v) => v < 1.5).length === 1) { t3 = bare; t3vals = bv; t3max = 1.5; }
   }
-  if (t3 && Math.min(...t3vals) < 1.5) {
+  if (t3 && (t3max === 2 ? Math.min(...t3vals) <= 2 : Math.min(...t3vals) < 1.5)) {
     const ti = t3vals.indexOf(Math.min(...t3vals));
     const spelled = [t3[1], t3[2], t3[3]][ti];
     if (!thickness) thickness = /^\d+\/\d+$/.test(spelled) ? `${reduceFrac(...spelled.split("/").map(Number))}"` : `${spelled}"`;
@@ -365,7 +372,7 @@ export function splitSizeFromDescription(desc, opts) {
     const tail = s.match(new RegExp(`(?:^|\\s)(${FT_DIM})\\s*$`, "i"));
     if (tail) { size = rollSide(tail[1]); s = s.slice(0, s.length - tail[0].length); }
   }
-  if (!thickness) {
+  if (!thickness && opts?.fracThickness !== false) {
     const fr = s.match(THICK_FRAC_RE);
     if (fr) { thickness = `${reduceFrac(+fr[1], +fr[2])}"`; s = s.replace(fr[0], " "); }
   }
@@ -410,12 +417,22 @@ const SCHLUTER_ABBR = {
   BRH: "Brushed", BRSH: "Brushed", BRUSH: "Brushed", BR: "Brushed", STN: "Stainless", SS: "Stainless Steel", ANOD: "Anodized", POL: "Polished", POLISH: "Polished", SAT: "Satin", MAT: "Matte", MATT: "Matte",
   CHROM: "Chrome", CPPR: "Copper", BRAS: "Brass", NICKL: "Nickel", ANT: "Antique",
   DK: "Dark", LT: "Light", BRT: "Bright", ANTH: "Anthracite", WHT: "White", BLK: "Black", BRN: "Brown", BRWN: "Brown", BEIG: "Beige",
+  UNCPLING: "Uncoupling", WATRPROOF: "Waterproof", SPLASHGAURD: "Splashguard", TRANSP: "Transparent", ADHES: "Adhesive", ADHSTRIP: "Adhesive Strip",
+  STAINL: "Stainless", SEALG: "Sealing", BONDG: "Bonding", DRA: "Drain", GSKT: "Gasket", PERF: "Perforated", RESIS: "Resistant",
+  AND: "and", FOR: "for", OF: "of", TO: "to",
+  GR: "Grey", CL: "Clear", SQ: "Square", AL: "", CRNR: "Corner", GALV: "Galvanized", "W/O": "without",
 };
-const SCHLUTER_KEEP_UPPER = /^(PVC|LED|LB|OZ|SF)$/;
+const SCHLUTER_KEEP_UPPER = /^(PVC|LED|LB|OZ|SF|ABS|XL|GFCI|LF|RL|QT|MM)$/;
+// A two-letter token that isn't an English word is a code (PS, MV, ZA, EB).
+const SCHLUTER_SMALL = /^(IN|NO|ON|OR|BY|UP|AT|AS|AN|IS|IT)$/;
 // A hyphen segment after the family word is a model code (RONDEC-CT, DILEX-AHKA,
 // TREP-FL) unless it is one of the short real words Schluter hyphenates.
-const SCHLUTER_SEG_WORDS = /^(STEP|RAMP|LINE|BASE|BAND|DUO|PLUS|HEAT|FIX|SEAL|TRAY|EDGE|TRIM|FLEX|KIT)$/;
-const schluterWord = (w) => (SCHLUTER_KEEP_UPPER.test(w) || /\d/.test(w) ? w : w.charAt(0) + w.slice(1).toLowerCase());
+const SCHLUTER_SEG_WORDS = /^(STEP|RAMP|LINE|BASE|BAND|DUO|PLUS|HEAT|FIX|SEAL|TRAY|EDGE|TRIM|FLEX|KIT|THIN)$/;
+const schluterWord = (w) => {
+  if (SCHLUTER_KEEP_UPPER.test(w) || /\d/.test(w) || (/^[A-Z]{2}$/.test(w) && !SCHLUTER_SMALL.test(w))) return w;
+  // "(DRAIN,CORNERS,SEALS)" cases each word and spaces the commas.
+  return w.toLowerCase().replace(/,(?=\S)/g, ", ").replace(/(^|[(, +])([a-z])/g, (m, p, c) => p + c.toUpperCase());
+};
 const schluterCode = (w) => (w.length <= 4 && !SCHLUTER_SEG_WORDS.test(w) ? w : schluterWord(w));
 const schluterCase = (t) => t.split("-").map((seg, i) => seg.split("/").map(i ? schluterCode : schluterWord).join("/")).join("-");
 const SCHLUTER_TYPE_WORD = /^(Corner|Trim|Edge|Base|Joint)$/;
@@ -428,8 +445,11 @@ export function schluterWords(text) {
   const toks = str(text).replace(/\s*\.$/, "").toUpperCase().split(/\s+/).filter(Boolean);
   const out = [];
   for (const t0 of toks) {
-    const t = t0 === "W/" ? t0 : t0.replace(/^\/+|\/+$/g, ""); // "/ALU BASE/" wraps a token in slashes
+    let t = t0 === "W/" ? t0 : t0.replace(/^\/+|\/+$/g, ""); // "/ALU BASE/" wraps a token in slashes
+    if (/^W\/.{2}/.test(t)) { out.push("with"); t = t.slice(2); } // "W/GFCI", "W/FRAME"
     if (!t) continue;
+    const wrapped = t.match(/^\((\w+)\)$/); // "(ALUM)" is the same shorthand in parens
+    if (wrapped && wrapped[1] in SCHLUTER_ABBR) { if (SCHLUTER_ABBR[wrapped[1]]) out.push(`(${SCHLUTER_ABBR[wrapped[1]]})`); continue; }
     if (/^(DEG|DEGREE)$/.test(t) && /^\d+$/.test(out[out.length - 1] || "")) { out[out.length - 1] += "°"; continue; }
     if (t in SCHLUTER_ABBR) { if (SCHLUTER_ABBR[t]) out.push(SCHLUTER_ABBR[t]); continue; }
     out.push(schluterCase(t));
@@ -469,6 +489,55 @@ function schluterInch(t) {
   return { text: `${whole ? `${whole}-` : ""}${num}/${d}"`, val: whole + num / d };
 }
 const MAX_TILE_THICKNESS = 1.5;
+
+// The non-profile rows (KERDI, KERDI-BOARD, drains, DITRA, kits…) keep the
+// generic split, after this pre-pass has made the sheet's spellings the
+// generic regexes' own: spaced inch words and space-spelled mixed fractions
+// marked ("3 IN", "4 1/2"), the vendor's "ST STEEL" spelled out, a pack count
+// out of the name and into pieces-per-unit ("(2 PACK)", "(5)", "10 PK",
+// "1EA"), and two dim shapes the generic split would mangle kept whole as
+// text — a bare triple with no thickness-sized side (a curb's "60 X 6 X 4
+// 1/2", a bench's "16 X 16 X 20") and a trowel notch's fraction pair.
+export function schluterAccessory(desc, productLine) {
+  let s = str(desc).replace(/(\d)\/\s+(\d)/g, "$1/$2").replace(/\bST STEEL\b/gi, "STAINLESS STEEL");
+  s = s.replace(/\b(\d+) (\d+\/\d+)\b/g, "$1-$2");
+  s = s.replace(/(\d[\d\-/.]*)\s+IN(?:CH(?:ES)?)?\b(?!\s*(?:CRN|CORNER))/gi, '$1"');
+  // A bare inch fraction ("1/2 PIPE SEAL", "1-1/8 FRAME") gets its mark — but
+  // never a side of an L×W, which the dim rules below read whole.
+  s = s.replace(/(?<![\d\-/"])((?:\d+-)?\d+\/\d+)(?=\s|$)(?!\s*[x×]\s*\d)(?<!\s[x×]\s(?:\d+-)?\d+\/\d+)/gi, (m, f) => (schluterInch(f) ? `${f}"` : f));
+  let pc = null;
+  s = s.replace(/\(\s*(\d+)\s*(?:PACK|PK|PCS?)?\s*\)|\b(\d+)\s*(?:PACK|PK)\b|\b(\d+)EA\b/gi, (m, a, b, c) => {
+    const n = +(a || b || c);
+    if (pc == null && n > 0) pc = n;
+    return " ";
+  }).replace(/-(?=\s|$)/g, "");
+  const inch = (t) => schluterInch(t) || (/^\d+\.\d+$/.test(t) ? { text: `${t}"`, val: +t } : null);
+  let size = "";
+  const D = "(\\d+(?:[-.]\\d+)?(?:/\\d+)?)";
+  const triple = s.match(new RegExp(`(?:^|\\s)${D}\\s*[x×]\\s*${D}\\s*[x×]\\s*${D}(?=\\s|$)`, "i"));
+  if (triple) {
+    const dims = triple.slice(1, 4).map(inch);
+    if (dims.every((d) => d && d.val >= 1.5)) { size = dims.map((d) => d.text).join("x"); s = `${s.slice(0, triple.index)} ${s.slice(triple.index + triple[0].length)}`; }
+  }
+  if (!size) {
+    const F = `((?:\\d+-)?\\d+/\\d+(?:IN|")?|\\d+(?:\\.\\d+)?(?:IN|")?)`;
+    // Notch-sized only: a panel's "471/4IN X 35-7/16IN" is the generic split's.
+    const pair = s.match(new RegExp(`(?:^|\\s)${F}\\s*[x×]\\s*${F}(?=\\s|$)(?!\\s*[x×])`, "i"));
+    if (pair && /\//.test(pair[1] + pair[2]) && inch(pair[1]) && inch(pair[2]) && inch(pair[1]).val < 1.5 && inch(pair[2]).val < 1.5) { size = `${inch(pair[1]).text}x${inch(pair[2]).text}`; s = `${s.slice(0, pair.index)} ${s.slice(pair.index + pair[0].length)}`; }
+  }
+  // Gated on the description, not the product line — Virginia Tile files the
+  // LTS shower trays under "KERDI LINE" too.
+  if (!size && /^KERDI LINE\b/i.test(str(productLine)) && /^KERDI-LINE/i.test(s)) {
+    // A KERDI-LINE's size is its grate length: the last whole-inch token of
+    // a foot or more ("FRAME 28\"", "BODY 72\"") or its VARIO length ("4'").
+    const lens = [...s.matchAll(/(?:^|\s)(\d+)(?:-\d+\/\d+)?(["'])(?=\s|$)/g)].filter((m) => (m[2] === "'" ? +m[1] >= 1 : +m[1] >= 12));
+    const last = lens[lens.length - 1];
+    if (last) { size = last[0].trim(); s = `${s.slice(0, last.index)} ${s.slice(last.index + last[0].length)}`; }
+  }
+  return { text: s.replace(/\s+/g, " ").trim(), size, pc };
+}
+// The implied 2.5 m stick, however the sheet spells it, reads 8' (ADR 0041).
+const schluterStick = (size) => (/^8'2(?:\.5|-1\/2)"$/.test(size) ? "8'" : size);
 
 // A profile-family row's dims. The thickness is the LAST tile-sized fraction
 // that isn't a width or a joint (DILEX prints "3/8 MVMT JNT 5/16": joint
@@ -679,21 +748,40 @@ function mappedItem(mapping, raw, sku, sem) {
     const p = schluterDescription(descText, raw.productLine);
     ({ size, thickness } = p);
     descText = p.name;
+  } else if (mapping.schluter && !size && descText && (() => {
+    const acc = schluterAccessory(descText, raw.productLine);
+    descText = acc.text;
+    if (acc.pc != null) pcHint = acc.pc;
+    if (acc.size) size = acc.size;
+    return !!acc.size;
+  })()) {
+    // dims landed whole by the pre-pass — nothing left for the generic split
   } else if (!size && descText) {
-    const split = splitSizeFromDescription(descText, { leadWidth: !!mapping.leadWidthSize });
+    // A Schluter accessory's lone fraction is a pipe size or a frame height,
+    // never a tile thickness (only the three-dim board rule reads one there).
+    const split = splitSizeFromDescription(descText, { leadWidth: !!mapping.leadWidthSize, mm: !mapping.schluter, fracThickness: !mapping.schluter });
     if (split.size) size = split.size;
     if (split.thickness && !thickness) thickness = split.thickness;
     // A sheet dimension only stands in when the description gave no chip size —
     // a real chip size (e.g. "2\" Hexagon") always wins for the tile L×W.
     if (split.sheetSize && !size && !sheetSize) sheetSize = split.sheetSize;
     if (split.pcHint != null) pcHint = split.pcHint;
-    if (split.size || split.thickness || split.sheetSize || split.pcHint != null) descText = split.name;
+    // A Schluter row always takes the cleaned name: its packaging tokens go
+    // even when nothing else extracted (schluterWords recases it anyway).
+    if (split.size || split.thickness || split.sheetSize || split.pcHint != null || mapping.schluter) descText = split.name;
   }
   // A bare trailing period is vendor punctuation, not information ("…SAND
   // PEBBLE.") — dropped here as well as in the split, so rows where nothing
   // extracts don't keep it and read as a mis-split (NAME_LITTER_RE).
   descText = str(descText).replace(/\s*\.$/, "");
   if (mapping.schluter && !schluterProfile) descText = schluterWords(descText);
+  if (mapping.schluter) {
+    size = schluterStick(size);
+    // A counted pack with no size of its own reads "N ct" — the stock book's
+    // spelling, and what the configurator counts board fasteners from.
+    const pc = numOrNull(raw.pcPerUnit) ?? pcHint;
+    if (!size && pc > 0) size = `${pc} ct`;
+  }
   // An SF-priced roll/sheet with no stated coverage can still price: its
   // feet-marked L×W IS the area one sell unit covers (DITRA-HEAT-DUO-PS
   // "3'3\" X 33'" ≈ 107 sf/roll). Gated on the row NEEDING coverage to price —
