@@ -255,3 +255,16 @@ test("matOrderRow: a special-order grout color files as a described special line
   assert.equal(r0.qty, 1); assert.equal(r0.qtyAssumed, true);
   assert.equal(r0.brand, "");
 });
+
+test("orderEntryRow: a configurator row carries its wedi / schluter marker so order entry can group it", () => {
+  const w = orderEntryRow({ ...newProduct(), type: "misc", qtyType: "count", sku: "47741", qty: "1", wedi: { part: "US3000039" } }, s, "Master bath", 0, new Set());
+  assert.deepEqual(w.wedi, { part: "US3000039" });
+  assert.equal(w.schluter, undefined);
+  const k = orderEntryRow({ ...newProduct(), type: "misc", qtyType: "count", sku: "1509824", qty: "1", schluter: { part: "KST965BF" } }, s, "Hall bath", 0, new Set());
+  assert.deepEqual(k.schluter, { part: "KST965BF" });
+});
+
+test("matOrderRow: a special-order materials line keeps its kind so order entry files it under Materials", () => {
+  const r = matOrderRow({ kind: "Grout", product: "Keracolor U Warm Gray", sku: "1509955", order: 2, unit: "bags", unitCost: 10, price: 18, bookId: "bkMapei" }, 0, new Map());
+  assert.equal(r.kind, "Grout");
+});

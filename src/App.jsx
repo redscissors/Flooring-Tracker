@@ -6,7 +6,6 @@ import { bootTrace, traceRows } from "./boottrace.js";
 import { num, wasteFor, withProjWaste, normalizeSettings, serializeSettings, groutExact, mortarExact, getGrout, getMortar, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, offeredAttached, offeredCategories, getAttached, qtyDrift } from "./catalog.js";
 import { findStock, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant, groutFamilies, groutSnapshotPatch, groutColorOptions } from "./stock.js";
 import { pricedItem, orderPatch, orderDrift, rowCostSqft, skuKeys } from "./orderbook.js";
-import { OrderEntryPanel } from "./orderentry.jsx";
 import { isSpecialOrder, isSpecialMat, nameBudget, orderQty } from "./orderentry.js";
 import { SamplesPanel } from "./samples.jsx";
 import { requestFrom, sampleCounts, projectSampleTally, sampleContactFor, sampleBookFor, SAMPLE_LABEL, SAMPLE_COLOR } from "./samples.js";
@@ -63,6 +62,8 @@ const SchluterConfigurator = lazy(() => import("./SchluterConfigurator.jsx"));
 const AppsWorkspace = lazy(() => import("./AppsWorkspace.jsx").then((m) => ({ default: m.AppsWorkspace })));
 const SettingsWorkspace = lazy(() => import("./SettingsWorkspace.jsx"));
 const CustomerBrowser = lazy(() => import("./CustomerBrowser.jsx"));
+// Order entry pulls the wedi + Schluter catalogs for its vendor grouping (orderlines.js) — off the boot chunk (ADR 0026).
+const OrderEntryPanel = lazy(() => import("./orderentry.jsx").then((m) => ({ default: m.OrderEntryPanel })));
 
 import NedMark from "./NedMark.jsx";
 import NedLogo from "./NedLogo.jsx";
@@ -2951,14 +2952,18 @@ export default function App({ user, onSignOut }) {
         // not a warehouse pull — it files with the special orders.
         const mats = oeT.matAll.filter((m) => !isSpecialMat(m, stockBookIds)).map((m, i) => {
           const { qty, qtyAssumed } = orderQty(m.order);
-          return { id: "mat" + i, sku: m.sku || "", qty, qtyAssumed, qtyText: `${qty} ${u1(qty, m.unit)}`, name: m.product, kind: m.kind };
+          return { id: "mat" + i, sku: m.sku || "", qty, qtyAssumed, unitCode: unitCode(m.unit), qtyText: `${qty} ${u1(qty, m.unit)}`, name: m.product, kind: m.kind, area: "" };
         });
         const specialMats = oeT.matAll.filter((m) => isSpecialMat(m, stockBookIds)).map((m) => matOrderRow(m, descLimit, bookBrands));
         // Freight files with the special orders: it's billed by the same vendor
         // on the same order, and like a Sheoga line it has no SKU to key.
         const freightRows = oeT.fList.map((l) => freightOrderRow(l, descLimit));
         const name = optsUsed.length && scope !== "all" ? `${sel.name} — ${optionShort(sel, scope)}` : sel.name;
-        return <OrderEntryPanel name={name} special={[...rows.filter((r) => r.special), ...specialMats, ...freightRows]} stock={[...rows.filter((r) => !r.special), ...mats]} descLimit={descLimit} onClose={() => { setShowOrderCopy(false); setOrderScope(null); }} />;
+        return (
+          <Suspense fallback={null}>
+            <OrderEntryPanel name={name} special={[...rows.filter((r) => r.special), ...specialMats, ...freightRows]} stock={[...rows.filter((r) => !r.special), ...mats]} descLimit={descLimit} onClose={() => { setShowOrderCopy(false); setOrderScope(null); }} />
+          </Suspense>
+        );
       })()}
 
       {/* Samples panel — the project's sample requests grouped by vendor.

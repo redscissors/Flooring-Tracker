@@ -133,7 +133,7 @@ export function printMatList(cust, s) {
 export function matOrderRow(m, descLimit, bookBrands) {
   const { qty, qtyAssumed } = orderQty(m.order);
   const r = {
-    id: `mat|${m.kind}|${m.product}`, special: true, byDesc: false, area: "all areas", type: "",
+    id: `mat|${m.kind}|${m.product}`, special: true, byDesc: false, area: "all areas", type: "", kind: m.kind,
     tag: "", sizePlain: "", sizeTrue: "", name: m.product, brand: (m.bookId && bookBrands?.get(m.bookId)) || "", sku: m.sku || "", coverage: "",
     qty, qtyAssumed, unitCode: String(m.unit || "EA"), qtyText: `${qty} ${u1(qty, m.unit)}`,
     perCost: num(m.unitCost), perSell: num(m.price),
@@ -201,6 +201,7 @@ export function orderEntryRow(p, s, area, descLimit, stockBookIds, bookBrands, s
   const r = {
     id: p.id, special: isSpecialOrder(p, stockBookIds, stockSkus), byDesc, area, type: p.type,
     tag, sizePlain, sizeTrue: nominal ? tightSize(sizeRaw) : "", name, brand: (p.bookId && bookBrands?.get(p.bookId)) || "", sku: p.sku, coverage, sheoga: p.sheoga,
+    wedi: p.wedi || undefined, schluter: p.schluter || undefined,
     qty, qtyAssumed, unitCode: code, qtyText: qty > 0 ? `${qty} ${code}` : "—",
     perCost: qty > 0 ? extCost / qty : 0,
     perSell: qty > 0 ? extSell / qty : 0,
