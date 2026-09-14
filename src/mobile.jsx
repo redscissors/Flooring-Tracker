@@ -14,12 +14,12 @@ import { queryHit as schluterQueryHit, parseQuery as schluterParseQuery, querySu
 import { STOCK_LOADING_MSG, skuSearchable, TYPES, TLBL, underlayLabel, TYPE_ACCENT, JOINTS, colorsFor, TIER_COLOR } from "./uiconst.js";
 import { money, sf1, miscQty, rowBlank } from "./model.js";
 import { lineTotal, printProduct, KSHORT } from "./print.js";
-import { unitCode, bundleUnit } from "./units.js";
+import { unitCode, bundleUnit, BUNDLE_UNITS, COUNT_UNITS } from "./units.js";
 import { MARKUP_PRESETS, unitMargin, editCost, editMarkup, editPrice } from "./costentry.js";
 import { FitSelect, GroutColorOptions, useEscClose } from "./widgets.jsx";
 import { ClaudeMark } from "./claudeflag.jsx";
 import { Hit, hitKey, matchSummary, useMergedResults, NearMatchNote } from "./search.jsx";
-import { GridSizeInput } from "./grid.jsx";
+import { GridSizeInput, UnitPick } from "./grid.jsx";
 
 // Mobile bottom sheet (mobile shell 2026-07-16): the phone's pop-open editing
 // surface — scrim + slide-up panel with an optional pinned footer. Portaled so
@@ -399,12 +399,12 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutS
           {p.type !== "misc" && p.qtyType === "sqft" ? (
             <div className="relative">
               <input type="number" inputMode="decimal" value={p.cartonSf} onChange={(e) => onPatch({ cartonSf: e.target.value })} placeholder="—" className={fi + " text-right ft-mono pr-12"} title="Sq ft per carton/sheet — filled from the price book when the SKU has one. With this set, quantities and totals are figured by whole cartons." />
-              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[8.5px] font-bold" style={{ color: "var(--ft-muted)" }}>SF/{bundleUnit(p.cartonUnit).toUpperCase()}</span>
+              <UnitPick prefix="SF/" size={8.5} className="absolute right-2 top-1/2 -translate-y-1/2 font-bold" value={bundleUnit(p.cartonUnit)} options={BUNDLE_UNITS} onChange={(v) => onPatch({ cartonUnit: v })} title="What the coverage is sold in — carton, sheet, box, bundle, roll, pack" />
             </div>
           ) : p.type === "misc" ? (
             <div className="relative">
               <input type="number" inputMode="decimal" value={p.cartonPc} onChange={(e) => onPatch({ cartonPc: e.target.value })} placeholder="—" className={fi + " text-right ft-mono pr-12"} title="Pieces per carton — with this set, pieces needed round up to whole cartons." />
-              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[8.5px] font-bold" style={{ color: "var(--ft-muted)" }}>PC/{bundleUnit(p.cartonUnit).toUpperCase()}</span>
+              <UnitPick prefix="PC/" size={8.5} className="absolute right-2 top-1/2 -translate-y-1/2 font-bold" value={bundleUnit(p.cartonUnit)} options={BUNDLE_UNITS} onChange={(v) => onPatch({ cartonUnit: v })} title="What the pieces come packed in — carton, sheet, box, bundle, roll, pack" />
             </div>
           ) : (
             <div className={fi + " flex items-center justify-end"} style={{ color: "var(--ft-faint)" }}>—</div>
@@ -431,7 +431,7 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutS
           )}
         </div>
         <div>
-          <label className={fl}>{p.type === "misc" ? "Quantity (EA)" : p.qtyType === "count" ? "Quantity (EA)" : "Square feet"}</label>
+          <label className={fl + " flex items-center gap-1"}>{p.type === "misc" || p.qtyType === "count" ? <>Quantity <UnitPick size={9} value={countUnit} options={COUNT_UNITS} onChange={(v) => onPatch({ sellUnit: v === "EA" ? "" : v })} title="What one of this line is — each, piece, sheet, roll, box…" /></> : "Square feet"}</label>
           <div className="relative">
             <input ref={qtyRef} type="number" inputMode="decimal" value={p.qty} onChange={(e) => onPatch(p.type === "misc" || p.qtyType === "count" ? { qty: e.target.value, qtyType: "count" } : { qty: e.target.value })} placeholder={p.type === "misc" ? "1" : "0"} className={fi + " text-right ft-mono" + (p.type !== "misc" ? " pr-10" : "")} />
             {p.type !== "misc" && (

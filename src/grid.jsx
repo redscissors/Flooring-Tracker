@@ -12,6 +12,7 @@ import { queryHit as schluterQueryHit, parseQuery as schluterParseQuery, querySu
 import { useAnchoredPanel, vPos, useEscClose } from "./widgets.jsx";
 import { Hit, searchPanelBox, hitKey, matchSummary, useMergedResults, NearMatchNote } from "./search.jsx";
 import { MARKUP_PRESETS, unitMargin, editCost, editMarkup, editPrice } from "./costentry.js";
+import { BUNDLE_UNITS, COUNT_UNITS } from "./units.js";
 
 // Product flooring-type picker: a colour-coded pill that opens a swatch menu of
 // all types. Each type keeps its editorial accent (TYPE_ACCENT) here and on the
@@ -73,6 +74,25 @@ export function TypeSelect({ type, onChange, triggerRef, compact, blank }) {
           })}
         </div>, document.body)}
     </div>
+  );
+}
+
+// The unit tag on a row's coverage / pieces-per / count cell, as a picker
+// (2026-09-14). A book pick snapshots the vendor's word (CT, SH, RL…); a
+// hand-typed row could only ever read CT, so a mosaic bought by the sheet
+// quoted "cartons". Same muted chip it replaces, dotted to say it opens; a
+// value outside the list (a vendor's own code) stays offered so the select
+// never re-labels a snapshot on its own.
+export function UnitPick({ value, options, onChange, prefix = "", title, size = 6.5, className = "" }) {
+  const cur = String(value || options[0]).toUpperCase();
+  const opts = options.includes(cur) ? options : [cur, ...options];
+  return (
+    <span className={`shrink-0 inline-flex items-center whitespace-nowrap pr-0.5 ${className}`} title={title} style={{ fontSize: size, letterSpacing: "-0.02em", color: "var(--ft-muted)" }}>
+      {prefix}
+      <select tabIndex={-1} value={cur} onChange={(e) => onChange(e.target.value)} data-c="unit" aria-label={title} className="appearance-none bg-transparent border-0 p-0 m-0 cursor-pointer rounded-sm focus:outline-none focus:ring-1 focus:ring-indigo-500" style={{ font: "inherit", color: "inherit", letterSpacing: "inherit", fontWeight: 800, textDecoration: "underline dotted", textUnderlineOffset: 1 }}>
+        {opts.map((u) => <option key={u} value={u}>{u}</option>)}
+      </select>
+    </span>
   );
 }
 

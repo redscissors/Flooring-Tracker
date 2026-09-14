@@ -38,8 +38,9 @@ src/
                     # a book whose one U/M column is its price basis can't name
                     # the carton a coverage counts — read through bundleUnit
                     # (stockPatch at the pick, getCarton/getPieceCarton on the
-                    # row, so lines saved before the rule heal on read)
-                    # (units.test.js)
+                    # row, so lines saved before the rule heal on read).
+                    # `BUNDLE_UNITS`/`COUNT_UNITS` (issue 138) are what a
+                    # hand-typed row's UnitPick offers (units.test.js)
   costentry.js      # hand-entered cost on a product row (2026-07-26): the price
                     # cell's cost → markup → price popup. `MARKUP_PRESETS`
                     # (30/50/100) seeds `settings.pricing.quickMarkups`, which
@@ -164,7 +165,10 @@ src/
                     # (useMergedResults hands rankMerged the WHOLE stock
                     # cache as its twin index, not just the matches)
   grid.jsx          # selection-grid cells: `TypeSelect`, `GridPriceCell`,
-                    # `GridSizeInput`, `GridProductBox`, `GridOmniSearch`
+                    # `GridSizeInput`, `GridProductBox`, `GridOmniSearch`,
+                    # `UnitPick` (issue 138) — the SF/CT · PC/CT · EA tag as a
+                    # select writing the row's cartonUnit / sellUnit, shared
+                    # with mobile.jsx; a manual row had no way to say "sheet"
   mobile.jsx        # mobile sheets: `MobileSheet`, `MobileSearchSheet`,
                     # `MobileProductRow`, `MobileRowSheet`
   projectheader.jsx # the desktop project header, two layouts behind a per-device

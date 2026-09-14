@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { unitCode, unitNoun, isRollUnit, isMeasureUnit, bundleUnit } from "./units.js";
+import { unitCode, unitNoun, isRollUnit, isMeasureUnit, bundleUnit, BUNDLE_UNITS, COUNT_UNITS } from "./units.js";
 
 test("unitCode normalizes the spellings a book can use", () => {
   assert.equal(unitCode("rl"), "RL");
@@ -69,4 +69,14 @@ test("bundleUnit refuses a measure as a bundle and keeps everything else", () =>
   assert.equal(bundleUnit("SH"), "SH");
   assert.equal(bundleUnit("RL"), "RL");
   assert.equal(bundleUnit(" Cartons "), "Cartons");
+});
+
+// The pickers a hand-typed row offers (2026-09-14): a coverage row bundles in
+// something orderable, a count row counts something. Codes only — the table's
+// own — so a pick reads the same as a book's snapshot.
+test("the unit pickers offer the table's bundle and count codes", () => {
+  assert.deepEqual(BUNDLE_UNITS, ["CT", "SH", "BX", "BD", "RL", "PK"]);
+  assert.deepEqual(COUNT_UNITS, ["EA", "PC", "SH", "RL", "BX", "CT", "BD", "PK", "BG", "GL"]);
+  for (const u of [...BUNDLE_UNITS, ...COUNT_UNITS]) assert.equal(unitCode(u), u);
+  for (const u of BUNDLE_UNITS) assert.equal(bundleUnit(u), u);
 });
