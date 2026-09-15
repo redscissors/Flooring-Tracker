@@ -143,10 +143,11 @@ test("orderDescription: the copy button carries the description field, nothing e
 });
 
 test("orderDescription: a Sheoga row abbreviates from its configuration, the vendor name leading", () => {
-  const d = orderDescription(sheogaRow(floorCfg), 36);
+  const d = orderDescription(sheogaRow(floorCfg), 40);
   assert.equal(d.tier, "short");
-  // 3 spare chars after abbreviating: species and grade overrun, Solid fits.
-  assert.equal(d.main, 'CT Sheoga 5¼" WO Char Sol Cust 30sh');
+  // Written out whole it overruns; abbreviated it fits exactly. A prefinished
+  // build carries the micro-bevel minimum edge (ADR 0042).
+  assert.equal(d.main, 'CT Sheoga 5¼" WO Char Sol MBvl Cust 30sh');
   assert.ok(!d.main.includes("T-1"), "a custom stain abbreviates without its tier (Marcus 2026-09-09)");
   assert.ok(!d.main.includes("ignored"), "structured parts beat the row's name text");
   assert.equal(d.ext, null);
