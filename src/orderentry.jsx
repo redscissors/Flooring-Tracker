@@ -44,7 +44,7 @@ import { Copy, Check, X } from "lucide-react";
 import { CopyBtn, DONE_MOSS, writeClipboard } from "./copybtn.jsx";
 import { HelpTip } from "./widgets.jsx";
 import { mergeOrderLines, groupOrderLines, sheetBands } from "./orderlines.js";
-import { deliverToRows, deliverToCopy, splitAddress } from "./deliverto.js";
+import { deliverToRows, deliverToSequence, splitAddress } from "./deliverto.js";
 
 export { CopyBtn } from "./copybtn.jsx";
 
@@ -225,12 +225,23 @@ function Heading({ children, tip }) {
 }
 
 // One copy button that latches to a green check — the SpecialRow affordance,
-// shared with the Deliver to fields.
-function LatchCopy({ text, title }) {
+// shared with the Deliver to block. `texts` (an array) writes each entry in
+// turn so Windows clipboard history (Win+V) holds every one; the gap gives
+// the history a beat to register each write, and the whole run stays well
+// inside the browser's activation window for clipboard access.
+const SEQ_GAP_MS = 80;
+function LatchCopy({ text, texts, title }) {
   const [copied, setCopied] = useState(false);
-  const copy = async () => { await writeClipboard(text); setCopied(true); };
+  const list = texts || [text];
+  const copy = async () => {
+    for (let i = 0; i < list.length; i++) {
+      if (i) await new Promise((r) => setTimeout(r, SEQ_GAP_MS));
+      await writeClipboard(list[i]);
+    }
+    setCopied(true);
+  };
   return (
-    <button onClick={copy} disabled={!text} title={title} style={copied ? DONE_MOSS : undefined}
+    <button onClick={copy} disabled={!list.some(Boolean)} title={title} style={copied ? DONE_MOSS : undefined}
       className={"grid place-items-center w-[26px] h-[26px] rounded-md border transition-colors disabled:opacity-30 disabled:cursor-default " +
         (copied ? "" : "border-transparent text-slate-400 hover:border-slate-200 hover:bg-white")}>
       {copied ? <Check size={15} /> : <Copy size={14} />}
@@ -238,7 +249,7 @@ function LatchCopy({ text, title }) {
   );
 }
 
-const DELIVER_TIP = <>The customer's delivery details as a mailing label. Click any line — or the city, state or ZIP on its own — to copy just that; it turns green so you can track your place. The button at the left copies every field with a tab between them, which fills ERP 1's whole form in one paste if it moves to the next field on a tab. The address is the project's (the customer's mailing address when the project has none).</>;
+const DELIVER_TIP = <>The customer's delivery details as a mailing label. Click any line — or the city, state or ZIP on its own — to copy just that; it turns green so you can track your place. The button at the left copies every field one after another and the whole label last: <b>Ctrl+V</b> pastes the label, <b>Win+V</b> lists each field so you can pick the one an ERP 1 box wants. The address is the project's (the customer's mailing address when the project has none).</>;
 
 // One click-to-copy piece of the label — a whole line, or one word of the
 // city line, since ERP 1 keys city, state and ZIP as three fields.
@@ -274,7 +285,7 @@ function DeliverTo({ custInfo }) {
         <div className="mt-2 rounded-lg border border-slate-200 overflow-hidden">
           <div className="flex items-stretch">
             <div className="flex items-center px-2 border-r border-slate-100 bg-slate-50">
-              <LatchCopy text={deliverToCopy(rows)} title="Copy every field, tab-separated, for the delivery form" />
+              <LatchCopy texts={deliverToSequence(rows)} title={"Copy every field, then the whole label.\nCtrl+V pastes the label; Win+V lists each field for the delivery form."} />
             </div>
             <div className="min-w-0 flex-1 px-3 py-2 text-[12.5px] leading-[1.45]">
               <div><Seg value={f.name} label="delivery name" bold /></div>

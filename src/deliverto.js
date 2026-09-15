@@ -77,6 +77,18 @@ export const deliverToRows = ({ custName = "", address = "", phone = "" } = {}) 
   ];
 };
 
-// One paste for the whole form, a tab between fields; a blank keeps its slot
-// so the fields after it still land where they belong.
-export const deliverToCopy = (rows) => rows.map((r) => r.value).join("\t");
+// The block as it reads on screen: one field per line, city/state/ZIP sharing
+// the fourth, blanks dropped.
+export const deliverToLabel = (rows) => {
+  const f = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+  const cityLine = [f.city && f.state ? `${f.city}, ${f.state}` : f.city || f.state, f.zip].filter(Boolean).join(" ");
+  return [f.name, f.street, f.apt, cityLine, f.phone].filter(Boolean).join("\n");
+};
+
+// What copy-all writes to the clipboard, in order: every field on its own,
+// then the label. The desk pastes with Win+V (Windows clipboard history,
+// newest first) and picks the field each ERP 1 box wants — so the fields go
+// LAST-TO-FIRST, which lists them top-to-bottom in the form's order under
+// the label; and the label goes last so a plain Ctrl+V pastes the whole
+// address (owner 2026-09-15).
+export const deliverToSequence = (rows) => [...rows.filter((r) => r.value).map((r) => r.value).reverse(), deliverToLabel(rows)];
