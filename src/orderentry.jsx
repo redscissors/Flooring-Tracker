@@ -249,7 +249,7 @@ function Seg({ value, label, bold }) {
     <button type="button" title={`Copy ${label}`} onClick={async () => { await writeClipboard(value); setCopied(true); }}
       className={"inline rounded px-0.5 -mx-0.5 text-left transition-colors hover:bg-slate-100 " + (bold ? "font-bold " : "") + (copied ? "font-semibold" : "")}
       style={copied ? { color: "var(--ft-brand-deep)", background: "var(--ft-brand-soft)" } : undefined}>
-      {copied && <Check size={11} className="inline align-[-1px] mr-0.5" />}{value}
+      {value}
     </button>
   );
 }
