@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { splitAddress, deliverToRows, deliverToCopy } from "./deliverto.js";
+import { splitAddress, deliverToRows, deliverToLabel, deliverToSequence } from "./deliverto.js";
 
 test("splitAddress reads a Google-formatted street, city, state ZIP line", () => {
   assert.deepEqual(splitAddress("224 Hammersley Dr, Tuscarawas, OH 44682"),
@@ -58,7 +58,23 @@ test("deliverToRows lays the fields out in ERP 1's order", () => {
   ]);
 });
 
-test("deliverToCopy joins every field with a tab, blanks keeping their slot", () => {
+test("deliverToLabel reads as the mailing label, city/state/ZIP on one line, blanks dropped", () => {
+  const rows = deliverToRows({ custName: "Joe Mazzoleni", address: "224 Hammersley Dr, PO Box 288, Tuscarawas, OH 44682", phone: "330-432-7374" });
+  assert.equal(deliverToLabel(rows), "Joe Mazzoleni\n224 Hammersley Dr\nPO Box 288\nTuscarawas, OH 44682\n330-432-7374");
+  const noApt = deliverToRows({ custName: "Joe Mazzoleni", address: "224 Hammersley Dr, Tuscarawas, OH 44682", phone: "" });
+  assert.equal(deliverToLabel(noApt), "Joe Mazzoleni\n224 Hammersley Dr\nTuscarawas, OH 44682");
+  assert.equal(deliverToLabel(deliverToRows({ address: "5063 County Road 314, Millersburg OH" })), "5063 County Road 314\nMillersburg, OH");
+});
+
+test("deliverToSequence writes the fields last-to-first, then the label, so Win+V lists them in form order under it", () => {
+  const rows = deliverToRows({ custName: "Joe Mazzoleni", address: "224 Hammersley Dr, PO Box 288, Tuscarawas, OH 44682", phone: "330-432-7374" });
+  assert.deepEqual(deliverToSequence(rows), [
+    "330-432-7374", "44682", "OH", "Tuscarawas", "PO Box 288", "224 Hammersley Dr", "Joe Mazzoleni",
+    "Joe Mazzoleni\n224 Hammersley Dr\nPO Box 288\nTuscarawas, OH 44682\n330-432-7374",
+  ]);
+});
+
+test("deliverToSequence skips blank fields", () => {
   const rows = deliverToRows({ custName: "Joe Mazzoleni", address: "224 Hammersley Dr, Tuscarawas, OH 44682", phone: "" });
-  assert.equal(deliverToCopy(rows), "Joe Mazzoleni\t224 Hammersley Dr\t\tTuscarawas\tOH\t44682\t");
+  assert.deepEqual(deliverToSequence(rows), ["44682", "OH", "Tuscarawas", "224 Hammersley Dr", "Joe Mazzoleni", "Joe Mazzoleni\n224 Hammersley Dr\nTuscarawas, OH 44682"]);
 });

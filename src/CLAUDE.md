@@ -1768,11 +1768,17 @@ src/
                     # suite; a line with no state at the tail goes WHOLE into
                     # Street with ok:false — the panel warns, never pastes a
                     # guessed city. `deliverToRows` (the form's order: name ·
-                    # street · apt · city · state · ZIP · phone) and
-                    # `deliverToCopy` (tab-joined, blanks keep their slot — the
-                    # one-paste fill, IF ERP 1's address form advances on a tab
-                    # the way its line grid does; unverified at ship, the
-                    # per-field copies are the fallback)
+                    # street · apt · city · state · ZIP · phone),
+                    # `deliverToLabel` (the on-screen block, one field per
+                    # line, city/state/ZIP sharing the fourth) and
+                    # `deliverToSequence` (what copy-all writes, owner
+                    # 2026-09-15: every non-blank field on its own, LAST TO
+                    # FIRST, then the label — the desk pastes with Win+V,
+                    # Windows clipboard history, newest first, so the fields
+                    # list top-to-bottom in form order under the label, and
+                    # plain Ctrl+V gives the whole address; the earlier
+                    # tab-joined one-paste fill was dropped, ERP 1's form
+                    # never verified to take tabs)
   orderentry.jsx    # the panel itself — Deliver to (deliverto.js rows off
                     # App.jsx's custInfo: customer name, project address
                     # falling back to the customer's mailing address, project
@@ -1783,8 +1789,11 @@ src/
                     # line — and the city, state and ZIP each on their own,
                     # since ERP 1 keys them as three fields — a click-to-copy
                     # `Seg` that latches green by itself, plus ONE latching
-                    # copy-all (tab-joined) at the left like a special line's
-                    # button; no per-field buttons. Above
+                    # copy-all at the left like a special line's button
+                    # (`LatchCopy texts=` — deliverToSequence written entry
+                    # by entry, 80 ms apart, so Win+V holds each; the run
+                    # stays inside the browser's user-activation window);
+                    # no per-field buttons. Above
                     # Special order (per-line copy) above
                     # Stock (checkboxes + Copy all as SKU⇥qty; the estimated
                     # materials ride the Stock list unfiltered — App.jsx's
