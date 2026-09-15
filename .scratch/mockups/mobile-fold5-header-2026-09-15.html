@@ -31,7 +31,7 @@
   .note th{color:var(--board-text);font-weight:700}
   .note td:last-child,.note th:last-child{text-align:right}
 
-  .col{display:flex;flex-direction:column;gap:10px;align-items:stretch;width:344px}
+  .col{display:flex;flex-direction:column;gap:10px;align-items:stretch;width:344px;position:relative}
   .cap{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:0 2px}
   .cap b{font-size:14px;font-weight:800;color:var(--board-text)}
   .cap span{font-size:11px;color:var(--board-muted)}
@@ -150,34 +150,73 @@
   .rule{position:absolute;right:-22px;top:0;width:14px;pointer-events:none}
   .rule i{position:absolute;left:0;width:14px;border-top:2px solid #93B56A;border-bottom:2px solid #93B56A;border-right:2px solid #93B56A;border-radius:0 3px 3px 0}
   .rule b{position:absolute;left:18px;transform:translate(0,-50%);font-size:9px;font-weight:800;color:var(--ink);background:#93B56A;border-radius:3px;padding:1px 4px;white-space:nowrap}
+
+  /* ---- C rev 2 ---- */
+  .dd{height:24px;flex:1;min-width:0;overflow:hidden;border-radius:6px;display:flex;align-items:center;gap:3px;padding:0 5px;font-size:10px;font-weight:800;color:#fff;background:var(--bldr);white-space:nowrap}
+  .dd .eb{color:rgba(255,255,255,.75);font-size:7.5px}
+  .dd .ic{color:#fff;margin-left:auto}
+  .tot{height:24px;flex:0 0 102px;min-width:0;overflow:hidden;border:1px solid var(--line-strong);border-radius:6px;display:flex;align-items:center;gap:4px;padding:0 6px;white-space:nowrap}
+  .tot .eb{font-size:7.5px}
+  .tot b{font-size:13px;font-weight:800;letter-spacing:-.02em;color:var(--bldr);margin-left:auto}
+  .menu{position:absolute;z-index:5;width:150px;background:var(--card);border:1px solid var(--line);border-radius:8px;box-shadow:0 10px 28px rgba(28,26,23,.22);padding:4px;display:flex;flex-direction:column;gap:1px}
+  .menu div{display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:5px;font-size:12px;font-weight:700;color:var(--ink)}
+  .menu div.on{background:var(--bldr-soft);color:var(--bldr)}
+  .menu div span.dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--ink)}
+  .menu div small{margin-left:auto;font-size:10px;font-weight:600;color:var(--muted)}
+  .menu div.on small{color:var(--bldr)}
+  .menu div input{width:34px;border:0;border-bottom:1px solid var(--line-strong);background:transparent;font:inherit;font-size:12px;text-align:right;margin-left:auto}
+  .dim{position:absolute;inset:0;background:rgba(0,0,0,.3);z-index:6}
+  .sheet{position:absolute;left:0;right:0;bottom:0;z-index:7;height:86%;background:var(--paper);border-radius:14px 14px 0 0;display:flex;flex-direction:column;box-shadow:0 -10px 30px rgba(0,0,0,.25)}
+  .sheet .grab{width:36px;height:4px;border-radius:2px;background:var(--line-strong);margin:6px auto 2px}
+  .sheet .sh{display:flex;align-items:center;gap:6px;padding:4px 14px 8px;border-bottom:1px solid var(--line)}
+  .sheet .sh b{font-size:15px;font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sheet .sb{flex:1;overflow:auto;padding:10px 14px;display:flex;flex-direction:column;gap:9px;scrollbar-width:none}
+  .sheet .lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:3px}
+  .sheet .lbl i{font-style:normal;text-transform:none;letter-spacing:0;font-weight:400;color:var(--faint)}
+  .sheet .inp{height:32px;border:1px solid var(--line);border-radius:6px;background:var(--card);padding:0 9px;font-size:13px;display:flex;align-items:center}
+  .sheet .inp.ta{height:44px;align-items:flex-start;padding-top:6px;color:var(--faint)}
+  .sheet .seg{height:30px;background:var(--band)}
+  .sheet .seg b{font-size:11.5px}
+  .sheet .chips{display:flex;flex-wrap:wrap;gap:4px}
+  .sheet .chips span{font-size:11px;background:rgba(28,26,23,.07);border-radius:5px;padding:3px 7px}
+  .sheet .chips span.add{background:transparent;border:1px solid var(--line);color:var(--muted)}
+  .sheet .acts{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding-top:2px}
+  .sheet .acts div{height:34px;border:1px solid var(--line);border-radius:6px;background:var(--card);display:flex;align-items:center;justify-content:center;gap:5px;font-size:12px;font-weight:700;color:var(--muted)}
+  .sheet .acts div.del{color:#b91c1c;border-color:#fecaca}
+  .sheet .sf{display:flex;align-items:center;gap:10px;padding:8px 14px 14px;border-top:1px solid var(--line)}
+  .sheet .sf .eb{font-size:8.5px}
+  .sheet .sf b{font-size:17px;font-weight:800;color:var(--bldr);display:block}
+  .sheet .sf .btn{margin-left:auto;padding:0 28px}
+  .hl{outline:2px solid #93B56A;outline-offset:2px;border-radius:7px}
 </style>
 </head>
 <body>
 <div class="wrap">
 
   <div class="note">
-    <h1>Project header at Fold 5 cover width</h1>
-    <p>Every phone is <b>344 CSS px wide</b> (the Z Fold 5 cover screen, 904 × 2316 at ~2.63×, ≈ 344 × 882). The green ruler (measured in a real browser, not estimated) marks how much of the screen the header stack takes before the first area starts.</p>
-    <p>All three drafts <b>drop the Edit / Print preview tab row</b> on mobile (Print stays in the bottom bar and the ⋯ sheet; the option menu's "Print this option…" still works — it opens the print view directly) and replace the scrolling stat strip with the desktop one-bar's vocabulary: sand band, bordered id boxes, eyebrow-over-value, segmented price level, bordered minis.</p>
+    <h1>Project header at Fold 5 cover width &mdash; C, rev 2</h1>
+    <p>Every phone is <b>344 CSS px wide</b> (the Z Fold 5 cover screen). The green ruler is measured in a real browser: how much of the screen the header stack takes before the first area starts.</p>
+    <p><b>Rev 2 of C</b>, from the owner's notes on rev 1:</p>
+    <ul>
+      <li><b>Versions and Files</b> leave the band &mdash; the &ctdot; sheet already has <i>Files</i> chips, <i>Save version</i>, and <i>History</i>, so nothing new is needed there.</li>
+      <li><b>Save</b> mini dropped (the sheet's <i>Save version</i> stays).</li>
+      <li><b>Print</b> leaves the bottom bar &mdash; the &ctdot; sheet's footer already carries the total and a Print button. The bottom bar becomes <i>+ Area</i> and a wider <i>+ Product</i>.</li>
+      <li><b>Price level is a dropdown</b>, painted the active tier's colour like the desktop bar, with the <b>Total</b> box to its right at the same 24 px height. With Total out of the left column, Customer and Salesperson stretch to match the right column.</li>
+      <li>What's left of the mini row: <i>All $</i> (Estimate shows), <i>Samples</i>, <i>Freight</i>. Say the word if any of those should go to the sheet too.</li>
+    </ul>
     <table>
       <tr><th>Draft</th><th>Header stack</th></tr>
       <tr><td>Now</td><td>166 px</td></tr>
-      <tr><td><span class="tag">A</span>Band under the bar</td><td>156 px</td></tr>
-      <tr><td><span class="tag">B</span>The bar is the header</td><td>77 px</td></tr>
-      <tr><td><span class="tag">C</span>Two-column band</td><td>186 px</td></tr>
+      <tr><td><span class="tag">C</span>rev 1 (previous board)</td><td>186 px</td></tr>
+      <tr><td><span class="tag">C2</span>rev 2</td><td data-m="c2">&mdash;</td></tr>
     </table>
-    <ul>
-      <li><b>A</b> keeps today's top bar (tightened) and folds the desktop band under it: Customer · Total, then the price-level bar, then five minis. Project name/address and the locked Salesperson stay in the ⋯ sheet — three id boxes don't fit in 344 without truncating the customer's name.</li>
-      <li><b>B</b> merges the top bar INTO the band: burger, mark, and two id boxes (Customer + project name, Total with tier tag) on one row; price level and icon minis on the second. Everything else lives in the ⋯ sheet. Lowest padding of the three: 4 px band gutter, 3 px row gap.</li>
-      <li><b>C</b> is the desktop header's actual shape squeezed to 344: the stacked left column (Customer / Salesperson / Total) and a right column with Project, price level, and a 3 × 2 mini grid. Most parity, most height.</li>
-    </ul>
-    <p>Content below the header is the same in all four: the area band tightened to 6 × 11 px, rows to 7 × 10 px, the page gutter from 12 to 8 px. Bottom bar unchanged apart from a 2 px trim.</p>
+    <p>The second C2 phone shows the price-level dropdown open; the third shows the &ctdot; sheet as it exists today, with the items that now live only there outlined in green.</p>
   </div>
 
-  <!-- ================= NOW ================= -->
   <div class="col">
     <div class="cap"><b>Now</b><span>top bar + tabs + stat strip</span></div>
     <div class="phone">
+
       <div class="rule" style="height:166px"><i style="top:0;height:166px"></i><b style="top:83px">166</b></div>
       <div class="topbar">
         <div class="burger" data-i="menu"></div>
@@ -203,104 +242,15 @@
       </div>
       <div class="bottom">
         <div class="btn line"><span class="ic" data-i="plus"></span> Area</div>
-        <div class="btn ink"><span class="ic" data-i="plus"></span> Product<span class="sub">&nbsp;· Master Bath</span></div>
+        <div class="btn ink"><span class="ic" data-i="plus"></span> Product<span class="sub">&nbsp;&middot; Master Bath</span></div>
         <div class="btn bldr"><span class="ic" data-i="print"></span> Print</div>
       </div>
     </div>
   </div>
-
-  <!-- ================= A ================= -->
   <div class="col">
-    <div class="cap"><b><i>A</i> Band under the bar</b><span>top bar kept, band replaces tabs + strip</span></div>
-    <div class="phone">
-      <div class="rule" style="height:156px"><i style="top:0;height:156px"></i><b style="top:78px">156</b></div>
-      <div class="topbar tight">
-        <div class="burger" data-i="menu"></div>
-        <div class="mark s" data-i="mark"></div>
-        <div class="title">Hendricks — Main Floor</div>
-        <div class="total"><b>$6,842.10</b><small>BUILDER −15%</small></div>
-        <div class="more s" data-i="more"></div>
-      </div>
-      <div class="scroll">
-        <div class="content tight">
-          <div class="band" style="margin-bottom:8px;gap:3px">
-            <div class="r">
-              <div class="box">
-                <div class="eb">Customer</div>
-                <div class="v link">Sarah Hendricks <span class="ic xxs" data-i="chev" style="color:inherit"></span></div>
-                <div class="sub"><span class="ic xxs" data-i="bldg"></span>Ridgeline Homes</div>
-              </div>
-              <div class="box" style="flex:0 0 108px">
-                <div class="eb ebrow">Total <span class="tt">Bldr −15%</span> <span class="ok">✓</span></div>
-                <div class="money">$6,842.10</div>
-              </div>
-            </div>
-            <div class="r">
-              <div class="seg hd"><b>Price</b><b>Retail</b><b class="on bldr">Bldr</b><b>Emp</b><b>Sale</b><b>15 %</b></div>
-            </div>
-            <div class="r">
-              <div class="mini" style="height:22px">All $ <span class="ic xxs" data-i="chev"></span></div>
-              <div class="mini" style="height:22px"><span class="ic xs" data-i="files"></span> <span class="c">3</span></div>
-              <div class="mini" style="height:22px"><span class="ic xs" data-i="save"></span></div>
-              <div class="mini" style="height:22px"><span class="ic xs" data-i="hist"></span> <span class="c">2</span></div>
-              <div class="mini" style="height:22px"><span class="ic xs" data-i="layers"></span> <span class="n">1</span></div>
-            </div>
-          </div>
-          <div data-areas="tight"></div>
-        </div>
-      </div>
-      <div class="bottom tight">
-        <div class="btn line"><span class="ic" data-i="plus"></span> Area</div>
-        <div class="btn ink"><span class="ic" data-i="plus"></span> Product<span class="sub">&nbsp;· Master Bath</span></div>
-        <div class="btn bldr"><span class="ic" data-i="print"></span> Print</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ================= B ================= -->
-  <div class="col">
-    <div class="cap"><b><i>B</i> The bar is the header</b><span>one band, edge to edge, two rows</span></div>
-    <div class="phone">
-      <div class="rule" style="height:77px"><i style="top:0;height:77px"></i><b style="top:38px">77</b></div>
-      <div class="band edge" style="padding:4px 6px;gap:3px">
-        <div class="r" style="align-items:stretch">
-          <div class="burger" data-i="menu" style="align-self:center;margin-left:0"></div>
-          <div class="mark s" data-i="mark" style="align-self:center"></div>
-          <div class="box" style="padding:2px 6px 3px">
-            <div class="eb ebrow" style="gap:4px"><span class="v link" style="font-size:8px;font-weight:600;letter-spacing:.14em;text-transform:uppercase">Sarah Hendricks ▾</span><span class="num">N142</span></div>
-            <div class="name" style="font-size:13.5px">Hendricks — Main Floor</div>
-          </div>
-          <div class="box" style="flex:0 0 92px;padding:2px 6px 3px">
-            <div class="eb ebrow">Total <span class="tt">Bldr −15%</span></div>
-            <div class="money" style="font-size:13.5px">$6,842.10</div>
-          </div>
-          <div class="more s" data-i="more" style="align-self:center"></div>
-        </div>
-        <div class="r">
-          <div class="seg"><b>Retail</b><b class="on bldr">Bldr</b><b>Emp</b><b>Sale</b><b>15 %</b></div>
-          <div class="mini sq" style="height:22px"><span class="ic xs" data-i="files"></span><span class="c" style="font-size:9px;line-height:12px;padding:0 3px">3</span></div>
-          <div class="mini sq" style="height:22px"><span class="ic xs" data-i="hist"></span><span class="c" style="font-size:9px;line-height:12px;padding:0 3px">2</span></div>
-          <div class="mini sq" style="height:22px"><span class="ic xs" data-i="layers"></span><span class="n" style="font-size:9px;line-height:12px;padding:0 3px">1</span></div>
-        </div>
-      </div>
-      <div class="scroll">
-        <div class="content tight">
-          <div data-areas="tight"></div>
-        </div>
-      </div>
-      <div class="bottom tight">
-        <div class="btn line"><span class="ic" data-i="plus"></span> Area</div>
-        <div class="btn ink"><span class="ic" data-i="plus"></span> Product<span class="sub">&nbsp;· Master Bath</span></div>
-        <div class="btn bldr"><span class="ic" data-i="print"></span> Print</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ================= C ================= -->
-  <div class="col">
-    <div class="cap"><b><i>C</i> Two-column band</b><span>the desktop shape, squeezed</span></div>
-    <div class="phone">
-      <div class="rule" style="height:186px"><i style="top:0;height:186px"></i><b style="top:93px">186</b></div>
+    <div class="cap"><b><i>C2</i> Two-column band, rev 2</b><span>dropdown tier &middot; total beside it</span></div>
+    <div class="phone" data-phone="c2">
+      <div class="rule" data-rule="c2"><i></i><b></b></div>
       <div class="topbar tight">
         <div class="burger" data-i="menu"></div>
         <div class="mark s" data-i="mark"></div>
@@ -309,8 +259,8 @@
       </div>
       <div class="scroll">
         <div class="content tight">
-          <div class="band" style="margin-bottom:8px;flex-direction:row">
-            <div style="display:flex;flex-direction:column;gap:3px;flex:0 0 118px;min-width:0">
+          <div class="band" style="margin-bottom:8px;flex-direction:row;position:relative">
+            <div style="display:flex;flex-direction:column;gap:3px;flex:0 0 106px;min-width:0">
               <div class="box" style="flex:1">
                 <div class="eb">Customer</div>
                 <div class="v link">Sarah Hendricks <span class="ic xxs" data-i="chev" style="color:inherit"></span></div>
@@ -321,26 +271,81 @@
                 <div class="v">Marcus</div>
                 <div class="sub">(555) 210-8834</div>
               </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:0">
+              <div class="box" style="flex:0 0 auto;padding:3px 7px 4px">
+                <div class="eb ebrow">Project <span class="num">N142</span></div>
+                <div class="name">Hendricks &mdash; Main Floor</div>
+                <div class="addr">418 Ridgeline Ct, Bend OR</div>
+              </div>
+              <div class="r" style="gap:3px">
+                <div class="dd">Builder &minus;15%<span class="ic xxs" data-i="chev"></span></div>
+                <div class="tot"><span class="eb">Total</span><b>$6,842.10</b></div>
+              </div>
+              <div class="r" style="gap:3px">
+                <div class="mini" style="height:22px">All $ <span class="ic xxs" data-i="chev"></span></div>
+                <div class="mini" style="height:22px"><span class="ic xs" data-i="layers"></span> Samples <span class="n">1</span></div>
+                <div class="mini" style="height:22px"><span class="ic xs" data-i="truck"></span> <span class="c">$85</span></div>
+              </div>
+            </div>
+            
+          </div>
+          <div data-areas="tight"></div>
+        </div>
+      </div>
+      <div class="bottom tight">
+        <div class="btn line"><span class="ic" data-i="plus"></span> Area</div>
+        <div class="btn ink"><span class="ic" data-i="plus"></span> Product<span class="sub">&nbsp;&middot; Master Bath</span></div>
+        
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="cap"><b><i>C2</i> Price level open</b><span>same tiers as the desktop bar</span></div>
+    <div class="phone">
+      <div class="topbar tight">
+        <div class="burger" data-i="menu"></div>
+        <div class="mark s" data-i="mark"></div>
+        <div class="title" style="font-weight:600;color:var(--muted)">Sarah Hendricks <span style="color:var(--faint)">›</span> <span style="color:var(--ink)">Main Floor</span></div>
+        <div class="more s" data-i="more"></div>
+      </div>
+      <div class="scroll">
+        <div class="content tight">
+          <div class="band" style="margin-bottom:8px;flex-direction:row;position:relative">
+            <div style="display:flex;flex-direction:column;gap:3px;flex:0 0 106px;min-width:0">
               <div class="box" style="flex:1">
-                <div class="eb ebrow">Total <span class="tt">Bldr −15%</span> <span class="ok">✓</span></div>
-                <div class="money">$6,842.10</div>
+                <div class="eb">Customer</div>
+                <div class="v link">Sarah Hendricks <span class="ic xxs" data-i="chev" style="color:inherit"></span></div>
+                <div class="sub"><span class="ic xxs" data-i="bldg"></span>Ridgeline Homes</div>
+              </div>
+              <div class="box" style="flex:1">
+                <div class="eb" style="display:flex;gap:3px;align-items:center"><span class="ic xxs" data-i="lock"></span>Salesperson</div>
+                <div class="v">Marcus</div>
+                <div class="sub">(555) 210-8834</div>
               </div>
             </div>
             <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:0">
               <div class="box" style="flex:0 0 auto;padding:3px 7px 4px">
                 <div class="eb ebrow">Project <span class="num">N142</span></div>
-                <div class="name">Hendricks — Main Floor</div>
+                <div class="name">Hendricks &mdash; Main Floor</div>
                 <div class="addr">418 Ridgeline Ct, Bend OR</div>
               </div>
-              <div class="seg" style="flex:0 0 22px"><b>Retail</b><b class="on bldr">Bldr</b><b>Emp</b><b>Sale</b><b>15 %</b></div>
-              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:3px;flex:1">
-                <div class="mini" style="height:auto">All $ <span class="ic xxs" data-i="chev"></span></div>
-                <div class="mini" style="height:auto"><span class="ic xs" data-i="files"></span> <span class="c">3</span></div>
-                <div class="mini" style="height:auto"><span class="ic xs" data-i="save"></span></div>
-                <div class="mini" style="height:auto"><span class="ic xs" data-i="hist"></span> <span class="c">2</span></div>
-                <div class="mini" style="height:auto"><span class="ic xs" data-i="layers"></span> <span class="n">1</span></div>
-                <div class="mini" style="height:auto"><span class="ic xs" data-i="truck"></span> <span class="c">$85</span></div>
+              <div class="r" style="gap:3px">
+                <div class="dd hl">Builder &minus;15%<span class="ic xxs" data-i="chev"></span></div>
+                <div class="tot"><span class="eb">Total</span><b>$6,842.10</b></div>
               </div>
+              <div class="r" style="gap:3px">
+                <div class="mini" style="height:22px">All $ <span class="ic xxs" data-i="chev"></span></div>
+                <div class="mini" style="height:22px"><span class="ic xs" data-i="layers"></span> Samples <span class="n">1</span></div>
+                <div class="mini" style="height:22px"><span class="ic xs" data-i="truck"></span> <span class="c">$85</span></div>
+              </div>
+            </div>
+            <div class="menu" style="left:122px;top:80px">
+              <div><span class="dot"></span>Retail</div>
+              <div class="on"><span class="dot" style="background:var(--bldr)"></span>Builder<small>&minus;15%</small></div>
+              <div><span class="dot" style="background:#0d9488"></span>Employee<small>cost +6%</small></div>
+              <div><span class="dot" style="background:#db2777"></span>Sale<small>&minus;10%</small></div>
+              <div><span class="dot" style="background:#7c3aed"></span>Custom<input value="" placeholder="%"></div>
             </div>
           </div>
           <div data-areas="tight"></div>
@@ -348,8 +353,82 @@
       </div>
       <div class="bottom tight">
         <div class="btn line"><span class="ic" data-i="plus"></span> Area</div>
-        <div class="btn ink"><span class="ic" data-i="plus"></span> Product<span class="sub">&nbsp;· Master Bath</span></div>
-        <div class="btn bldr"><span class="ic" data-i="print"></span> Print</div>
+        <div class="btn ink"><span class="ic" data-i="plus"></span> Product<span class="sub">&nbsp;&middot; Master Bath</span></div>
+        
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="cap"><b>&ctdot; sheet</b><span>as it exists today &mdash; green = now only here</span></div>
+    <div class="phone">
+      <div class="topbar tight">
+        <div class="burger" data-i="menu"></div>
+        <div class="mark s" data-i="mark"></div>
+        <div class="title" style="font-weight:600;color:var(--muted)">Sarah Hendricks <span style="color:var(--faint)">›</span> <span style="color:var(--ink)">Main Floor</span></div>
+        <div class="more s" data-i="more"></div>
+      </div>
+      <div class="scroll">
+        <div class="content tight">
+          <div class="band" style="margin-bottom:8px;flex-direction:row;position:relative">
+            <div style="display:flex;flex-direction:column;gap:3px;flex:0 0 106px;min-width:0">
+              <div class="box" style="flex:1">
+                <div class="eb">Customer</div>
+                <div class="v link">Sarah Hendricks <span class="ic xxs" data-i="chev" style="color:inherit"></span></div>
+                <div class="sub"><span class="ic xxs" data-i="bldg"></span>Ridgeline Homes</div>
+              </div>
+              <div class="box" style="flex:1">
+                <div class="eb" style="display:flex;gap:3px;align-items:center"><span class="ic xxs" data-i="lock"></span>Salesperson</div>
+                <div class="v">Marcus</div>
+                <div class="sub">(555) 210-8834</div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:0">
+              <div class="box" style="flex:0 0 auto;padding:3px 7px 4px">
+                <div class="eb ebrow">Project <span class="num">N142</span></div>
+                <div class="name">Hendricks &mdash; Main Floor</div>
+                <div class="addr">418 Ridgeline Ct, Bend OR</div>
+              </div>
+              <div class="r" style="gap:3px">
+                <div class="dd">Builder &minus;15%<span class="ic xxs" data-i="chev"></span></div>
+                <div class="tot"><span class="eb">Total</span><b>$6,842.10</b></div>
+              </div>
+              <div class="r" style="gap:3px">
+                <div class="mini" style="height:22px">All $ <span class="ic xxs" data-i="chev"></span></div>
+                <div class="mini" style="height:22px"><span class="ic xs" data-i="layers"></span> Samples <span class="n">1</span></div>
+                <div class="mini" style="height:22px"><span class="ic xs" data-i="truck"></span> <span class="c">$85</span></div>
+              </div>
+            </div>
+            
+          </div>
+          <div data-areas="tight"></div>
+        </div>
+      </div>
+      <div class="bottom tight">
+        <div class="btn line"><span class="ic" data-i="plus"></span> Area</div>
+        <div class="btn ink"><span class="ic" data-i="plus"></span> Product<span class="sub">&nbsp;&middot; Master Bath</span></div>
+        
+      </div>
+      <div class="dim"></div>
+      <div class="sheet">
+        <div class="grab"></div>
+        <div class="sh"><b>Hendricks &mdash; Main Floor</b><span class="tt" style="font-size:9.5px;line-height:14px;padding:0 4px">Builder &minus;15%</span><span class="ic" data-i="x" style="color:var(--muted)"></span></div>
+        <div class="sb">
+          <div><div class="lbl">Project name</div><div class="inp">Hendricks &mdash; Main Floor</div></div>
+          <div><div class="lbl">Project address</div><div class="inp">418 Ridgeline Ct, Bend OR</div></div>
+          <div><div class="lbl">Price tier</div><div class="seg"><b>Retail</b><b class="on bldr">Bldr</b><b>Emp</b><b>Sale</b><b>15 %</b></div></div>
+          <div><div class="lbl">Printed pricing</div><div class="seg"><b class="on">All $</b><b>Unit $</b><b>No $</b></div></div>
+          <div><div class="lbl">Freight</div><div class="seg" style="width:160px"><b class="on">$85</b><b>None</b></div></div>
+          <div><div class="lbl">Project notes</div><div class="inp ta">Project notes&hellip;</div></div>
+          <div><div class="lbl">Salesperson</div><div class="inp">Marcus</div></div>
+          <div class="hl" style="padding:3px"><div class="lbl">Files <i>&mdash; not printed</i></div><div class="chips"><span>plan-L1.pdf &times;</span><span>shower-photo.jpg &times;</span><span>tile-list.xlsx &times;</span><span class="add">&#128206; Add</span></div></div>
+          <div class="acts">
+            <div class="hl"><span class="ic xs" data-i="save"></span> Save version</div>
+            <div class="hl"><span class="ic xs" data-i="hist"></span> History (2)</div>
+            <div><span class="ic xs" data-i="clip"></span> Order sheet</div>
+            <div class="del"><span class="ic xs" data-i="trash" style="color:inherit"></span> Delete</div>
+          </div>
+        </div>
+        <div class="sf"><div><div class="eb">Total</div><b>$6,842.10</b></div><div class="btn bldr hl"><span class="ic" data-i="print"></span> Print</div></div>
       </div>
     </div>
   </div>
@@ -371,6 +450,8 @@
     hist: '<svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l4 2"/></svg>',
     layers: '<svg viewBox="0 0 24 24"><path d="M12 2l10 5-10 5L2 7l10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>',
     truck: '<svg viewBox="0 0 24 24"><path d="M1 3h15v13H1zM16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>',
+    x: '<svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>',
+    clip: '<svg viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2M9 12h6M9 16h6"/></svg>',
     grip: '<svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>',
     trash: '<svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg>',
   };
@@ -410,6 +491,15 @@
         </div>`).join('')}
     </div>`).join('');
   document.querySelectorAll('[data-areas]').forEach((el) => { el.innerHTML = areaHtml; });
+
+  // Rulers sit outside the phone frame (which clips), so hoist each into its column at the phone's offset.
+  document.querySelectorAll('.rule').forEach((r) => { const phone = r.closest('.phone'); const col = phone.parentElement; col.appendChild(r); r.style.top = phone.offsetTop + 'px'; });
+  // Ruler for C2: measured from the phone's top to the first area, written into the table.
+  const ph = document.querySelector('[data-phone="c2"]');
+  const h = Math.round(ph.querySelector('.area').getBoundingClientRect().top - ph.getBoundingClientRect().top);
+  const r = document.querySelector('[data-rule="c2"]');
+  r.style.height = h + 'px'; r.querySelector('i').style.cssText = 'top:0;height:' + h + 'px'; r.querySelector('b').style.top = (h / 2) + 'px'; r.querySelector('b').textContent = h;
+  document.querySelector('[data-m="c2"]').textContent = h + ' px';
 </script>
 </body>
 </html>
