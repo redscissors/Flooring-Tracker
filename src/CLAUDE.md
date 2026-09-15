@@ -1777,7 +1777,14 @@ src/
                     # App.jsx's custInfo: customer name, project address
                     # falling back to the customer's mailing address, project
                     # phone falling back to the customer's — the Samples
-                    # panel's rule; per-field latching copy + Copy all) above
+                    # panel's rule) read as a MAILING LABEL (owner 2026-09-15,
+                    # after a seven-row per-field card was "way too large"):
+                    # name · street · apt · "City, ST ZIP" · phone, every
+                    # line — and the city, state and ZIP each on their own,
+                    # since ERP 1 keys them as three fields — a click-to-copy
+                    # `Seg` that latches green by itself, plus ONE latching
+                    # copy-all (tab-joined) at the left like a special line's
+                    # button; no per-field buttons. Above
                     # Special order (per-line copy) above
                     # Stock (checkboxes + Copy all as SKU⇥qty; the estimated
                     # materials ride the Stock list unfiltered — App.jsx's

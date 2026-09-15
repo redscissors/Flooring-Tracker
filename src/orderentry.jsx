@@ -238,36 +238,59 @@ function LatchCopy({ text, title }) {
   );
 }
 
-const DELIVER_TIP = <>The fields in ERP 1's delivery-address order, so you can work down both at once. Copy one at a time — a copied field stays a green check — or <b>Copy all</b> pastes every field with a tab between them, which fills the whole form in one paste if ERP 1 moves to the next field on a tab. The address is the project's (the customer's mailing address when the project has none).</>;
+const DELIVER_TIP = <>The customer's delivery details as a mailing label. Click any line — or the city, state or ZIP on its own — to copy just that; it turns green so you can track your place. The button at the left copies every field with a tab between them, which fills ERP 1's whole form in one paste if it moves to the next field on a tab. The address is the project's (the customer's mailing address when the project has none).</>;
 
-// The customer / delivery fields — the project's one-line address split into
-// ERP 1's form (deliverto.js). A line the splitter can't read goes whole into
-// Street with an inline warning: a guessed city or ZIP would paste silently.
+// One click-to-copy piece of the label — a whole line, or one word of the
+// city line, since ERP 1 keys city, state and ZIP as three fields.
+function Seg({ value, label, bold }) {
+  const [copied, setCopied] = useState(false);
+  if (!value) return null;
+  return (
+    <button type="button" title={`Copy ${label}`} onClick={async () => { await writeClipboard(value); setCopied(true); }}
+      className={"inline rounded px-0.5 -mx-0.5 text-left transition-colors hover:bg-slate-100 " + (bold ? "font-bold " : "") + (copied ? "font-semibold" : "")}
+      style={copied ? { color: "var(--ft-brand-deep)", background: "var(--ft-brand-soft)" } : undefined}>
+      {copied && <Check size={11} className="inline align-[-1px] mr-0.5" />}{value}
+    </button>
+  );
+}
+
+// The customer / delivery block (owner's layout, 2026-09-15): the project's
+// one-line address split into ERP 1's fields (deliverto.js) and read as a
+// mailing label — name, street, apt/suite, "City, ST ZIP", phone — each piece
+// its own Seg, with one latching copy-all at the left like a special-order
+// line's. A line the splitter can't read shows whole with an inline warning:
+// a guessed city or ZIP would paste silently.
 function DeliverTo({ custInfo }) {
   const rows = useMemo(() => deliverToRows(custInfo), [custInfo]);
+  const f = Object.fromEntries(rows.map((r) => [r.key, r.value]));
   const split = splitAddress(custInfo?.address);
   const any = rows.some((r) => r.value);
   return (
     <section>
-      <div className="flex items-center justify-between mb-2 gap-2">
-        <Heading tip={DELIVER_TIP}>Deliver to</Heading>
-        {any && <CopyBtn text={deliverToCopy(rows)} label="Copy all" />}
-      </div>
+      <Heading tip={DELIVER_TIP}>Deliver to</Heading>
       {!any ? (
-        <p className="text-[13px] text-slate-400 rounded-lg border border-dashed border-slate-200 px-3 py-3">No customer name, address or phone on this project.</p>
+        <p className="mt-2 text-[13px] text-slate-400 rounded-lg border border-dashed border-slate-200 px-3 py-3">No customer name, address or phone on this project.</p>
       ) : (
-        <div className="rounded-lg border border-slate-200 overflow-hidden">
-          {rows.map((r, i) => (
-            <div key={r.key} className={"flex items-center gap-2 px-3 py-1.5 text-[12.5px] " + (i ? "border-t border-slate-100 " : "")}
-              style={{ background: i % 2 ? "var(--ft-prod)" : "transparent" }}>
-              <LatchCopy text={r.value} title={r.value ? `Copy ${r.label.toLowerCase()}` : "Nothing to copy"} />
-              <span className="ft-eyebrow text-[9px] tracking-[.09em] text-slate-500 w-[108px] shrink-0 whitespace-nowrap">{r.label}</span>
-              <span className={"min-w-0 flex-1 truncate " + (r.value ? "font-semibold" : "text-slate-300")} title={r.value || undefined}>{r.value || "—"}</span>
+        <div className="mt-2 rounded-lg border border-slate-200 overflow-hidden">
+          <div className="flex items-stretch">
+            <div className="flex items-center px-2 border-r border-slate-100 bg-slate-50">
+              <LatchCopy text={deliverToCopy(rows)} title="Copy every field, tab-separated, for the delivery form" />
             </div>
-          ))}
+            <div className="min-w-0 flex-1 px-3 py-2 text-[12.5px] leading-[1.45]">
+              <div><Seg value={f.name} label="delivery name" bold /></div>
+              <div><Seg value={f.street} label="street" /></div>
+              {f.apt && <div><Seg value={f.apt} label="apt/suite" /></div>}
+              {(f.city || f.state || f.zip) && (
+                <div>
+                  <Seg value={f.city} label="city" />{f.city && f.state && ","} <Seg value={f.state} label="state" /> <Seg value={f.zip} label="ZIP code" />
+                </div>
+              )}
+              <div><Seg value={f.phone} label="phone number" /></div>
+            </div>
+          </div>
           {!split.ok && (
             <div className="px-3 py-1.5 text-[11px] text-amber-700 border-t border-slate-100">
-              This address couldn't be split into fields — the whole line is in Street. Check the project address.
+              This address couldn't be split into fields — it's shown as one line. Check the project address.
             </div>
           )}
         </div>
