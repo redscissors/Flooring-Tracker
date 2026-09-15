@@ -24,7 +24,7 @@ import { seedFromQuery as wediSeed } from "./wediquery.js";
 // Same boot contract for Schluter: the seed comes from schluterquery.js — the
 // engine, adapter, and popup all stay inside the lazy chunk (ADR 0026/0032).
 import { seedFromQuery as schluterSeed } from "./schluterquery.js";
-import { STOCK_LOADING_MSG, TYPES, TLBL, underlayLabel, TYPE_ACCENT, ROW_WASH, TOTAL_WASH, JOINTS, colorsFor, ATT_BUCKET, TIER_COLOR, tierBadgeText, PROJECT_NAME_MAX, AUTO_KEEP, QUICK_SWEEP_DAYS } from "./uiconst.js";
+import { STOCK_LOADING_MSG, TYPES, TLBL, underlayLabel, TYPE_ACCENT, ROW_WASH, TOTAL_WASH, JOINTS, colorsFor, ATT_BUCKET, TIER_COLOR, tierBadgeText, PROJECT_NAME_MAX, AUTO_KEEP, QUICK_SWEEP_DAYS, skuSearchable } from "./uiconst.js";
 import { uid, money, sf1, miscQty, blobToDataURL, dataURLToBlob, wasteNote, newProduct, newArea, areaLabel, rowBlank, catSig, newProject, newPerson, newBuilder, normC, personData, quickAutoName, isRealProjectName, QUICK_DEFAULT_NAME, stampKit, landKitLines, appendKitLines, moveKitEntries, placedKits, removeKitLines, kitRows } from "./model.js";
 import { lineTotal, printProduct, printAreaFloor, KSHORT, u1, orderEntryRow, matOrderRow } from "./print.js";
 import { jobTotals } from "./jobtotals.js";
@@ -783,17 +783,17 @@ export default function App({ user, onSignOut }) {
   // another blank when the add bar's + Product is tapped. The blank adder is
   // hidden from the phone list (mobile rows 2026-07-17), so + Product opens
   // its editor sheet directly, ready to search or fill.
-  const mobileAddProduct = () => {
+  const mobileAddProduct = (search = false) => {
     if (!sel?._full) return;
     const aid = sel.categories.some((a) => a.id === activeAreaId) ? activeAreaId : sel.categories[0]?.id;
     if (!aid) return addArea();
     const a = sel.categories.find((x) => x.id === aid);
     const last = a.products[a.products.length - 1];
-    if (last && rowBlank(last)) setRowSheet({ aid, pid: last.id });
+    if (last && rowBlank(last)) setRowSheet({ aid, pid: last.id, search });
     else {
       const np = newProduct();
       updArea(aid, { products: [...a.products, np] });
-      setRowSheet({ aid, pid: np.id });
+      setRowSheet({ aid, pid: np.id, search });
     }
   };
   const { searchOrder, bookName } = useOrderSearch({ books, sel, orderItems, setOrderItems });
@@ -1960,7 +1960,7 @@ export default function App({ user, onSignOut }) {
                           </div>
                         ) : null;
                         const rowEditor = !isWide && rowSheet?.pid === p.id ? (
-                          <MobileRowSheet p={p} stockBookIds={stockBookIds} areaName={areaLabel(a, ai)} canDelete={a.products.length > 1 && !(rowBlank(p) && isAdder)}
+                          <MobileRowSheet p={p} stockBookIds={stockBookIds} areaName={areaLabel(a, ai)} canDelete={a.products.length > 1 && !(rowBlank(p) && isAdder)} initialSearch={!!rowSheet.search}
                             settings={wSet} stock={stockItems} groutStock={groutStock} stockReady={bookStockReady} bookStockReady={bookStockReady} isBookFam={isBookFam} gFamilies={gFamilies} searchOrder={searchOrder} bookName={bookName} tv={tv} notify={ping} strictness={searchStrictness} fallback={searchFallback} markups={quickMarkups}
                             onPatch={(patch) => updProduct(a.id, p.id, patch)}
                             sample={sampleByProduct.get(p.id) || null}
@@ -2551,22 +2551,40 @@ export default function App({ user, onSignOut }) {
           )}
         </main>
 
-        {/* Mobile add bar (mobile shell 2026-07-16): + Product follows the
-            area in view (activeAreaId); Print wears the tier color like the
-            desktop header buttons. Sits under <main> in the flex column, so
-            it never overlaps content and stays locked to the bottom whenever
-            a project is open — on the preview tab too, where Area/Product
-            first hop back to the edit view. While a bottom sheet is up the
-            bar slides down out of the way and returns when it closes. */}
+        {/* Mobile add bar (mobile shell 2026-07-16): + Product and Price book
+            both follow the area in view (activeAreaId). Price book is the
+            wide primary button (owner, 2026-09-15: it's the one mostly
+            pressed), carries the area name stacked under its label (a
+            single-line label truncated to "· Ma…" at 344px), and opens the
+            new row's sheet straight into search; Product opens the manual
+            editor. Without anything searchable the bar falls back to Area +
+            a wide Product. Sits under <main> in the flex column, so it never
+            overlaps content and stays locked to the bottom whenever a
+            project is open. While a bottom sheet is up the bar slides down
+            out of the way and returns when it closes. */}
         {!isWide && sel && sel._full && (() => {
           const cur = sel.categories.find((a) => a.id === activeAreaId) || sel.categories[0];
           const sheetUp = projSheet || !!rowSheet;
+          const canSearch = skuSearchable(stockItems, searchOrder, bookStockReady);
+          const areaTag = cur ? <span className="truncate opacity-75 font-semibold">&nbsp;· {areaLabel(cur, sel.categories.indexOf(cur))}</span> : null;
+          const outlined = "h-[36px] shrink-0 flex items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 text-[12.5px] font-bold";
+          const primary = "h-[36px] flex-1 min-w-0 flex items-center justify-center gap-1 rounded-md text-[12.5px] font-bold whitespace-nowrap";
           return (
             <div className={`ft-noprint flex gap-2 px-2.5 pt-2 ft-rail border-t border-slate-200 transition-transform duration-200 ${sheetUp ? "translate-y-full" : ""}`} style={{ paddingBottom: "max(10px, env(safe-area-inset-bottom))" }}>
-              <button onClick={addArea} className="h-[36px] shrink-0 flex items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 text-[12.5px] font-bold"><Plus size={14} /> Area</button>
-              <button onClick={mobileAddProduct} className="h-[36px] flex-1 min-w-0 flex items-center justify-center gap-1 rounded-md text-[12.5px] font-bold" style={{ background: "var(--ft-text)", color: "var(--ft-cream)" }}>
-                <Plus size={14} className="shrink-0" /> Product{cur ? <span className="truncate opacity-75 font-semibold">&nbsp;· {areaLabel(cur, sel.categories.indexOf(cur))}</span> : null}
-              </button>
+              <button onClick={addArea} className={outlined}><Plus size={14} /> Area</button>
+              {canSearch ? (
+                <>
+                  <button onClick={() => mobileAddProduct(false)} className={outlined}><Plus size={14} /> Product</button>
+                  <button onClick={() => mobileAddProduct(true)} className="h-[36px] flex-1 min-w-0 flex flex-col items-center justify-center rounded-md font-bold whitespace-nowrap" style={{ background: "var(--ft-text)", color: "var(--ft-cream)" }}>
+                    <span className="flex items-center gap-1 text-[12.5px] leading-none"><Search size={14} className="shrink-0" /> Price book</span>
+                    {cur && <span className="truncate max-w-full text-[9px] leading-none opacity-75 font-semibold mt-[3px]">{areaLabel(cur, sel.categories.indexOf(cur))}</span>}
+                  </button>
+                </>
+              ) : (
+                <button onClick={() => mobileAddProduct(false)} className={primary} style={{ background: "var(--ft-text)", color: "var(--ft-cream)" }}>
+                  <Plus size={14} className="shrink-0" /> Product{areaTag}
+                </button>
+              )}
             </div>
           );
         })()}

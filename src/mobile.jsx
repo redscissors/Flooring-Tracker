@@ -248,8 +248,8 @@ export function MobileProductRow({ p, settings, tv, onOpen, onPointerDown }) {
 // editors can't drift on write paths. The SKU field opens MobileSearchSheet
 // (full-screen, per the keyboard plan); picks flow through onPickStock, the
 // caller's addStockProducts, exactly like a grid SKU pick.
-export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutStock, stockReady, bookStockReady, isBookFam, gFamilies, stockBookIds, searchOrder, bookName, tv, markups = MARKUP_PRESETS, onPatch, onPickStock, onOpenVendor, onDelete, sample, onSample, onFlag, onClose, qtyRef, notify, strictness, fallback }) {
-  const [searching, setSearching] = useState(false);
+export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutStock, stockReady, bookStockReady, isBookFam, gFamilies, stockBookIds, searchOrder, bookName, tv, markups = MARKUP_PRESETS, onPatch, onPickStock, onOpenVendor, onDelete, sample, onSample, onFlag, onClose, qtyRef, notify, strictness, fallback, initialSearch = false }) {
+  const [searching, setSearching] = useState(initialSearch);
   const [confirmDel, setConfirmDel] = useState(false);
   const [insExpanded, setInsExpanded] = useState(false);
   if (!p) return null;

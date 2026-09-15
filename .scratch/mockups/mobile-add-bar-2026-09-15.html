@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fold 5 Add Bar</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap">
+<style>
+  @font-face{font-family:"Manrope";src:url("../126_print-selection-sheet-protos/fonts/manrope.woff2") format("woff2");font-weight:200 800}
+  :root{
+    --paper:#F6F3EC; --card:#FFFFFF; --ink:#1C1A17; --muted:#57534C; --faint:#8A8378;
+    --moss:#57703A; --moss-deep:#40542A; --moss-soft:rgba(87,112,58,.13);
+    --band:#E7E3D6; --sand:#EDE9DD; --rowline:#ECE8DC;
+    --line:rgba(28,26,23,.10); --line-strong:rgba(28,26,23,.25); --grid:rgba(28,26,23,.34);
+    --t-tile:#2A3A1B; --t-hard:#40542A; --t-vinyl:#57703A; --t-carpet:#6E8A4C; --t-misc:#A4BC84;
+    --bldr:#2563eb; --bldr-soft:#dbeafe; --amber:#b45309; --amber-soft:#fef6e2;
+    --ui:"Manrope",-apple-system,"Segoe UI",system-ui,sans-serif;
+    --board:#1C1A17; --board-text:#F6F3EC; --board-muted:#A8A29A;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:var(--ui);-webkit-tap-highlight-color:transparent}
+  body{background:var(--board);color:var(--board-text);padding:28px 18px 70px;font-variant-numeric:tabular-nums}
+  .wrap{display:flex;flex-wrap:wrap;gap:64px;justify-content:center;align-items:flex-start;max-width:1640px;margin:0 auto}
+  .note{width:344px;font-size:13px;color:var(--board-muted);line-height:1.55;padding-top:4px}
+  .note h1{font-size:20px;font-weight:800;color:var(--board-text);letter-spacing:-.01em;margin-bottom:10px;text-wrap:balance}
+  .note p{margin-bottom:10px}
+  .note ul{margin:6px 0 12px 16px}
+  .note li{margin-bottom:7px}
+  .note b{color:var(--board-text)}
+  .note .tag{display:inline-block;background:#93B56A;color:var(--ink);border-radius:4px;font-size:11px;font-weight:800;padding:1px 6px;margin-right:6px}
+  .note table{border-collapse:collapse;width:100%;font-size:12px;margin:4px 0 14px}
+  .note td,.note th{padding:4px 6px;border-bottom:1px solid rgba(246,243,236,.14);text-align:left}
+  .note th{color:var(--board-text);font-weight:700}
+  .note td:last-child,.note th:last-child{text-align:right}
+
+  .col{display:flex;flex-direction:column;gap:10px;align-items:stretch;width:344px;position:relative}
+  .cap{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:0 2px}
+  .cap b{font-size:14px;font-weight:800;color:var(--board-text)}
+  .cap span{font-size:11px;color:var(--board-muted)}
+  .cap i{font-style:normal;color:#93B56A;font-weight:800}
+
+  .phone{width:344px;height:820px;background:var(--paper);color:var(--ink);border-radius:20px;
+    border:1px solid rgba(246,243,236,.18);overflow:hidden;position:relative;display:flex;flex-direction:column;
+    box-shadow:0 22px 60px rgba(0,0,0,.5);font-variant-numeric:tabular-nums}
+  .scroll{flex:1;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none}
+  .scroll::-webkit-scrollbar{width:0}
+
+  .eb{font-size:8px;font-weight:600;text-transform:uppercase;letter-spacing:.14em;color:var(--faint);line-height:1.2;white-space:nowrap}
+  svg{display:block;flex:none}
+  .mark svg{width:28px;height:28px}
+  .mark.s svg{width:24px;height:24px}
+  .ic{color:var(--muted)}
+  .ic svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .ic.xs svg{width:12px;height:12px}
+  .ic.xxs svg{width:9px;height:9px}
+
+  /* ---- top bar (current) ---- */
+  .topbar{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--paper);border-bottom:1px solid var(--line);flex:none}
+  .topbar.tight{padding:6px 10px;gap:8px}
+  .burger{width:24px;height:24px;display:flex;align-items:center;justify-content:center;color:var(--muted);flex:none;margin-left:-4px}
+  .burger svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round}
+  .title{font-size:18px;font-weight:600;letter-spacing:-.01em;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .topbar.tight .title{font-size:15.5px}
+  .total{text-align:right;line-height:1.15;flex:none}
+  .total b{display:block;font-size:13px;font-weight:800;color:var(--bldr)}
+  .total small{display:block;font-size:8.5px;font-weight:800;color:var(--bldr)}
+  .more{width:27px;height:27px;border:1px solid var(--line);border-radius:6px;background:var(--card);display:flex;align-items:center;justify-content:center;color:var(--muted);flex:none}
+  .more svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round}
+  .more.s{width:24px;height:24px}
+
+  /* current: tabs + stat strip */
+  .pad{padding:12px}
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:12px}
+  .tabs span{padding:8px 16px;font-size:14px;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px}
+  .tabs span.on{color:var(--moss);border-color:var(--moss)}
+  .strip{display:flex;gap:6px;overflow-x:auto;margin-bottom:12px;scrollbar-width:none}
+  .strip::-webkit-scrollbar{height:0}
+  .tile{flex:none;border:1px solid var(--line);border-radius:6px;background:var(--card);padding:6px 10px;text-align:left}
+  .tile div{font-size:12.5px;font-weight:700;white-space:nowrap;margin-top:1px}
+  .tile .amb{color:var(--amber)}
+  .tile .ok{color:var(--moss)}
+
+  /* ---- band header (desktop one-bar vocabulary) ---- */
+  .band{background:var(--band);border:1px solid var(--line);border-radius:8px;padding:4px;display:flex;flex-direction:column;gap:4px;flex:none}
+  .band.edge{border-radius:0;border-width:0 0 1px;margin:0}
+  .r{display:flex;gap:4px;min-width:0}
+  .box{border:1px solid var(--line-strong);border-radius:6px;padding:2px 7px 3px;min-width:0;flex:1;display:flex;flex-direction:column;justify-content:center;background:transparent}
+  .box .v{font-size:12px;font-weight:800;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:3px}
+  .box .v.link{color:var(--moss)}
+  .box .sub{font-size:9.5px;color:var(--muted);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:3px}
+  .box .money{font-size:14px;font-weight:800;line-height:1.1;letter-spacing:-.02em;color:var(--bldr)}
+  .box .ebrow{display:flex;align-items:center;gap:4px;height:10px}
+  .tt{background:var(--bldr-soft);color:var(--bldr);font-size:8px;font-weight:700;border-radius:3px;padding:0 3px;line-height:10px;letter-spacing:0;text-transform:none}
+  .ok{color:var(--moss);font-size:9px;font-weight:600;letter-spacing:0;text-transform:none}
+  .box .name{font-size:14px;font-weight:800;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+  .box .addr{font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+  .box .num{margin-left:auto;letter-spacing:.08em}
+
+  .seg{display:flex;border:1px solid var(--line-strong);border-radius:6px;overflow:hidden;background:var(--sand);flex:1;min-width:0;height:22px}
+  .seg b{flex:1;min-width:0;font-size:10.5px;font-weight:700;color:var(--muted);display:flex;align-items:center;justify-content:center;border-left:1px solid var(--line);white-space:nowrap}
+  .seg b:first-child{border-left:0}
+  .seg b.on{background:var(--ink);color:var(--paper);font-weight:800;box-shadow:inset 0 2px 4px rgba(0,0,0,.28)}
+  .seg b.on.bldr{background:var(--bldr)}
+  .seg.hd b:first-child{flex:0 0 auto;padding:0 7px;font-size:8px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--moss-deep);background:var(--sand)}
+
+  .mini{height:24px;flex:1;min-width:0;border:1px solid var(--line-strong);border-radius:6px;display:flex;align-items:center;justify-content:center;gap:4px;font-size:10px;font-weight:700;color:var(--muted);white-space:nowrap;background:transparent}
+  .mini.sq{flex:0 0 32px}
+  .mini .n{background:var(--amber-soft);color:var(--amber);border-radius:3px;padding:0 4px;font-weight:800;line-height:14px}
+  .mini .c{background:rgba(28,26,23,.08);border-radius:3px;padding:0 4px;font-weight:800;line-height:14px}
+  .mini.print{background:var(--bldr);color:#fff;border-color:transparent}
+  .mini.print.ink{background:var(--ink)}
+
+  /* ---- areas & rows (shared) ---- */
+  .content{padding:12px}
+  .content.tight{padding:8px}
+  .area{border:1px solid var(--grid);border-radius:8px;overflow:hidden;background:var(--card);margin-bottom:10px}
+  .content.tight .area{margin-bottom:8px}
+  .ahead{background:var(--band);padding:8px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .ahead.active{box-shadow:inset 3px 0 0 var(--moss)}
+  .content.tight .ahead{padding:6px 11px}
+  .aname{font-size:20px;font-weight:600;letter-spacing:-.01em;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .content.tight .aname{font-size:18px}
+  .ameta{display:flex;align-items:center;gap:10px;flex:none;font-size:10.5px;font-weight:600}
+  .ameta .ic svg{width:14px;height:14px}
+  .row{display:flex;align-items:flex-start;gap:8px;padding:9px 12px;background:var(--paper);border-top:1px solid var(--rowline)}
+  .content.tight .row{padding:7px 10px}
+  .chip{width:19px;height:19px;border-radius:4px;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none;margin-top:1px}
+  .chip.blank{background:var(--card);color:var(--muted);border:1px dashed var(--line-strong);font-size:13px;font-weight:600}
+  .rbody{flex:1;min-width:0}
+  .rtop{display:flex;align-items:baseline;gap:8px}
+  .rtop b{font-size:13px;font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rtop b.blank{color:var(--muted);font-weight:600}
+  .rtop i{font-style:normal;font-size:12px;font-weight:800;color:var(--bldr);flex:none}
+  .rtop i.faint{color:var(--faint)}
+  .rsub{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--faint);white-space:nowrap;overflow:hidden;margin-top:1px}
+  .rsub span{overflow:hidden;text-overflow:ellipsis}
+  .rsub .tags{margin-left:auto;display:flex;gap:2px;flex:none}
+  .rsub .tags em{font-style:normal;font-size:8.5px;font-weight:800;padding:1px 4px;border-radius:3px;color:var(--moss-deep);background:var(--moss-soft)}
+  .rsub .tags em.warn{color:#c2410c;background:#ffedd5}
+
+  .bottom{display:flex;gap:8px;padding:10px 12px 14px;background:var(--paper);border-top:1px solid var(--line);flex:none}
+  .bottom.tight{padding:8px 10px 12px;gap:6px}
+  .btn{white-space:nowrap;height:38px;border-radius:6px;display:flex;align-items:center;justify-content:center;gap:4px;font-size:12.5px;font-weight:700;padding:0 12px;flex:none}
+  .bottom.tight .btn{height:36px}
+  .btn.line{border:1px solid var(--line-strong);background:var(--card)}
+  .btn.ink{background:var(--ink);color:var(--paper);flex:1;min-width:0}
+  .btn.ink .sub{opacity:.75;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .btn.bldr{background:var(--bldr);color:#fff;padding:0 16px}
+  .btn .ic{color:inherit}.btn .ic svg{width:14px;height:14px}
+
+  /* ruler: measures the header stack on the board */
+  .rule{position:absolute;right:-22px;top:0;width:14px;pointer-events:none}
+  .rule i{position:absolute;left:0;width:14px;border-top:2px solid #93B56A;border-bottom:2px solid #93B56A;border-right:2px solid #93B56A;border-radius:0 3px 3px 0}
+  .rule b{position:absolute;left:18px;transform:translate(0,-50%);font-size:9px;font-weight:800;color:var(--ink);background:#93B56A;border-radius:3px;padding:1px 4px;white-space:nowrap}
+
+  /* ---- C rev 2 ---- */
+  .dd{height:24px;flex:1;min-width:0;overflow:hidden;border-radius:6px;display:flex;align-items:center;gap:3px;padding:0 5px;font-size:10px;font-weight:800;color:#fff;background:var(--bldr);white-space:nowrap}
+  .dd .eb{color:rgba(255,255,255,.75);font-size:7.5px}
+  .dd .ic{color:#fff;margin-left:auto}
+  .tot{height:24px;flex:0 0 86px;min-width:0;overflow:hidden;border:1px solid var(--line-strong);border-radius:6px;display:flex;flex-direction:column;align-items:flex-end;justify-content:center;padding:0 6px;white-space:nowrap}
+  .tot .eb{font-size:7px;line-height:1;margin-bottom:1px}
+  .tot b{font-size:12.5px;font-weight:800;letter-spacing:-.02em;line-height:1;color:var(--bldr)}
+  .menu{position:absolute;z-index:5;width:150px;background:var(--card);border:1px solid var(--line);border-radius:8px;box-shadow:0 10px 28px rgba(28,26,23,.22);padding:4px;display:flex;flex-direction:column;gap:1px}
+  .menu div{display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:5px;font-size:12px;font-weight:700;color:var(--ink)}
+  .menu div.on{background:var(--bldr-soft);color:var(--bldr)}
+  .menu div span.dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--ink)}
+  .menu div small{margin-left:auto;font-size:10px;font-weight:600;color:var(--muted)}
+  .menu div.on small{color:var(--bldr)}
+  .menu div input{width:34px;border:0;border-bottom:1px solid var(--line-strong);background:transparent;font:inherit;font-size:12px;text-align:right;margin-left:auto}
+  .dim{position:absolute;inset:0;background:rgba(0,0,0,.3);z-index:6}
+  .sheet{position:absolute;left:0;right:0;bottom:0;z-index:7;height:86%;background:var(--paper);border-radius:14px 14px 0 0;display:flex;flex-direction:column;box-shadow:0 -10px 30px rgba(0,0,0,.25)}
+  .sheet .grab{width:36px;height:4px;border-radius:2px;background:var(--line-strong);margin:6px auto 2px}
+  .sheet .sh{display:flex;align-items:center;gap:6px;padding:4px 14px 8px;border-bottom:1px solid var(--line)}
+  .sheet .sh b{font-size:15px;font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sheet .sb{flex:1;overflow:auto;padding:10px 14px;display:flex;flex-direction:column;gap:9px;scrollbar-width:none}
+  .sheet .lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:3px}
+  .sheet .lbl i{font-style:normal;text-transform:none;letter-spacing:0;font-weight:400;color:var(--faint)}
+  .sheet .inp{height:32px;border:1px solid var(--line);border-radius:6px;background:var(--card);padding:0 9px;font-size:13px;display:flex;align-items:center}
+  .sheet .inp.ta{height:44px;align-items:flex-start;padding-top:6px;color:var(--faint)}
+  .sheet .seg{height:30px;background:var(--band)}
+  .sheet .seg b{font-size:11.5px}
+  .sheet .chips{display:flex;flex-wrap:wrap;gap:4px}
+  .sheet .chips span{font-size:11px;background:rgba(28,26,23,.07);border-radius:5px;padding:3px 7px}
+  .sheet .chips span.add{background:transparent;border:1px solid var(--line);color:var(--muted)}
+  .sheet .acts{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding-top:2px}
+  .sheet .acts div{height:34px;border:1px solid var(--line);border-radius:6px;background:var(--card);display:flex;align-items:center;justify-content:center;gap:5px;font-size:12px;font-weight:700;color:var(--muted)}
+  .sheet .acts div.del{color:#b91c1c;border-color:#fecaca}
+  .sheet .sf{display:flex;align-items:center;gap:10px;padding:8px 14px 14px;border-top:1px solid var(--line)}
+  .sheet .sf .eb{font-size:8.5px}
+  .sheet .sf b{font-size:17px;font-weight:800;color:var(--bldr);display:block}
+  .sheet .sf .btn{margin-left:auto;padding:0 28px}
+  .hl{outline:2px solid #93B56A;outline-offset:2px;border-radius:7px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="note">
+    <h1>Add bar &mdash; Price book search as the wide button</h1>
+    <p>Owner, 2026-09-15: <i>"Right now when you click + Product it opens the manual input and then you can hit price book to search. What if we added a price book search button to the right of the product button. Make it take up a larger portion of the bar space since it will be the main pressed button."</i></p>
+    <ul>
+      <li><b>Price book</b> is the wide ink button and carries the target-area name <b>stacked under its label</b>. Tapping it opens the new row's sheet <b>straight into the full-screen search</b>; a pick fills the row, X drops into the manual editor.</li>
+      <li><b>+ Product</b> becomes a compact outlined button like <b>+ Area</b> and opens the manual editor as before.</li>
+      <li>With nothing searchable (no books loaded) the bar falls back to today's two buttons.</li>
+      <li>Two passed drafts at the end: the single-line "&middot; Master Bath" label had ~40 px at 344 px and read "&middot; Ma&hellip;"; dropping the + icons from Area / Product bought ~45 px and still truncated.</li>
+    </ul>
+    <table>
+      <tr><th>Button</th><th>Width at 344 px</th></tr>
+      <tr><td>+ Area</td><td data-w="area">&mdash;</td></tr>
+      <tr><td>+ Product</td><td data-w="prod">&mdash;</td></tr>
+      <tr><td><span class="tag">ink</span>Price book / area</td><td data-w="book">&mdash;</td></tr>
+    </table>
+    <p>Third phone: a long area name truncates on the stacked line; the button never grows past the bar.</p>
+  </div>
+
+  <div class="col">
+    <div class="cap"><b>Now</b><span>Area + wide Product</span></div>
+    <div class="phone">
+      <div class="topbar tight">
+        <div class="burger" data-i="menu"></div>
+        <div class="mark s" data-i="mark"></div>
+        <div class="title" style="font-weight:600;color:var(--muted)">Sarah Hendricks <span style="color:var(--faint)">›</span> <span style="color:var(--ink)">Main Floor</span></div>
+        <div class="more s" data-i="more"></div>
+      </div>
+      <div class="scroll">
+        <div class="content tight">
+          <div class="band" style="margin-bottom:8px;flex-direction:row;position:relative">
+            <div style="display:flex;flex-direction:column;gap:3px;flex:0 0 106px;min-width:0">
+              <div class="box" style="flex:1">
+                <div class="eb">Customer</div>
+                <div class="v link">Sarah Hendricks <span class="ic xxs" data-i="chev" style="color:inherit"></span></div>
+                <div class="sub"><span class="ic xxs" data-i="bldg"></span>Ridgeline Homes</div>
+              </div>
+              <div class="box" style="flex:1">
+                <div class="eb" style="display:flex;gap:3px;align-items:center"><span class="ic xxs" data-i="lock"></span>Salesperson</div>
+                <div class="v">Marcus</div>
+                <div class="sub">(555) 210-8834</div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:0">
+              <div class="box" style="flex:0 0 auto;padding:3px 7px 4px">
+                <div class="eb ebrow">Project <span class="num">N142</span></div>
+                <div class="name">Hendricks &mdash; Main Floor</div>
+                <div class="addr">418 Ridgeline Ct, Bend OR</div>
+              </div>
+              <div class="r" style="gap:3px">
+                <div class="dd">Builder &minus;15%<span class="ic xxs" data-i="chev"></span></div>
+                <div class="tot"><span class="eb">Total</span><b>$6,842.10</b></div>
+              </div>
+              <div class="r" style="gap:3px">
+                <div class="mini" style="height:22px;flex:1 1 auto;padding:0 6px">All $ <span class="ic xxs" data-i="chev"></span></div>
+                <div class="mini" style="height:22px;flex:1 1 auto;padding:0 6px"><span class="ic xs" data-i="layers"></span> Samples <span class="n">1</span></div>
+                <div class="mini" style="height:22px;flex:1 1 auto;padding:0 6px"><span class="ic xs" data-i="truck"></span> <span class="c">$85</span></div>
+              </div>
+            </div>
+            
+          </div>
+          <div data-areas="tight"></div>
+        </div>
+      </div>
+      <div class="bottom tight">
+        <div class="btn line"><span class="ic" data-i="plus"></span> Area</div>
+        <div class="btn ink"><span class="ic" data-i="plus"></span> Product<span class="sub">&nbsp;&middot; Master Bath</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="cap"><b><i>New</i> Price book wide, area stacked</b><span>owner's pick</span></div>
+    <div class="phone" data-phone="new">
+      <div class="topbar tight">
+        <div class="burger" data-i="menu"></div>
+        <div class="mark s" data-i="mark"></div>
+        <div class="title" style="font-weight:600;color:var(--muted)">Sarah Hendricks <span style="color:var(--faint)">›</span> <span style="color:var(--ink)">Main Floor</span></div>
+        <div class="more s" data-i="more"></div>
+      </div>
+      <div class="scroll">
+        <div class="content tight">
+          <div class="band" style="margin-bottom:8px;flex-direction:row;position:relative">
+            <div style="display:flex;flex-direction:column;gap:3px;flex:0 0 106px;min-width:0">
+              <div class="box" style="flex:1">
+                <div class="eb">Customer</div>
+                <div class="v link">Sarah Hendricks <span class="ic xxs" data-i="chev" style="color:inherit"></span></div>
+                <div class="sub"><span class="ic xxs" data-i="bldg"></span>Ridgeline Homes</div>
+              </div>
+              <div class="box" style="flex:1">
+                <div class="eb" style="display:flex;gap:3px;align-items:center"><span class="ic xxs" data-i="lock"></span>Salesperson</div>
+                <div class="v">Marcus</div>
+                <div class="sub">(555) 210-8834</div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:0">
+              <div class="box" style="flex:0 0 auto;padding:3px 7px 4px">
+                <div class="eb ebrow">Project <span class="num">N142</span></div>
+                <div class="name">Hendricks &mdash; Main Floor</div>
+                <div class="addr">418 Ridgeline Ct, Bend OR</div>
+              </div>
+              <div class="r" style="gap:3px">
+                <div class="dd">Builder &minus;15%<span class="ic xxs" data-i="chev"></span></div>
+                <div class="tot"><span class="eb">Total</span><b>$6,842.10</b></div>
+              </div>
+              <div class="r" style="gap:3px">
+                <div class="mini" style="height:22px;flex:1 1 auto;padding:0 6px">All $ <span class="ic xxs" data-i="chev"></span></div>
+                <div class="mini" style="height:22px;flex:1 1 auto;padding:0 6px"><span class="ic xs" data-i="layers"></span> Samples <span class="n">1</span></div>
+                <div class="mini" style="height:22px;flex:1 1 auto;padding:0 6px"><span class="ic xs" data-i="truck"></span> <span class="c">$85</span></div>
+              </div>
+            </div>
+            
+          </div>
+          <div data-areas="tight"></div>
+        </div>
+      </div>
+      <div class="bottom tight">
+        <div class="btn line"><span class="ic" data-i="plus"></span> Area</div>
+        <div class="btn line"><span class="ic" data-i="plus"></span> Product</div>
+        <div class="btn ink" style="flex-direction:column;gap:0;line-height:1.05"><span style="display:flex;align-items:center;gap:4px"><span class="ic" data-i="search"></span> Price book</span><span class="sub" style="font-size:9px;max-width:100%">Master Bath</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="cap"><b><i>New</i> long area name</b><span>stacked line truncates, bar holds</span></div>
+    <div class="phone">
+      <div class="topbar tight">
+        <div class="burger" data-i="menu"></div>
+        <div class="mark s" data-i="mark"></div>
+        <div class="title" style="font-weight:600;color:var(--muted)">Sarah Hendricks <span style="color:var(--faint)">›</span> <span style="color:var(--ink)">Main Floor</span></div>
+        <div class="more s" data-i="more"></div>
+      </div>
+      <div class="scroll">
+        <div class="content tight">
+          <div class="band" style="margin-bottom:8px;flex-direction:row;position:relative">
+            <div style="display:flex;flex-direction:column;gap:3px;flex:0 0 106px;min-width:0">
+              <div class="box" style="flex:1">
+                <div class="eb">Customer</div>
+                <div class="v link">Sarah Hendricks <span class="ic xxs" data-i="chev" style="color:inherit"></span></div>
+                <div class="sub"><span class="ic xxs" data-i="bldg"></span>Ridgeline Homes</div>
+              </div>
+              <div class="box" style="flex:1">
+                <div class="eb" style="display:flex;gap:3px;align-items:center"><span class="ic xxs" data-i="lock"></span>Salesperson</div>
+                <div class="v">Marcus</div>
+                <div class="sub">(555) 210-8834</div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:0">
+              <div class="box" style="flex:0 0 auto;padding:3px 7px 4px">
+                <div class="eb ebrow">Project <span class="num">N142</span></div>
+                <div class="name">Hendricks &mdash; Main Floor</div>
+                <div class="addr">418 Ridgeline Ct, Bend OR</div>
+              </div>
+              <div class="r" style="gap:3px">
+                <div class="dd">Builder &minus;15%<span class="ic xxs" data-i="chev"></span></div>
+                <div class="tot"><span class="eb">Total</span><b>$6,842.10</b></div>
+              </div>
+              <div class="r" style="gap:3px">
+                <div class="mini" style="height:22px;flex:1 1 auto;padding:0 6px">All $ <span class="ic xxs" data-i="chev"></span></div>
+                <div class="mini" style="height:22px;flex:1 1 auto;padding:0 6px"><span class="ic xs" data-i="layers"></span> Samples <span class="n">1</span></div>
+                <div class="mini" style="height:22px;flex:1 1 auto;padding:0 6px"><span class="ic xs" data-i="truck"></span> <span class="c">$85</span></div>
+              </div>
+            </div>
+            
+          </div>
+          <div data-areas="tight"></div>
+        </div>
+      </div>
+      <div class="bottom tight">
+        <div class="btn line"><span class="ic" data-i="plus"></span> Area</div>
+        <div class="btn line"><span class="ic" data-i="plus"></span> Product</div>
+        <div class="btn ink" style="flex-direction:column;gap:0;line-height:1.05"><span style="display:flex;align-items:center;gap:4px"><span class="ic" data-i="search"></span> Price book</span><span class="sub" style="font-size:9px;max-width:100%">Upstairs Hallway &amp; Landing</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="cap"><b><i>Passed</i> single-line label</b><span>"&middot; Ma&hellip;" at 344 px</span></div>
+    <div class="phone">
+      <div class="topbar tight">
+        <div class="burger" data-i="menu"></div>
+        <div class="mark s" data-i="mark"></div>
+        <div class="title" style="font-weight:600;color:var(--muted)">Sarah Hendricks <span style="color:var(--faint)">›</span> <span style="color:var(--ink)">Main Floor</span></div>
+        <div class="more s" data-i="more"></div>
+      </div>
+      <div class="scroll">
+        <div class="content tight">
+          <div class="band" style="margin-bottom:8px;flex-direction:row;position:relative">
+            <div style="display:flex;flex-direction:column;gap:3px;flex:0 0 106px;min-width:0">
+              <div class="box" style="flex:1">
+                <div class="eb">Customer</div>
+                <div class="v link">Sarah Hendricks <span class="ic xxs" data-i="chev" style="color:inherit"></span></div>
+                <div class="sub"><span class="ic xxs" data-i="bldg"></span>Ridgeline Homes</div>
+              </div>
+              <div class="box" style="flex:1">
+                <div class="eb" style="display:flex;gap:3px;align-items:center"><span class="ic xxs" data-i="lock"></span>Salesperson</div>
+                <div class="v">Marcus</div>
+                <div class="sub">(555) 210-8834</div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:0">
+              <div class="box" style="flex:0 0 auto;padding:3px 7px 4px">
+                <div class="eb ebrow">Project <span class="num">N142</span></div>
+                <div class="name">Hendricks &mdash; Main Floor</div>
+                <div class="addr">418 Ridgeline Ct, Bend OR</div>
+              </div>
+              <div class="r" style="gap:3px">
+                <div class="dd">Builder &minus;15%<span class="ic xxs" data-i="chev"></span></div>
+                <div class="tot"><span class="eb">Total</span><b>$6,842.10</b></div>
+              </div>
+              <div class="r" style="gap:3px">
+                <div class="mini" style="height:22px;flex:1 1 auto;padding:0 6px">All $ <span class="ic xxs" data-i="chev"></span></div>
+                <div class="mini" style="height:22px;flex:1 1 auto;padding:0 6px"><span class="ic xs" data-i="layers"></span> Samples <span class="n">1</span></div>
+                <div class="mini" style="height:22px;flex:1 1 auto;padding:0 6px"><span class="ic xs" data-i="truck"></span> <span class="c">$85</span></div>
+              </div>
+            </div>
+            
+          </div>
+          <div data-areas="tight"></div>
+        </div>
+      </div>
+      <div class="bottom tight">
+        <div class="btn line"><span class="ic" data-i="plus"></span> Area</div>
+        <div class="btn line"><span class="ic" data-i="plus"></span> Product</div>
+        <div class="btn ink"><span class="ic" data-i="search"></span> Price book<span class="sub">&nbsp;&middot; Master Bath</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="col">
+    <div class="cap"><b><i>Passed</i> lean Area / Product</b><span>no + icons, still truncates</span></div>
+    <div class="phone">
+      <div class="topbar tight">
+        <div class="burger" data-i="menu"></div>
+        <div class="mark s" data-i="mark"></div>
+        <div class="title" style="font-weight:600;color:var(--muted)">Sarah Hendricks <span style="color:var(--faint)">›</span> <span style="color:var(--ink)">Main Floor</span></div>
+        <div class="more s" data-i="more"></div>
+      </div>
+      <div class="scroll">
+        <div class="content tight">
+          <div class="band" style="margin-bottom:8px;flex-direction:row;position:relative">
+            <div style="display:flex;flex-direction:column;gap:3px;flex:0 0 106px;min-width:0">
+              <div class="box" style="flex:1">
+                <div class="eb">Customer</div>
+                <div class="v link">Sarah Hendricks <span class="ic xxs" data-i="chev" style="color:inherit"></span></div>
+                <div class="sub"><span class="ic xxs" data-i="bldg"></span>Ridgeline Homes</div>
+              </div>
+              <div class="box" style="flex:1">
+                <div class="eb" style="display:flex;gap:3px;align-items:center"><span class="ic xxs" data-i="lock"></span>Salesperson</div>
+                <div class="v">Marcus</div>
+                <div class="sub">(555) 210-8834</div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:0">
+              <div class="box" style="flex:0 0 auto;padding:3px 7px 4px">
+                <div class="eb ebrow">Project <span class="num">N142</span></div>
+                <div class="name">Hendricks &mdash; Main Floor</div>
+                <div class="addr">418 Ridgeline Ct, Bend OR</div>
+              </div>
+              <div class="r" style="gap:3px">
+                <div class="dd">Builder &minus;15%<span class="ic xxs" data-i="chev"></span></div>
+                <div class="tot"><span class="eb">Total</span><b>$6,842.10</b></div>
+              </div>
+              <div class="r" style="gap:3px">
+                <div class="mini" style="height:22px;flex:1 1 auto;padding:0 6px">All $ <span class="ic xxs" data-i="chev"></span></div>
+                <div class="mini" style="height:22px;flex:1 1 auto;padding:0 6px"><span class="ic xs" data-i="layers"></span> Samples <span class="n">1</span></div>
+                <div class="mini" style="height:22px;flex:1 1 auto;padding:0 6px"><span class="ic xs" data-i="truck"></span> <span class="c">$85</span></div>
+              </div>
+            </div>
+            
+          </div>
+          <div data-areas="tight"></div>
+        </div>
+      </div>
+      <div class="bottom tight">
+        <div class="btn line" style="padding:0 10px">Area</div>
+        <div class="btn line" style="padding:0 10px">Product</div>
+        <div class="btn ink"><span class="ic" data-i="search"></span> Price book<span class="sub">&nbsp;&middot; Master Bath</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  const I = {
+    mark: '<svg viewBox="0 0 200 200" role="img" aria-label="the ned"><rect width="200" height="200" rx="46" fill="#1C1A17"/><defs><clipPath id="nk"><path d="M45,165 V40 H107 A48,48 0 0 1 155,88 V165 H125 V103 A25,25 0 0 0 75,103 V165 Z"/></clipPath></defs><path d="M45,165 V40 H107 A48,48 0 0 1 155,88 V165 H125 V103 A25,25 0 0 0 75,103 V165 Z" fill="#F6F3EC"/><g clip-path="url(#nk)" stroke="#1C1A17" stroke-width="4" fill="none"><line x1="59" y1="36" x2="59" y2="169"/><line x1="43" y1="50" x2="100" y2="80"/><line x1="88" y1="58" x2="157" y2="58"/><line x1="126" y1="60" x2="157" y2="114"/><line x1="139" y1="108" x2="139" y2="169"/></g></svg>',
+    menu: '<svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>',
+    more: '<svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1" fill="currentColor"/><circle cx="12" cy="12" r="1" fill="currentColor"/><circle cx="19" cy="12" r="1" fill="currentColor"/></svg>',
+    search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>',
+    plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+    print: '<svg viewBox="0 0 24 24"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>',
+    chev: '<svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>',
+    bldg: '<svg viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4M8 6h.01M16 6h.01M12 6h.01M12 10h.01M8 10h.01M16 10h.01M12 14h.01M8 14h.01M16 14h.01"/></svg>',
+    lock: '<svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
+    files: '<svg viewBox="0 0 24 24"><path d="M21.4 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>',
+    save: '<svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>',
+    hist: '<svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l4 2"/></svg>',
+    layers: '<svg viewBox="0 0 24 24"><path d="M12 2l10 5-10 5L2 7l10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>',
+    truck: '<svg viewBox="0 0 24 24"><path d="M1 3h15v13H1zM16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>',
+    x: '<svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>',
+    clip: '<svg viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2M9 12h6M9 16h6"/></svg>',
+    grip: '<svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>',
+    trash: '<svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg>',
+  };
+  document.querySelectorAll('[data-i]').forEach((el) => { el.innerHTML = I[el.dataset.i]; });
+
+  // The same two areas under every header, so the header is the only thing that differs.
+  const chips = { tile: 'var(--t-tile)', hard: 'var(--t-hard)', vinyl: 'var(--t-vinyl)', carpet: 'var(--t-carpet)', misc: 'var(--t-misc)' };
+  const areas = [
+    { name: 'Master Bath', total: '$1,684.36', active: true, rows: [
+      ['tile', 'T', 'Aniston Silver 12×24 Polished', '$1,214.40', 'HC1224AS · 12×24 · 16 CT × 15.5 SF · @ $4.79/sf', ['G', 'M']],
+      ['tile', 'T', 'Bullnose 3×12 Silver', '$167.96', 'HCBN312 · 3×12 · 4 CT · @ $41.99/ct', []],
+      ['tile', 'T', 'Pebble Mosaic Shower Floor', '$302.00', 'PEB-SF · 12×12 sheet · 20 SF × 1 · @ $15.10/sf', ['G', 'M', '!']],
+      ['blank', '+', 'New product…', '$0.00', 'tap to fill in', []],
+    ]},
+    { name: 'Kitchen', total: '$2,867.74', rows: [
+      ['vinyl', 'V', 'Adura Max Sausalito', '$2,180.00', 'MAX010 · 22 CT × 30.2 SF · @ $3.29/sf', ['U']],
+      ['misc', '✕', 'Quarter round, painted', '$187.74', '96 LF · @ $1.96/lf', []],
+      ['hard', 'H', 'Sheoga White Oak 5" Natural', '$500.00', 'WO5-NAT · 2 CT × 20 SF · @ $12.50/sf', []],
+    ]},
+    { name: 'Laundry', total: '$2,290.00', rows: [
+      ['carpet', 'C', 'Interface Carpet Tile — Heuga 727', '$2,290.00', 'H727-9051 · 40 CT × 5.38 SY · @ $10.65/sf', []],
+    ]},
+  ];
+  const areaHtml = areas.map((a) => `
+    <div class="area">
+      <div class="ahead${a.active ? ' active' : ''}">
+        <div class="aname">${a.name}</div>
+        <div class="ameta"><span>${a.total}</span><span class="ic" data-x="grip">${I.grip}</span><span class="ic" data-x="trash">${I.trash}</span></div>
+      </div>
+      ${a.rows.map(([t, l, name, money, sub, tags]) => `
+        <div class="row">
+          <span class="chip${t === 'blank' ? ' blank' : ''}" style="${t === 'blank' ? '' : 'background:' + chips[t]}">${l}</span>
+          <span class="rbody">
+            <span class="rtop"><b class="${t === 'blank' ? 'blank' : ''}">${name}</b><i class="${t === 'blank' ? 'faint' : ''}">${money}</i></span>
+            <span class="rsub"><span>${sub}</span>${tags.length ? '<span class="tags">' + tags.map((x) => `<em class="${x === '!' ? 'warn' : ''}">${x}</em>`).join('') + '</span>' : ''}</span>
+          </span>
+        </div>`).join('')}
+    </div>`).join('');
+  document.querySelectorAll('[data-areas]').forEach((el) => { el.innerHTML = areaHtml; });
+  document.fonts.ready.then(() => {
+    const bar = document.querySelector('[data-phone="new"] .bottom');
+    const [a, p, b] = bar.querySelectorAll('.btn');
+    const w = (el) => Math.round(el.getBoundingClientRect().width) + ' px';
+    document.querySelector('[data-w="area"]').textContent = w(a);
+    document.querySelector('[data-w="prod"]').textContent = w(p);
+    document.querySelector('[data-w="book"]').textContent = w(b);
+  });
+</script>
+</body>
+</html>
