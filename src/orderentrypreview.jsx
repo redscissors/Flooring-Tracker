@@ -84,6 +84,7 @@ const freight = [freightOrderRow({ bookId: "bkDal", book: "Daltile", cost: 185 }
 createRoot(document.getElementById("preview")).render(
   <OrderEntryPanel
     name="Hendricks Residence — N142"
+    custInfo={{ custName: "Pat Hendricks", address: "224 Hammersley Dr, PO Box 288, Tuscarawas, OH 44682", phone: "330-432-7374" }}
     special={[...built.filter((r) => r.special), ...freight]}
     stock={[...built.filter((r) => !r.special), ...mats]}
     descLimit={DESC_LIMIT}

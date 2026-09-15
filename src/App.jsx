@@ -2960,9 +2960,11 @@ export default function App({ user, onSignOut }) {
         // on the same order, and like a Sheoga line it has no SKU to key.
         const freightRows = oeT.fList.map((l) => freightOrderRow(l, descLimit));
         const name = optsUsed.length && scope !== "all" ? `${sel.name} — ${optionShort(sel, scope)}` : sel.name;
+        const cust = data.people.find((c) => c.id === sel.customerId);
+        const custInfo = { custName: cust?.name || sel.name || "", address: sel.address || cust?.address || "", phone: sel.phone || cust?.phone || "" };
         return (
           <Suspense fallback={null}>
-            <OrderEntryPanel name={name} special={[...rows.filter((r) => r.special), ...specialMats, ...freightRows]} stock={[...rows.filter((r) => !r.special), ...mats]} descLimit={descLimit} onClose={() => { setShowOrderCopy(false); setOrderScope(null); }} />
+            <OrderEntryPanel name={name} custInfo={custInfo} special={[...rows.filter((r) => r.special), ...specialMats, ...freightRows]} stock={[...rows.filter((r) => !r.special), ...mats]} descLimit={descLimit} onClose={() => { setShowOrderCopy(false); setOrderScope(null); }} />
           </Suspense>
         );
       })()}
