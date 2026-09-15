@@ -251,6 +251,30 @@ export const floorSeedFromPrefin = (row, grade, w) => ({
   sheen: String(row.sheen), sheenCustom: false, sample: false,
 });
 
+// Prefinishing takes micro bevel as its minimum edge (owner, 2026-09-15): a
+// prefinished build saved or picked with Square edge orders as Micro bevel —
+// same $0, but the order text and the stock match read the edge Sheoga cuts.
+export const floorEdge = (f) => (f.finish && f.finish !== "unf" && (f.edge || "square") === "square" ? "bevel" : f.edge || "square");
+
+// The reverse of floorSeedFromPrefin: a custom-tab build that IS the stocked
+// program's own item — solid, standard lengths, no sap, micro bevel, the sheet
+// color at its standard sheen, on a green cell — resolves to that item's
+// stocked configuration, else null. "4¼ Character Hickory Toasted Acorn" is
+// stock however the tab it was built on (owner, 2026-09-15), so calcFloor
+// prices it as calcStocked would: no small-order fee, ships from stock.
+export function stockedForFloor(f) {
+  if (!f || f.cons === "eng" || f.noSap || (f.len || "1-8") !== "1-8" || floorEdge(f) !== "bevel") return null;
+  if (f.finish !== "nat" && f.finish !== "est") return null;
+  const color = f.finish === "nat" ? "Natural" : String(f.stain || "").trim();
+  const row = prefinRowFor({ sp: f.sp, color, tex: f.tex });
+  if (!row || !prefinGreen(row, f.grade, PREFIN_WS.indexOf(f.w))) return null;
+  if (sheenChange(f, standardSheen(f)).add > 0) return null;
+  const it = stockedForPrefin(row);
+  if (!it) return null;
+  const k = { sp: it.sp, color: it.color, grade: f.grade, w: f.w, sheen: String(it.sheen), sheenCustom: false };
+  return calcStocked(k) ? k : null;
+}
+
 // --- herringbone --------------------------------------------------------------
 // 4 slat-length bands × widths per species. Made to order, no carton rounding.
 
@@ -443,7 +467,7 @@ export function calcFloor(f, sf) {
   // doesn't run it through the prefinish line at any price.
   if (f.sp === LIVE_SAWN_SP && f.finish !== "unf") return null;
   const tex = TEXTURES.find((t) => t.id === f.tex);
-  const edge = EDGES.find((e) => e.id === f.edge);
+  const edge = EDGES.find((e) => e.id === floorEdge(f));
   const len = LENGTHS.find((l) => l.id === f.len);
   const fin = FINISHES.find((x) => x.id === f.finish);
   if (!tex || !edge || !len || !fin) return null;
@@ -451,8 +475,11 @@ export function calcFloor(f, sf) {
   const lenAdd = ((base + sap) * len.pct) / 100;
   const finAdd = fin.add(f);
   const sc = sheenChange(f, standardSheen(f));
-  const fee = smallOrderFee(f.finish, sf, sc.add > 0);
-  const cost = base + sap + lenAdd + tex.add + edge.add + finAdd + sc.add;
+  const stock = stockedForFloor(f);
+  const fee = stock ? 0 : smallOrderFee(f.finish, sf, sc.add > 0);
+  // A stock build quotes the sheet's own transcribed cell, so both tabs show
+  // one number for one item (the derived sum equals it up to float noise).
+  const cost = stock ? calcStocked(stock).cost : base + sap + lenAdd + tex.add + edge.add + finAdd + sc.add;
   const rows = [[`Unfinished base — ${[f.sp, gradeName(f)].filter(Boolean).join(", ")}, ${f.cons === "solid" ? "solid" : "engineered"} ${WIDTH_LABEL[f.w]}`, fm(base) + "/sf"]];
   if (sap) rows.push(["No-sap upcharge", `+${fm(sap)}/sf`]);
   if (len.pct) rows.push([`${len.name} lengths (+${len.pct}% of base)`, `+${fm(lenAdd)}/sf`]);
@@ -469,8 +496,7 @@ export function calcFloor(f, sf) {
   const sampleOn = custom || (established && f.sample);
   if (sampleOn) fees.push({ label: "Custom color-match sample — approval bundle shipped", amt: SAMPLE_FEE });
   fees.forEach((x) => rows.push([`${x.label} → imports as its own line`, `+${fm(x.amt)} flat`]));
-  const warn = [];
-  warn.push("Made to order · 5–10% overrun · non-returnable");
+  const warn = [stock ? "Stocked item — ships from Sheoga stock" : "Made to order · 5–10% overrun · non-returnable"];
   const size = WIDTH_LABEL[f.w];
   // Description = plain spaces, no separators; the size lives in the row's own
   // size field so it's left out of `rest`. Standard texture (Smooth), edge
@@ -575,8 +601,8 @@ export function calcHerringbone(h, sf) {
   // Missing fields (pre-edge/finishing saved configs) read as smooth + square
   // edge + unfinished.
   const tex = TEXTURES.find((x) => x.id === h.tex) || TEXTURES[0];
-  const edge = EDGES.find((x) => x.id === h.edge) || EDGES[0];
   const fin = FINISHES.find((x) => x.id === h.finish) || FINISHES[0];
+  const edge = EDGES.find((x) => x.id === floorEdge({ ...h, finish: fin.id })) || EDGES[0];
   const prefin = fin.id !== "unf";
   if (tex.add) { cost += tex.add; rows.push([`Texture — ${tex.name}`, `+${fm(tex.add)}/sf`]); }
   if (edge.add) { cost += edge.add; rows.push([`Edge — ${edge.name}`, `+${fm(edge.add)}/sf`]); }
@@ -750,7 +776,10 @@ export function multiWidthBuild(base, widths, sf) {
     fees.push(...stockedSheenFees(base.cfg, sf));
   } else {
     const f = base.cfg;
-    const fee = smallOrderFee(f.finish, sf, sheenChange(f, standardSheen(f)).add > 0);
+    // Every shipping width from stock → the bundle is a stock order; one
+    // made-to-order width makes the whole run owe the fee.
+    const stock = lines.some((l) => l.ok) && lines.every((l) => !l.ok || stockedForFloor({ ...f, w: l.w }));
+    const fee = stock ? 0 : smallOrderFee(f.finish, sf, sheenChange(f, standardSheen(f)).add > 0);
     if (fee) fees.push({ label: `Small-order fee — prefinished job under ${sf < 250 ? 250 : 500} sf`, amt: fee });
     if (CUSTOM_FINISHES.includes(f.finish) || (f.finish === "est" && f.sample)) fees.push({ label: "Custom color-match sample — approval bundle shipped", amt: SAMPLE_FEE });
   }
@@ -898,7 +927,7 @@ export function descParts(snap) {
 
 function floorParts(f) {
   const tex = TEXTURES.find((t) => t.id === f.tex);
-  const edge = EDGES.find((e) => e.id === f.edge);
+  const edge = EDGES.find((e) => e.id === floorEdge(f));
   const len = LENGTHS.find((l) => l.id === f.len);
   if (!tex || !edge || !len || !FINISHES.find((x) => x.id === f.finish)) return null;
   const sap = f.noSap ? NO_SAP[f.sp] || 0 : 0;

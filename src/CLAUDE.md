@@ -606,6 +606,11 @@ src/
                     # standard sheen (sheet footnote; textured = the lower of it
                     # and 20); any other sheen adds 25¢/sf on every tab, and on
                     # the stocked tab also the small-order fees (ADR 0039).
+                    # A floor-tab build that IS a stocked item (green cell,
+                    # standard sheen, the program's own build) prices as one:
+                    # no small-order fee, stock note (stockedForFloor, ADR
+                    # 0042); prefinished builds take micro bevel as the
+                    # minimum edge (floorEdge — Square greys in the picker).
                     # Vent tab: the Prefinished/Textured toggles reveal stain-color
                     # and scrape pickers (order text only — the sheet's adders are
                     # flat), and a "Copy floor" button maps the last-open floor/

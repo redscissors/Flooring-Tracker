@@ -12,7 +12,7 @@ import {
   redistributeShares, multiWidthBuild, multiWidthLineItems,
   normBasketEntry,
   PREFIN_SHEET, PREFIN_WS, prefinCost, prefinGreen, prefinRowFor, prefinRowForStocked,
-  stockedForPrefin, floorSeedFromPrefin, floorCellCost, floorGridIncludes,
+  stockedForPrefin, floorSeedFromPrefin, floorCellCost, floorGridIncludes, stockedForFloor, floorEdge,
   canDockGrid,
 } from "./sheoga.js";
 
@@ -132,7 +132,8 @@ test("calcFloor: established stain picks its rate from the texture depth", () =>
 });
 
 test("calcFloor: small-order fees are flat fee lines, never in the $/sf", () => {
-  const est = (sf) => calcFloor(floor({ finish: "est", stain: "Cattail" }), sf);
+  // Prestige isn't stocked on White Oak — a made-to-order run (Cattail 5¼" char is).
+  const est = (sf) => calcFloor(floor({ finish: "est", stain: "Prestige" }), sf);
   const base = 4.15 + 2.05; // established stain, smooth texture
   const big = est(600);
   assert.equal(big.cost, base);
@@ -149,7 +150,7 @@ test("calcFloor: small-order fees are flat fee lines, never in the $/sf", () => 
 test("calcFloor: Prefinished Natural at its standard sheen never owes the small-order fee", () => {
   for (const sf of [200, 400, 600]) {
     const c = calcFloor(floor({ finish: "nat" }), sf);
-    assert.equal(c.cost, 4.15 + 1.70);
+    assert.equal(+c.cost.toFixed(2), 5.85); // 4.15 + 1.70 — and a stock cell, so the sheet's own price
     assert.deepEqual(c.fees, []);
   }
 });
@@ -349,7 +350,8 @@ test("calcHerringbone: scrape + prefinished stain add the custom-tab $/sf, fees 
   // A textured prefinish's standard is 20, so 30-sheen here is a sheen change (+0.25).
   const fin = calcHerringbone({ ...base, tex: "sawcut", finish: "est", stain: "Cattail" }, 1000);
   assert.equal(fin.cost, 8.40 + 1.5 + 3.15 + 0.25);
-  assert.equal(fin.desc, '4¼" White Oak Character · Solid Herringbone · 18¼"–28" slats · Saw Cut · Prefinished Cattail stain 30sheen');
+  // Prefinishing takes micro bevel as its minimum edge (owner, 2026-09-15).
+  assert.equal(fin.desc, '4¼" White Oak Character · Solid Herringbone · 18¼"–28" slats · Saw Cut · Micro bevel · Prefinished Cattail stain 30sheen');
   assert.ok(fin.rows.some(([l]) => l === "Texture — Saw Cut"));
   assert.ok(fin.rows.some(([l]) => l === "Sheen change — 30-sheen (standard 20)"));
   assert.equal(calcHerringbone({ ...base, tex: "sawcut", finish: "est", stain: "Cattail", sheen: "20" }, 1000).cost, 8.40 + 1.5 + 3.15);
@@ -998,4 +1000,94 @@ test("canDockGrid: grid docks only when its own frame holds grid + rail + a real
   // tabs without a grid, or an unmeasured frame, never dock
   assert.equal(canDockGrid(2000, "vent"), false);
   assert.equal(canDockGrid(0, "floor"), false);
+});
+
+// --- custom-tab build that IS a stock item (owner, 2026-09-15) ------------------
+
+const acorn = (over = {}) => floor({ sp: "Hickory", grade: "char", w: 4.25, finish: "est", stain: "Toasted Acorn", sheen: "30", edge: "bevel", ...over });
+
+test("stockedForFloor: the stocked program's own build on the custom tab resolves to its stocked item", () => {
+  assert.deepEqual(stockedForFloor(acorn()), { sp: "Hickory", color: "Toasted Acorn", grade: "char", w: 4.25, sheen: "30", sheenCustom: false });
+  // Square edge on a prefinished build IS micro bevel — prefinishing takes micro bevel as its minimum edge.
+  assert.deepEqual(stockedForFloor(acorn({ edge: "square" })), stockedForFloor(acorn()));
+  // A blank sheen reads as the color's standard.
+  assert.ok(stockedForFloor(acorn({ sheen: "" })));
+  // Natural at its standard sheen is stock too.
+  assert.equal(stockedForFloor(floor({ finish: "nat", sheen: "30" })).color, "Natural");
+  // The textured stocked rows key by the vendor's spelling.
+  assert.equal(stockedForFloor(floor({ sp: "Hickory", grade: "char", w: 4.25, tex: "vintage", finish: "est", stain: "Hickory Nut", sheen: "20", edge: "bevel" })).color, "Hickory Nut · Vintage Charm");
+});
+
+test("stockedForFloor: anything off the stocked program's build is made to order", () => {
+  assert.equal(stockedForFloor(acorn({ w: 2.25 })), null); // white cell — Hickory Toasted Acorn starts at 3¼"
+  assert.equal(stockedForFloor(acorn({ grade: "clear" })), null); // char-only color
+  assert.equal(stockedForFloor(acorn({ sheen: "5" })), null); // non-standard sheen
+  assert.equal(stockedForFloor(acorn({ cons: "eng" })), null);
+  assert.equal(stockedForFloor(acorn({ len: "2-8" })), null);
+  assert.equal(stockedForFloor(acorn({ edge: "pillow" })), null);
+  assert.equal(stockedForFloor(acorn({ tex: "sawcut" })), null);
+  assert.equal(stockedForFloor(acorn({ stain: "Cattail" })), null); // Hickory Cattail isn't stocked
+  assert.equal(stockedForFloor(acorn({ finish: "unf" })), null);
+  assert.equal(stockedForFloor(acorn({ finish: "t1", stain: "Toasted Acorn" })), null);
+  assert.equal(stockedForFloor(floor({ sp: "Cherry", noSap: true, finish: "nat" })), null);
+  assert.equal(stockedForFloor(floor({ sp: "Q/R White Oak", finish: "nat" })), null); // on the sheet, never green
+});
+
+test("calcFloor: a stock build on the custom tab owes no small-order fee and ships from stock", () => {
+  for (const sf of [200, 400, 600]) {
+    const c = calcFloor(acorn(), sf);
+    assert.deepEqual(c.fees, [], String(sf));
+    assert.deepEqual(c.warn, ["Stocked item — ships from Sheoga stock"]);
+    assert.equal(c.cost, calcStocked({ sp: "Hickory", color: "Toasted Acorn", grade: "char", w: 4.25 }).cost);
+  }
+  assert.deepEqual(calcFloor(acorn({ edge: "square" }), 200).fees, []);
+  // The same color one step off stock is still the made-to-order run it was.
+  const white = calcFloor(acorn({ w: 2.25 }), 200);
+  assert.deepEqual(white.fees, [{ label: "Small-order fee — prefinished job under 250 sf", amt: 600 }]);
+  assert.deepEqual(white.warn, ["Made to order · 5–10% overrun · non-returnable"]);
+  assert.deepEqual(calcFloor(acorn({ sheen: "5" }), 200).fees, [{ label: "Small-order fee — prefinished job under 250 sf", amt: 600 }]);
+  // An optional color-match sample on a stock color is still charged when asked for.
+  assert.deepEqual(calcFloor(acorn({ sample: true }), 200).fees, [{ label: "Custom color-match sample — approval bundle shipped", amt: 750 }]);
+});
+
+test("calcFloor: every green cell built on the custom tab prices as its stocked item, fee-free", () => {
+  for (const row of PREFIN_SHEET) {
+    for (const grade of ["clear", "char"]) {
+      PREFIN_WS.forEach((w, wi) => {
+        if (!prefinGreen(row, grade, wi)) return;
+        const cfg = floorSeedFromPrefin(row, grade, w);
+        const k = stockedForFloor(cfg);
+        assert.ok(k, `${row.sp} ${row.color} ${grade} ${WIDTH_LABEL[w]}`);
+        const c = calcFloor(cfg, 200);
+        const s = calcStocked(k, 200);
+        assert.equal(c.cost, s.cost, `${row.sp} ${row.color} ${grade} ${WIDTH_LABEL[w]}`);
+        assert.deepEqual(c.fees, []);
+        assert.deepEqual(c.warn, s.warn);
+      });
+    }
+  }
+});
+
+test("calcFloor: a prefinished build takes micro bevel as its minimum edge", () => {
+  const c = calcFloor(floor({ finish: "est", stain: "Cattail", edge: "square" }), 600);
+  assert.equal(c.desc, '5¼" White Oak Character Solid Micro bevel Prefinished Cattail stain 30sheen');
+  assert.equal(c.cost, 4.15 + 2.05); // micro bevel is $0 — nothing changes but the order text
+  assert.equal(calcFloor(floor({ finish: "est", stain: "Cattail", edge: "bevel" }), 600).desc, c.desc);
+  assert.ok(calcFloor(floor({ finish: "est", stain: "Cattail", edge: "pillow" }), 600).desc.includes("Hand pillowed"));
+  assert.ok(!calcFloor(floor({ edge: "square" }), 600).desc.includes("bevel")); // unfinished keeps square
+  assert.equal(floorEdge(floor({ finish: "nat", edge: "square" })), "bevel");
+  assert.equal(floorEdge(floor({ finish: "unf", edge: "square" })), "square");
+  assert.equal(floorEdge(floor({ finish: "nat", edge: "vgroove" })), "vgroove");
+  // herringbone follows the same rule
+  const hb = { sp: "White Oak", cons: "solid", grade: "char", w: 4.25, slatLen: "24", finish: "est", stain: "Cattail", edge: "square" };
+  assert.ok(calcHerringbone(hb, 600).desc.includes("Micro bevel"));
+  assert.ok(!calcHerringbone({ ...hb, finish: "unf" }, 600).desc.includes("Micro bevel"));
+});
+
+test("multiWidthBuild floor: the small-order fee is waived only when every width ships from stock", () => {
+  const base = { mode: "floor", cfg: acorn() };
+  const stock = multiWidthBuild(base, shares([3.25, 4.25, 5.25]), 200); // all green
+  assert.deepEqual(stock.fees, []);
+  const mixed = multiWidthBuild(base, shares([2.25, 4.25, 5.25]), 200); // 2¼" is white
+  assert.deepEqual(mixed.fees, [{ label: "Small-order fee — prefinished job under 250 sf", amt: 600 }]);
 });

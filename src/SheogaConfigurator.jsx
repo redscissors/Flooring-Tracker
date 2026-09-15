@@ -10,7 +10,7 @@ import {
   MODES, HB_RETIRED, defaultConfig, calcConfig, calcFloor, calcStocked, calcHerringbone, calcVent,
   floorBase, floorWidths, floorCellCost, floorGridIncludes, WIDTHS, WIDTH_LABEL, LIVE_SAWN_SP, LIVE_SAWN, SPECIES, SP_SHORT, UNFINISHED,
   TEXTURES, EDGES, LENGTHS, FINISHES, NO_SAP, CUSTOM_FINISHES,
-  PREFIN_SHEET, PREFIN_WS, prefinCost, prefinGreen, prefinRowForStocked, stockedForPrefin, floorSeedFromPrefin,
+  PREFIN_SHEET, PREFIN_WS, prefinCost, prefinGreen, prefinRowForStocked, stockedForPrefin, floorSeedFromPrefin, stockedForFloor, floorEdge,
   STOCKED, STOCKED_WIDTHS, stockedItem, HERRINGBONE, CHEVRON_ADD,
   hbBandForLen, hbSlatLen,
   STAIN_COLORS, SHEENS, SHEEN_ADD, standardSheen, sheenChange,
@@ -341,6 +341,11 @@ function FloorRail({ f, set, sf, tsell, onGrid, multi, mwWidths, onMultiToggle, 
   const established = f.finish === "est";
   const prefin = f.finish !== "unf";
   const stained = established || custom;
+  const stock = !!stockedForFloor(f);
+  // Prefinishing takes micro bevel as its minimum edge (owner, 2026-09-15):
+  // picking a finish lifts a Square edge to Micro bevel, and Square stays
+  // greyed while the build is prefinished.
+  const pickFinish = (finish) => set({ ...f, finish, edge: finish !== "unf" && f.edge === "square" ? "bevel" : f.edge });
   return (<>
     <Sect title="Species" hint="sell $/sf at current options">
       {(() => {
@@ -384,7 +389,7 @@ function FloorRail({ f, set, sf, tsell, onGrid, multi, mwWidths, onMultiToggle, 
         options={TEXTURES.map((t) => ({ id: t.id, label: t.name.replace(" (standard)", "") + (t.add ? `  +${fm(tsell(t.add))}` : "") }))} />
       {/* Live Sawn is sold unfinished only — its prefinished rows are disabled
           rather than hidden, so the reason reads off the control itself. */}
-      <Dropdown label="Finishing" hint={f.sp === LIVE_SAWN_SP ? "Live Sawn — unfinished only" : f.finish === "nat" ? "Natural — no fee" : "fee under 500 sf"} value={f.finish} onChange={(finish) => set({ ...f, finish })}
+      <Dropdown label="Finishing" hint={f.sp === LIVE_SAWN_SP ? "Live Sawn — unfinished only" : stock ? "stock item — no fee" : f.finish === "nat" ? "Natural — no fee" : "fee under 500 sf"} value={f.finish} onChange={pickFinish}
         options={FINISHES.map((x) => ({ id: x.id, label: x.name + (x.id === "unf" ? "" : `  +${fm(tsell(x.add(f)))}`), dis: f.sp === LIVE_SAWN_SP && x.id !== "unf" }))} />
     </div>
     {/* Prefinished finishes: stain color (established/custom) + sheen. Off the
@@ -401,8 +406,8 @@ function FloorRail({ f, set, sf, tsell, onGrid, multi, mwWidths, onMultiToggle, 
     <div className="mb-4 grid grid-cols-2 gap-x-3 gap-y-3">
       <Dropdown label="Lengths" value={f.len} onChange={(len) => set({ ...f, len })}
         options={LENGTHS.map((l) => ({ id: l.id, label: l.name.replace(" (standard)", "") + (l.pct ? `  +${l.pct}%` : "") }))} />
-      <Dropdown label="Edge" value={f.edge} onChange={(edge) => set({ ...f, edge })}
-        options={EDGES.map((e) => ({ id: e.id, label: e.name + (e.add ? `  +${fm(tsell(e.add))}` : "") }))} />
+      <Dropdown label="Edge" hint={prefin ? "prefinished — micro bevel minimum" : null} value={floorEdge(f)} onChange={(edge) => set({ ...f, edge })}
+        options={EDGES.map((e) => ({ id: e.id, label: e.name + (e.add ? `  +${fm(tsell(e.add))}` : ""), dis: prefin && e.id === "square" }))} />
     </div>
     {NO_SAP[f.sp] != null && (
       <Sect title="Sap">
