@@ -170,7 +170,17 @@ src/
                     # select writing the row's cartonUnit / sellUnit, shared
                     # with mobile.jsx; a manual row had no way to say "sheet"
   mobile.jsx        # mobile sheets: `MobileSheet`, `MobileSearchSheet`,
-                    # `MobileProductRow`, `MobileRowSheet`
+                    # `MobileProductRow`, `MobileRowSheet` + `MobileProjectBand`
+                    # (Fold 5 header 2026-09-15, .scratch/mockups/
+                    # mobile-fold5-header-2026-09-15.html C rev 2): the desktop
+                    # one-bar folded to a 344px cover screen — Customer /
+                    # Salesperson boxes left; Project, a tier-coloured price
+                    # dropdown beside the Total at the same height, and the
+                    # All $ / Samples / Freight minis right. Same props and
+                    # write paths as ProjectHeaderBar. Versions, files, save,
+                    # order sheet and Print live only in the ⋯ sheet (owner
+                    # call) — the band never grows a button row, and the
+                    # phone has no Edit / Print preview tabs
   projectheader.jsx # the desktop project header, two layouts behind a per-device
                     # switch (Settings → General, localStorage "ft-header"):
                     # `ProjectHeaderBar` (the 2026-07-21 one-bar) and
@@ -236,8 +246,9 @@ src/
                     # no Supabase — preview proof for the 2026-08-14 compact
                     # headers and the book page's config drawers (stateful
                     # updateBook + a mock Glazzio book with items, so the
-                    # markup/freight/brand tabs save-and-rerender);
-                    # not part of the app build
+                    # markup/freight/brand tabs save-and-rerender) + the
+                    # MobileProjectBand in a 344px frame (Fold 5 header
+                    # 2026-09-15); not part of the app build
   importpreview.jsx # dev-only harness (import-preview.html): the REAL
                     # BookImportWizard over local mock state, no Supabase —
                     # preview proof for the diff review's unfolding new/changed/

@@ -123,12 +123,12 @@ export const vPos = (pos) => (pos.top != null ? { top: pos.top } : { bottom: pos
 // page. The right edge hugs the trigger, clamped to the viewport; dismissal
 // (outside pointer-down / focus-out) comes from useAnchoredPanel, so callers
 // don't need a backdrop.
-export function DotMenu({ open, onClose, anchorRef, width = 224, children }) {
+export function DotMenu({ open, onClose, anchorRef, width = 224, align = "right", children }) {
   const panelRef = useRef(null);
   const pos = useAnchoredPanel(open, anchorRef, panelRef, onClose);
   useEscClose(open, onClose);
   if (!open || !pos) return null;
-  const left = Math.max(8, Math.min(pos.left + pos.width - width, window.innerWidth - width - 8));
+  const left = Math.max(8, Math.min(align === "left" ? pos.left : pos.left + pos.width - width, window.innerWidth - width - 8));
   return createPortal(
     <div ref={panelRef} style={{ ...vPos(pos), maxHeight: pos.maxH, width, left }} className="fixed z-50 rounded-lg border border-slate-200 bg-white shadow-lg py-1 text-sm overflow-y-auto">
       {children}

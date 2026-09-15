@@ -1,22 +1,22 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Search, Plus, X, Check, ChevronRight, ChevronDown, Trash2, StickyNote, Settings, Layers } from "lucide-react";
+import { Search, Plus, X, Check, ChevronRight, ChevronDown, Trash2, StickyNote, Settings, Layers, Building2, Lock, Truck } from "lucide-react";
 import { SAMPLE_LABEL, SAMPLE_CHIP } from "./samples.js";
 import { num, wasteFor, groutExact, mortarExact, getGrout, getMortar, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, offeredAttached, offeredCategories, getAttached } from "./catalog.js";
 import { groutSnapshotPatch, groutColorOptions } from "./stock.js";
-import { tierUnitPrice, employeeNoCost } from "./pricing.js";
+import { tierUnitPrice, employeeNoCost, normPricing } from "./pricing.js";
 import { queryHit as sheogaQueryHit, parseQuery as sheogaParseQuery, querySummary as sheogaQuerySummary } from "./sheoga.js";
 // wediquery.js, never wedi.js — the boot chunk pays for the recognizer only
 // (ADR 0026); the wedi catalog rides its lazy popup chunk.
 import { queryHit as wediQueryHit, parseQuery as wediParseQuery, querySummary as wediQuerySummary } from "./wediquery.js";
 // schluterquery.js, never schluter.js — same boot contract (ADR 0026).
 import { queryHit as schluterQueryHit, parseQuery as schluterParseQuery, querySummary as schluterQuerySummary } from "./schluterquery.js";
-import { STOCK_LOADING_MSG, skuSearchable, TYPES, TLBL, underlayLabel, TYPE_ACCENT, JOINTS, colorsFor, TIER_COLOR } from "./uiconst.js";
+import { STOCK_LOADING_MSG, skuSearchable, TYPES, TLBL, underlayLabel, TYPE_ACCENT, JOINTS, colorsFor, TIER_COLOR, tierBadgeText, PROJECT_NAME_MAX } from "./uiconst.js";
 import { money, sf1, miscQty, rowBlank } from "./model.js";
 import { lineTotal, printProduct, KSHORT } from "./print.js";
 import { unitCode, bundleUnit, BUNDLE_UNITS, COUNT_UNITS } from "./units.js";
 import { MARKUP_PRESETS, unitMargin, editCost, editMarkup, editPrice } from "./costentry.js";
-import { FitSelect, GroutColorOptions, useEscClose } from "./widgets.jsx";
+import { FitSelect, GroutColorOptions, useEscClose, DotMenu, SalespersonPop } from "./widgets.jsx";
 import { ClaudeMark } from "./claudeflag.jsx";
 import { Hit, hitKey, matchSummary, useMergedResults, NearMatchNote } from "./search.jsx";
 import { GridSizeInput, UnitPick } from "./grid.jsx";
@@ -216,7 +216,7 @@ export function MobileProductRow({ p, settings, tv, onOpen, onPointerDown }) {
   ].filter(Boolean);
   return (
     <div onClick={onOpen} onPointerDown={onPointerDown} title="Tap to edit — hold to move"
-      className="flex items-start gap-2 w-full text-left cursor-pointer select-none" style={{ padding: "9px 12px", background: "var(--ft-area-row)" }}>
+      className="flex items-start gap-2 w-full text-left cursor-pointer select-none" style={{ padding: "7px 10px", background: "var(--ft-area-row)" }}>
       <span className="shrink-0 rounded flex items-center justify-center font-extrabold" style={{ width: 19, height: 19, fontSize: 10, marginTop: 1, background: blank ? "var(--ft-field, #fff)" : TYPE_ACCENT[p.type], color: blank ? "var(--ft-muted)" : "var(--ft-type-ink)", border: blank ? "1px dashed var(--ft-border)" : "none" }}>
         {blank ? <Plus size={11} /> : p.type === "misc" ? "✕" : TLBL[p.type][0]}
       </span>
@@ -655,5 +655,165 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutS
           onClose={() => setSearching(false)} />
       )}
     </MobileSheet>
+  );
+}
+
+// The phone's project header (Fold 5 header 2026-09-15,
+// .scratch/mockups/mobile-fold5-header-2026-09-15.html, C rev 2): the desktop
+// one-bar's vocabulary folded to a 344px cover screen — id boxes down the
+// left, project / tier + total / minis down the right. Versions, files, save,
+// print and the order sheet live only in the ⋯ sheet (owner call), so this
+// band never grows a button row. Same props and write paths as
+// ProjectHeaderBar; it never writes on its own.
+const BAND_BOX = { border: "1px solid var(--ft-border-strong)", borderRadius: 6, padding: "2px 7px 3px", minWidth: 0, display: "flex", flexDirection: "column", justifyContent: "center" };
+const BAND_MINI = "h-[22px] min-w-0 flex items-center justify-center gap-1 rounded-md px-1.5 text-[10px] font-bold text-slate-500 whitespace-nowrap";
+const BAND_MINI_STYLE = { border: "1px solid var(--ft-border-strong)", flex: "1 1 auto" };
+const BAND_ROW = "w-full flex items-center gap-2 px-2.5 py-1.5 text-[12.5px] font-bold text-left";
+
+function TierDrop({ sel, tv, pcts, updateProject }) {
+  const [open, setOpen] = useState(false);
+  const anchorRef = useRef(null);
+  const tier = sel.priceTier || "retail";
+  const label = tierBadgeText(tv.tier, tv.pct) || (tier === "custom" ? "Custom" : "Retail");
+  const fill = TIER_COLOR[tier]?.main;
+  const opts = [
+    { v: "retail", label: "Retail" },
+    { v: "builder", label: "Builder", note: `−${pcts.builderPct}%` },
+    { v: "employee", label: "Employee", note: "cost +6%" },
+    { v: "sale", label: "Sale", note: `−${pcts.salePct}%` },
+    { v: "custom", label: "Custom", input: true },
+  ];
+  const pick = (v) => { updateProject(sel.id, { priceTier: v }); if (v !== "custom") setOpen(false); };
+  const onStyle = (v) => tier === v ? { background: TIER_COLOR[v]?.soft || "var(--ft-hover)", color: TIER_COLOR[v]?.main || "var(--ft-text)" } : undefined;
+  return (
+    <>
+      <button ref={anchorRef} onClick={() => setOpen((o) => !o)} title="Price level"
+        className={"h-[24px] flex-1 min-w-0 flex items-center gap-1 rounded-md px-1.5 text-[10px] font-extrabold overflow-hidden " + (fill ? "text-white" : "bg-indigo-600")} style={fill ? { background: fill } : undefined}>
+        <span className="truncate">{label}</span><ChevronDown size={10} className="ml-auto shrink-0" />
+      </button>
+      <DotMenu open={open} onClose={() => setOpen(false)} anchorRef={anchorRef} width={168} align="left">
+        {opts.map((o) => {
+          const dot = <span className="shrink-0 rounded-full" style={{ width: 8, height: 8, background: TIER_COLOR[o.v]?.main || "var(--ft-text)" }} />;
+          if (o.input) return (
+            <label key={o.v} className={BAND_ROW + " cursor-text"} style={onStyle(o.v)}>
+              {dot}{o.label}
+              <input type="number" min="0" max="100" inputMode="numeric" value={sel.customPct ?? ""} placeholder="%" onFocus={() => pick("custom")}
+                onChange={(e) => updateProject(sel.id, { priceTier: "custom", customPct: e.target.value })}
+                className="ft-nospin ml-auto w-9 bg-transparent text-right border-b border-slate-300 focus:outline-none" />
+              <span className="text-[10px] font-semibold">%</span>
+            </label>
+          );
+          return (
+            <button key={o.v} onClick={() => pick(o.v)} className={BAND_ROW} style={onStyle(o.v)}>
+              {dot}{o.label}{o.note && <span className="ml-auto text-[10px] font-semibold opacity-80">{o.note}</span>}
+            </button>
+          );
+        })}
+      </DotMenu>
+    </>
+  );
+}
+
+const PRINT_OPTS = [["full", "All $", "Print every price and total"], ["unit", "Unit $", "Unit prices only — no line or job totals"], ["none", "No $", "No pricing"]];
+function PrintDrop({ sel, updateProject }) {
+  const [open, setOpen] = useState(false);
+  const anchorRef = useRef(null);
+  const cur = sel.printPricing || "full";
+  return (
+    <>
+      <button ref={anchorRef} onClick={() => setOpen((o) => !o)} title="What the printed estimate shows" className={BAND_MINI} style={BAND_MINI_STYLE}>
+        {PRINT_OPTS.find(([v]) => v === cur)?.[1]}<ChevronDown size={9} className="shrink-0" />
+      </button>
+      <DotMenu open={open} onClose={() => setOpen(false)} anchorRef={anchorRef} width={176} align="left">
+        <div className="ft-eyebrow text-[9px] px-2.5 pt-1 pb-0.5">Estimate shows</div>
+        {PRINT_OPTS.map(([v, label, title]) => (
+          <button key={v} title={title} onClick={() => { updateProject(sel.id, { printPricing: v }); setOpen(false); }} className={BAND_ROW} style={cur === v ? { background: "var(--ft-brand-soft)", color: "var(--ft-brand-deep)" } : undefined}>{label}</button>
+        ))}
+      </DotMenu>
+    </>
+  );
+}
+
+export function MobileProjectBand({ sel, cust, builderName, profile, tv, grandTotal, optionBadges = null, freightCost = 0, saveOk, settings, updateProject, onOpenCustomer, onPromote, samples = null, onOpenSamples }) {
+  const sp = sel.salesperson || profile;
+  const pcts = normPricing(settings.pricing);
+  const freightOn = sel.freight !== false;
+  const eyebrow = { color: "var(--ft-faint)" };
+  return (
+    <div className="ft-noprint rounded-lg border mb-2" style={{ padding: 4, background: "var(--ft-band)", borderColor: "var(--ft-border)", display: "flex", gap: 4, alignItems: "stretch" }}>
+      <div className="flex flex-col gap-[3px] shrink-0" style={{ width: 106 }}>
+        <div style={{ ...BAND_BOX, flex: 1 }}>
+          <div className="ft-eyebrow text-[8px]" style={eyebrow}>Customer</div>
+          {cust ? (
+            <>
+              <button onClick={onOpenCustomer} title="Open customer details" className="flex items-center gap-1 min-w-0 max-w-full text-indigo-600 text-[12px] font-bold" style={{ lineHeight: 1.15 }}>
+                <span className="truncate">{cust.name || "Customer"}</span><ChevronDown size={10} className="shrink-0" />
+              </button>
+              {builderName && <div className="text-[9.5px] text-slate-500 truncate flex items-center gap-1" style={{ lineHeight: 1.2 }}><Building2 size={9} className="shrink-0 text-slate-400" /> {builderName}</div>}
+            </>
+          ) : (
+            <button onClick={onPromote} title="File this job under a customer" className="flex flex-col items-start gap-0.5 text-amber-600">
+              <span className="text-[12px] font-bold" style={{ lineHeight: 1.15 }}>{sel.quick ? "Quick price" : "Unassigned"}</span>
+              <span className="text-[9px] font-semibold rounded border border-amber-300 px-1 py-px">File under customer ▾</span>
+            </button>
+          )}
+        </div>
+        <div style={{ ...BAND_BOX, flex: 1 }}>
+          <div className="ft-eyebrow text-[8px] flex items-center gap-1" style={eyebrow}><Lock size={8} /> Salesperson</div>
+          <SalespersonPop small value={sel.salesperson} fallback={profile} onChange={(v) => updateProject(sel.id, { salesperson: v })} />
+          <div className="text-[9.5px] text-slate-500 truncate max-w-full" style={{ lineHeight: 1.2 }}>{sp.phone || " "}</div>
+        </div>
+      </div>
+
+      <div className="flex-1 min-w-0 flex flex-col gap-[3px]">
+        <div style={{ ...BAND_BOX, padding: "3px 7px 4px" }}>
+          <div className="flex items-center justify-between gap-2">
+            <div className="ft-eyebrow text-[8px]" style={eyebrow}>Project</div>
+            {sel.projectNo && <div className="ft-eyebrow text-[8px]" style={{ ...eyebrow, letterSpacing: ".08em" }}>N{sel.projectNo}</div>}
+          </div>
+          <input value={sel.name} maxLength={PROJECT_NAME_MAX} onChange={(e) => updateProject(sel.id, { name: e.target.value })} placeholder="Project name"
+            className="w-full bg-transparent text-[14px] font-extrabold border-b border-transparent focus:border-indigo-500 focus:outline-none min-w-0" style={{ lineHeight: 1.15, marginTop: 1 }} />
+          <input value={sel.address} onChange={(e) => updateProject(sel.id, { address: e.target.value })} placeholder="Project address…"
+            className="w-full bg-transparent text-[10px] text-slate-500 border-b border-transparent focus:border-indigo-500 focus:outline-none mt-0.5" />
+        </div>
+
+        <div className="flex gap-[3px] min-w-0">
+          <TierDrop sel={sel} tv={tv} pcts={pcts} updateProject={updateProject} />
+          {/* Same 24px as the dropdown: the label stacks over the money. With
+              quote options the box takes the row's slack and the badges scroll. */}
+          <div style={{ ...BAND_BOX, height: 24, padding: "0 6px", flex: optionBadges ? "1 1 0" : "0 0 86px", alignItems: optionBadges ? "stretch" : "flex-end", overflow: "hidden" }}>
+            {optionBadges ? (
+              <div className="flex items-center gap-1 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+                {optionBadges.map((b) => (
+                  <span key={b.slot} className="ft-mono rounded px-1.5 text-[10px] font-bold whitespace-nowrap" style={{ background: `color-mix(in srgb, ${b.color.main} 12%, var(--ft-card))`, color: b.color.deep, boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${b.color.main} 45%, transparent)` }}>
+                    {b.label} <span className="opacity-75 font-semibold">{money(b.total)}</span>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <>
+                <div className="ft-eyebrow" style={{ ...eyebrow, fontSize: 7, lineHeight: 1, marginBottom: 1, whiteSpace: "nowrap" }}>Total{saveOk && <span style={{ color: "var(--ft-brand)" }}> ✓</span>}</div>
+                <div className="ft-mono font-extrabold" style={{ fontSize: 12.5, lineHeight: 1, letterSpacing: "-.02em", color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{money(grandTotal)}</div>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="flex gap-[3px] min-w-0">
+          <PrintDrop sel={sel} updateProject={updateProject} />
+          {onOpenSamples && (
+            <button onClick={onOpenSamples} title="Samples — this job's sample requests" className={BAND_MINI} style={BAND_MINI_STYLE}>
+              <Layers size={11} /> Samples
+              {samples?.need > 0 && <span className="rounded px-1 font-extrabold" style={{ background: "#fef6e2", color: "#b45309" }}>{samples.need}</span>}
+            </button>
+          )}
+          <button onClick={() => updateProject(sel.id, { freight: !freightOn })} className={BAND_MINI} style={BAND_MINI_STYLE}
+            title={freightOn ? "Vendor shipping is on this job's special orders — press to leave it off" : "No freight on this job — press to add vendor shipping"}>
+            <Truck size={11} className={freightOn ? "" : "opacity-50"} />
+            {freightOn ? <span className="rounded px-1 font-extrabold" style={{ background: "rgba(28,26,23,.08)" }}>{freightCost > 0 ? `$${Math.round(freightCost).toLocaleString()}` : "Incl."}</span> : <span className="opacity-60">None</span>}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

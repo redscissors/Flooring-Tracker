@@ -5,6 +5,7 @@ import { useState, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import { ProjectHeaderBar } from "./projectheader.jsx";
+import { MobileProjectBand } from "./mobile.jsx";
 import { PriceBookLibrary } from "./pricebooklib.jsx";
 import { normOrderItem } from "./orderbook.js";
 import { TYPES, TLBL } from "./uiconst.js";
@@ -89,11 +90,35 @@ function LibraryDemo() {
   );
 }
 
+// The phone band (Fold 5 header 2026-09-15) in a 344px frame — the Z Fold 5
+// cover screen's CSS width — over the same mock project.
+function MobileBandDemo() {
+  const [proj, setProj] = useState({
+    id: "p2", projectNo: 142, name: "Hendricks — Main Floor", address: "418 Ridgeline Ct, Bend OR",
+    salesperson: { name: "Marcus", phone: "(555) 210-8834" },
+    priceTier: "builder", customPct: "", printPricing: "full", freight: true, attachments: [], versions: [],
+  });
+  const pct = proj.priceTier === "builder" ? 15 : proj.priceTier === "sale" ? 10 : proj.priceTier === "custom" ? Number(proj.customPct) || 0 : 0;
+  return (
+    <div id="mobile-band" className="p-2" style={{ width: 344, background: "var(--ft-cream)", border: "1px solid var(--ft-border)", borderRadius: 8 }}>
+      <MobileProjectBand
+        sel={proj} cust={{ name: "Sarah Hendricks" }} builderName="Ridgeline Homes" profile={{ name: "Marcus", phone: "(555) 210-8834" }}
+        tv={{ tier: proj.priceTier, pct }} grandTotal={6842.1} freightCost={85} saveOk
+        settings={{ pricing: { builderPct: 15, salePct: 10 } }}
+        updateProject={(id, patch) => setProj((p) => ({ ...p, ...patch }))}
+        onOpenCustomer={noop} onPromote={noop} samples={{ need: 1, ordered: 0, total: 1 }} onOpenSamples={noop}
+      />
+    </div>
+  );
+}
+
 function Page() {
   return (
     <div className="p-5" style={{ background: "var(--ft-cream)", minHeight: "100vh" }}>
       <div className="ft-eyebrow text-[10px] mb-2">Project header — one-bar, compact</div>
       <div id="proj-header" style={{ maxWidth: 1120 }}><ProjectHeaderDemo /></div>
+      <div className="ft-eyebrow text-[10px] mt-6 mb-2">Project header — phone band at Fold 5 cover width (344px)</div>
+      <MobileBandDemo />
       <div className="ft-eyebrow text-[10px] mt-6 mb-2">Price books — landing header, compact</div>
       <div id="pb-header" className="rounded-lg border border-slate-200 bg-white"><LibraryDemo /></div>
     </div>

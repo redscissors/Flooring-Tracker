@@ -32,7 +32,7 @@ import { OPTION_SLOTS, OPTION_COLOR, optionsUsed, bucketCats, scopedCats, option
 import { LazyBoundary, FitSelect, GroutColorOptions, BuilderCombo, MetaChip, SalespersonPop, SegBar, WasteBar, ThemeSwitch, MarginLine, Modal, useEscClose, HelpTip, AddressField } from "./widgets.jsx";
 import { escPush } from "./escstack.js";
 import { TypeSelect, GRID_COLS, GridPriceCell, GridSizeInput, GridProductBox, GridOmniSearch, UnitPick } from "./grid.jsx";
-import { MobileSheet, MobileProductRow, MobileRowSheet } from "./mobile.jsx";
+import { MobileSheet, MobileProductRow, MobileRowSheet, MobileProjectBand } from "./mobile.jsx";
 import { TeamTodos } from "./TeamTodos.jsx";
 import { EstimatePaper, PRINT_DASH } from "./EstimatePrint.jsx";
 import { useToast } from "./usetoast.js";
@@ -235,7 +235,7 @@ export default function App({ user, onSignOut }) {
   };
   // Which print layout the buttons chose; null (e.g. browser-menu Ctrl+P) prints the estimate.
   const [printMode, setPrintMode] = useState(null);
-  useEffect(() => { if (!printMode) return; window.print(); const wasOrder = printMode === "order"; setPrintMode(null); if (wasOrder) setOrderScope(null); }, [printMode]);
+  useEffect(() => { if (!printMode) return; window.print(); const wasOrder = printMode === "order"; setPrintMode(null); if (wasOrder) setOrderScope(null); if (!isWide) setPreviewScope("all"); }, [printMode]);
   const [focusArea, setFocusArea] = useState(null);
   // Keyboard-flow focus targets (product id): after Add product, land on the
   // new row's type; after a SKU pick, land on the Sq Ft box (so the footage
@@ -1360,27 +1360,19 @@ export default function App({ user, onSignOut }) {
       <div className={`print:hidden flex ${isWide ? "flex-row" : "flex-col"} flex-1 overflow-hidden relative`}>
         {/* Mobile top bar */}
         {!isWide && (
-          <div className="flex items-center gap-2.5 px-3 py-2.5 ft-rail border-b border-slate-200">
+          <div className="flex items-center gap-2 px-2.5 py-1.5 ft-rail border-b border-slate-200">
             <button onClick={() => setSidebarOpen(true)} className="p-1 -ml-1 text-slate-600"><Menu size={20} /></button>
-            <button onClick={goHome} title="Home" className="shrink-0 hover:opacity-70 transition"><NedMark size={28} /></button>
-            <span className="ft-serif text-lg truncate flex-1">{sel ? sel.name : selCust ? selCust.name : ""}</span>
-            {sel && sel._full && (<>
-              <button onClick={() => setProjSheet(true)} className="shrink-0 text-right" style={{ lineHeight: 1.15 }}>
-                {optionBadges ? (
-                  <div className="flex items-center gap-1 flex-wrap justify-end">
-                    {optionBadges.map((b) => (
-                      <span key={b.slot} className="ft-mono rounded-md px-1.5 py-0.5 text-[12px] font-bold whitespace-nowrap" style={{ background: `color-mix(in srgb, ${b.color.main} 12%, var(--ft-card))`, color: b.color.deep, boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${b.color.main} 45%, transparent)` }}>
-                        {b.label} <span className="opacity-75 font-semibold">{money(b.total)}</span>
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <span className="ft-mono block text-[13px] font-bold" style={{ color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{money(grandTotal)}</span>
-                )}
-                {tierBadgeText(tv.tier, tv.pct) && <span className="block text-[8.5px] font-bold" style={{ color: TIER_COLOR[tv.tier]?.main }}>{tierBadgeText(tv.tier, tv.pct)}</span>}
-              </button>
-              <button onClick={() => setProjSheet(true)} title="Project details" className="shrink-0 rounded-md border border-slate-200 bg-white p-1.5 text-slate-500"><MoreHorizontal size={15} /></button>
-            </>)}
+            <button onClick={goHome} title="Home" className="shrink-0 hover:opacity-70 transition"><NedMark size={24} /></button>
+            <span className="ft-serif text-[15.5px] truncate flex-1">
+              {sel ? (() => {
+                const cust = data.people.find((c) => c.id === sel.customerId);
+                return (<>
+                  <span className="text-slate-400">{cust ? cust.name || "Customer" : sel.quick ? "Quick price" : "Unassigned"}</span>
+                  <span className="text-slate-400 font-normal"> › </span>{sel.name || "Untitled project"}
+                </>);
+              })() : selCust ? selCust.name : ""}
+            </span>
+            {sel && sel._full && <button onClick={() => setProjSheet(true)} title="Project details" className="shrink-0 rounded-md border border-slate-200 bg-white p-1 text-slate-500"><MoreHorizontal size={15} /></button>}
           </div>
         )}
 
@@ -1537,12 +1529,17 @@ export default function App({ user, onSignOut }) {
           ) : !sel._full ? (
             <div className="h-full flex items-center justify-center text-slate-400 text-sm">Loading {sel.name || "customer"}…</div>
           ) : (
-            <div className="max-w-4xl mx-auto p-3 md:p-5">
-              <div className="flex items-center gap-1 mb-3 border-b border-slate-200">
-                {[["edit", "Edit"], ["preview", "Print preview"]].map(([k, label]) => (
-                  <button key={k} onClick={() => setViewTab(k)} className={"px-4 py-2 text-sm font-semibold -mb-px border-b-2 transition " + (viewTab === k ? "" : "border-transparent text-slate-400 hover:text-slate-600")} style={viewTab === k ? { color: "var(--ft-brand)", borderColor: "var(--ft-brand)" } : {}}>{label}</button>
-                ))}
-              </div>
+            <div className="max-w-4xl mx-auto p-2 md:p-5">
+              {/* Edit / Print preview tabs are a desk thing (Fold 5 header
+                  2026-09-15): on the phone the ⋯ sheet prints, and the area
+                  menu's "Print this option…" prints straight away. */}
+              {isWide && (
+                <div className="flex items-center gap-1 mb-3 border-b border-slate-200">
+                  {[["edit", "Edit"], ["preview", "Print preview"]].map(([k, label]) => (
+                    <button key={k} onClick={() => setViewTab(k)} className={"px-4 py-2 text-sm font-semibold -mb-px border-b-2 transition " + (viewTab === k ? "" : "border-transparent text-slate-400 hover:text-slate-600")} style={viewTab === k ? { color: "var(--ft-brand)", borderColor: "var(--ft-brand)" } : {}}>{label}</button>
+                  ))}
+                </div>
+              )}
               {/* Edit view stays mounted (hidden, not unmounted) so field focus and in-progress typing survive tab flips. */}
               <div className={viewTab === "edit" ? "" : "hidden"}>
               {/* Header card (desktop): two layouts behind a per-device switch
@@ -1572,37 +1569,24 @@ export default function App({ user, onSignOut }) {
                 return headerLayout === "classic" ? <ProjectHeaderClassic {...hp} /> : <ProjectHeaderBar {...hp} />;
               })()}
 
-              {/* Mobile shell (2026-07-16, .scratch/mockups/mobile-v2): the
-                  header card collapses to a horizontally scrolling stat strip;
-                  the full project controls live in a bottom sheet opened from
-                  the strip, the top bar's total, or ⋯. No Order entry on
-                  mobile — that's a desk task (owner call). */}
+              {/* Mobile shell (2026-07-16, .scratch/mockups/mobile-v2; header
+                  reworked for the Fold 5 cover screen 2026-09-15,
+                  .scratch/mockups/mobile-fold5-header-2026-09-15.html): the
+                  desktop one-bar folds into MobileProjectBand; the full
+                  project controls — files, versions, order sheet, print —
+                  live in the ⋯ bottom sheet. No Order entry on mobile —
+                  that's a desk task (owner call). */}
               {!isWide && (() => {
                 const cust = data.people.find((c) => c.id === sel.customerId);
-                const totalSf = sel.categories.reduce((t, a) => t + a.products.reduce((s, p) => s + (p.qtyType === "sqft" ? num(p.qty) : 0), 0), 0);
                 const pcts = normPricing(settings.pricing);
-                const tile = "shrink-0 text-left rounded-md border border-slate-200 bg-white px-2.5 py-1.5";
-                const tLbl = "ft-eyebrow text-[8px]";
-                const tVal = "text-[12.5px] font-bold whitespace-nowrap mt-px";
                 const act = "h-[34px] flex items-center justify-center gap-1.5 rounded-md border border-slate-200 bg-white text-[12px] font-semibold text-slate-600";
                 return (
                   <>
                     <input ref={attRef} type="file" onChange={addAttachment} className="hidden" />
-                    <div className="ft-noprint flex gap-1.5 overflow-x-auto mb-3" style={{ scrollbarWidth: "none" }}>
-                      <button onClick={() => cust ? setCustModal(cust.id) : (setPromoteId(sel.id), setPromoteQ(""))} className={tile}>
-                        <div className={tLbl}>Customer</div>
-                        <div className={tVal + (cust ? "" : " text-amber-600")}>{cust ? `${cust.name || "Customer"} ▾` : "File ▾"}</div>
-                      </button>
-                      <div className={tile}><div className={tLbl}>Floor</div><div className={tVal + " ft-mono"}>{sf1(totalSf)} SF</div></div>
-                      <button onClick={() => setProjSheet(true)} className={tile}><div className={tLbl}>Print</div><div className={tVal}>{sel.printPricing === "unit" ? "Unit $" : sel.printPricing === "none" ? "No $" : "All $"}</div></button>
-                      <button onClick={() => setProjSheet(true)} className={tile}><div className={tLbl}>Files</div><div className={tVal}>{(sel.attachments || []).length}</div></button>
-                      <button onClick={() => setShowVersions(true)} className={tile}><div className={tLbl}>Versions</div><div className={tVal}>{sel.versions?.length || 0}</div></button>
-                      <button onClick={() => { setShowSamples(true); refreshSampleRequests(); }} className={tile}>
-                        <div className={tLbl}>Samples</div>
-                        <div className={tVal} style={sampleCounts(projSamples).need > 0 ? { color: "#b45309" } : undefined}>{sampleCounts(projSamples).need || "—"}</div>
-                      </button>
-                      {saveOk && <div className={tile}><div className={tLbl}>Sync</div><div className={tVal} style={{ color: "var(--ft-brand)" }}>Saved ✓</div></div>}
-                    </div>
+                    <MobileProjectBand sel={sel} cust={cust} builderName={cust ? builderNameOf(cust.builderId) : ""} profile={profile} tv={tv} grandTotal={grandTotal} optionBadges={optionBadges}
+                      freightCost={freightCost} saveOk={saveOk} settings={settings} updateProject={updateProject}
+                      onOpenCustomer={() => cust && setCustModal(cust.id)} onPromote={() => { setPromoteId(sel.id); setPromoteQ(""); }}
+                      samples={sampleCounts(projSamples)} onOpenSamples={() => { setShowSamples(true); refreshSampleRequests(); }} />
                     <MobileSheet open={projSheet} onClose={() => setProjSheet(false)} title={sel.name || "Untitled project"}
                       badge={tierBadgeText(tv.tier, tv.pct) ? <span className="shrink-0 rounded px-1 py-px font-semibold" style={{ background: TIER_COLOR[tv.tier]?.soft || "var(--ft-brand-soft)", color: TIER_COLOR[tv.tier]?.main, fontSize: 9.5 }}>{tierBadgeText(tv.tier, tv.pct)}</span> : null}
                       footer={<>
@@ -1717,9 +1701,9 @@ export default function App({ user, onSignOut }) {
                   // products' materials drawers is open (so the drawer can float past
                   // the card's bottom edge without being clipped).
                   <div key={a.id} data-area-drop={a.id} onClickCapture={isWide ? undefined : () => setActiveAreaId(a.id)} className={`rounded-lg border bg-white transition-colors ${drag || areaMatOpen ? "" : "overflow-hidden"} ${drag?.to?.aid === a.id ? "border-indigo-400" : drag ? "border-dashed border-slate-300" : "border-slate-200"}`} style={oc ? { borderColor: oc.main, borderWidth: 1.5 } : undefined}>
-                    <div className="flex justify-between items-center gap-3" onContextMenu={(e) => { e.preventDefault(); setAreaMenu({ aid: a.id, x: e.clientX, y: e.clientY }); }} style={{ background: "var(--ft-area-head)", padding: "8px 14px", ...(!isWide && a.id === activeAreaId ? { boxShadow: "inset 3px 0 0 var(--ft-brand)" } : {}) }}>
+                    <div className="flex justify-between items-center gap-3" onContextMenu={(e) => { e.preventDefault(); setAreaMenu({ aid: a.id, x: e.clientX, y: e.clientY }); }} style={{ background: "var(--ft-area-head)", padding: isWide ? "8px 14px" : "6px 11px", ...(!isWide && a.id === activeAreaId ? { boxShadow: "inset 3px 0 0 var(--ft-brand)" } : {}) }}>
                       <div className="flex items-baseline gap-2.5 flex-1 min-w-0">
-                        <input ref={(el) => { if (el) areaRefs.current[a.id] = el; }} value={a.name} onChange={(e) => updArea(a.id, { name: e.target.value })} placeholder={`Area ${ai + 1}`} className="ft-serif bg-transparent border-b border-transparent focus:border-indigo-500 focus:outline-none min-w-0 placeholder:text-slate-400" style={{ fontSize: 20, lineHeight: 1.1, width: `${Math.max(a.name.length || `Area ${ai + 1}`.length, 4) + 1}ch` }} />
+                        <input ref={(el) => { if (el) areaRefs.current[a.id] = el; }} value={a.name} onChange={(e) => updArea(a.id, { name: e.target.value })} placeholder={`Area ${ai + 1}`} className="ft-serif bg-transparent border-b border-transparent focus:border-indigo-500 focus:outline-none min-w-0 placeholder:text-slate-400" style={{ fontSize: isWide ? 20 : 18, lineHeight: 1.1, width: `${Math.max(a.name.length || `Area ${ai + 1}`.length, 4) + 1}ch` }} />
                         {(a.option || optsUsed.length > 0) && (
                           <button tabIndex={-1} onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setAreaMenu({ aid: a.id, x: r.left, y: r.bottom + 4 }); }}
                             className="ft-noprint rounded-md px-2 py-0.5 text-[10.5px] font-bold shrink-0"
@@ -2578,12 +2562,11 @@ export default function App({ user, onSignOut }) {
           const cur = sel.categories.find((a) => a.id === activeAreaId) || sel.categories[0];
           const sheetUp = projSheet || !!rowSheet;
           return (
-            <div className={`ft-noprint flex gap-2 px-3 pt-2.5 ft-rail border-t border-slate-200 transition-transform duration-200 ${sheetUp ? "translate-y-full" : ""}`} style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}>
-              <button onClick={() => { setViewTab("edit"); addArea(); }} className="h-[38px] shrink-0 flex items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 text-[12.5px] font-bold"><Plus size={14} /> Area</button>
-              <button onClick={() => { setViewTab("edit"); mobileAddProduct(); }} className="h-[38px] flex-1 min-w-0 flex items-center justify-center gap-1 rounded-md text-[12.5px] font-bold" style={{ background: "var(--ft-text)", color: "var(--ft-cream)" }}>
+            <div className={`ft-noprint flex gap-2 px-2.5 pt-2 ft-rail border-t border-slate-200 transition-transform duration-200 ${sheetUp ? "translate-y-full" : ""}`} style={{ paddingBottom: "max(10px, env(safe-area-inset-bottom))" }}>
+              <button onClick={addArea} className="h-[36px] shrink-0 flex items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-3 text-[12.5px] font-bold"><Plus size={14} /> Area</button>
+              <button onClick={mobileAddProduct} className="h-[36px] flex-1 min-w-0 flex items-center justify-center gap-1 rounded-md text-[12.5px] font-bold" style={{ background: "var(--ft-text)", color: "var(--ft-cream)" }}>
                 <Plus size={14} className="shrink-0" /> Product{cur ? <span className="truncate opacity-75 font-semibold">&nbsp;· {areaLabel(cur, sel.categories.indexOf(cur))}</span> : null}
               </button>
-              <button onClick={() => setPrintMode("estimate")} style={TIER_COLOR[sel.priceTier] ? { background: TIER_COLOR[sel.priceTier].main } : undefined} className="h-[38px] shrink-0 flex items-center justify-center gap-1.5 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white px-4 text-[12.5px] font-bold"><Printer size={14} /> Print</button>
             </div>
           );
         })()}
@@ -3147,7 +3130,7 @@ export default function App({ user, onSignOut }) {
                 <button key={"d" + s} className={item} onClick={() => dupInto(s)}>Duplicate into {optsUsed.includes(s) ? optionShort(sel, s) : "new option"}…</button>
               ))}
               {a.option && <button className={item} onClick={() => { setRenamingOpt(a.option); setAreaMenu(null); }}>Rename {optionTitle(sel, a.option)}…</button>}
-              {a.option && <button className={item} onClick={() => { setPreviewScope(a.option); setViewTab("preview"); setAreaMenu(null); }}>Print this option…</button>}
+              {a.option && <button className={item} onClick={() => { setPreviewScope(a.option); if (isWide) setViewTab("preview"); else setPrintMode("estimate"); setAreaMenu(null); }}>Print this option…</button>}
             </div>
           </div>
         );
