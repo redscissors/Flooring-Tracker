@@ -1757,7 +1757,35 @@ src/
                     # `qtyAssumed` for the panel's amber flag. Split from the
                     # .jsx so `node --test` can cover it;
                     # imports always name the extension
-  orderentry.jsx    # the panel itself — Special order (per-line copy) above
+  deliverto.js      # the panel's "Deliver to" block (owner 2026-09-15): the
+                    # project's ONE-LINE address split into ERP 1's
+                    # delivery-form fields — `splitAddress` reads from the
+                    # tail (ZIP · state, 2-letter or spelled out · city, each
+                    # its own comma part or sharing the city's), what's left is
+                    # the street, with a unit part ("PO Box 288") or a unit on
+                    # the street's tail ("Suite 200", "#4", designator-anchored
+                    # so "County Road 314" keeps its number) moved to apt/
+                    # suite; a line with no state at the tail goes WHOLE into
+                    # Street with ok:false — the panel warns, never pastes a
+                    # guessed city. `deliverToRows` (the form's order: name ·
+                    # street · apt · city · state · ZIP · phone) and
+                    # `deliverToCopy` (tab-joined, blanks keep their slot — the
+                    # one-paste fill, IF ERP 1's address form advances on a tab
+                    # the way its line grid does; unverified at ship, the
+                    # per-field copies are the fallback)
+  orderentry.jsx    # the panel itself — Deliver to (deliverto.js rows off
+                    # App.jsx's custInfo: customer name, project address
+                    # falling back to the customer's mailing address, project
+                    # phone falling back to the customer's — the Samples
+                    # panel's rule) read as a MAILING LABEL (owner 2026-09-15,
+                    # after a seven-row per-field card was "way too large"):
+                    # name · street · apt · "City, ST ZIP" · phone, every
+                    # line — and the city, state and ZIP each on their own,
+                    # since ERP 1 keys them as three fields — a click-to-copy
+                    # `Seg` that latches green by itself, plus ONE latching
+                    # copy-all (tab-joined) at the left like a special line's
+                    # button; no per-field buttons. Above
+                    # Special order (per-line copy) above
                     # Stock (checkboxes + Copy all as SKU⇥qty; the estimated
                     # materials ride the Stock list unfiltered — App.jsx's
                     # `matAll`, so a pending grout/mortar still keys as 1, while
@@ -1780,7 +1808,13 @@ src/
                     # note on a line held apart — with a SHEET ORDER switch
                     # (the as-entered list banded by area) under the project
                     # name; copies follow the visible view, selection resets
-                    # on a switch. A `React.lazy` chunk in App.jsx (ADR
+                    # on a switch. Each section's STANDING rules (green check
+                    # tracks your place, per-unit cost/sell, the 70-char fit,
+                    # SKU⇥qty) live behind a HelpTip ? on its heading (owner
+                    # 2026-09-15 — widgets.jsx's doctrine); the footer under a
+                    # list keeps only what reports STATE (merge note, assumed
+                    # count, splits, red no-SKU) and is gone when there's
+                    # nothing to report. A `React.lazy` chunk in App.jsx (ADR
                     # 0026): orderlines.js pulls wedi.js + schluter.js for
                     # the grouping, which must stay off boot — which is also
                     # why CopyBtn lives in copybtn.jsx (samples.jsx imports
