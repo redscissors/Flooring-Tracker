@@ -1,0 +1,26 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Deliver to copy-all states</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&display=swap">
+<style>
+:root{--paper:#F6F3EC;--moss:#57703A;--moss-deep:#40542A;--moss-soft:rgba(87,112,58,.13)}
+*{box-sizing:border-box;font-family:Manrope,system-ui,sans-serif}
+body{margin:0;background:var(--paper);padding:28px;color:#1C1A17}
+.row{display:flex;gap:28px;align-items:flex-start}
+.card{width:300px}
+.cap{font-size:11px;color:#57534C;margin-bottom:8px;letter-spacing:.08em;text-transform:uppercase;font-weight:600}
+.box{border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;background:#fff;display:flex}
+.left{display:flex;align-items:center;padding:0 8px;border-right:1px solid #f1f5f9;background:#f8fafc}
+.btn{display:grid;place-items:center;width:26px;height:26px;border-radius:6px;border:1px solid transparent;color:#94a3b8;background:none}
+.btn.run{opacity:.3;color:#475569;font-size:9px;font-weight:600;font-variant-numeric:tabular-nums}
+.btn.done{color:#fff;background:var(--moss);border-color:var(--moss)}
+.body{padding:8px 12px;font-size:12.5px;line-height:1.45}
+.b{font-weight:700}
+svg{width:14px;height:14px}
+</style></head><body>
+<div class="row">
+<div class="card"><div class="cap">Idle</div><div class="box"><div class="left"><button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></div>
+<div class="body"><div class="b">Joe Mazzoleni</div><div>224 Hammersley Dr</div><div>PO Box 288</div><div>Tuscarawas, OH 44682</div><div>330-432-7374</div></div></div></div>
+<div class="card"><div class="cap">Writing — 3 of 8, ~2.8 s total, button disabled</div><div class="box"><div class="left"><button class="btn run" disabled>3/8</button></div>
+<div class="body"><div class="b">Joe Mazzoleni</div><div>224 Hammersley Dr</div><div>PO Box 288</div><div>Tuscarawas, OH 44682</div><div>330-432-7374</div></div></div></div>
+<div class="card"><div class="cap">Done — latched</div><div class="box"><div class="left"><button class="btn done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg></button></div>
+<div class="body"><div class="b">Joe Mazzoleni</div><div>224 Hammersley Dr</div><div>PO Box 288</div><div>Tuscarawas, OH 44682</div><div>330-432-7374</div></div></div></div>
+</div></body></html>
