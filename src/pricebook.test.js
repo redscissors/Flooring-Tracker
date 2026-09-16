@@ -361,6 +361,55 @@ test("parseMapped: a mosaic sheet with SF/CT N/A derives coverage and a labeled 
   assert.equal(it.sfPerUnit, 6.875);
 });
 
+test("parseMapped: a mosaic's bare L\u00d7W that covers the whole piece is the sheet, not the chip (VTCTUWHMOSHEX, ADR 0014)", () => {
+  // The VTC Tuscany hex mosaics print only the backing sheet — "HEXAGON MOSAIC
+  // 10X12" — with no SHEET word and no chip. SIZE_RE read it as a 10×12 tile
+  // (Marcus 2026-09-16: "no sheet size"). The row's own coverage settles it:
+  // 4.09 SF/CT ÷ 5 PC/CT = 0.818 sf per piece ≈ 10×12 in², so those dims are
+  // the whole piece — a chip can't be. Other books print the chip in the same
+  // spot ("BOOST GREY MOSAIC 2X2", 0.028 sf vs 0.969 per sheet), which stays.
+  const mapping = {
+    headerRow: 0,
+    columns: { 0: "sku", 1: "description", 2: "cost", 3: "unit", 4: "orderUnit", 5: "pcPerUnit", 6: "sfPerUnit" },
+    skuPattern: "^[A-Z0-9]{6,20}$",
+    defaultType: "tile",
+  };
+  const rows = [
+    ["SKU", "DESC", "COST", "UM", "NO BROKEN", "PC/CT", "SF/CT"],
+    ["VTCTUWHMOSHEX", "TUSCANY WHITE HEXAGON MOSAIC 10X12", "23.44", "PC", "PC", "5", "4.09"],
+    ["ISASHBIINTRECCIO", "SHIBUSA BIANCO INTRECCIO MOS=I 12X12", "14.1", "SF", "SH", "5", "4.84"],
+    ["VTCORBBINTHEXR", "ORLEANS BEIGE & BLACK ++ INTERLCK HEX MOSAIC 12X10", "9.5", "SF", "SH", "12", "5.47"],
+    ["ATLBOGRMOS22", "BOOST GREY MOSAIC 2X2==", "5.9", "SF", "SH", "10", "9.69"],
+    ["CRVAV341MOS212U", "ALTERED STATE WHITE HOT MOS 2X12 UNPOL CROSS SHEEN", "12", "SF", "SH", "8", "7.68"],
+    ["MLSABBR1224", "ABSOLUTE BROWN 12X24", "2.1", "SF", "CT", "8", "16"],
+    ["MLSNOCOV", "NO COVERAGE HEX MOSAIC 10X12", "23.44", "PC", "PC", "", "N/A"],
+  ];
+  const { items } = parseMapped(rows, mapping);
+  const by = (sku) => items.find((i) => i.sku === sku);
+  const tus = by("VTCTUWHMOSHEX");
+  assert.equal(tus.size, "");                   // never the chip L×W
+  assert.equal(tus.sheetSize, "10x12");
+  assert.equal(tus.sfPerUnit, 4.09);            // the book's own SF/CT still wins
+  assert.equal(tus.description, "Tuscany White Hexagon Mosaic");
+  // The same rule across the sheet: a 12×12 = 1 sf sheet at 0.968 sf/piece, and
+  // an interlocking 12×10 whose net coverage (0.456) is below its outline — a
+  // chip is never HALF the piece, so ≥ half is the sheet.
+  assert.equal(by("ISASHBIINTRECCIO").sheetSize, "12x12");
+  assert.equal(by("ISASHBIINTRECCIO").size, "");
+  assert.equal(by("VTCORBBINTHEXR").sheetSize, "12x10");
+  // Chips stay chips: 2×2 on a ~1 sf sheet, 2×12 on a 0.96 sf sheet.
+  assert.equal(by("ATLBOGRMOS22").size, "2x2");
+  assert.equal(by("ATLBOGRMOS22").sheetSize, "");
+  assert.equal(by("CRVAV341MOS212U").size, "2x12");
+  assert.equal(by("CRVAV341MOS212U").sheetSize, "");
+  // An ordinary tile's L×W always covers its whole piece — no mosaic word, no rule.
+  assert.equal(by("MLSABBR1224").size, "12x24");
+  assert.equal(by("MLSABBR1224").sheetSize, "");
+  // No coverage to check against → unchanged (the L×W stays, as before).
+  assert.equal(by("MLSNOCOV").size, "10x12");
+  assert.equal(by("MLSNOCOV").sheetSize, "");
+});
+
 test("mmToFraction: metric thickness → the fraction the trade calls it", () => {
   assert.equal(mmToFraction(6), '1/4"');
   assert.equal(mmToFraction(8), '5/16"');

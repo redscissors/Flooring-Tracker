@@ -26,7 +26,8 @@ const it = (f) => normOrderItem({ bookId: "vtc", ...f });
 // a hand-edited row parked in the Claude bucket, a sheet whose only U/M column
 // is its price basis (the 8/31 Catch Ivory flag — SF bundles nothing, so the
 // coverage reads per carton), and a molding carrying the length its column
-// header printed (the 8/31 Slim Trim flag).
+// header printed (the 8/31 Slim Trim flag), and a mosaic whose bare L×W is its
+// sheet (the 9/16 Tuscany flag).
 const ITEMS = [
   it({ sku: "ANA1224P", type: "tile", description: "Mayfair Statuario 12X24 Polished", brand: "Anatolia", mfg: "ANATOLIA", productLine: "Mayfair", color: "Statuario", style: "Polished", size: '12"X24"', thickness: "10mm", priceUnit: "SF", orderUnit: "CT", cost: 3.19, sfPerUnit: 15.5, pcPerUnit: 8, leadTime: "3-5 days", section: "Porcelain" }),
   it({ sku: "ANAHEX2M", type: "tile", description: "Carrara 2\" Hex Mosaic Matte", mfg: "ANATOLIA", size: '2" Hex', sheetSize: "10x12", unit: "SH", cost: 14.25, sfPerUnit: 5.38, pcPerUnit: 6, msrp: 24.99, leadTime: "1 wk" }),
@@ -37,6 +38,10 @@ const ITEMS = [
   it({ sku: "ANAOLD18", type: "tile", description: "Retired Beige 18X18", mfg: "ANATOLIA", size: "18X18", cost: 1.99, sfPerUnit: 17.6, unit: "CT", disabled: true, discontinued: true }),
   it({ sku: "F14CATCIV0312P", type: "tile", description: "Catch Ivory Glossy 3X12", mfg: "VTC", size: "3X12", unit: "SF", cost: 3.47, sfPerUnit: 12.15, priceSqft: 5.2 }),
   it({ sku: "335015047", description: "Milled Oak—Copper — Slim Trim - P29 · fits 270266018", mfg: "TARKETT", size: '94"', unit: "EA", cost: 47.94, trim: true, fits: "270266018" }),
+  // The 9/16 Tuscany flag: a mosaic whose only printed L×W is its backing sheet
+  // ("HEXAGON MOSAIC 10X12", 4.09 SF/CT ÷ 5 PC) — the import now files it as
+  // sheetSize, so the pick reads "10x12 sheet" with the chip left to the row.
+  it({ sku: "VTCTUWHMOSHEX", type: "tile", description: "Tuscany White Hexagon Mosaic", mfg: "VTC", productLine: "TUSCANY", sheetSize: "10x12", unit: "PC", orderUnit: "PC", cost: 23.44, sfPerUnit: 4.09, pcPerUnit: 5, leadTime: "READY SHIP", claudeIssue: { by: "Marcus", at: Date.now() - DAY } }),
   it({ sku: "ANACAM12", type: "tile", description: "Camden White 12X24 Matte", mfg: "ANATOLIA", size: "12X24", cost: 2.44, sfPerUnit: 15.5, priceUnit: "SF", orderUnit: "CT", editedBy: "Sam", editedAt: Date.now() - 3 * DAY, claudeIssue: { by: "Sam", at: Date.now() - 2 * DAY } }),
 ];
 
