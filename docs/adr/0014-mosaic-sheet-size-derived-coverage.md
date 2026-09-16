@@ -107,3 +107,41 @@ The doctrine is unchanged — a sheet dimension is coverage, never grout geometr
 the chip is the grout geometry, filled automatically when the book gives us
 enough and by one manual entry when it does not. This amendment only teaches the
 PDF path the same rule and adds the rows-per-sheet derivation as a middle rung.
+
+## Amendment 2026-09-16 — a mosaic's bare L×W that covers the whole piece is the sheet (issue 142)
+
+Marcus flagged the VTC Tuscany White Hexagon Mosaic (`VTCTUWHMOSHEX`) job line
+as "no sheet size". The EFT sheet prints it as `TUSCANY WHITE HEXAGON MOSAIC
+10X12` — no SHEET/SHT word for rule 1 to catch, no packaging token, no chip —
+so `SIZE_RE` read the `10X12` as the tile and the row landed as a 10×12
+rectangle in L×W: grout/mortar ran on a tile 30× the chip, the size cell never
+said "sheet", and the PC No-Broken unit fell to loose exact-area ordering
+instead of whole sheets.
+
+Position in the description can't decide it: across the same sheet, 234 mosaic
+rows print the CHIP in that spot (`BOOST GREY MOSAIC 2X2`, `MOS 2X12`). The
+row's own coverage can. `SF/CT ÷ PC/CT` is the square feet of one piece, and a
+mosaic's piece is its sheet — so when the printed L×W's area is that coverage,
+the L×W is the sheet. The ratio is bimodal on the real file: every backing sheet
+runs 1.0–1.8× the per-piece coverage (interlocking and composition panels
+overstate their net coverage, as sheets do), every chip ≤ 0.17×, nothing
+between. A chip can never be half its sheet, so **≥ 0.5 decides**.
+
+- **Rule (mappedItem, after the description split):** a row whose description
+  carries MOS/MOSAIC, whose split size is a plain L×W, whose `sheetSize` is still
+  empty and whose `sfPerUnit` is known moves that L×W to `sheetSize` (and clears
+  `size`) when `L×W ÷ 144 ≥ 0.5 × sfPerUnit ÷ (pcPerUnit or 1)`. No coverage →
+  nothing to decide → the L×W stays as before. Non-mosaic rows are never
+  touched (an ordinary tile's L×W always equals its per-piece coverage).
+- **Downstream is rule 3 unchanged:** the pick reads `10x12 sheet` with a blank
+  L×W and the "＋ add size for grout" prompt; the sheet's own `SF/CT` still wins
+  for coverage (rule 2 only fills a blank); a PC-spelled sheet orders whole
+  sheets at `SF/CT ÷ PC/CT` per piece; order entry reads the nominal `10x12"`.
+- **Effect on the 2026-01-15 CTNS EFT file:** 34 rows change, all backing
+  sheets — the 7 Tuscany hex mosaics (10×12), 18 Shibusa Intreccio/Losanga/
+  Bacchette (12×12, 12×24), 4 Orleans interlocking hex (12×10) and 5 Quartz
+  Essence composition panels (12×15). Every other row of the 10,013 imports
+  identically.
+- **Not covered:** a `(12X10/SH)` packaging token beside a chip size (the Regina
+  hexes) is still dropped — that row has a real chip, and this ADR's "chip wins"
+  rule stands; carrying both onto a row is a separate decision.

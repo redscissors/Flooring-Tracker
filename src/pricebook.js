@@ -216,6 +216,7 @@ const PACKAGING_RE = /\(\s*([^)]*?)\s*\/\s*(sh|sht|ct|ctn|pc|pcs|ea|cs|bx|box|pk
 // own `sheetSize` and only used when the description carries no chip size; the
 // chip size is entered by hand on the row (ADR 0014).
 const SHEET_TOKEN_RE = new RegExp(`\\(?\\s*(${DIMS})\\s*["']?\\s*[x×]\\s*(${DIMS})\\s*["']?\\s*(?:sheets?|shts?)\\b\\s*\\)?`, "i");
+const MOSAIC_WORD_RE = /\bmos(?:aics?)?\b/i;
 const THICK_MM_RE = /(\d+(?:\.\d+)?)\s*mm\b/i;
 // A fraction thickness must carry the inch mark, must not be the tail of a
 // mixed number ('1-5/8" SCREWS' is a length), and must not be a width.
@@ -804,6 +805,16 @@ function mappedItem(mapping, raw, sku, sem) {
   }
   if (!type && mapping.typeFromDescription && sfPerUnit > 0 && COVERAGE_SOLD_RE.test(str(raw.unit))) {
     type = floorTypeFromDescription(descText, size);
+  }
+  // A mosaic's bare L×W that covers the whole piece is its backing SHEET, not
+  // the chip (ADR 0014 amendment 2026-09-16): VTC prints "HEXAGON MOSAIC 10X12"
+  // with no SHEET word, and 4.09 SF/CT ÷ 5 PC/CT = 0.818 sf ≈ 10×12 in². A chip
+  // can never be half its sheet (the sheet's own rows run 1.0–1.8× for sheets,
+  // ≤0.17× for chips), so ≥ half decides; no coverage → nothing to decide.
+  if (!sheetSize && MOSAIC_WORD_RE.test(str(raw.description)) && sfPerUnit > 0) {
+    const lw = size.match(/^(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)$/);
+    const perPiece = sfPerUnit / (numOrNull(raw.pcPerUnit) || 1);
+    if (lw && (lw[1] * lw[2]) / 144 >= perPiece * 0.5) { sheetSize = size; size = ""; }
   }
   // Mosaic sold by the sheet with SF/CT left blank (Milestone marble hexes): the
   // sheet's own L×W gives its area, so coverage-per-carton = sheet SF × pieces-

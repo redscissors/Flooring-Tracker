@@ -201,6 +201,21 @@ test("a mosaic sheet whose No-Broken unit is spelled PC still orders whole sheet
   assert.equal(patch.priceSqft, "47.33");       // 32.54 × 10 ÷ 6.875
 });
 
+test("a VTC Tuscany hex mosaic lands as a 10x12 sheet priced per sheet (the 9/16 flag)", () => {
+  // What the import now emits for VTCTUWHMOSHEX: sheetSize, no chip. The pick
+  // must read like its MLS siblings — sheet size as the vendor size, L×W blank
+  // for the chip, one PC = one 10×12 sheet of 4.09 ÷ 5 sf.
+  const it = { sku: "VTCTUWHMOSHEX", type: "tile", unit: "PC", orderUnit: "PC", sheetSize: "10x12", pcPerUnit: 5, sfPerUnit: 4.09, description: "Tuscany White Hexagon Mosaic", price: 23.44 };
+  const patch = stockPatch(it, {});
+  assert.equal(patch.type, "tile");
+  assert.equal(patch.sizeText, "10x12 sheet");
+  assert.equal(patch.L, undefined);
+  assert.equal(patch.W, undefined);
+  assert.equal(patch.cartonSf, "0.818");
+  assert.equal(patch.cartonUnit, "PC");         // the vendor's own No-Broken unit
+  assert.equal(patch.priceSqft, "28.66");       // 23.44 × 5 ÷ 4.09
+});
+
 test("a sheet mosaic with no stated unit defaults to SH, never CT (the CLNL289 flag)", () => {
   // The Glazzio PDF states a sheet size and per-sheet coverage but no U/M
   // column, so the old CT default keyed cartons at the desk for sheet goods

@@ -149,6 +149,20 @@ test("orderEntryRow: a sheet mosaic — nominal size, true size on hover, exact 
   assert.equal(plain.sizeTrue, "");
 });
 
+// The 9/16 VTC Tuscany flag ("no sheet size"): once the import reads the
+// mosaic's bare 10X12 as its sheet, the picked row keys per sheet in the
+// vendor's own PC unit and reads the nominal size with the landed dims on hover.
+test("orderEntryRow: a PC-spelled sheet mosaic reads its nominal sheet size and per-sheet coverage", () => {
+  const p = { ...newProduct(), type: "tile", bookId: "bkVtc", sku: "VTCTUWHMOSHEX", brandColor: "Tuscany White Hexagon Mosaic", sizeText: "10x12 sheet", qty: "42", priceSqft: "41.55", costSqft: "28.66", cartonSf: "0.818", cartonUnit: "PC" };
+  const r = orderEntryRow(p, s, "Area 1", 70, new Set(), new Map([["bkVtc", "VTC"]]));
+  assert.equal(r.sizePlain, '10x12"');
+  assert.equal(r.sizeTrue, "10x12 sheet");
+  assert.equal(r.unitCode, "PC");
+  assert.equal(r.coverage, "0.818 SF/PC");
+  assert.equal(r.qtyText, "57 PC", "42 sf + the default 10% waste ÷ 0.818 sf per sheet, rounded up to whole sheets");
+  assert.match(r.desc.full, /^10x12" .*Tuscany White Hexagon Mosaic VTCTUWHMOSHEX 0\.818 SF\/PC$/);
+});
+
 // A plain each line is what the panel has always shown — no tag, no change.
 test("orderEntryRow: an each line still carries no unit tag", () => {
   const p = { ...newProduct(), type: "misc", qtyType: "count", qty: "2", priceSqft: "18", brandColor: "Trowel" };
