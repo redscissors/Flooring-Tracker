@@ -1791,9 +1791,9 @@ src/
                     # `Seg` that latches green by itself, plus ONE latching
                     # copy-all at the left like a special line's button
                     # (`LatchCopy texts=` — deliverToSequence written entry
-                    # by entry, 80 ms apart, so Win+V holds each; the run
-                    # stays inside the browser's user-activation window);
-                    # no per-field buttons. Above
+                    # by entry through clipseq.js, counting up on the button
+                    # while it runs, disabled meanwhile, so the desk waits
+                    # for the check before Win+V); no per-field buttons. Above
                     # Special order (per-line copy) above
                     # Stock (checkboxes + Copy all as SKU⇥qty; the estimated
                     # materials ride the Stock list unfiltered — App.jsx's
@@ -1851,6 +1851,15 @@ src/
                     # kind order) · Freight; SKU breaks ties. `sheetBands`
                     # bands the as-entered list by consecutive area
                     # (orderlines.test.js)
+  clipseq.js        # `writeSequence` + `CLIP_GAP_MS` (400): writes a list of
+                    # texts to the clipboard one after another, a pause
+                    # between, so Windows clipboard history (Win+V) keeps
+                    # every one — the history is a background listener that
+                    # reads the clipboard some time after each change, and a
+                    # write landing before it gets to the last one is
+                    # skipped; at 80 ms the desk saw one or two of eight
+                    # survive (owner 2026-09-16). Pure (injectable write/
+                    # wait) so the sequencing is tested under node
   copybtn.jsx       # `CopyBtn` + `DONE_MOSS` + `writeClipboard` — the copy
                     # button both the order-entry and samples panels mount,
                     # in its own file so samples.jsx (boot chunk) never
