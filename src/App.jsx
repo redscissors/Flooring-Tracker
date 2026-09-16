@@ -1387,13 +1387,14 @@ export default function App({ user, onSignOut }) {
           </div>
           <div className="p-2.5 space-y-2">
             <div className="relative"><Search size={16} className="absolute left-2.5 top-2.5 text-slate-400" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search" className={inp + " pl-8"} /></div>
-            <button onClick={() => setNewCust("")} className="ft-spark-btn w-full flex items-center justify-center gap-1.5 text-sm font-semibold py-2"><Plus size={16} className="-ml-1" /> New Customer</button>
-            {/* The rail's two starting points sit together: a named customer, or
-                a throwaway quick price (ADR 0022). It took the old Newest/A–Z
-                sort's slot — the sidebar is a recents rail, and A–Z lives in the
-                customer browser where the whole list actually is. */}
+            {/* The rail's two starting points sit together: a throwaway quick
+                price (ADR 0022) or a named customer. Quick Price is the primary
+                — nearly every job starts as one and gets filed later — so it
+                wears the spark fill and New Customer is the quiet secondary. */}
             <button onClick={() => { startQuickPrice(); setSidebarOpen(false); }} title="Quick price — an unnamed draft you can file under a customer later"
-              className="w-full flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm font-semibold py-1.5 text-slate-600"><Zap size={15} className="text-indigo-500" /> Quick Price</button>
+              className="ft-spark-btn w-full flex items-center justify-center gap-1.5 text-sm font-semibold py-2"><Zap size={16} className="-ml-1" /> Quick Price</button>
+            <button onClick={() => setNewCust("")}
+              className="w-full flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm font-semibold py-1.5 text-slate-600"><Plus size={15} className="text-indigo-500" /> New Customer</button>
             {/* The Customers button opens the browser overlay — the compact
                 ERP-style directory grid (issue 040). Quick prices AND the
                 unassigned estimates/drafts live behind its Estimates & drafts
@@ -1522,8 +1523,8 @@ export default function App({ user, onSignOut }) {
               <div className="h-full flex flex-col items-center justify-center text-center px-6">
                 <NedLogo style={{ width: "clamp(205px, 28vw, 345px)" }} />
                 <div className="ft-eyebrow mt-3" style={{ fontSize: "clamp(11px,1.4vw,16px)", letterSpacing: ".32em" }}>Selection Manager</div>
-                <button onClick={() => setNewCust("")} className="ft-spark-btn mt-8 inline-flex items-center gap-2 font-semibold px-6 py-3 text-base"><Plus size={18} className="-ml-1" /> New customer</button>
-                <button onClick={startQuickPrice} className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-indigo-700 transition"><Zap size={15} /> Quick Price</button>
+                <button onClick={startQuickPrice} className="ft-spark-btn mt-8 inline-flex items-center gap-2 font-semibold px-6 py-3 text-base"><Zap size={18} className="-ml-1" /> Quick Price</button>
+                <button onClick={() => setNewCust("")} className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-indigo-700 transition"><Plus size={15} /> New customer</button>
               </div>
             )
           ) : !sel._full ? (
