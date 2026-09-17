@@ -1809,15 +1809,18 @@ src/
                     # the destination justify the price on the ESTIMATE, but the
                     # desk keys shipping as a single charge and pallets/feet/
                     # pieces can't share a quantity column.
-                    # Two views (owner 2026-09-14, .scratch/137): opens
-                    # MERGED & SORTED — mergeOrderLines + groupOrderLines
-                    # over both lists, vendor-group bands, a moss "×N areas"
-                    # pill on a merged line that opens its per-area
-                    # breakdown, a quiet "same SKU · unit/price differs"
-                    # note on a line held apart — with a SHEET ORDER switch
-                    # (the as-entered list banded by area) under the project
-                    # name; copies follow the visible view, selection resets
-                    # on a switch. Each section's STANDING rules (green check
+                    # Three views (owner 2026-09-17, .scratch/143, replacing
+                    # the 2026-09-14 vendor-first Merged & sorted): opens on
+                    # AREA + VENDOR (areaVendorBands — areas in sheet order,
+                    # tile before trims, a SKU merging only inside its area,
+                    # the configurator wedi/Schluter lines pulled into vendor
+                    # bands beneath), COMPACT (compactBands — every SKU
+                    # merged across the job, one run), and SHEET ORDER (the
+                    # as-entered list banded by area); a moss "×N areas"
+                    # pill on a merged line opens its per-area breakdown, a
+                    # quiet "same SKU · unit/price differs" note marks a
+                    # line held apart; copies follow the visible view,
+                    # selection resets on a switch. Each section's STANDING rules (green check
                     # tracks your place, per-unit cost/sell, the 70-char fit,
                     # SKU⇥qty) live behind a HelpTip ? on its heading (owner
                     # 2026-09-15 — widgets.jsx's doctrine); the footer under a
@@ -1849,7 +1852,14 @@ src/
                     # which the grammar can't read) · Sheoga · book brands
                     # A–Z · Other items (hand-typed) · Materials (print-sheet
                     # kind order) · Freight; SKU breaks ties. `sheetBands`
-                    # bands the as-entered list by consecutive area
+                    # bands the as-entered list by consecutive area.
+                    # `compactBands` / `areaVendorBands` (owner 2026-09-17,
+                    # .scratch/143) are the panel's two merged views: one
+                    # job-wide run vs. per-area bands (merge scoped to the
+                    # area — `mergeOrderLines(rows, scope)` salts the merged
+                    # id) with ONLY configurator wedi/Schluter lines pulled
+                    # into groupOrderLines' vendor bands beneath; both rank
+                    # tile & flooring before misc ahead of the SKU compare
                     # (orderlines.test.js)
   clipseq.js        # `writeSequence` + `CLIP_GAP_MS` (400): writes a list of
                     # texts to the clipboard one after another, a pause

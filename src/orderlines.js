@@ -20,8 +20,10 @@ const cents = (n) => Math.round((Number(n) || 0) * 100);
 // split instead of a silent pair. An assumed quantity (orderQty's 1) is a
 // stand-in, not a count: real quantities sum and absorb it; only an all-assumed
 // merge stays an assumed 1. Lines with no SKU (Sheoga by description, freight)
-// never merge. A line left alone is returned as the same object.
-export function mergeOrderLines(rows) {
+// never merge. A line left alone is returned as the same object. `scope`
+// (optional) salts the merged id so the same SKU merged in two areas of one
+// list (areaVendorBands) yields two distinct lines.
+export function mergeOrderLines(rows, scope = "") {
   const groups = new Map();
   rows.forEach((r, i) => {
     const c = canonSku(r.sku);
@@ -50,7 +52,7 @@ export function mergeOrderLines(rows) {
       const first = src[0];
       out[sub[0]] = {
         ...first,
-        id: `merged|${k}|${s}`,
+        id: `merged|${scope}|${k}|${s}`,
         qty, qtyAssumed: !real.length, qtyText: `${qty} ${first.unitCode || ""}`.trim(),
         from: src.map((r) => ({ id: r.id, area: r.area || "", qty: Number(r.qty) || 0, qtyAssumed: !!r.qtyAssumed })),
         ...(kept ? { kept } : {}),
@@ -109,6 +111,10 @@ export function lineGroup(r) {
   return at("other", 0, "Other items");
 }
 
+// Tile and flooring lead a run, trims and other misc rows follow (owner
+// 2026-09-17: a Jolly was landing above its tile on a numeric SKU compare).
+const typeRank = (r) => (r.type === "misc" ? 1 : 0);
+const byType = (a, b) => typeRank(a) - typeRank(b);
 const bySku = (a, b) => String(a.sku || "").localeCompare(String(b.sku || ""), undefined, { numeric: true }) || String(a.name || "").localeCompare(String(b.name || ""));
 const kindRank = (k) => { const i = PRINT_KINDS.indexOf(k); return i < 0 ? PRINT_KINDS.length : i; };
 const byMaterial = (a, b) => kindRank(a.kind) - kindRank(b.kind) || bySku(a, b);
@@ -129,6 +135,45 @@ export function groupOrderLines(rows) {
       key: g.key, label: g.label,
       rows: g.rows.sort((a, b) => (g.label === "Materials" ? byMaterial(a.r, b.r) : bySku(a.r, b.r)) || a.i - b.i).map((x) => x.r),
     }));
+}
+
+const stableSort = (rows, cmp) => rows.map((r, i) => ({ r, i })).sort((a, b) => cmp(a.r, b.r) || a.i - b.i).map((x) => x.r);
+// Materials and freight ride below whatever the view does with the items.
+const isTail = (r) => !!(r.freight || r.kind || !r.area || r.area === "all areas");
+// Only a configurator-built line leaves its area for the vendor bands (owner
+// 2026-09-17) — a Jolly picked from a price book stays with its tile.
+const isVendorLine = (r) => !!(r.wedi || r.schluter);
+
+// COMPACT (owner 2026-09-17): every same-SKU line combined across the whole
+// job into one run — tile & flooring by SKU, then trims & misc by SKU — with
+// Materials and Freight beneath.
+export function compactBands(rows) {
+  const merged = mergeOrderLines(rows);
+  const items = stableSort(merged.filter((r) => !isTail(r)), (a, b) => byType(a, b) || bySku(a, b));
+  return [
+    ...(items.length ? [{ key: "all", label: "All areas", rows: items }] : []),
+    ...groupOrderLines(merged.filter(isTail)),
+  ];
+}
+
+// AREA + VENDOR (owner 2026-09-17, the default): areas in sheet order, each
+// tile & flooring then trims, a SKU combining only inside its own area; the
+// configurator wedi and Schluter lines leave the areas for the desk's vendor
+// bands beneath, combined across areas; then Materials and Freight.
+export function areaVendorBands(rows) {
+  const areas = [];
+  const byArea = new Map();
+  const below = [];
+  for (const r of rows) {
+    if (isTail(r) || isVendorLine(r)) { below.push(r); continue; }
+    const a = r.area || "—";
+    if (!byArea.has(a)) { byArea.set(a, []); areas.push(a); }
+    byArea.get(a).push(r);
+  }
+  return [
+    ...areas.map((a) => ({ key: a, label: a, area: true, rows: stableSort(mergeOrderLines(byArea.get(a), a), byType) })),
+    ...groupOrderLines(mergeOrderLines(below)),
+  ];
 }
 
 // The sheet-order list, banded by consecutive area: the rows exactly as the

@@ -23,9 +23,12 @@
 // a zero qty blanks the per-unit pricing — and the whole row turns amber so the
 // salesperson can see the panel supplied that number, not the estimate.
 //
-// Two views (owner 2026-09-14): the panel opens MERGED & SORTED — lines
-// sharing a SKU combine into one (mergeOrderLines), and both lists band by
-// vendor group in the desk's order (groupOrderLines) — because ERP One keeps
+// Three views (owner 2026-09-17, replacing the 2026-09-14 vendor-first
+// "Merged & sorted"): the panel opens on AREA + VENDOR — areas in sheet order,
+// tile before trims inside each, a SKU combining only within its own area,
+// with the configurator wedi and Schluter lines pulled into the desk's vendor
+// bands beneath (areaVendorBands). COMPACT combines every SKU across the whole
+// job into one run, tile then trims (compactBands) — because ERP One keeps
 // two pasted lines with one SKU as two lines. A merged line wears a moss pill
 // (×N areas) that opens its per-area breakdown; a line held apart on purpose
 // (same SKU, different unit or price) says so in a quiet note. SHEET ORDER is
@@ -43,7 +46,7 @@ import { useMemo, useState } from "react";
 import { Copy, Check, X } from "lucide-react";
 import { CopyBtn, DONE_MOSS, writeClipboard } from "./copybtn.jsx";
 import { HelpTip } from "./widgets.jsx";
-import { mergeOrderLines, groupOrderLines, sheetBands } from "./orderlines.js";
+import { compactBands, areaVendorBands, sheetBands } from "./orderlines.js";
 import { deliverToRows, deliverToSequence, splitAddress } from "./deliverto.js";
 import { writeSequence } from "./clipseq.js";
 
@@ -178,8 +181,7 @@ function SpecialRow({ r, alt, descLimit }) {
   );
 }
 
-// A band heading inside a list: a vendor group in the merged view, an area in
-// sheet order.
+// A band heading inside a list: an area (quiet) or a vendor / materials group.
 function Band({ label, area, first }) {
   return (
     <div className={"px-3 py-1 ft-eyebrow text-[9.5px] tracking-[.12em] border-slate-100 " + (first ? "" : "border-t ") + (area ? "bg-slate-50 text-slate-400" : "bg-slate-100 text-slate-500")}>
@@ -314,7 +316,7 @@ function DeliverTo({ custInfo }) {
 // (SKU⇥qty), matching Cut & Order. A row with no SKU shows red and stays out
 // of the copies — a pasted blank would key the wrong thing silently. `bands`
 // is the list in the order it copies, already merged or as entered.
-function CopySection({ title, bands, areaBands, count, emptyText, tip, note }) {
+function CopySection({ title, bands, count, emptyText, tip, note }) {
   const [sel, setSel] = useState(() => new Set());
   const toggle = (id) => setSel((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const rows = bands.flatMap((b) => b.rows);
@@ -341,7 +343,7 @@ function CopySection({ title, bands, areaBands, count, emptyText, tip, note }) {
         <div className="rounded-lg border border-slate-200 overflow-hidden">
           {bands.map((b, bi) => (
             <div key={b.label} className="contents">
-              <Band label={b.label} area={areaBands} first={bi === 0} />
+              <Band label={b.label} area={b.area} first={bi === 0} />
               {b.rows.map((r) => <StockRow key={r.id} r={r} sel={sel.has(r.id)} onToggle={() => toggle(r.id)} unit={r.unitCode || ""} />)}
             </div>
           ))}
@@ -372,16 +374,17 @@ function mergeNote(rows) {
   );
 }
 
-// Merged-and-sorted vs sheet-order views of one list, keyed off the panel's
-// switch. Computed once per row set — the rows are rebuilt by App.jsx only when
-// the project changes.
-const useViews = (rows) => useMemo(() => {
-  const merged = mergeOrderLines(rows);
-  return { merged: { rows: merged, bands: groupOrderLines(merged) }, sheet: { rows, bands: sheetBands(rows) } };
-}, [rows]);
+// The three views of one list, keyed off the panel's switch. Computed once per
+// row set — the rows are rebuilt by App.jsx only when the project changes.
+const asView = (bands) => ({ bands, rows: bands.flatMap((b) => b.rows) });
+const useViews = (rows) => useMemo(() => ({
+  compact: asView(compactBands(rows)),
+  area: asView(areaVendorBands(rows)),
+  sheet: asView(sheetBands(rows).map((b) => ({ ...b, area: true }))),
+}), [rows]);
 
 export function OrderEntryPanel({ name, custInfo, special = [], stock = [], descLimit = 0, onClose }) {
-  const [view, setView] = useState("merged");
+  const [view, setView] = useState("area");
   const sp = useViews(special), st = useViews(stock);
   const spv = sp[view], stv = st[view];
   const specialRows = spv.bands.flatMap((b) => b.rows);
@@ -389,7 +392,7 @@ export function OrderEntryPanel({ name, custInfo, special = [], stock = [], desc
   // "Collection") pastes a whole spec and needs no amber warning.
   const splits = specialRows.filter((r) => r.desc && r.desc.cut).length;
   const assumed = specialRows.filter((r) => r.qtyAssumed).length;
-  const isMerged = view === "merged";
+  const isMerged = view !== "sheet";
   const specialNote = isMerged ? mergeNote(specialRows) : null;
   const segBtn = (v, label) => (
     <button type="button" onClick={() => setView(v)} aria-pressed={view === v}
@@ -404,8 +407,9 @@ export function OrderEntryPanel({ name, custInfo, special = [], stock = [], desc
             <div className="ft-serif text-xl leading-tight">Copy for order entry</div>
             <div className="text-[12px] text-slate-400 truncate">{name}</div>
             <div className="inline-flex items-center gap-0.5 mt-2 p-0.5 rounded-lg border border-slate-200 bg-slate-50" role="group" aria-label="List view"
-              title="Merged & sorted combines lines that share a SKU and groups them by vendor. Sheet order is the list exactly as the estimate reads.">
-              {segBtn("merged", "Merged & sorted")}
+              title="Compact combines every line that shares a SKU into one, tile before trims. Area + vendor keeps each area together and pulls the wedi and Schluter shower lines into vendor groups below. Sheet order is the list exactly as the estimate reads.">
+              {segBtn("compact", "Compact")}
+              {segBtn("area", "Area + vendor")}
               {segBtn("sheet", "Sheet order")}
             </div>
           </div>
@@ -435,7 +439,7 @@ export function OrderEntryPanel({ name, custInfo, special = [], stock = [], desc
                 </div>
                 {(() => { let i = 0; return spv.bands.map((b) => (
                   <div key={b.label} className="contents">
-                    <Band label={b.label} area={!isMerged} />
+                    <Band label={b.label} area={b.area} />
                     {b.rows.map((r) => <SpecialRow key={r.id} r={r} alt={i++ % 2 === 1} descLimit={descLimit} />)}
                   </div>
                 )); })()}
@@ -459,7 +463,7 @@ export function OrderEntryPanel({ name, custInfo, special = [], stock = [], desc
           </section>
 
           {/* Stock — products + estimated materials; check lines, then Copy all / Copy selected */}
-          <CopySection key={view} title="Stock" bands={stv.bands} areaBands={!isMerged} count={stv.rows.length}
+          <CopySection key={view} title="Stock" bands={stv.bands} count={stv.rows.length}
             emptyText="No stock items in this project."
             tip="Each line copies as SKU + tab + quantity, ready to paste. Copy all takes every line with a SKU; check lines for Copy selected." note={isMerged ? mergeNote(stv.rows) : null} />
         </div>
