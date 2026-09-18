@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { searchStock, hitRank, relaxSearchWords, findStock, parseTileSize, parseThickness, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, groutSnapshotPatch, deriveSquareDim, groutColorOptions } from "./stock.js";
+import { searchStock, hitRank, relaxSearchWords, findStock, parseTileSize, parseThickness, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, groutSnapshotPatch, deriveSquareDim, groutColorOptions, switchToSqftPatch, switchChipText } from "./stock.js";
 import { normOrderItem } from "./orderbook.js";
 import { groutExact, mortarExact, mergeSettings, ceilQty } from "./catalog.js";
 
@@ -616,4 +616,29 @@ test("groutColorOptions splits a family's colors into stock and special-order gr
   // no family: the fallback list, no special group
   assert.deepEqual(groutColorOptions(null, "Bright White", ["Bright White", "Almond"]), { stock: ["Bright White", "Almond"], special: [] });
   assert.deepEqual(groutColorOptions(null, "Custom", ["Almond"]), { stock: ["Custom", "Almond"], special: [] });
+});
+
+// --- count line → sq ft switch (spec 2026-09-18) --------------------------------
+test("switchToSqftPatch converts a saved count line by count × coverage and clears count fields", () => {
+  const row = { type: "misc", qtyType: "count", qty: "5", sellUnit: "SH", cartonPc: "", cartonManual: "2", priceSqft: "21.49", brandColor: "Schluter Ditra Heat - Membrane Sheet", note: "bath floor", freight: "off", kitId: "" };
+  const landed = { sku: "23031", type: "underlayment", qtyType: "sqft", priceSqft: "2.56", cartonSf: "8.4", cartonUnit: "SH", sizeText: "3'3\"x2'7\"", brandColor: "Schluter Ditra Heat - Membrane Sheet" };
+  const patch = switchToSqftPatch(row, landed);
+  assert.equal(patch.type, "underlayment");
+  assert.equal(patch.qtyType, "sqft");
+  assert.equal(patch.qty, "42");                 // 5 sheets × 8.4
+  assert.equal(patch.cartonSf, "8.4");
+  assert.equal(patch.sellUnit, "");
+  assert.equal(patch.cartonPc, "");
+  assert.equal(patch.cartonManual, "");
+  assert.equal("note" in patch, false);          // the row's own fields are untouched
+  assert.equal("freight" in patch, false);
+  assert.equal(switchChipText(landed), "Book sells this by the SH — 8.4 sf");
+});
+
+test("switchToSqftPatch: blank count stays blank; a row that is already sq ft or a book item still counted returns null", () => {
+  const landed = { type: "underlayment", qtyType: "sqft", cartonSf: "323", cartonUnit: "RL" };
+  assert.equal(switchToSqftPatch({ type: "misc", qtyType: "count", qty: "" }, landed).qty, "");
+  assert.equal(switchToSqftPatch({ type: "underlayment", qtyType: "sqft", qty: "40" }, landed), null);
+  assert.equal(switchToSqftPatch({ type: "misc", qtyType: "count", qty: "3" }, { type: "misc" }), null);
+  assert.equal(switchToSqftPatch({ type: "misc", qtyType: "count", qty: "3" }, null), null);
 });

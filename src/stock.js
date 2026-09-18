@@ -411,6 +411,18 @@ export function stockDrift(item, product) {
   return Math.abs(cur - now) > 0.005 ? { from: cur, to: now } : null;
 }
 
+// A row saved as a count line whose book item now lands a sq ft row (an
+// underlayment sheet/roll, spec 2026-09-18) switches over on a click, never on
+// its own (ADR 0003). The typed count becomes count × coverage so the order
+// stays what it was until the real footage is typed; the count-line fields go.
+export function switchToSqftPatch(product, patch) {
+  if (!patch || !product || product.type !== "misc" || !patch.type || patch.type === "misc" || patch.qtyType !== "sqft") return null;
+  const count = parseFloat(product.qty), per = parseFloat(patch.cartonSf);
+  const qty = Number.isFinite(count) && count > 0 && per > 0 ? String(round2(count * per)) : "";
+  return { ...patch, qtyType: "sqft", qty, sellUnit: "", cartonPc: "", cartonManual: "" };
+}
+export const switchChipText = (patch) => `Book sells this by the ${bundleUnit(patch?.cartonUnit).toUpperCase()} — ${parseFloat(patch?.cartonSf) || 0} sf`;
+
 // --- Laticrete base-unit companions ---------------------------------------------
 
 // A Spectralock Part C or Permacolor Color Kit item is only the pigment — it is

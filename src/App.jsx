@@ -4,7 +4,7 @@ import { supabase } from "./lib/supabase.js";
 import { listSelect, lightRow, loadProjects, loadPeople, loadBuilders, loadTodos, loadClaudeIssues, loadBooks, loadSettingsRow, resolveSharedSettings, loadSampleRequests } from "./bootload.js";
 import { bootTrace, traceRows } from "./boottrace.js";
 import { num, wasteFor, withProjWaste, normalizeSettings, serializeSettings, groutExact, mortarExact, getGrout, getMortar, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, offeredAttached, offeredCategories, getAttached, qtyDrift } from "./catalog.js";
-import { findStock, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant, groutFamilies, groutSnapshotPatch, groutColorOptions } from "./stock.js";
+import { findStock, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant, groutFamilies, groutSnapshotPatch, groutColorOptions, switchToSqftPatch, switchChipText } from "./stock.js";
 import { pricedItem, orderPatch, orderDrift, rowCostSqft, skuKeys } from "./orderbook.js";
 import { isSpecialOrder, isSpecialMat, nameBudget, orderQty } from "./orderentry.js";
 import { SamplesPanel } from "./samples.jsx";
@@ -1863,6 +1863,10 @@ export default function App({ user, onSignOut }) {
                         const oDrift = oItem && oBook ? orderDrift(oItem, oBook, p) : null;
                         const stockItem = orderRow ? null : findStock(groutStock, p.sku);
                         const drift = stockDrift(stockItem, p);
+                        // Count line whose book item now lands a sq ft row (an underlayment
+                        // sheet/roll): offer the switch, never do it silently (spec 2026-09-18).
+                        const bookItem = orderRow ? oItem : stockItem;
+                        const switchPatch = bookItem && p.type === "misc" ? switchToSqftPatch(p, patchFor(bookItem, p)) : null;
                         // Retired = the row's SKU is discontinued/inactive in its source —
                         // the book item for a bookId row (imports retire, never delete),
                         // the projected family row otherwise.
@@ -1911,7 +1915,7 @@ export default function App({ user, onSignOut }) {
                         const wediCfg = p.wedi?.cfg?.panKey && !p.wedi.part ? p.wedi : null;
                         // Schluter's anchor test is the room (cfg.w) — its cfg has no panKey.
                         const schluterCfg = p.schluter?.cfg?.w && !p.schluter.part ? p.schluter : null;
-                        const driftBlock = (drift || oDrift || cDrift || p.freightFlag || stockRetired || baseAlt || p.sheoga?.cfg || wediCfg || schluterCfg) ? (
+                        const driftBlock = (drift || oDrift || cDrift || switchPatch || p.freightFlag || stockRetired || baseAlt || p.sheoga?.cfg || wediCfg || schluterCfg) ? (
                           <div className="ft-noprint flex items-center gap-2 text-xs flex-wrap" style={{ padding: "2px 12px 4px 26px" }}>
                             {p.sheoga?.cfg && (
                               <button tabIndex={-1} onClick={() => setSheogaPop({ aid: a.id, pid: p.id, seed: p.sheoga })} data-sheoga-reconfig
@@ -1931,6 +1935,10 @@ export default function App({ user, onSignOut }) {
                                 Schluter — reconfigure
                               </button>
                             )}
+                            {switchPatch && (<>
+                              <span className="text-amber-600">{switchChipText(switchPatch)}</span>
+                              <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, switchPatch)} className="rounded-full border border-amber-300 text-amber-700 px-2 py-0.5 hover:bg-amber-50 font-medium">Switch to sq ft</button>
+                            </>)}
                             {drift && (<>
                               <span className="text-amber-600">Price book now {money(drift.to)} — this row has {money(drift.from)}</span>
                               <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { priceSqft: String(drift.to) })} className="rounded-full border border-amber-300 text-amber-700 px-2 py-0.5 hover:bg-amber-50 font-medium">Use new price</button>
