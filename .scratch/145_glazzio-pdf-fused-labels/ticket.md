@@ -41,3 +41,26 @@ book had one item per word, and they print a finish sub-heading ("Glossy" /
 Three tests in `src/pdfbook.test.js` carry the real pages' geometry. Both pages
 now import all 18 rows priced by the box (Xenia $60.53/BX over 16.14 SF, Yosemite
 $113.78/BX over 5.55 SF), reconciling with the printed $/sqft.
+
+## Verification on a second excerpt (2026-09-18, "Price-List_2", 21 pages)
+
+Owner sent 21 more pages (Random Brick → Skyline). Run through the fixed parser
++ `parseMapped` against the pre-fix parser on the same text items:
+
+| | pre-fix | fixed |
+|---|---|---|
+| rows | 86 | 126 |
+| priced by the box | 0 | 126 |
+| priced per sq ft | 86 | 0 |
+| rows lost | — | 0 |
+
+The 40 rows the old parser never saw are the four Renaissance tables (pages
+2–3): the same "Polished" / "Matte" sub-heading under the header as Xenia.
+Every derived $/sqft on all 126 rows is within 1¢ of a printed $/sqft and every
+cost is a printed value. Six rows carry no chip size (Random Brick, Riverbed
+mosaics) because the page prints none — the ADR 0014 prompt case, not a miss.
+
+Not addressed here (cosmetic, pre-existing): a heading with "Collection" in the
+middle ("Renaissance Collection - 12x12", "Sarmento Collection: Plain") keeps
+the word, since only a trailing "Collection" is stripped; and a color name plus
+description that repeat a word read "Shell White Shell Shell Mosaics".
