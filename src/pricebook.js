@@ -704,10 +704,14 @@ const TYPE_VINYL_RE = /\b(lvp|lvt|vinyl|spc|wpc)\b|adura|realta/i;
 // ('2" Anatolia Soho Hexagon'), which the wood fallback would otherwise claim.
 const TYPE_TILE_RE = /\b(tile|porcelain|ceramic|mosaic|hex(?:agon)?|penny|octagon)\b/i;
 const TYPE_WOOD_RE = /\b(hardwood|oak|hickory|maple|walnut|cherry|birch|acacia|ash|pine|ro|wo|flr|floor(?:ing|s)?|unfinished|prefinished|pf)\b/i;
+const TYPE_UNDERLAY_RE = /\b(membranes?|underlayments?|uncoupling|backer|backerboards?)\b/i;
 export function floorTypeFromDescription(text, size) {
   const t = str(text);
-  // A sheet-sold membrane (Ditra Heat) has real sf coverage but is no floor.
-  if (/\bmembranes?\b/i.test(t)) return null;
+  // A sheet- or roll-sold membrane/backer has real coverage but is no floor:
+  // it is underlayment (spec 2026-09-18), ordered whole like a carton, no
+  // grout/mortar. Checked first — "Membrane Sheet" + a bare width would
+  // otherwise fall to the hardwood guess.
+  if (TYPE_UNDERLAY_RE.test(t)) return "underlayment";
   if (TYPE_VINYL_RE.test(t)) return "vinyl";
   if (/\blaminate\b/i.test(t)) return "laminate";
   if (/\bcarpet\b/i.test(t)) return "carpet";
@@ -806,6 +810,12 @@ function mappedItem(mapping, raw, sku, sem) {
   if (!type && mapping.typeFromDescription && sfPerUnit > 0 && COVERAGE_SOLD_RE.test(str(raw.unit))) {
     type = floorTypeFromDescription(descText, size);
   }
+  // The Schluter EFT never types its rows (ADR 0041) — except a coverage-
+  // bearing membrane sold by the sheet or roll, which is underlayment
+  // (spec 2026-09-18) from either book. The EFT's sell unit rides "No Broken
+  // U/M" (orderUnit), never the plain unit column the ERP stock export maps —
+  // bundledUnit already checks all three.
+  if (!type && schluter && sfPerUnit > 0 && bundledUnit && TYPE_UNDERLAY_RE.test(descText)) type = "underlayment";
   // A mosaic's bare L×W that covers the whole piece is its backing SHEET, not
   // the chip (ADR 0014 amendment 2026-09-16): VTC prints "HEXAGON MOSAIC 10X12"
   // with no SHEET word, and 4.09 SF/CT ÷ 5 PC/CT = 0.818 sf ≈ 10×12 in². A chip

@@ -10,18 +10,20 @@ export const skuSearchable = (stock, searchOrder, stockReady) => stock.length > 
 // the customer/salesperson stacks beside them.
 export const PROJECT_NAME_MAX = 40;
 
-export const TYPES = ["tile", "hardwood", "vinyl", "laminate", "carpet", "misc"];
-export const TLBL = { tile: "Tile", hardwood: "Hardwood", vinyl: "Vinyl", laminate: "Laminate", carpet: "Carpet", misc: "Miscellaneous" };
+// "underlayment" (spec 2026-09-18): a sheet/roll membrane or backer row that
+// orders like carton flooring — sqft math, no grout/mortar, no waste.
+export const TYPES = ["tile", "hardwood", "vinyl", "laminate", "carpet", "underlayment", "misc"];
+export const TLBL = { tile: "Tile", hardwood: "Hardwood", vinyl: "Vinyl", laminate: "Laminate", carpet: "Carpet", underlayment: "Underlayment", misc: "Miscellaneous" };
 // The underlayment row is labelled per flooring type — a tile job wants "backer"
 // language, the soft/plank goods want "underlayment".
-export const UNDERLAY_LABEL = { tile: "Tile Backer" };
+export const UNDERLAY_LABEL = { tile: "Tile Backer", underlayment: "Install materials" };
 export const underlayLabel = (type) => UNDERLAY_LABEL[type] || "Underlayment";
 // Product-type accents: the small type button, active joint toggle and the
 // material check chips carry the flooring type's color (the selection rows
 // themselves are paper-washed, not type-colored — see ROW_WASH below). They
 // resolve to CSS tokens (src/index.css) sourced from the NED data series, so
 // each flips with light/dark and a recolor is a one-line stylesheet change.
-export const TYPE_ACCENT = { tile: "var(--ft-type-tile)", hardwood: "var(--ft-type-hardwood)", vinyl: "var(--ft-type-vinyl)", laminate: "var(--ft-type-laminate)", carpet: "var(--ft-type-carpet)", misc: "var(--ft-type-misc)" };
+export const TYPE_ACCENT = { tile: "var(--ft-type-tile)", hardwood: "var(--ft-type-hardwood)", vinyl: "var(--ft-type-vinyl)", laminate: "var(--ft-type-laminate)", carpet: "var(--ft-type-carpet)", underlayment: "var(--ft-type-underlayment)", misc: "var(--ft-type-misc)" };
 
 // Selection grid tone recipe (prototype 2026-07-12): rows and the materials
 // box sit on the page tone (--ft-area-row) so the card interior reads as the

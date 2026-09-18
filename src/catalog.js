@@ -91,10 +91,9 @@ export const projWaste = (proj, s) => {
 // path (which reads `s.waste`) picks it up without a signature change.
 export const withProjWaste = (s, proj) => ({ ...s, waste: projWaste(proj, s) });
 
-// The waste multiplier a product line calcs against: tile lines use the tile
-// rate, all other flooring types share the floor rate. Misc lines never reach
-// here (their callers exclude them) and carry no waste.
-export const wasteFor = (p, s) => 1 + num(p?.type === "tile" ? s?.waste?.tile : s?.waste?.floor) / 100;
+// An underlayment row (spec 2026-09-18) orders exactly what the floor measures —
+// the sheet or roll count is already the rounding, so no waste on top.
+export const wasteFor = (p, s) => p?.type === "underlayment" ? 1 : 1 + num(p?.type === "tile" ? s?.waste?.tile : s?.waste?.floor) / 100;
 
 // Normalize a loaded/imported Settings object back to the full shape, filling
 // gaps from DEFAULTS so older records stay valid. (`s.mortar` is a legacy
@@ -248,8 +247,9 @@ export function underlayExact(p, s) {
 
 export function getUnderlay(p, s) {
   // Misc lines are flat-priced extras — no underlayment, even if a checked
-  // state survives a type switch.
-  if (p.type === "misc" || !p.underlay?.checked) return null;
+  // state survives a type switch. An underlayment row IS the underlayment: its
+  // catalog link only brings the install materials (getUnderlayInstall).
+  if (p.type === "misc" || p.type === "underlayment" || !p.underlay?.checked) return null;
   const u = s.underlayments?.[p.underlay.product] || {};
   if (p.underlay.manual !== "" && p.underlay.manual != null) { const v = num(p.underlay.manual); return { exact: v, order: v, unit: u.unit, price: num(u.price), unitCost: num(u.cost), product: p.underlay.product }; }
   const ex = underlayExact(p, s); if (ex == null) return null;
@@ -303,8 +303,15 @@ export function materialWarnings(p, s) {
   if (p.type === "tile" && p.grout?.checked && !getGrout(p, s)) out.push("grout");
   if (p.type === "tile" && p.mortar?.checked && !getMortar(p, s)) out.push("mortar");
   const U = getUnderlay(p, s);
-  if (p.underlay?.checked && (!U || !U.product)) out.push("underlay");
-  if (U && U.product && p.underlay?.install) {
+  const ownUnderlay = p.type === "underlayment";
+  // An underlayment row IS its own underlayment (getUnderlay is null for it), so
+  // nothing about it can fail to compute — what can go missing is the catalog
+  // entry it links to, which its install materials come from.
+  const ownEntry = !!(ownUnderlay && p.underlay?.checked && p.underlay?.product);
+  if (ownUnderlay) { if (ownEntry && !s.underlayments?.[p.underlay.product]) out.push("underlay"); }
+  else if (p.underlay?.checked && (!U || !U.product)) out.push("underlay");
+  const hasUnderlay = ownUnderlay ? ownEntry : !!(U && U.product);
+  if (hasUnderlay && p.underlay?.install) {
     const defs = (s.underlayments?.[p.underlay.product]?.install || []).filter((d) => !p.underlay.installSkip?.[d.id]);
     if (defs.length && !getUnderlayInstall(p, s)) out.push("install");
   }
@@ -603,8 +610,19 @@ export const resolveMaterialDefault = (offered, current, preferred) => {
 // to a job only when its `types` tag includes that type (an empty tag = all).
 export const offeredUnderlayments = (catalog, type) => {
   const names = [];
-  for (const co of (catalog?.companies || [])) for (const p of (co.underlayments || [])) if (isOffered(co, p) && (!(p.types || []).length || p.types.includes(type))) names.push(p.name);
+  // An underlayment row picks its own identity, so no flooring-type filter.
+  for (const co of (catalog?.companies || [])) for (const p of (co.underlayments || [])) if (isOffered(co, p) && (type === "underlayment" || !(p.types || []).length || p.types.includes(type))) names.push(p.name);
   return names;
+};
+
+// The catalog underlayment a picked SKU IS (spec 2026-09-18): an underlayment
+// row links its Materials-tab entry for the install materials, and a matching
+// `sku` links it at pick time. Disabled companies/products never match.
+export const underlaymentForSku = (catalog, sku) => {
+  const k = String(sku ?? "").trim().toUpperCase();
+  if (!k) return "";
+  for (const co of (catalog?.companies || [])) for (const p of (co.underlayments || [])) if (isOffered(co, p) && String(p.sku ?? "").trim().toUpperCase() === k) return p.name;
+  return "";
 };
 
 // --- Custom material categories (ADR 0016) -----------------------------------

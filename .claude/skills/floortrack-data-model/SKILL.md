@@ -116,7 +116,7 @@ Customer { id, name, address, phone, email, notes, createdAt,
            // its markCfg already carrying manual/source/pick. A PLACED kit has
            // no session — once landed the rows are the truth.
 Area     { id, name, option: ""|"A"…"L", products: Product[] }   // option = quote-option slot (ADR 0031, A–L since 2026-08-26); "" = shared base
-Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
+Product  { id, type:"tile|hardwood|vinyl|laminate|carpet|underlayment|misc",
            sku, L, W, thickness, sizeText, brandColor, priceSqft,
            qtyType:"sqft|count", qty,
            cartonSf, cartonPc, cartonUnit, cartonManual, note,
@@ -138,6 +138,10 @@ Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
            // that files the grout line as special order at order entry
            // (`isSpecialMat`). "" on rows picked before it existed (stock).
            underlay:{checked,product,manual,install},
+           // On an `underlayment` row (ADR 0043) `underlay.product` names the
+           // row's OWN Materials-tab entry (auto-linked by SKU at pick) and
+           // only its install items compute (getUnderlayInstall); getUnderlay
+           // is null there — the row is the underlayment, never billed twice.
            attached:{ [categoryId]: {checked,product,manual} },
            freight: "" | "off",
            kitId: "" | string,
@@ -190,7 +194,7 @@ Product  { id, type:"tile|hardwood|vinyl|laminate|carpet",
            // order summary, estimate breakdown, order sheet, and grand total.
            // underlay.install = also order the catalog-defined install
            // materials (backer mortar, screws) for the chosen underlayment
-           // cartonSf = sq ft one carton/sheet covers (any type but misc;
+           // cartonSf = sq ft one carton/sheet covers (any type but misc — an underlayment row takes it with no waste, ADR 0043;
            // snapshotted from the book's SF/CT or typed). With it set, the
            // order is whole cartons — exact = sqft×(1+waste)/cartonSf, order =
            // ceil, cartonManual overrides (like grout) — and the line total is

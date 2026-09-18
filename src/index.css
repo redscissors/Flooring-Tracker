@@ -55,7 +55,7 @@ body {
   /* Data / spreadsheet series — the moss ramp, deep → pale (light); flips per
      mode below. Charts & series lines only, never UI chrome. */
   --ned-data-1:#2A3A1B; --ned-data-2:#40542A; --ned-data-3:#57703A;
-  --ned-data-4:#6E8A4C; --ned-data-5:#87A363; --ned-data-6:#A4BC84;
+  --ned-data-4:#6E8A4C; --ned-data-5:#87A363; --ned-data-6:#A4BC84; --ned-data-7:#8C9F72;
 
   /* Product-type accents — sourced from the data series so they auto-flip with
      the mode. Single-hue ramp: types are told apart by depth, not hue, so the
@@ -65,6 +65,7 @@ body {
   --ft-type-vinyl:var(--ned-data-3);     /* moss 600 */
   --ft-type-carpet:var(--ned-data-4);    /* moss 500 */
   --ft-type-laminate:var(--ned-data-5);  /* moss 400 */
+  --ft-type-underlayment:var(--ned-data-7); /* moss 350, greyed — sits between laminate and misc */
   --ft-type-misc:var(--ned-data-6);      /* moss 300 */
   --ft-type-ink:#FFFFFF;                 /* letter/icon on a filled type chip */
 
@@ -362,7 +363,7 @@ input.ft-cell[type="number"],input.ft-num[type="number"]{-moz-appearance:textfie
   --ft-brand:#93B56A; --ft-brand-deep:#93B56A;
   --ft-sand:#33302A; --ft-deep:#4A453D; --ft-logo:#F6F3EC;
   --ned-data-1:#6B8A44; --ned-data-2:#7FA055; --ned-data-3:#93B56A;
-  --ned-data-4:#A7C980; --ned-data-5:#BCDC98; --ned-data-6:#D2EEB2;
+  --ned-data-4:#A7C980; --ned-data-5:#BCDC98; --ned-data-6:#D2EEB2; --ned-data-7:#B5C89A;
   --ft-band:#2F2C26; --ft-row-line:#37342D; --ft-type-ink:#1C1A17;
   --ft-area-head:#1C1A17; --ft-area-row:color-mix(in oklab, #1C1A17 95%, white);
   --ft-hover:var(--ft-fieldbar);
@@ -386,7 +387,7 @@ input.ft-cell[type="number"],input.ft-num[type="number"]{-moz-appearance:textfie
     --ft-brand:#93B56A; --ft-brand-deep:#93B56A;
     --ft-sand:#33302A; --ft-deep:#4A453D; --ft-logo:#F6F3EC;
     --ned-data-1:#6B8A44; --ned-data-2:#7FA055; --ned-data-3:#93B56A;
-    --ned-data-4:#A7C980; --ned-data-5:#BCDC98; --ned-data-6:#D2EEB2;
+    --ned-data-4:#A7C980; --ned-data-5:#BCDC98; --ned-data-6:#D2EEB2; --ned-data-7:#B5C89A;
     --ft-band:#2F2C26; --ft-row-line:#37342D; --ft-type-ink:#1C1A17;
     --ft-area-head:#1C1A17; --ft-area-row:color-mix(in oklab, #1C1A17 95%, white);
     --ft-hover:var(--ft-fieldbar);
@@ -416,7 +417,7 @@ input.ft-cell[type="number"],input.ft-num[type="number"]{-moz-appearance:textfie
   --ft-brand:#57703A; --ft-brand-deep:#40542A;
   --ft-sand:#EDE9DD; --ft-deep:#1C1A17; --ft-logo:#1C1A17;
   --ned-data-1:#2A3A1B; --ned-data-2:#40542A; --ned-data-3:#57703A;
-  --ned-data-4:#6E8A4C; --ned-data-5:#87A363; --ned-data-6:#A4BC84;
+  --ned-data-4:#6E8A4C; --ned-data-5:#87A363; --ned-data-6:#A4BC84; --ned-data-7:#8C9F72;
   --ft-band:#E7E3D6; --ft-row-line:#ECE8DC; --ft-type-ink:#FFFFFF;
   --ft-area-head:#E7E3D6; --ft-area-row:#F6F3EC;
   --ft-hover:color-mix(in oklab, var(--ft-brand) 7%, transparent);

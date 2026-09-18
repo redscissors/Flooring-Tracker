@@ -88,7 +88,7 @@ export const PRINT_COLS = "0.95fr 2.5fr 1fr 0.55fr 0.5fr 0.6fr 0.8fr 0.8fr";
 // "none" drops Price too — quantities/SKUs keep the sheet a selection document.
 export const PRINT_COLS_UNIT = "0.95fr 2.5fr 1fr 0.55fr 0.5fr 0.6fr 0.8fr";
 export const PRINT_COLS_NONE = "0.95fr 2.5fr 1fr 0.55fr 0.5fr 0.8fr";
-export const KSHORT = { Grout: "Grout", "Grout base": "Base", Caulk: "Caulk", Mortar: "Mortar", "Tile Backer": "Backer", Underlayment: "Underlay", Install: "Install" };
+export const KSHORT = { Grout: "Grout", "Grout base": "Base", Caulk: "Caulk", Mortar: "Mortar", "Tile Backer": "Backer", Underlayment: "Underlay", "Install materials": "Install", Install: "Install" };
 // Estimate print layout. "cards" is the 2026-07 receipt-card redesign; flip to
 // "classic" to restore the prior 8-column table sheet (kept intact in
 // renderEstimatePaperClassic) if the new one ever needs to be pulled.

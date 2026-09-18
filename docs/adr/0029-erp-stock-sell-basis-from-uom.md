@@ -59,3 +59,6 @@ misread as a thickness, leaving `2- Sheoga…` litter.
   collection with no recognizable word and no size falls to untyped (count
   line) — visible, never mispriced.
 - Saved estimates never change: rows snapshot at pick time (ADR 0003).
+- **Amended 2026-09-18 (ADR 0043):** "a membrane is no floor" now types the
+  row as `underlayment` rather than leaving it untyped — the same gate
+  (bundled unit + coverage), a different landing.

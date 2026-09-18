@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { searchStock, hitRank, relaxSearchWords, findStock, parseTileSize, parseThickness, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, groutSnapshotPatch, deriveSquareDim, groutColorOptions } from "./stock.js";
+import { searchStock, hitRank, relaxSearchWords, findStock, parseTileSize, parseThickness, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, groutSnapshotPatch, deriveSquareDim, groutColorOptions, switchToSqftPatch, switchChipText } from "./stock.js";
 import { normOrderItem } from "./orderbook.js";
 import { groutExact, mortarExact, mergeSettings, ceilQty } from "./catalog.js";
 
@@ -300,16 +300,29 @@ test("a typed, piece-priced, carton-sold item with no coverage lands as a per-pi
 
 test("stockDrift flags a snapshot whose price the book has since changed", () => {
   const it = normStockItem({ sku: "1", data: { type: "tile", priceSqft: 5.15, price: 50 } });
-  assert.deepEqual(stockDrift(it, { priceSqft: "4.79" }), { from: 4.79, to: 5.15 });
-  assert.equal(stockDrift(it, { priceSqft: "5.15" }), null);
-  assert.equal(stockDrift(it, { priceSqft: "" }), null);
-  assert.equal(stockDrift(null, { priceSqft: "4.79" }), null);
+  assert.deepEqual(stockDrift(it, { type: "tile", priceSqft: "4.79" }), { from: 4.79, to: 5.15 });
+  assert.equal(stockDrift(it, { type: "tile", priceSqft: "5.15" }), null);
+  assert.equal(stockDrift(it, { type: "tile", priceSqft: "" }), null);
+  assert.equal(stockDrift(null, { type: "tile", priceSqft: "4.79" }), null);
 });
 
 test("stockDrift compares sheet-priced items against the same derived $/sqft the snapshot filled", () => {
   const it = normStockItem({ sku: "1504051", data: { type: "tile", unit: "SH", price: 27.99, sfPerUnit: 2 } });
-  assert.equal(stockDrift(it, { priceSqft: "14" }), null); // the snapshot's own value — no false drift
-  assert.deepEqual(stockDrift(it, { priceSqft: "12.5" }), { from: 12.5, to: 14 });
+  assert.equal(stockDrift(it, { type: "tile", priceSqft: "14" }), null); // the snapshot's own value — no false drift
+  assert.deepEqual(stockDrift(it, { type: "tile", priceSqft: "12.5" }), { from: 12.5, to: 14 });
+});
+
+test("stockDrift stays silent when the row and the book item quote in different frames", () => {
+  // SKU 23031 saved as a misc count line at $21.49/sheet; the book now types it
+  // as an underlayment priced per sq ft. A price arrow here would underquote it.
+  const it = normStockItem({ sku: "23031", data: { type: "underlayment", unit: "SH", price: 21.49, sfPerUnit: 8.4 } });
+  assert.equal(stockDrift(it, { type: "misc", qtyType: "count", priceSqft: "21.49" }), null);
+  assert.equal(stockDrift(it, { type: "misc", qtyType: "count", priceSqft: "19.99" }), null);
+  // same frame on both sides: the sq ft row still drifts
+  assert.deepEqual(stockDrift(it, { type: "underlayment", qtyType: "sqft", priceSqft: "2.40" }), { from: 2.4, to: 2.56 });
+  // a typeless book item against a misc row is one frame too — it still drifts
+  const flat = normStockItem({ sku: "9", data: { description: "Trim clip", price: 12.5 } });
+  assert.deepEqual(stockDrift(flat, { type: "misc", qtyType: "count", priceSqft: "10" }), { from: 10, to: 12.5 });
 });
 
 // --- search ---------------------------------------------------------------------
@@ -616,4 +629,34 @@ test("groutColorOptions splits a family's colors into stock and special-order gr
   // no family: the fallback list, no special group
   assert.deepEqual(groutColorOptions(null, "Bright White", ["Bright White", "Almond"]), { stock: ["Bright White", "Almond"], special: [] });
   assert.deepEqual(groutColorOptions(null, "Custom", ["Almond"]), { stock: ["Custom", "Almond"], special: [] });
+});
+
+// --- count line → sq ft switch (spec 2026-09-18) --------------------------------
+test("switchToSqftPatch converts a saved count line by count × coverage and clears count fields", () => {
+  const row = { type: "misc", qtyType: "count", qty: "5", sellUnit: "SH", cartonPc: "", cartonManual: "2", priceSqft: "21.49", brandColor: "Schluter Ditra Heat - Membrane Sheet", note: "bath floor", freight: "off", kitId: "" };
+  const landed = { sku: "23031", type: "underlayment", qtyType: "sqft", priceSqft: "2.56", cartonSf: "8.4", cartonUnit: "SH", sizeText: "3'3\"x2'7\"", brandColor: "Schluter Ditra Heat - Membrane Sheet" };
+  const patch = switchToSqftPatch(row, landed);
+  assert.equal(patch.type, "underlayment");
+  assert.equal(patch.qtyType, "sqft");
+  assert.equal(patch.qty, "42");                 // 5 sheets × 8.4
+  assert.equal(patch.cartonSf, "8.4");
+  assert.equal(patch.sellUnit, "");
+  assert.equal(patch.cartonPc, "");
+  assert.equal(patch.cartonManual, "");
+  assert.equal("note" in patch, false);          // the row's own fields are untouched
+  assert.equal("freight" in patch, false);
+  assert.equal("brandColor" in patch, false);    // the row already has a name — the switch keeps it
+  assert.equal(switchToSqftPatch({ ...row, brandColor: "" }, landed).brandColor, "Schluter Ditra Heat - Membrane Sheet");
+  assert.equal(switchChipText(landed), "Book sells this by the SH — 8.4 sf");
+});
+
+test("switchToSqftPatch: blank count stays blank; a row that is already sq ft or a book item still counted returns null", () => {
+  const landed = { type: "underlayment", qtyType: "sqft", cartonSf: "323", cartonUnit: "RL" };
+  assert.equal(switchToSqftPatch({ type: "misc", qtyType: "count", qty: "" }, landed).qty, "");
+  assert.equal(switchToSqftPatch({ type: "underlayment", qtyType: "sqft", qty: "40" }, landed), null);
+  assert.equal(switchToSqftPatch({ type: "misc", qtyType: "count", qty: "3" }, { type: "misc" }), null);
+  assert.equal(switchToSqftPatch({ type: "misc", qtyType: "count", qty: "3" }, null), null);
+  // typed but with no coverage to convert the count with: no offer at all
+  assert.equal(switchToSqftPatch({ type: "misc", qtyType: "count", qty: "3" }, { type: "underlayment", qtyType: "sqft", cartonUnit: "CT" }), null);
+  assert.equal(switchToSqftPatch({ type: "misc", qtyType: "count", qty: "3" }, { type: "underlayment", qtyType: "sqft", cartonSf: "0" }), null);
 });

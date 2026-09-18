@@ -48,6 +48,15 @@ test("empty scope returns zeros, not NaN", () => {
   assert.deepEqual(t.matLines, []);
 });
 
+test("an underlayment row adds money, never floor area (spec 2026-09-18)", () => {
+  const membrane = { type: "underlayment", brandColor: "Schluter Ditra Heat - Membrane Sheet", qtyType: "sqft", qty: "100", priceSqft: "2.56", cartonSf: "8.4", cartonUnit: "SH", grout: { checked: false }, mortar: { checked: false }, underlay: { checked: false } };
+  const cats = normC({ id: "j2", name: "J", categories: [{ name: "Bath", option: "", products: [tile(100), membrane] }] }).categories;
+  const t = totals(cats);
+  assert.equal(t.totalSqft, 100);                       // the tile's floor, measured once
+  assert.equal(t.orderedSqft, 100);                     // tile has no carton → its own sq ft
+  assert.equal(t.flooringPrice, 100 * 2 + 12 * 8.4 * 2.56);   // ceil(100 ÷ 8.4) = 12 sheets
+});
+
 // A minimal freight program (see freight.js normFreight / freight.test.js's
 // GLAZZIO fixture): a shared area and an option-A area both carry rows from
 // the same freight-program book. Freight is order-scoped (one minimum per

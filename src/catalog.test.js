@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULTS, GROUTS, MORTARS, mergeSettings, seedCatalog, resolveCatalog, normalizeSettings, normalizeCatalog, normWaste, wasteFor, projWaste, withProjWaste, serializeSettings, groutExact, mortarExact, getGrout, getGroutBase, groutBaseList, getMortar, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredUnderlayments, catalogHasSeedUnderlayments, materialWarnings, addCategory, updateCategory, isDuplicateCategoryName, removeCategory, isDuplicateAttachedName, offeredAttached, offeredCategories, getAttached, attachedList, normShop } from "./catalog.js";
+import { DEFAULTS, GROUTS, MORTARS, mergeSettings, seedCatalog, resolveCatalog, normalizeSettings, normalizeCatalog, normWaste, wasteFor, projWaste, withProjWaste, serializeSettings, groutExact, mortarExact, getGrout, getGroutBase, groutBaseList, getMortar, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredUnderlayments, catalogHasSeedUnderlayments, materialWarnings, addCategory, updateCategory, isDuplicateCategoryName, removeCategory, isDuplicateAttachedName, offeredAttached, offeredCategories, getAttached, attachedList, normShop, underlaymentForSku } from "./catalog.js";
 import { BUILTIN_IDS } from "./labels.js";
 
 // A fully-checked tile selection used by the math tests.
@@ -524,6 +524,17 @@ test("offeredUnderlayments filters by flooring type; unchecked box returns null 
   assert.ok(offeredUnderlayments(s.catalog, "tile").includes("Ditra Underlayment Uncoupling Membrane"));
   assert.equal(offeredUnderlayments(s.catalog, "carpet").includes("Ditra Underlayment Uncoupling Membrane"), false);
   assert.equal(getUnderlay({ ...un(), underlay: { checked: false, product: "", manual: "" } }, s), null);
+});
+
+test("offeredUnderlayments: an underlayment row is offered every enabled entry", () => {
+  // Pure catalog literal (not normalizeSettings): the shared catalog's starter
+  // backfill would inject the real seed underlayments here and mask the assertion.
+  const catalog = { companies: [{ name: "X", enabled: true, underlayments: [
+    { name: "Tile only", enabled: true, coverage: 1, unit: "rolls", price: 0, types: ["tile"] },
+    { name: "Any", enabled: true, coverage: 1, unit: "rolls", price: 0, types: [] },
+  ] }] };
+  assert.deepEqual(offeredUnderlayments(catalog, "vinyl"), ["Any"]);
+  assert.deepEqual(offeredUnderlayments(catalog, "underlayment"), ["Tile only", "Any"]);
 });
 
 test("backfill: a pre-underlayment catalog gains every starter; catalogHasSeedUnderlayments tracks it", () => {
@@ -1440,4 +1451,65 @@ test("getAttached exposes the add-on's unit cost", () => {
   const s = { ...normalizeSettings({ catalog }), ...resolveCatalog(catalog) };
   const p = { ...tile(), attached: { [cat.id]: { checked: true, product: "Strip", manual: "3" } } };
   assert.equal(getAttached(p, s, cat).unitCost, 7);
+});
+
+// --- underlayment rows (spec 2026-09-18) -----------------------------------------
+const membrane = (over = {}) => ({
+  type: "underlayment", qtyType: "sqft", qty: "42", cartonSf: "8.4", cartonUnit: "SH", cartonManual: "", priceSqft: "1.81",
+  grout: { checked: false }, mortar: { checked: false },
+  underlay: { checked: false, product: "", manual: "", install: false, installMortars: {}, installSkip: {} },
+  ...over,
+});
+
+test("an underlayment row takes no waste: sheets = ceil(sq ft ÷ coverage)", () => {
+  const s = normalizeSettings({ waste: { tile: 10, floor: 20 } });
+  assert.equal(wasteFor({ type: "underlayment" }, s), 1);
+  const exact = getCarton(membrane(), s);
+  assert.equal(exact.order, 5);
+  assert.equal(exact.exact, 5);
+  assert.equal(exact.unit, "sh");
+  assert.equal(getCarton(membrane({ qty: "43" }), s).order, 6);
+});
+
+test("an underlayment row is never billed as its own underlayment", () => {
+  const s = normalizeSettings({ catalog: { companies: [{ name: "Schluter", enabled: true, grouts: [], mortars: [{ name: "Schluter All Set", coverage: 60, tier1: 60, tier2: 60, tier3: 60, unit: "bags", price: 30 }], underlayments: [
+    { name: "Ditra Underlayment Uncoupling Membrane", coverage: 54, unit: "rolls", price: 0, types: ["tile"], install: [{ id: "m1", kind: "mortar", product: "Schluter All Set", coverage: 50 }] },
+  ] }] } });
+  const p = membrane({ underlay: { checked: true, product: "Ditra Underlayment Uncoupling Membrane", manual: "", install: true, installMortars: {}, installSkip: {} } });
+  assert.equal(getUnderlay(p, s), null);
+  const IN = getUnderlayInstall(p, s);
+  assert.equal(IN.length, 1);
+  assert.equal(IN[0].kind, "mortar");
+  assert.equal(IN[0].exact, 42 / 50);          // the row's own sq ft, no waste
+  assert.equal(IN[0].order, 1);
+  assert.deepEqual(materialWarnings(p, s), []);
+});
+
+test("an underlayment row warns on install materials that can't compute, never on itself", () => {
+  const s = normalizeSettings({ catalog: { companies: [{ name: "Schluter", enabled: true, grouts: [], mortars: [], underlayments: [
+    { name: "Bare entry", coverage: 54, unit: "rolls", price: 0, types: [], install: [{ id: "x1", kind: "custom", name: "Tape", coverage: 0, unit: "rolls", price: 5 }] },
+  ] }] } });
+  const p = membrane({ underlay: { checked: true, product: "Bare entry", manual: "", install: true, installMortars: {}, installSkip: {} } });
+  assert.deepEqual(materialWarnings(p, s), ["install"]);
+  assert.deepEqual(materialWarnings(membrane({ underlay: { checked: true, product: "", manual: "", install: false, installMortars: {}, installSkip: {} } }), s), []);
+});
+
+test("an underlayment row whose linked catalog entry is gone warns", () => {
+  const s = normalizeSettings({ catalog: { companies: [{ name: "Schluter", enabled: true, grouts: [], mortars: [], underlayments: [
+    { name: "Bare entry", coverage: 54, unit: "rolls", price: 0, types: [], install: [] },
+  ] }] } });
+  const p = membrane({ underlay: { checked: true, product: "Gone", manual: "", install: false, installMortars: {}, installSkip: {} } });
+  assert.ok(materialWarnings(p, s).includes("underlay"));
+  assert.deepEqual(materialWarnings(membrane({ underlay: { checked: true, product: "Bare entry", manual: "", install: false, installMortars: {}, installSkip: {} } }), s), []);
+});
+
+test("underlaymentForSku finds the catalog entry carrying the picked SKU", () => {
+  const s = normalizeSettings({ catalog: { companies: [
+    { name: "Schluter", enabled: true, grouts: [], mortars: [], underlayments: [{ name: "Ditra Heat Membrane Sheet", coverage: 8.4, unit: "sheets", price: 0, sku: "23031", types: [] }] },
+    { name: "Off", enabled: false, grouts: [], mortars: [], underlayments: [{ name: "Hidden", coverage: 1, unit: "sheets", price: 0, sku: "99999", types: [] }] },
+  ] } });
+  assert.equal(underlaymentForSku(s.catalog, "23031"), "Ditra Heat Membrane Sheet");
+  assert.equal(underlaymentForSku(s.catalog, " 23031 "), "Ditra Heat Membrane Sheet");
+  assert.equal(underlaymentForSku(s.catalog, "99999"), "");
+  assert.equal(underlaymentForSku(s.catalog, ""), "");
 });
