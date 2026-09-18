@@ -72,8 +72,9 @@ kit's Kerdi lines stay count lines with the kit's own quantities.
   print stays the floor's number. `printProduct.orderedSf` is per row and
   unchanged.
 - Grout and mortar drawers stay tile-only. Add-on categories (ADR 0016)
-  filter on `FLOOR_TYPES`, which does not include the new type, so their
-  chips never show on an underlayment row.
+  tagged to flooring types never show on an underlayment row — the tags
+  filter on `FLOOR_TYPES`, which does not include the new type; an untagged
+  category offers on every type, this one included.
 
 ### Install materials (the Materials-tab link)
 

@@ -37,8 +37,10 @@ added the Kerdi roll (1509781, 323 sf/RL) and asked for carton behaviour —
    type; the drawer's section reads "Install materials", the row names its
    Materials-tab entry (auto-linked by SKU at pick), and that entry's install
    items compute off the row's own sq ft through the unchanged
-   `getUnderlayInstall`. Grout/mortar stay tile-only; add-on categories
-   filter on `FLOOR_TYPES`, which excludes it.
+   `getUnderlayInstall`. Grout/mortar stay tile-only. Add-on categories
+   (ADR 0016) tagged to flooring types never show on it — the tags filter on
+   `FLOOR_TYPES`, which excludes the type; an untagged category offers on
+   every type, this one included.
 6. **Existing count lines switch on a click**, never on their own: a chip
    reads "Book sells this by the SH — 8.4 sf · Switch to sq ft" and re-lands
    the row from the book, converting count × coverage to sq ft so the order
