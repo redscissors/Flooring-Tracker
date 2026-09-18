@@ -1,6 +1,7 @@
 import { test } from "node:test";
-import { rowAdvisories } from "./orderbook.js";
+import { rowAdvisories, pricedItem } from "./orderbook.js";
 import assert from "node:assert/strict";
+import { stockPatch } from "./stock.js";
 import { parseMapped, mappedSkuRe, splitSizeFromDescription, mmToFraction, guessBookField, guessHeaderRow, bestDataSheet, columnsFromHeader, detectVtcEft, detectVendorSkuAnalysis, floorTypeFromDescription, schluterDescription } from "./pricebook.js";
 
 const sheet = (name, rows) => ({ name, rows });
@@ -1153,4 +1154,24 @@ test("a roll coverage suffix is consumed, and the separator it leaves is trimmed
   assert.equal(parse("Schluter Kerdi 108sf/rolls Membrane").sfPerUnit, 108);
   // An interior separator is the vendor's own punctuation and stays.
   assert.equal(parse("Sheoga Clear RO Flr - Unfinished 22sf/ct").description, "Sheoga Clear RO Flr - Unfinished");
+});
+
+test("a membrane pick lands a sq ft row ordering whole sheets/rolls (spec 2026-09-18)", () => {
+  const m = detectVendorSkuAnalysis(KERDI_WORKBOOK);
+  const { items } = parseMapped(KERDI_WORKBOOK[0].rows, m);
+  const land = (sku) => stockPatch(pricedItem(items.find((i) => i.sku === sku), { default: 50 }), {});
+  const sheet = land("23031");
+  assert.equal(sheet.type, "underlayment");
+  assert.equal(sheet.qtyType, "sqft");
+  assert.equal(sheet.cartonSf, "8.4");
+  assert.equal(sheet.cartonUnit, "SH");
+  assert.equal(sheet.priceSqft, "2.56");         // retail $21.49 per sheet ÷ 8.4 sf (stockPriceSqft → round2)
+  assert.equal(sheet.sizeText, "3'3\"x2'7\"");
+  const roll = land("1509781");
+  assert.equal(roll.type, "underlayment");
+  assert.equal(roll.cartonSf, "323");
+  assert.equal(roll.cartonUnit, "RL");
+  // $528.10 per roll ÷ 323 sf, rounded to the cent — assert the invariant, not
+  // a hand-rounded literal (1.635 sits on a rounding edge in binary).
+  assert.ok(Math.abs(+roll.priceSqft * 323 - 528.1) < 323 * 0.005, roll.priceSqft);
 });

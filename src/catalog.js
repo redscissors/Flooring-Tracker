@@ -608,6 +608,16 @@ export const offeredUnderlayments = (catalog, type) => {
   return names;
 };
 
+// The catalog underlayment a picked SKU IS (spec 2026-09-18): an underlayment
+// row links its Materials-tab entry for the install materials, and a matching
+// `sku` links it at pick time. Disabled companies/products never match.
+export const underlaymentForSku = (catalog, sku) => {
+  const k = String(sku ?? "").trim().toUpperCase();
+  if (!k) return "";
+  for (const co of (catalog?.companies || [])) for (const p of (co.underlayments || [])) if (isOffered(co, p) && String(p.sku ?? "").trim().toUpperCase() === k) return p.name;
+  return "";
+};
+
 // --- Custom material categories (ADR 0016) -----------------------------------
 // The built-ins (grout/mortar/underlayment) stay first-class code; `categories`
 // holds only the team's custom add-on categories (Trim, Sealer, …). floorTypes

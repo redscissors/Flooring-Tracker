@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULTS, GROUTS, MORTARS, mergeSettings, seedCatalog, resolveCatalog, normalizeSettings, normalizeCatalog, normWaste, wasteFor, projWaste, withProjWaste, serializeSettings, groutExact, mortarExact, getGrout, getGroutBase, groutBaseList, getMortar, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredUnderlayments, catalogHasSeedUnderlayments, materialWarnings, addCategory, updateCategory, isDuplicateCategoryName, removeCategory, isDuplicateAttachedName, offeredAttached, offeredCategories, getAttached, attachedList, normShop } from "./catalog.js";
+import { DEFAULTS, GROUTS, MORTARS, mergeSettings, seedCatalog, resolveCatalog, normalizeSettings, normalizeCatalog, normWaste, wasteFor, projWaste, withProjWaste, serializeSettings, groutExact, mortarExact, getGrout, getGroutBase, groutBaseList, getMortar, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredUnderlayments, catalogHasSeedUnderlayments, materialWarnings, addCategory, updateCategory, isDuplicateCategoryName, removeCategory, isDuplicateAttachedName, offeredAttached, offeredCategories, getAttached, attachedList, normShop, underlaymentForSku } from "./catalog.js";
 import { BUILTIN_IDS } from "./labels.js";
 
 // A fully-checked tile selection used by the math tests.
@@ -1481,4 +1481,15 @@ test("an underlayment row warns on install materials that can't compute, never o
   const p = membrane({ underlay: { checked: true, product: "Bare entry", manual: "", install: true, installMortars: {}, installSkip: {} } });
   assert.deepEqual(materialWarnings(p, s), ["install"]);
   assert.deepEqual(materialWarnings(membrane({ underlay: { checked: true, product: "", manual: "", install: false, installMortars: {}, installSkip: {} } }), s), []);
+});
+
+test("underlaymentForSku finds the catalog entry carrying the picked SKU", () => {
+  const s = normalizeSettings({ catalog: { companies: [
+    { name: "Schluter", enabled: true, grouts: [], mortars: [], underlayments: [{ name: "Ditra Heat Membrane Sheet", coverage: 8.4, unit: "sheets", price: 0, sku: "23031", types: [] }] },
+    { name: "Off", enabled: false, grouts: [], mortars: [], underlayments: [{ name: "Hidden", coverage: 1, unit: "sheets", price: 0, sku: "99999", types: [] }] },
+  ] } });
+  assert.equal(underlaymentForSku(s.catalog, "23031"), "Ditra Heat Membrane Sheet");
+  assert.equal(underlaymentForSku(s.catalog, " 23031 "), "Ditra Heat Membrane Sheet");
+  assert.equal(underlaymentForSku(s.catalog, "99999"), "");
+  assert.equal(underlaymentForSku(s.catalog, ""), "");
 });
