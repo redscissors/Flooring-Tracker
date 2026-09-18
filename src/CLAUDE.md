@@ -25,7 +25,7 @@ src/
                     # ONE `updateProject` with compareOptionsPatch's single
                     # patch, wired as `onQuoteOptions` on both job-context
                     # vendor mounts (never on the Apps-hub copies)
-  uiconst.js        # shared UI constants: TYPES/TLBL, tier colors/labels,
+  uiconst.js        # shared UI constants: TYPES/TLBL (incl. `underlayment`, ADR 0043), tier colors/labels,
                     # joints/thicknesses, grout color lists, sweep/keep constants,
                     # stock-loading messages, `skuSearchable`, `colorsFor`
   units.js          # the sell-unit vocabulary (2026-07-25): `unitCode` (RL/Rolls/
@@ -136,7 +136,8 @@ src/
                     # (totals, gList/mList/…, matAll, pMats, freight, margin).
                     # Whole-job = shared bucket + option bucket (additive on paper);
                     # order entry re-runs the UNION so freight minimums stay exact
-                    # (jobtotals.test.js)
+                    # (jobtotals.test.js). An underlayment row bills its sheets,
+                    # never re-counts floor sq ft (ADR 0043)
   fileread.js       # `readXlsxSheets`/`readPdfPages` — lazy `import("xlsx")`/
                     # `import("pdfjs-dist")` preserved
   widgets.jsx       # shared widgets: `Modal`, `LazyBoundary`, `FitSelect`, `DotMenu`,
@@ -415,7 +416,10 @@ src/
   catalog.js        # settings normalization + material math + shared catalog.
                     # Every material entry carries `cost` beside `price` (ADR
                     # 0018 amendment 2026-09-10) and the getters expose it as
-                    # `unitCost` — the Employee lens's input, never the totals'
+                    # `unitCost` — the Employee lens's input, never the totals'.
+                    # `wasteFor` = 1 on underlayment rows; `getUnderlay` null
+                    # there, `underlaymentForSku` links the row's own entry
+                    # (ADR 0043)
   pricing.js        # price tiers as a display lens (ADR 0018): `tierView` maps
                     # the raw { project, settings } pair to the tier-priced pair
                     # every total/print reads. Employee = cost × 1.06 on costed
@@ -426,6 +430,9 @@ src/
                     # vendor template recognizers (VTC EFT, ERP Vendor SKU
                     # Analysis); the retired shop workbook's hand-built
                     # parsers (ADR 0003) lived here until 2026-07-22.
+                    # Membrane/backer rows with bundled coverage type
+                    # `underlayment` on both the stock export and the
+                    # Schluter EFT (ADR 0043).
                     # The EFT recognizer is BRAND-aware (2026-08-07): the
                     # title line above the header decides what the rows ARE —
                     # a Schluter book gets no tile default (it sells no
@@ -486,7 +493,9 @@ src/
   stock.js          # stock-item search / SKU fill snapshot / drift / base
                     # companions / grout families, over stock-shaped items
                     # (the ADR 0027 book items + projected family rows).
-                    # groutSnapshotPatch stamps caulkCost beside caulkPrice
+                    # groutSnapshotPatch stamps caulkCost beside caulkPrice.
+                    # `switchToSqftPatch`/`switchChipText` — the count-line →
+                    # sq ft chip (ADR 0043)
   booklink.js       # catalog ↔ ERP stock-book links (ADR 0027): link/family rule shapes,
                     # series-rule + color-token parsing, family resolution + projection into
                     # stock-shaped items, import-time sync (price + cost, the
