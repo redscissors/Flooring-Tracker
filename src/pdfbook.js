@@ -214,7 +214,14 @@ function findAllHeaders(rows) {
     if (!first || headerFieldFor(first.text) !== "sku") continue;
     let merged = [...rows[i].items];
     for (const j of [i - 1, i + 1]) {
-      if (rows[j] && Math.abs(rows[j].y - rows[i].y) <= 12) merged = merged.concat(rows[j].items);
+      if (!rows[j] || Math.abs(rows[j].y - rows[i].y) > 12) continue;
+      // A finish sub-heading ("Glossy") printed at the left margin right under
+      // the header is not a wrapped label line: merged, it fuses into the
+      // "Item #" label and the whole table is lost. Keep a neighbor only while
+      // the band still leads with the item-code anchor.
+      const trial = merged.concat(rows[j].items);
+      const a = headerAnchors(trial);
+      if (a.length && a[0].field === "sku") merged = trial;
     }
     const anchors = headerAnchors(merged);
     // `top` is the highest baseline of the merged band; a header's column labels
@@ -256,27 +263,62 @@ function collectionTitleFor(rows, header, floorY) {
   return "";
 }
 
-// Header items → ordered field anchors [{ field, x }]. Words are grouped into
-// whole labels by small x-gaps so "Pieces per Box" stays one anchor (grouping
-// by individual word would scatter "Pieces" and "Box" onto different columns).
+// Header items → ordered field anchors [{ field, x }]. Items are grouped into
+// labels by small x-gaps so "Pieces per Box" stays one anchor (grouping by
+// individual word would scatter "Pieces" and "Box" onto different columns).
 // Each "$" starts its own price anchor — the two price columns ($ per SQF, $ per
 // Box) can sit a single pixel apart, too close to separate by gap — typed by the
 // unit word to its right. x is the anchor's center, used to match data columns.
+//
+// Newer Glazzio sheets (2026-09) reach pdf.js with a whole label — even two
+// adjacent labels, "Pieces per Box SQF per Box" — as ONE text item, so a group
+// is re-read word by word (each word placed proportionally along its item) and
+// split wherever the words so far and the words after resolve to two different
+// fields. Read as one label, the fused pair yields a single anchor and the
+// SQF/Box column goes unlabeled; the unit of a one-item "$ per Box" is in the
+// same item as its "$", never to the right of it.
+const BOX_RE = /box|sheet|carton|ct/i;
+const LEAD_RE = /^(?:\$|item|sku|collection|series|colou?r|variation|shade|description|rows|pieces|pcs|sqf|sf|sheet|tile|size|price|thickness|pei|finish|u\/?m|uom)$/i;
+const priceField = (unitText) => (BOX_RE.test(unitText) ? "priceBox" : "priceSf");
+const labelField = (words) => {
+  const text = words.map((w) => w.text).join(" ");
+  if (!/\$/.test(text)) return headerFieldFor(text);
+  const i = words.findIndex((w) => /\$/.test(w.text));
+  return priceField(words.slice(i).map((w) => w.text).join(" "));
+};
 function headerAnchors(headerItems) {
   const items = [...headerItems].sort((a, b) => a.x - b.x);
   const anchors = [];
   let g = null;
   const flush = () => {
     if (!g) return;
-    const dollars = g.items.filter((it) => /\$/.test(it.str));
-    if (dollars.length) {
-      for (const d of dollars) {
-        const unit = g.items.find((it) => it.x > d.x && /box|sqf|sf|sheet|carton|ct/i.test(it.str));
-        anchors.push({ field: /box|sheet|carton|ct/i.test(unit?.str || "") ? "priceBox" : "priceSf", x: d.x });
+    const words = [];
+    for (const it of g.items) {
+      const s = it.str, re = /\S+/g;
+      let m;
+      while ((m = re.exec(s))) words.push({ text: m[0], x: it.x + (it.w || 0) * (m.index / s.length) });
+    }
+    const labels = [];
+    let cur = [];
+    words.forEach((w, k) => {
+      if (cur.length && LEAD_RE.test(w.text) && !/^per$/i.test(words[k - 1].text)) {
+        const before = labelField(cur), after = labelField(words.slice(k));
+        if (before && after && before !== after) { labels.push(cur); cur = []; }
       }
-    } else {
-      const field = headerFieldFor(g.items.map((it) => it.str).join(" "));
-      if (field) anchors.push({ field, x: (g.items[0].x + g.items[g.items.length - 1].x) / 2 });
+      cur.push(w);
+    });
+    if (cur.length) labels.push(cur);
+    for (const lab of labels) {
+      const dollars = lab.map((w, i) => (/\$/.test(w.text) ? i : -1)).filter((i) => i >= 0);
+      if (dollars.length) {
+        dollars.forEach((di, n) => {
+          const unit = lab.slice(di, dollars[n + 1] ?? lab.length).map((w) => w.text).join(" ");
+          anchors.push({ field: priceField(unit), x: lab[di].x });
+        });
+      } else {
+        const field = headerFieldFor(lab.map((w) => w.text).join(" "));
+        if (field) anchors.push({ field, x: (lab[0].x + lab[lab.length - 1].x) / 2 });
+      }
     }
     g = null;
   };

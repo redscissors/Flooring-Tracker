@@ -293,3 +293,64 @@ test("clusterRows merges a two-baseline row but keeps distinct rows apart", () =
   assert.equal(rows.length, 2);
   assert.equal(rows[0].items.length, 2);
 });
+
+// --- Glazzio 2026-09 layout (pages 250–251 report, 2026-09-18) --------------
+// The newer sheets reach pdf.js with each header label as ONE text item ("$ per
+// Box", even "Pieces per Box SQF per Box") instead of a word per item, and print
+// a finish sub-heading ("Glossy" / "Matte") at the left margin right under the
+// header. Coordinates are the real pages'.
+const item = (x, y, w, s) => ({ str: s, x, y, w });
+const xeniaHeader = (y) => [
+  item(81, y, 23, "Item #"), item(159, y, 45, "Color Name"), item(255, y, 32, "Tile Size"),
+  item(314, y, 34, "Variation"), item(355, y, 111, "Pieces per Box SQF per Box"),
+  item(476, y, 38, "$ per SQF"), item(521, y, 37, "$ per Box"),
+];
+const xeniaRow = (y, sku, name) => [
+  item(77, y, 31, sku), item(160, y, 44, name), item(244, y, 54, '2" x 12" Nominal'), item(327, y, 10, "V2"),
+  item(377, y, 13, "100"), item(434, y, 20, "16.14"), item(485, y, 20, "$3.75"), item(527, y, 24, "$60.53"),
+];
+const xeniaPage = [
+  item(52, 197.5, 68, "Xenia Collection"),
+  ...xeniaHeader(217.1),
+  item(52, 227.6, 27, "Glossy"),
+  ...xeniaRow(238.3, "XEN1371", "Neige Glossy"),
+  ...xeniaRow(248.4, "XEN1372", "Nebbia Glossy"),
+  item(52, 258.8, 21, "Matte"),
+  ...xeniaRow(269.4, "XEN1381", "Neige Matte"),
+];
+const yosemitePage = [
+  item(72, 177, 80, "Yosemite Collection"),
+  item(94, 197.2, 22, "Item #"), item(162, 197.2, 43, "Color Name"), item(238, 197.2, 42, "Description"),
+  item(300, 197.2, 44, "Pcs per Box"), item(360, 197.2, 47, "SQF per Box"),
+  item(432, 197.2, 36, "$ per SQF"), item(505, 197.2, 35, "$ per Box"),
+  item(91, 217.3, 29, "YSM081"), item(141, 217.3, 42, "Coyote Blue"), item(233, 217.3, 53, '9"x18" Nominal'),
+  item(320, 217.3, 4, "5"), item(376, 217.3, 15, "5.55"), item(437, 217.3, 24, "$20.50"), item(508, 217.3, 28, "$113.78"),
+];
+
+test("a finish sub-heading right under the header does not swallow the Item # label", () => {
+  const { items } = parse(xeniaPage);
+  assert.deepEqual(items.map((i) => i.sku), ["XEN1371", "XEN1372", "XEN1381"]);
+  assert.equal(items[0].productLine, "Xenia");
+  assert.equal(items[0].description, "Xenia Neige Glossy"); // line fronts the name
+});
+
+test("a one-item '$ per Box' label still types the box price column", () => {
+  const { items } = parse(yosemitePage);
+  const it = items.find((i) => i.sku === "YSM081");
+  assert.ok(it, "row survives");
+  assert.equal(it.sfPerUnit, 5.55);
+  assert.equal(it.cost, 113.78, "box price, not the $/sqft");
+  assert.equal(it.priceUnit, "BX");
+  assert.ok(Math.abs(costSqft(it) - 20.5) < 0.01, "113.78 / 5.55 reconciles with the printed $/sqft");
+});
+
+test("a one-item 'Pieces per Box SQF per Box' label yields both columns", () => {
+  const { items } = parse(xeniaPage);
+  const it = items.find((i) => i.sku === "XEN1371");
+  assert.ok(it, "row survives");
+  assert.equal(it.pcPerUnit, 100);
+  assert.equal(it.sfPerUnit, 16.14);
+  assert.equal(it.cost, 60.53);
+  assert.equal(it.priceUnit, "BX");
+  assert.ok(Math.abs(costSqft(it) - 3.75) < 0.01, "60.53 / 16.14 reconciles with the printed $/sqft");
+});
