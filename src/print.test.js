@@ -282,3 +282,17 @@ test("matOrderRow: a special-order materials line keeps its kind so order entry 
   const r = matOrderRow({ kind: "Grout", product: "Keracolor U Warm Gray", sku: "1509955", order: 2, unit: "bags", unitCost: 10, price: 18, bookId: "bkMapei" }, 0, new Map());
   assert.equal(r.kind, "Grout");
 });
+
+test("an underlayment row prints whole sheets at $/sf with its coverage tag (spec 2026-09-18)", () => {
+  const p = { ...newProduct(), type: "underlayment", sku: "23031", brandColor: "Schluter Ditra Heat - Membrane Sheet", sizeText: "3'3\"x2'7\"", qty: "42", priceSqft: "2.56", cartonSf: "8.4", cartonUnit: "SH" };
+  const c = printProduct(p, s);
+  assert.equal(c.C.order, 5);                         // no waste: 42 ÷ 8.4 exactly
+  assert.equal(c.C.exact, 5);
+  assert.equal(c.qtyText, "5 sh");
+  assert.equal(c.priceText, "$2.56/sf");
+  assert.equal(c.line, 5 * 8.4 * 2.56);
+  assert.equal(c.orderedSf, 42);
+  assert.equal(c.size, "3'3\"x2'7\"");
+  const row = orderEntryRow(p, s, "Bath", 0, new Set());   // same call shape as the test at line 115
+  assert.match(JSON.stringify(row), /8\.4 SF\/SH/);
+});
