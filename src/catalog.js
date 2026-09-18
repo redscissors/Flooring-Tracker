@@ -604,7 +604,8 @@ export const resolveMaterialDefault = (offered, current, preferred) => {
 // to a job only when its `types` tag includes that type (an empty tag = all).
 export const offeredUnderlayments = (catalog, type) => {
   const names = [];
-  for (const co of (catalog?.companies || [])) for (const p of (co.underlayments || [])) if (isOffered(co, p) && (!(p.types || []).length || p.types.includes(type))) names.push(p.name);
+  // An underlayment row picks its own identity, so no flooring-type filter.
+  for (const co of (catalog?.companies || [])) for (const p of (co.underlayments || [])) if (isOffered(co, p) && (type === "underlayment" || !(p.types || []).length || p.types.includes(type))) names.push(p.name);
   return names;
 };
 

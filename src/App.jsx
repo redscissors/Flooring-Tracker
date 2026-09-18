@@ -3,7 +3,7 @@ import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText,
 import { supabase } from "./lib/supabase.js";
 import { listSelect, lightRow, loadProjects, loadPeople, loadBuilders, loadTodos, loadClaudeIssues, loadBooks, loadSettingsRow, resolveSharedSettings, loadSampleRequests } from "./bootload.js";
 import { bootTrace, traceRows } from "./boottrace.js";
-import { num, wasteFor, withProjWaste, normalizeSettings, serializeSettings, groutExact, mortarExact, getGrout, getMortar, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, offeredAttached, offeredCategories, getAttached, qtyDrift } from "./catalog.js";
+import { num, wasteFor, withProjWaste, normalizeSettings, serializeSettings, groutExact, mortarExact, getGrout, getMortar, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, offeredAttached, offeredCategories, getAttached, qtyDrift, underlaymentForSku } from "./catalog.js";
 import { findStock, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant, groutFamilies, groutSnapshotPatch, groutColorOptions, switchToSqftPatch, switchChipText } from "./stock.js";
 import { pricedItem, orderPatch, orderDrift, rowCostSqft, skuKeys } from "./orderbook.js";
 import { isSpecialOrder, isSpecialMat, nameBudget, orderQty } from "./orderentry.js";
@@ -806,6 +806,13 @@ export default function App({ user, onSignOut }) {
   // the order provenance (cost/markupPct/freight/tier) — while a stock item
   // keeps the stock path. One sanctioned pick path for both spaces (ADR 0009).
   const patchFor = (it, p) => it.bookId ? orderPatch(it, books.find((b) => b.id === it.bookId), p) : stockPatch(it, p);
+  // An underlayment pick links its Materials-tab entry by SKU so the install
+  // mortar comes along (spec 2026-09-18); no match leaves the drawer unchecked.
+  const link = (p, patch) => {
+    if (patch.type !== "underlayment") return patch;
+    const name = underlaymentForSku(settings.catalog, patch.sku);
+    return name ? { ...patch, underlay: { ...p.underlay, checked: true, product: name, install: true } } : patch;
+  };
   const addStockProducts = (aid, pid, items) => {
     if (!items.length) return;
     // A book row's pigment description matches the same regexes as a stock
@@ -814,8 +821,8 @@ export default function App({ user, onSignOut }) {
     const expanded = items.flatMap((it) => { const base = stockCompanionBase(it, groutStock); return base ? [it, base] : [it]; });
     const a = sel.categories.find((x) => x.id === aid);
     const products = a.products.flatMap((p) => p.id !== pid ? [p] : [
-      { ...p, ...patchFor(expanded[0], p) },
-      ...expanded.slice(1).map((it) => { const np = newProduct(); return { ...np, ...patchFor(it, np) }; }),
+      { ...p, ...link(p, patchFor(expanded[0], p)) },
+      ...expanded.slice(1).map((it) => { const np = newProduct(); return { ...np, ...link(np, patchFor(it, np)) }; }),
     ]);
     updArea(aid, { products });
   };
@@ -1823,7 +1830,8 @@ export default function App({ user, onSignOut }) {
                         const underlayOpts = p.underlay.product && !underlayNames.includes(p.underlay.product) ? [p.underlay.product, ...underlayNames] : underlayNames;
                         const underlayUnit = U ? U.unit : settings.underlayments[p.underlay.product]?.unit;
                         const underlayDefault = resolveMaterialDefault(underlayNames, "", settings.catalog.defaults?.underlay);
-                        const toggleUnderlay = () => updProduct(a.id, p.id, { underlay: { ...p.underlay, checked: !p.underlay.checked, product: p.underlay.checked ? p.underlay.product : (p.underlay.product || underlayDefault) } });
+                        const ownUnderlay = p.type === "underlayment";
+                        const toggleUnderlay = () => updProduct(a.id, p.id, { underlay: { ...p.underlay, checked: !p.underlay.checked, install: ownUnderlay ? !p.underlay.checked : p.underlay.install, product: p.underlay.checked ? p.underlay.product : (p.underlay.product || underlayDefault) } });
                         // Collapsed rows reuse the print sheet's inline material line
                         // (Phase 2 wording, incl. swatch + subtotal) — the #14a spec
                         // wants the collapsed line identical to the printed one.
@@ -1937,7 +1945,7 @@ export default function App({ user, onSignOut }) {
                             )}
                             {switchPatch && (<>
                               <span className="text-amber-600">{switchChipText(switchPatch)}</span>
-                              <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, switchPatch)} className="rounded-full border border-amber-300 text-amber-700 px-2 py-0.5 hover:bg-amber-50 font-medium">Switch to sq ft</button>
+                              <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, link(p, switchPatch))} className="rounded-full border border-amber-300 text-amber-700 px-2 py-0.5 hover:bg-amber-50 font-medium">Switch to sq ft</button>
                             </>)}
                             {drift && (<>
                               <span className="text-amber-600">Price book now {money(drift.to)} — this row has {money(drift.from)}</span>
@@ -2239,12 +2247,14 @@ export default function App({ user, onSignOut }) {
                                         {underlayOpts.length > 0 ? (
                                           <FitSelect sm value={p.underlay.product} display={p.underlay.product || "Select…"} onChange={(e) => updProduct(a.id, p.id, { underlay: { ...p.underlay, product: e.target.value } })}>{!p.underlay.product && <option value="">Select…</option>}{underlayOpts.map((u) => <option key={u} value={u}>{u}</option>)}</FitSelect>
                                         ) : (
-                                          <span className="text-amber-500 text-xs">No {underlayLabel(p.type).toLowerCase()} products for {TLBL[p.type]} yet — add them in Settings.</span>
+                                          <span className="text-amber-500 text-xs">{ownUnderlay ? "No catalog underlayments yet — add them in Settings." : `No ${underlayLabel(p.type).toLowerCase()} products for ${TLBL[p.type]} yet — add them in Settings.`}</span>
                                         )}
                                         {settings.underlayments[p.underlay.product]?.sku && <span className="ft-mono text-[10px] text-slate-400 shrink-0">{settings.underlayments[p.underlay.product]?.sku}</span>}
                                       </div>
+                                      {!ownUnderlay && (<>
                                       <span className="ml-auto flex items-center gap-1 text-sm shrink-0" style={{ color: accent }}>{uEx != null && <span className="text-slate-400 text-xs whitespace-nowrap">{uEx.toFixed(2)} →</span>}<input tabIndex={-1} type="number" value={U ? String(U.order) : ""} onChange={(e) => updProduct(a.id, p.id, { underlay: { ...p.underlay, manual: e.target.value } })} placeholder="—" title="Total — type to override the calculated amount" className="!w-12 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" /><span className="font-semibold">{underlayUnit}</span></span>
                                       {uDrift && <QtyDriftNote d={uDrift} unit={underlayUnit} onUse={() => updProduct(a.id, p.id, { underlay: { ...p.underlay, manual: "" } })} />}
+                                      </>)}
                                     </div>
                                     {installDefs.length > 0 && (
                                       <div className="mt-1.5 pt-1.5" style={{ borderTop: "1px solid var(--ft-border)" }}>

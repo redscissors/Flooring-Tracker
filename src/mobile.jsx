@@ -296,7 +296,8 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutS
   const underlayOpts = p.underlay.product && !underlayNames.includes(p.underlay.product) ? [p.underlay.product, ...underlayNames] : underlayNames;
   const underlayUnit = U ? U.unit : settings.underlayments[p.underlay.product]?.unit;
   const underlayDefault = resolveMaterialDefault(underlayNames, "", settings.catalog.defaults?.underlay);
-  const toggleUnderlay = () => onPatch({ underlay: { ...p.underlay, checked: !p.underlay.checked, product: p.underlay.checked ? p.underlay.product : (p.underlay.product || underlayDefault) } });
+  const ownUnderlay = p.type === "underlayment";
+  const toggleUnderlay = () => onPatch({ underlay: { ...p.underlay, checked: !p.underlay.checked, install: ownUnderlay ? !p.underlay.checked : p.underlay.install, product: p.underlay.checked ? p.underlay.product : (p.underlay.product || underlayDefault) } });
   const offCats = p.type === "misc" ? [] : offeredCategories(settings.catalog, p.type);
   const warns = materialWarnings(p, settings);
   const gUnit = G ? G.unit : settings.grouts[p.grout.product]?.unit || "";
@@ -534,10 +535,10 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutS
                     {underlayOpts.length > 0 ? (
                       <FitSelect sm value={p.underlay.product} display={p.underlay.product || "Select…"} onChange={(e) => onPatch({ underlay: { ...p.underlay, product: e.target.value } })}>{!p.underlay.product && <option value="">Select…</option>}{underlayOpts.map((u) => <option key={u} value={u}>{u}</option>)}</FitSelect>
                     ) : (
-                      <span className="text-amber-500 text-xs">No {underlayLabel(p.type).toLowerCase()} products for {TLBL[p.type]} yet — add them in Settings.</span>
+                      <span className="text-amber-500 text-xs">{ownUnderlay ? "No catalog underlayments yet — add them in Settings." : `No ${underlayLabel(p.type).toLowerCase()} products for ${TLBL[p.type]} yet — add them in Settings.`}</span>
                     )}
                     {settings.underlayments[p.underlay.product]?.sku && <span className="ft-mono text-[10px] text-slate-400 shrink-0">{settings.underlayments[p.underlay.product]?.sku}</span>}
-                    {qtyOverride(uEx, U ? String(U.order) : "", underlayUnit, (v) => onPatch({ underlay: { ...p.underlay, manual: v } }))}
+                    {!ownUnderlay && qtyOverride(uEx, U ? String(U.order) : "", underlayUnit, (v) => onPatch({ underlay: { ...p.underlay, manual: v } }))}
                   </div>
                   {installDefs.length > 0 && (
                     <div className="pt-1.5" style={{ borderTop: "1px solid var(--ft-border)" }}>

@@ -526,6 +526,17 @@ test("offeredUnderlayments filters by flooring type; unchecked box returns null 
   assert.equal(getUnderlay({ ...un(), underlay: { checked: false, product: "", manual: "" } }, s), null);
 });
 
+test("offeredUnderlayments: an underlayment row is offered every enabled entry", () => {
+  // Pure catalog literal (not normalizeSettings): the shared catalog's starter
+  // backfill would inject the real seed underlayments here and mask the assertion.
+  const catalog = { companies: [{ name: "X", enabled: true, underlayments: [
+    { name: "Tile only", enabled: true, coverage: 1, unit: "rolls", price: 0, types: ["tile"] },
+    { name: "Any", enabled: true, coverage: 1, unit: "rolls", price: 0, types: [] },
+  ] }] };
+  assert.deepEqual(offeredUnderlayments(catalog, "vinyl"), ["Any"]);
+  assert.deepEqual(offeredUnderlayments(catalog, "underlayment"), ["Tile only", "Any"]);
+});
+
 test("backfill: a pre-underlayment catalog gains every starter; catalogHasSeedUnderlayments tracks it", () => {
   const seeded = seedCatalog(mergeSettings(undefined));
   // Simulate the stored shared catalog from before underlayments existed.

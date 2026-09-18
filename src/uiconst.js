@@ -16,7 +16,7 @@ export const TYPES = ["tile", "hardwood", "vinyl", "laminate", "carpet", "underl
 export const TLBL = { tile: "Tile", hardwood: "Hardwood", vinyl: "Vinyl", laminate: "Laminate", carpet: "Carpet", underlayment: "Underlayment", misc: "Miscellaneous" };
 // The underlayment row is labelled per flooring type — a tile job wants "backer"
 // language, the soft/plank goods want "underlayment".
-export const UNDERLAY_LABEL = { tile: "Tile Backer" };
+export const UNDERLAY_LABEL = { tile: "Tile Backer", underlayment: "Install materials" };
 export const underlayLabel = (type) => UNDERLAY_LABEL[type] || "Underlayment";
 // Product-type accents: the small type button, active joint toggle and the
 // material check chips carry the flooring type's color (the selection rows
