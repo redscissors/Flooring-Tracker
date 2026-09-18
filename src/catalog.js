@@ -91,10 +91,9 @@ export const projWaste = (proj, s) => {
 // path (which reads `s.waste`) picks it up without a signature change.
 export const withProjWaste = (s, proj) => ({ ...s, waste: projWaste(proj, s) });
 
-// The waste multiplier a product line calcs against: tile lines use the tile
-// rate, all other flooring types share the floor rate. Misc lines never reach
-// here (their callers exclude them) and carry no waste.
-export const wasteFor = (p, s) => 1 + num(p?.type === "tile" ? s?.waste?.tile : s?.waste?.floor) / 100;
+// An underlayment row (spec 2026-09-18) orders exactly what the floor measures —
+// the sheet or roll count is already the rounding, so no waste on top.
+export const wasteFor = (p, s) => p?.type === "underlayment" ? 1 : 1 + num(p?.type === "tile" ? s?.waste?.tile : s?.waste?.floor) / 100;
 
 // Normalize a loaded/imported Settings object back to the full shape, filling
 // gaps from DEFAULTS so older records stay valid. (`s.mortar` is a legacy
@@ -248,8 +247,9 @@ export function underlayExact(p, s) {
 
 export function getUnderlay(p, s) {
   // Misc lines are flat-priced extras — no underlayment, even if a checked
-  // state survives a type switch.
-  if (p.type === "misc" || !p.underlay?.checked) return null;
+  // state survives a type switch. An underlayment row IS the underlayment: its
+  // catalog link only brings the install materials (getUnderlayInstall).
+  if (p.type === "misc" || p.type === "underlayment" || !p.underlay?.checked) return null;
   const u = s.underlayments?.[p.underlay.product] || {};
   if (p.underlay.manual !== "" && p.underlay.manual != null) { const v = num(p.underlay.manual); return { exact: v, order: v, unit: u.unit, price: num(u.price), unitCost: num(u.cost), product: p.underlay.product }; }
   const ex = underlayExact(p, s); if (ex == null) return null;
@@ -303,8 +303,9 @@ export function materialWarnings(p, s) {
   if (p.type === "tile" && p.grout?.checked && !getGrout(p, s)) out.push("grout");
   if (p.type === "tile" && p.mortar?.checked && !getMortar(p, s)) out.push("mortar");
   const U = getUnderlay(p, s);
-  if (p.underlay?.checked && (!U || !U.product)) out.push("underlay");
-  if (U && U.product && p.underlay?.install) {
+  const ownUnderlay = p.type === "underlayment";
+  if (!ownUnderlay && p.underlay?.checked && (!U || !U.product)) out.push("underlay");
+  if ((ownUnderlay ? p.underlay?.checked && p.underlay?.product : U && U.product) && p.underlay?.install) {
     const defs = (s.underlayments?.[p.underlay.product]?.install || []).filter((d) => !p.underlay.installSkip?.[d.id]);
     if (defs.length && !getUnderlayInstall(p, s)) out.push("install");
   }

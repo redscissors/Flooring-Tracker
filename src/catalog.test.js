@@ -1441,3 +1441,44 @@ test("getAttached exposes the add-on's unit cost", () => {
   const p = { ...tile(), attached: { [cat.id]: { checked: true, product: "Strip", manual: "3" } } };
   assert.equal(getAttached(p, s, cat).unitCost, 7);
 });
+
+// --- underlayment rows (spec 2026-09-18) -----------------------------------------
+const membrane = (over = {}) => ({
+  type: "underlayment", qtyType: "sqft", qty: "42", cartonSf: "8.4", cartonUnit: "SH", cartonManual: "", priceSqft: "1.81",
+  grout: { checked: false }, mortar: { checked: false },
+  underlay: { checked: false, product: "", manual: "", install: false, installMortars: {}, installSkip: {} },
+  ...over,
+});
+
+test("an underlayment row takes no waste: sheets = ceil(sq ft ÷ coverage)", () => {
+  const s = normalizeSettings({ waste: { tile: 10, floor: 20 } });
+  assert.equal(wasteFor({ type: "underlayment" }, s), 1);
+  const exact = getCarton(membrane(), s);
+  assert.equal(exact.order, 5);
+  assert.equal(exact.exact, 5);
+  assert.equal(exact.unit, "sh");
+  assert.equal(getCarton(membrane({ qty: "43" }), s).order, 6);
+});
+
+test("an underlayment row is never billed as its own underlayment", () => {
+  const s = normalizeSettings({ catalog: { companies: [{ name: "Schluter", enabled: true, grouts: [], mortars: [{ name: "Schluter All Set", coverage: 60, tier1: 60, tier2: 60, tier3: 60, unit: "bags", price: 30 }], underlayments: [
+    { name: "Ditra Underlayment Uncoupling Membrane", coverage: 54, unit: "rolls", price: 0, types: ["tile"], install: [{ id: "m1", kind: "mortar", product: "Schluter All Set", coverage: 50 }] },
+  ] }] } });
+  const p = membrane({ underlay: { checked: true, product: "Ditra Underlayment Uncoupling Membrane", manual: "", install: true, installMortars: {}, installSkip: {} } });
+  assert.equal(getUnderlay(p, s), null);
+  const IN = getUnderlayInstall(p, s);
+  assert.equal(IN.length, 1);
+  assert.equal(IN[0].kind, "mortar");
+  assert.equal(IN[0].exact, 42 / 50);          // the row's own sq ft, no waste
+  assert.equal(IN[0].order, 1);
+  assert.deepEqual(materialWarnings(p, s), []);
+});
+
+test("an underlayment row warns on install materials that can't compute, never on itself", () => {
+  const s = normalizeSettings({ catalog: { companies: [{ name: "Schluter", enabled: true, grouts: [], mortars: [], underlayments: [
+    { name: "Bare entry", coverage: 54, unit: "rolls", price: 0, types: [], install: [{ id: "x1", kind: "custom", name: "Tape", coverage: 0, unit: "rolls", price: 5 }] },
+  ] }] } });
+  const p = membrane({ underlay: { checked: true, product: "Bare entry", manual: "", install: true, installMortars: {}, installSkip: {} } });
+  assert.deepEqual(materialWarnings(p, s), ["install"]);
+  assert.deepEqual(materialWarnings(membrane({ underlay: { checked: true, product: "", manual: "", install: false, installMortars: {}, installSkip: {} } }), s), []);
+});
