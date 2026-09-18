@@ -1171,7 +1171,7 @@ test("a membrane pick lands a sq ft row ordering whole sheets/rolls (spec 2026-0
   assert.equal(roll.type, "underlayment");
   assert.equal(roll.cartonSf, "323");
   assert.equal(roll.cartonUnit, "RL");
-  // $528.10 per roll ÷ 323 sf, rounded to the cent — assert the invariant, not
-  // a hand-rounded literal (1.635 sits on a rounding edge in binary).
-  assert.ok(Math.abs(+roll.priceSqft * 323 - 528.1) < 323 * 0.005, roll.priceSqft);
+  // $528.10 per roll ÷ 323 sf = 1.63498… — stockPriceSqft rounds to 4 places
+  // (1.635) and stockPatch then to cents, so the row lands $1.64/sf.
+  assert.equal(roll.priceSqft, "1.64");
 });
