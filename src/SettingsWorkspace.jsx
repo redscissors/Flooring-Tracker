@@ -386,7 +386,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
       </div>
     );
   };
-  const floorTypeList = types.filter((t) => t !== "misc");
+  const floorTypeList = types.filter((t) => t !== "misc" && t !== "underlayment");
   // The ERP stock books, flattened, are the price-book search source
   // (spec 2026-07-21) — picking a book row stamps a link on the product so
   // re-imports can refresh its price.

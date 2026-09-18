@@ -473,3 +473,11 @@ test("normP keeps a grout color's source book (special-order colors, ADR 0027 am
   assert.equal(normP({ id: "r", grout: { checked: true, product: "SpectraLOCK 1", color: "Raven", sku: "LAT-45", bookId: "lat" } }).grout.bookId, "lat");
   assert.equal(newProduct().grout.bookId, "");
 });
+
+test("normP keeps the underlayment type (spec 2026-09-18)", () => {
+  const p = normP({ id: "u", type: "underlayment", qtyType: "sqft", qty: "42", cartonSf: "8.4", cartonUnit: "SH" });
+  assert.equal(p.type, "underlayment");
+  assert.equal(p.qtyType, "sqft");
+  assert.equal(p.cartonSf, "8.4");
+  assert.equal(p.cartonUnit, "SH");
+});
