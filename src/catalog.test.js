@@ -1494,6 +1494,15 @@ test("an underlayment row warns on install materials that can't compute, never o
   assert.deepEqual(materialWarnings(membrane({ underlay: { checked: true, product: "", manual: "", install: false, installMortars: {}, installSkip: {} } }), s), []);
 });
 
+test("an underlayment row whose linked catalog entry is gone warns", () => {
+  const s = normalizeSettings({ catalog: { companies: [{ name: "Schluter", enabled: true, grouts: [], mortars: [], underlayments: [
+    { name: "Bare entry", coverage: 54, unit: "rolls", price: 0, types: [], install: [] },
+  ] }] } });
+  const p = membrane({ underlay: { checked: true, product: "Gone", manual: "", install: false, installMortars: {}, installSkip: {} } });
+  assert.ok(materialWarnings(p, s).includes("underlay"));
+  assert.deepEqual(materialWarnings(membrane({ underlay: { checked: true, product: "Bare entry", manual: "", install: false, installMortars: {}, installSkip: {} } }), s), []);
+});
+
 test("underlaymentForSku finds the catalog entry carrying the picked SKU", () => {
   const s = normalizeSettings({ catalog: { companies: [
     { name: "Schluter", enabled: true, grouts: [], mortars: [], underlayments: [{ name: "Ditra Heat Membrane Sheet", coverage: 8.4, unit: "sheets", price: 0, sku: "23031", types: [] }] },

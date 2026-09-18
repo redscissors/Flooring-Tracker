@@ -1831,7 +1831,9 @@ export default function App({ user, onSignOut }) {
                         const underlayUnit = U ? U.unit : settings.underlayments[p.underlay.product]?.unit;
                         const underlayDefault = resolveMaterialDefault(underlayNames, "", settings.catalog.defaults?.underlay);
                         const ownUnderlay = p.type === "underlayment";
-                        const toggleUnderlay = () => updProduct(a.id, p.id, { underlay: { ...p.underlay, checked: !p.underlay.checked, install: ownUnderlay ? !p.underlay.checked : p.underlay.install, product: p.underlay.checked ? p.underlay.product : (p.underlay.product || underlayDefault) } });
+                        // An underlayment row's product IS the line, so it is never
+                        // defaulted — a defaulted membrane would quote as if chosen.
+                        const toggleUnderlay = () => updProduct(a.id, p.id, { underlay: { ...p.underlay, checked: !p.underlay.checked, install: ownUnderlay ? (!p.underlay.checked && !!p.underlay.product) : p.underlay.install, product: p.underlay.checked ? p.underlay.product : (ownUnderlay ? p.underlay.product : (p.underlay.product || underlayDefault)) } });
                         // Collapsed rows reuse the print sheet's inline material line
                         // (Phase 2 wording, incl. swatch + subtotal) — the #14a spec
                         // wants the collapsed line identical to the printed one.
@@ -1951,7 +1953,7 @@ export default function App({ user, onSignOut }) {
                               <span className="text-amber-600">Price book now {money(drift.to)} — this row has {money(drift.from)}</span>
                               <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { priceSqft: String(drift.to) })} className="rounded-full border border-amber-300 text-amber-700 px-2 py-0.5 hover:bg-amber-50 font-medium">Use new price</button>
                             </>)}
-                            {oDrift && (oDrift.frame ? (
+                            {oDrift && !(switchPatch && oDrift.frame) && (oDrift.frame ? (
                               // The book item's quote frame moved (a trim reclassified to
                               // per-piece, ADR 0013 amendment) — a price arrow across frames
                               // would compare $/sqft to $/piece. Re-picking the SKU adopts
@@ -2245,7 +2247,7 @@ export default function App({ user, onSignOut }) {
                                       <span className="text-sm font-medium">{KSHORT[underlayLabel(p.type)]}</span>
                                       <div className="order-1 md:order-none basis-full md:basis-0 md:grow min-w-0 flex flex-wrap items-center gap-1.5">
                                         {underlayOpts.length > 0 ? (
-                                          <FitSelect sm value={p.underlay.product} display={p.underlay.product || "Select…"} onChange={(e) => updProduct(a.id, p.id, { underlay: { ...p.underlay, product: e.target.value } })}>{!p.underlay.product && <option value="">Select…</option>}{underlayOpts.map((u) => <option key={u} value={u}>{u}</option>)}</FitSelect>
+                                          <FitSelect sm value={p.underlay.product} display={p.underlay.product || "Select…"} onChange={(e) => updProduct(a.id, p.id, { underlay: { ...p.underlay, product: e.target.value, ...(ownUnderlay ? { install: !!e.target.value } : {}) } })}>{!p.underlay.product && <option value="">Select…</option>}{underlayOpts.map((u) => <option key={u} value={u}>{u}</option>)}</FitSelect>
                                         ) : (
                                           <span className="text-amber-500 text-xs">{ownUnderlay ? "No catalog underlayments yet — add them in Settings." : `No ${underlayLabel(p.type).toLowerCase()} products for ${TLBL[p.type]} yet — add them in Settings.`}</span>
                                         )}
@@ -2309,7 +2311,7 @@ export default function App({ user, onSignOut }) {
                                   <div className="px-2.5 py-1 flex items-center gap-2">
                                     <button tabIndex={-1} onClick={toggleUnderlay} title={`Add ${underlayLabel(p.type).toLowerCase()}`} className="ft-mat-toggle w-5 h-5 rounded shrink-0 border border-slate-300 ft-field hover:border-indigo-500" />
                                     <span className="text-sm text-slate-500">{KSHORT[underlayLabel(p.type)]}</span>
-                                    <span className="text-xs text-slate-400 truncate">{p.underlay.product || underlayDefault}</span>
+                                    <span className="text-xs text-slate-400 truncate">{ownUnderlay ? (p.underlay.product || "Select…") : (p.underlay.product || underlayDefault)}</span>
                                   </div>
                                 )}
                                 {offCats.map((cat) => {

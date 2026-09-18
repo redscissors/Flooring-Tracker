@@ -300,16 +300,29 @@ test("a typed, piece-priced, carton-sold item with no coverage lands as a per-pi
 
 test("stockDrift flags a snapshot whose price the book has since changed", () => {
   const it = normStockItem({ sku: "1", data: { type: "tile", priceSqft: 5.15, price: 50 } });
-  assert.deepEqual(stockDrift(it, { priceSqft: "4.79" }), { from: 4.79, to: 5.15 });
-  assert.equal(stockDrift(it, { priceSqft: "5.15" }), null);
-  assert.equal(stockDrift(it, { priceSqft: "" }), null);
-  assert.equal(stockDrift(null, { priceSqft: "4.79" }), null);
+  assert.deepEqual(stockDrift(it, { type: "tile", priceSqft: "4.79" }), { from: 4.79, to: 5.15 });
+  assert.equal(stockDrift(it, { type: "tile", priceSqft: "5.15" }), null);
+  assert.equal(stockDrift(it, { type: "tile", priceSqft: "" }), null);
+  assert.equal(stockDrift(null, { type: "tile", priceSqft: "4.79" }), null);
 });
 
 test("stockDrift compares sheet-priced items against the same derived $/sqft the snapshot filled", () => {
   const it = normStockItem({ sku: "1504051", data: { type: "tile", unit: "SH", price: 27.99, sfPerUnit: 2 } });
-  assert.equal(stockDrift(it, { priceSqft: "14" }), null); // the snapshot's own value — no false drift
-  assert.deepEqual(stockDrift(it, { priceSqft: "12.5" }), { from: 12.5, to: 14 });
+  assert.equal(stockDrift(it, { type: "tile", priceSqft: "14" }), null); // the snapshot's own value — no false drift
+  assert.deepEqual(stockDrift(it, { type: "tile", priceSqft: "12.5" }), { from: 12.5, to: 14 });
+});
+
+test("stockDrift stays silent when the row and the book item quote in different frames", () => {
+  // SKU 23031 saved as a misc count line at $21.49/sheet; the book now types it
+  // as an underlayment priced per sq ft. A price arrow here would underquote it.
+  const it = normStockItem({ sku: "23031", data: { type: "underlayment", unit: "SH", price: 21.49, sfPerUnit: 8.4 } });
+  assert.equal(stockDrift(it, { type: "misc", qtyType: "count", priceSqft: "21.49" }), null);
+  assert.equal(stockDrift(it, { type: "misc", qtyType: "count", priceSqft: "19.99" }), null);
+  // same frame on both sides: the sq ft row still drifts
+  assert.deepEqual(stockDrift(it, { type: "underlayment", qtyType: "sqft", priceSqft: "2.40" }), { from: 2.4, to: 2.56 });
+  // a typeless book item against a misc row is one frame too — it still drifts
+  const flat = normStockItem({ sku: "9", data: { description: "Trim clip", price: 12.5 } });
+  assert.deepEqual(stockDrift(flat, { type: "misc", qtyType: "count", priceSqft: "10" }), { from: 10, to: 12.5 });
 });
 
 // --- search ---------------------------------------------------------------------
@@ -632,6 +645,8 @@ test("switchToSqftPatch converts a saved count line by count × coverage and cle
   assert.equal(patch.cartonManual, "");
   assert.equal("note" in patch, false);          // the row's own fields are untouched
   assert.equal("freight" in patch, false);
+  assert.equal("brandColor" in patch, false);    // the row already has a name — the switch keeps it
+  assert.equal(switchToSqftPatch({ ...row, brandColor: "" }, landed).brandColor, "Schluter Ditra Heat - Membrane Sheet");
   assert.equal(switchChipText(landed), "Book sells this by the SH — 8.4 sf");
 });
 
@@ -641,4 +656,7 @@ test("switchToSqftPatch: blank count stays blank; a row that is already sq ft or
   assert.equal(switchToSqftPatch({ type: "underlayment", qtyType: "sqft", qty: "40" }, landed), null);
   assert.equal(switchToSqftPatch({ type: "misc", qtyType: "count", qty: "3" }, { type: "misc" }), null);
   assert.equal(switchToSqftPatch({ type: "misc", qtyType: "count", qty: "3" }, null), null);
+  // typed but with no coverage to convert the count with: no offer at all
+  assert.equal(switchToSqftPatch({ type: "misc", qtyType: "count", qty: "3" }, { type: "underlayment", qtyType: "sqft", cartonUnit: "CT" }), null);
+  assert.equal(switchToSqftPatch({ type: "misc", qtyType: "count", qty: "3" }, { type: "underlayment", qtyType: "sqft", cartonSf: "0" }), null);
 });

@@ -304,8 +304,14 @@ export function materialWarnings(p, s) {
   if (p.type === "tile" && p.mortar?.checked && !getMortar(p, s)) out.push("mortar");
   const U = getUnderlay(p, s);
   const ownUnderlay = p.type === "underlayment";
-  if (!ownUnderlay && p.underlay?.checked && (!U || !U.product)) out.push("underlay");
-  if ((ownUnderlay ? p.underlay?.checked && p.underlay?.product : U && U.product) && p.underlay?.install) {
+  // An underlayment row IS its own underlayment (getUnderlay is null for it), so
+  // nothing about it can fail to compute — what can go missing is the catalog
+  // entry it links to, which its install materials come from.
+  const ownEntry = !!(ownUnderlay && p.underlay?.checked && p.underlay?.product);
+  if (ownUnderlay) { if (ownEntry && !s.underlayments?.[p.underlay.product]) out.push("underlay"); }
+  else if (p.underlay?.checked && (!U || !U.product)) out.push("underlay");
+  const hasUnderlay = ownUnderlay ? ownEntry : !!(U && U.product);
+  if (hasUnderlay && p.underlay?.install) {
     const defs = (s.underlayments?.[p.underlay.product]?.install || []).filter((d) => !p.underlay.installSkip?.[d.id]);
     if (defs.length && !getUnderlayInstall(p, s)) out.push("install");
   }

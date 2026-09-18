@@ -297,7 +297,9 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutS
   const underlayUnit = U ? U.unit : settings.underlayments[p.underlay.product]?.unit;
   const underlayDefault = resolveMaterialDefault(underlayNames, "", settings.catalog.defaults?.underlay);
   const ownUnderlay = p.type === "underlayment";
-  const toggleUnderlay = () => onPatch({ underlay: { ...p.underlay, checked: !p.underlay.checked, install: ownUnderlay ? !p.underlay.checked : p.underlay.install, product: p.underlay.checked ? p.underlay.product : (p.underlay.product || underlayDefault) } });
+  // An underlayment row's product IS the line, so it is never defaulted — a
+  // defaulted membrane would quote as if chosen.
+  const toggleUnderlay = () => onPatch({ underlay: { ...p.underlay, checked: !p.underlay.checked, install: ownUnderlay ? (!p.underlay.checked && !!p.underlay.product) : p.underlay.install, product: p.underlay.checked ? p.underlay.product : (ownUnderlay ? p.underlay.product : (p.underlay.product || underlayDefault)) } });
   const offCats = p.type === "misc" ? [] : offeredCategories(settings.catalog, p.type);
   const warns = materialWarnings(p, settings);
   const gUnit = G ? G.unit : settings.grouts[p.grout.product]?.unit || "";
@@ -528,12 +530,12 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutS
               </div>
             )}
             <div>
-              {matHead(underlayLabel(p.type), p.underlay.checked ? p.underlay.product || "Select…" : (p.underlay.product || underlayDefault), p.underlay.checked, toggleUnderlay)}
+              {matHead(underlayLabel(p.type), p.underlay.checked || ownUnderlay ? p.underlay.product || "Select…" : (p.underlay.product || underlayDefault), p.underlay.checked, toggleUnderlay)}
               {p.underlay.checked && (
                 <div className="pb-2.5 -mt-1 space-y-2">
                   <div className="flex flex-wrap items-center gap-1.5">
                     {underlayOpts.length > 0 ? (
-                      <FitSelect sm value={p.underlay.product} display={p.underlay.product || "Select…"} onChange={(e) => onPatch({ underlay: { ...p.underlay, product: e.target.value } })}>{!p.underlay.product && <option value="">Select…</option>}{underlayOpts.map((u) => <option key={u} value={u}>{u}</option>)}</FitSelect>
+                      <FitSelect sm value={p.underlay.product} display={p.underlay.product || "Select…"} onChange={(e) => onPatch({ underlay: { ...p.underlay, product: e.target.value, ...(ownUnderlay ? { install: !!e.target.value } : {}) } })}>{!p.underlay.product && <option value="">Select…</option>}{underlayOpts.map((u) => <option key={u} value={u}>{u}</option>)}</FitSelect>
                     ) : (
                       <span className="text-amber-500 text-xs">{ownUnderlay ? "No catalog underlayments yet — add them in Settings." : `No ${underlayLabel(p.type).toLowerCase()} products for ${TLBL[p.type]} yet — add them in Settings.`}</span>
                     )}

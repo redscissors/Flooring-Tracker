@@ -727,7 +727,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
         <div className="w-28">{numField("Cost", u.cost, (v) => setProduct(co.id, "underlayments", u.id, { cost: v }))}</div>
         <div className="w-36">{txtField("SKU", u.sku || "", (v) => setProduct(co.id, "underlayments", u.id, { sku: v }))}</div>
       </div>
-      <div className="mt-4">{typeChips(u.types, (v) => setProduct(co.id, "underlayments", u.id, { types: v }))}</div>
+      <div className="mt-4">{typeChips(u.types, (v) => setProduct(co.id, "underlayments", u.id, { types: v }), floorTypeList)}</div>
       <div className="mt-6 max-w-3xl">
         <label className={lbl}>Install materials <span className="text-slate-400 font-normal normal-case tracking-normal">(added when a job checks "Install materials"; mortar rows pull unit &amp; price from that mortar and combine with the job's mortar totals)</span></label>
         <div className="space-y-1.5">
@@ -843,7 +843,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
               {numField("Cost", draft.cost, (v) => setDraft({ ...draft, cost: v }))}
               {txtField("SKU", draft.sku, (v) => setDraft({ ...draft, sku: v }))}
             </div>
-            {typeChips(draft.types, (v) => setDraft({ ...draft, types: v }))}
+            {typeChips(draft.types, (v) => setDraft({ ...draft, types: v }), floorTypeList)}
           </>
         )}
         {error && <div className="text-xs text-red-500">{error}</div>}

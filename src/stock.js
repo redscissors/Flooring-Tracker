@@ -405,6 +405,13 @@ const stockPrice = (item) => {
 // just says what the book says now; applying it is always deliberate.
 export function stockDrift(item, product) {
   if (!item) return null;
+  // A price only means something inside its own quote frame: a typed item's is
+  // per sq ft, a count line's per sell unit — comparing across them offers a
+  // saved sheet row "$21.49 → $2.56", a one-click underquote (the switch chip
+  // is what that state gets instead).
+  const itemArea = fillsFlooring(item);
+  const rowArea = !!product.type && product.type !== "misc";
+  if (rowArea !== itemArea) return null;
   const cur = parseFloat(product.priceSqft);
   const now = stockPrice(item);
   if (now == null || !Number.isFinite(cur)) return null;
@@ -416,10 +423,12 @@ export function stockDrift(item, product) {
 // its own (ADR 0003). The typed count becomes count × coverage so the order
 // stays what it was until the real footage is typed; the count-line fields go.
 export function switchToSqftPatch(product, patch) {
-  if (!patch || !product || product.type !== "misc" || !patch.type || patch.type === "misc" || patch.qtyType !== "sqft") return null;
+  if (!patch || !product || product.type !== "misc" || !patch.type || patch.type === "misc" || patch.qtyType !== "sqft" || !(parseFloat(patch.cartonSf) > 0)) return null;
   const count = parseFloat(product.qty), per = parseFloat(patch.cartonSf);
-  const qty = Number.isFinite(count) && count > 0 && per > 0 ? String(round2(count * per)) : "";
-  return { ...patch, qtyType: "sqft", qty, sellUnit: "", cartonPc: "", cartonManual: "" };
+  const qty = Number.isFinite(count) && count > 0 ? String(round2(count * per)) : "";
+  const { brandColor, ...unnamed } = patch;
+  const base = str(product.brandColor).trim() ? unnamed : patch;
+  return { ...base, qtyType: "sqft", qty, sellUnit: "", cartonPc: "", cartonManual: "" };
 }
 export const switchChipText = (patch) => `Book sells this by the ${bundleUnit(patch?.cartonUnit).toUpperCase()} — ${parseFloat(patch?.cartonSf) || 0} sf`;
 
