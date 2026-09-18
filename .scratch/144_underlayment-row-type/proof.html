@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Underlayment row type — preview proof (2026-09-18)</title>
+<style>
+  body{margin:0;background:#26231F;padding:24px 22px 60px;font-family:Manrope,ui-sans-serif,system-ui,sans-serif}
+  h1{font-size:17px;font-weight:800;margin:0 0 4px;color:#F6F3EC}
+  h2{font-size:13px;font-weight:800;margin:24px 0 8px;color:#F6F3EC}
+  .sub{font-size:12px;color:#A8A29A;margin:0 0 18px;max-width:900px;line-height:1.5}
+  .wrap{display:flex;gap:26px;align-items:flex-start}
+  .col{flex:1;min-width:0;max-width:920px}
+  .card{background:#F6F3EC;border-radius:6px;padding:12px 14px 10px;margin-bottom:14px;box-shadow:0 6px 22px rgba(0,0,0,.35)}
+  .cap{font-size:12px;font-weight:800;color:#3B3934;margin-bottom:2px}
+  .note{font-size:11px;color:#6B6862;line-height:1.45;margin-bottom:9px;max-width:760px}
+  .rowframe{background:#fff;border:1px solid #E3DED2;border-radius:4px;overflow:visible}
+  .gc{border-right:1px solid #EFEBE0;min-width:0;display:flex;align-items:center;padding:0 6px;min-height:34px;color:#3B3934}
+  .gc.r{justify-content:flex-end}
+  .gc.b{font-weight:800}
+  .stored{font-size:10.5px;color:#6B6862;margin-top:7px}
+  .stored code{font-family:ui-monospace,Menlo,monospace;background:#EFEBE0;border-radius:3px;padding:1px 4px;font-size:10px}
+</style>
+</head>
+<body>
+  <h1>Underlayment row type — preview proof</h1>
+  <p class="sub">A sheet/roll membrane now imports as its own product type: it lands as a <b>sq ft</b> row that orders
+  whole <b>SH</b>/<b>RL</b> with no waste, links its Materials-tab entry for the install materials, and never re-counts
+  the floor the flooring row above it already measured. A count line saved before the change offers
+  <b>Switch to sq ft</b>. Every cell below is the app's own markup around the real <code>getCarton</code> /
+  <code>UnitPick</code> / <code>switchToSqftPatch</code> / <code>getUnderlayInstall</code> / <code>EstimatePaper</code>;
+  Playwright clicks the switch chip for the screenshots.</p>
+  <div class="wrap">
+    <div class="col">
+      <h2>Desktop grid — Coverage · Sq ft · Order cells, install drawer, printed estimate</h2>
+      <div id="desktop"></div>
+    </div>
+  </div>
+  <script type="module" src="./proof-entry.jsx"></script>
+</body>
+</html>
