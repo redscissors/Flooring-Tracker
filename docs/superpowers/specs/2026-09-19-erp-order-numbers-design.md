@@ -1,7 +1,7 @@
 # ERP 1 order numbers — design
 
 **Date:** 2026-09-19 · **Status:** picks made by owner in chat; spec awaiting owner review
-**Mockup:** `.scratch/mockups/erp-order-2026-09-19.html` (sections 1B, 2A, 3B, 4A, 4C picked)
+**Mockup:** `.scratch/mockups/erp-order-2026-09-19.html` (picked: 1B revised — dropdown + fine print, compact header; 3B; 4A; 4C)
 
 ## Problem
 
@@ -35,9 +35,12 @@ project.erpKeyed  : { "<line id>": { no: "48213", at: 1758284040000, by: "Marcus
 ```
 
 The order-entry panel gains the number field in its header (left of the view
-switch), collapses it to chips once a number is in, gates every line copy on
-having an order, stamps each copied line with the active order, and shows the
-stamp as the number under the line's green check. **Copy remaining** replaces
+switch), turns it into a small dropdown once a number is in — with a line of
+fine print under it naming any other orders on the job — gates every line
+copy on having an order, stamps each copied line with the active order, and
+shows the stamp as the number under the line's green check. The header gets
+tighter while it's being touched (owner: "doesn't need to take up tons of
+space"). **Copy remaining** replaces
 Copy all. The project header wears an `ERP 48213` chip beside the N-number,
 and the customer browser gets a searchable **ERP order** column.
 
@@ -77,7 +80,7 @@ Each returns `{ erpOrders, erpKeyed }` for ONE `updateProject(id, patch)` call
 each other, the options.js lesson).
 
 - `addErpOrder(proj, no, who)` — appends `{ no, addedBy: who, addedAt }`;
-  a duplicate returns the project unchanged (the panel selects that chip).
+  a duplicate returns the project unchanged (the panel selects that order).
 - `removeErpOrder(proj, no)` — drops the order and every stamp on it.
 - `stampErpLines(proj, ids, no, who)` — sets `erpKeyed[id] = { no, at, by }`
   for each id (a re-stamp overwrites: the line moves to that order).
@@ -90,11 +93,11 @@ each other, the options.js lesson).
 - `remainingRows(rows, erpKeyed)` — rows with a SKU (or `byDesc`) and
   `keyedNo === null`.
 - `erpCounts(rows, erpKeyed)` — `{ keyed, total, byNo: { no: n } }` for the
-  header note and the chip counts (counted over `erpKeyed` for the chips,
-  over the visible rows for the note).
+  fine print and the dropdown's per-order counts (counted over `erpKeyed`
+  for the per-order counts, over the visible rows for "N of M keyed").
 - `who` = `profile.name || user.email || ""` (the samples doctrine).
 
-### The panel (`src/orderentry.jsx`) — option 1B + 2A + 3B
+### The panel (`src/orderentry.jsx`) — option 1B revised + 3B
 
 `OrderEntryPanel` stays pure presentation. New props:
 `erpOrders`, `erpKeyed`, `onAddOrder(no)`, `onRemoveOrder(no)`,
@@ -102,22 +105,37 @@ each other, the options.js lesson).
 `updateProject` through the builders above. The preview harness passes
 fixtures and no-op handlers.
 
+**Compact header** (owner, round 2). Header padding 7/12 instead of 12/16,
+the title 15px semibold instead of the 20px serif-weight, the project name
+11px under it, the third row's controls 24px tall (the view switch's buttons
+lose a step of padding to match), and the body's section gap 12px instead of
+20 with 10/12 padding. The list rows lose a couple of pixels of padding
+(special 6/10, stock 5/10). Net: roughly 40px shorter before the first line.
+
 **Header, third row** (left of the Compact / Area + vendor / Sheet order
 switch):
 
 - No order: an amber-outlined field `ERP # [required] Add`. Digits only
   (`inputMode="numeric"`, non-digits stripped on input, max 10). Enter or
-  Add calls `onAddOrder`. Under the row, one amber line: "Enter the ERP 1
-  order number to unlock the line copies. Deliver to works now."
-- One or more orders: one chip per order in added order, `ERP 48213 · 4 ×`
-  (the count = stamps on that order across the whole job; omitted at 0), the
-  active one filled moss, then a dashed `+`. Click a chip → it becomes
-  active. `+` opens the same field inline after the chips; Esc or an empty
-  Add closes it; a number already present selects that chip. Under the row,
-  one quiet line: "Copies stamp order 48260 · 5 of 7 keyed · 2 still to key"
-  (the tail only while something is unkeyed; "Every line is keyed" at zero).
-- The row wraps at the panel's 560px: two chips, `+` and the switch fit one
-  line; a third order pushes the switch down a line. The lists don't move.
+  Add calls `onAddOrder`. Under the row, one line of amber fine print (10px):
+  "Enter the ERP 1 order number to unlock the line copies. Deliver to works
+  now."
+- One or more orders: the field becomes a **dropdown** button reading
+  `ERP 48260 ▾` (moss text, 24px). Its menu (anchored, widgets-style — not a
+  native `<select>`, which can't carry the counts or the actions) lists every
+  order in added order, each with its stamp count and the active one marked
+  (`48260 · 1 line · active`, `48213 · 4 lines`), then a divider and two
+  actions: **Add another order…** (opens the same field inline right after
+  the dropdown; Enter or Add creates it and makes it active; Esc or an empty
+  Add closes it; a number already present selects that order) and
+  **Remove 48260…** (the active order — see Remove an order). Picking an
+  order makes it active.
+- **Fine print** under the row, 10px faint, tabular numerals:
+  - one order: `3 of 7 lines keyed` (or `Every line is keyed`);
+  - two or more: `+1 more order on this job · 48213 (4 lines) · 5 of 7 keyed`
+    — the "+N more order(s)" lead in moss bold so a second order is never
+    hidden behind the closed dropdown; the other orders listed with their
+    counts, clipped to the row (`…`) with the full list in the dropdown.
 - **Active order** is panel state: initialised to the last entry of
   `erpOrders`, reset on every open. Not stored.
 
@@ -154,13 +172,14 @@ ERP order is untouched"), **Keep**. No silent clear: today's latch is one-way
 and resets on reopen; a persisted one needs a way back that can't be
 mis-clicked.
 
-**Remove an order.** A chip's × with no stamps removes it outright; with
-stamps it confirms: "Remove order 48213? Its 4 stamped lines go back to
-unkeyed." The last remaining chip (or none) becomes active.
+**Remove an order.** The dropdown's **Remove 48260…** with no stamps removes
+it outright; with stamps it confirms: "Remove order 48260? Its 1 stamped
+line goes back to unkeyed." The last-added remaining order (or none) becomes
+active.
 
 **Quote-option scope.** The panel may be scoped to an option (orderScope).
-Stamps are by line id and ignore scope; the header note counts the visible
-rows, the chip counts the whole job.
+Stamps are by line id and ignore scope; the fine print's "N of M keyed"
+counts the visible rows, the per-order counts the whole job.
 
 **Footers.** Special and Stock footers keep the state-only rule; each adds
 "3 of 4 keyed · 2 on 48213, 1 on 48260" when any line in that list is keyed.
@@ -209,7 +228,8 @@ managed — the header never edits them.
 
 - Print: the order sheet and estimate don't show the ERP number. Its own ask.
 - No per-line ERP line numbers, no sync from ERP 1, no "partly keyed" amber
-  header state (option 4B, declined 2026-09-19).
+  header state (option 4B, declined 2026-09-19). Order chips in the header
+  (round 1) were replaced by the dropdown + fine print (round 2, same day).
 - Server-side search by ERP number (see Boot light rows).
 
 ## Files
@@ -218,7 +238,7 @@ managed — the header never edits them.
 |---|---|
 | `src/erporders.js` + `.test.js` | new: normalizers, patch builders, `lineIds`, `keyedNo`, `remainingRows`, `erpCounts`, `erpNos`, `erpNosOf`, `erpHit` |
 | `src/model.js` | `normC` → `erpOrders`, `erpKeyed` |
-| `src/orderentry.jsx` | header field/chips row, gate, stamping, 3B check, `KeyedPop`, Copy remaining, footers, tips |
+| `src/orderentry.jsx` | compact header; field → order dropdown + fine print; gate; stamping; 3B check; `KeyedPop`; Copy remaining; footers; tips |
 | `src/App.jsx` | stable stock-material ids; pass `erpOrders`/`erpKeyed` + the four handlers (one `updateProject` each); header chip → open panel |
 | `src/bootload.js` + `.test.js` | `erp:data->erpOrders` on both selects; `lightRow.erpNos` |
 | `src/custbrowser.js` + `.test.js`, `src/CustomerBrowser.jsx` | `erp` column, `erpNos`, `erpHit` in both filters, lines-panel tags |
@@ -239,7 +259,8 @@ managed — the header never edits them.
 - `custbrowser.test.js`: `filterRows` hits on an ERP number; `BROWSER_COLS`
   order; `normColOrder` appends `erp` for an old saved order.
 - Preview proof (non-negotiable 3): `order-entry-preview.html` shots of the
-  locked header, one order with stamps, and the two-order split; the customer
+  locked header, one order with stamps, the two-order split with its fine
+  print, and the dropdown open; the customer
   browser column via the existing preview harness or a screenshot of the dev
   app.
 - `npm test` green; `npm run build` clean.

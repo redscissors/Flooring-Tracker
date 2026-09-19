@@ -146,6 +146,39 @@
   .stk .under{margin-top:1px}
   .st .stk input:disabled{opacity:1}
 
+
+  /* 1B revised (owner 2026-09-19): dropdown for the orders + compact header */
+  .panel.tight .phead{padding:7px 12px 6px;gap:8px}
+  .panel.tight .ptitle{font-size:15px;font-weight:700}
+  .panel.tight .pname{font-size:11px;line-height:1.2}
+  .panel.tight .hrow{margin-top:5px;gap:6px}
+  .panel.tight .seg{padding:1px}
+  .panel.tight .seg button{padding:2px 8px;font-size:11.5px}
+  .panel.tight .pbody{padding:10px 12px 12px;gap:12px}
+  .panel.tight .sp{padding:6px 10px}
+  .panel.tight .st{padding:5px 10px}
+  .panel.tight .box{margin-top:5px}
+  .panel.tight .deliver{margin-top:5px}
+  .panel.tight .deliver .lines{padding:5px 10px;line-height:1.35;font-size:12px}
+  .panel.tight .colhead{padding:4px 10px}
+  .panel.tight .band{padding:2px 10px}
+  .panel.tight .hfield{height:24px;padding:0 4px 0 7px}
+  .panel.tight .hfield input{width:66px;font-size:12.5px}
+  .panel.tight .hfield .btn{padding:1px 7px;font-size:11px}
+  .osel{display:inline-flex;align-items:center;gap:5px;height:24px;border:1px solid var(--border-strong);border-radius:6px;background:#fff;padding:0 6px 0 7px;font-size:12.5px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--moss-deep);cursor:pointer}
+  .osel .k{font-size:9.5px;font-weight:800;letter-spacing:.08em;color:var(--faint)}
+  .osel .car{font-size:9px;color:var(--faint);margin-left:1px}
+  .fine{font-size:10px;line-height:1.3;color:var(--faint);margin-top:3px;font-variant-numeric:tabular-nums}
+  .fine b{color:var(--muted);font-weight:700}
+  .fine.amber{color:var(--amber)}
+  .fine .more{color:var(--moss-deep);font-weight:700}
+  .menu{position:absolute;left:0;top:27px;z-index:4;background:#fff;border:1px solid var(--border-strong);border-radius:8px;box-shadow:0 8px 24px rgba(28,26,23,.14);min-width:196px;padding:4px;font-size:12px}
+  .menu div{padding:5px 8px;border-radius:5px;display:flex;justify-content:space-between;gap:10px;font-variant-numeric:tabular-nums}
+  .menu div.on{background:var(--moss-soft);color:var(--moss-deep);font-weight:700}
+  .menu div small{color:var(--faint);font-weight:500}
+  .menu .sep{border-top:1px solid var(--border);margin:3px 4px;padding:0}
+  .menu div.act{color:var(--muted)}
+
   /* ---------- the project header (mirrors projectheader.jsx one-bar) ---------- */
   .headcard{border:1px solid var(--border);border-radius:8px;background:var(--band);display:flex;align-items:stretch;padding:10px;gap:7px;max-width:820px;flex-wrap:wrap}
   .idbox{background:transparent;border:1px solid var(--border-strong);border-radius:6px;display:flex;flex-direction:column;min-width:0;padding:7px 10px 6px;flex:1 1 200px}
@@ -377,13 +410,101 @@ numbers, <b>48213</b> and <b>48260</b>.</p>
 
 <!-- ============================================================ -->
 <section>
-  <div class="sechead"><h2>1B · picked — the header field, three states</h2><span class="tag">owner 2026-09-19</span></div>
-  <p class="note">The field sits <b>left of the view switch</b> on the header's third row. Once a number is in, it
-  collapses to a chip and a dashed <b>+</b> that opens the field again for a second order. Chips are section 2A's:
-  the filled one is active, click to switch, × removes. The one-line note under the row reports state only
-  ("Copies stamp order 48260 · 5 of 7 keyed"); it replaces 1A's block entirely, so the body still opens straight
-  on Deliver to. Stamped lines wear option 3B: the number under the green check, and under the stock row's
-  checkbox.</p>
+  <div class="sechead"><h2>1B · revised — dropdown for the orders, compact header</h2><span class="tag">owner 2026-09-19, round 2</span></div>
+  <p class="note">Round 2 asks: the orders as a <b>dropdown</b> instead of chips, a line of <b>fine print</b>
+  under it whenever the list holds more than one order (so a second order is never hidden), and the whole header
+  <b>tighter</b>. Shown against the earlier chips version further down for comparison. Header padding drops from
+  12/16 to 7/12, the title from 20 to 15px, the switch and the field to 24px tall, and the body's section gap from
+  20 to 12px — about 40px shorter before the first line. The lists keep their own rhythm but lose a few pixels of
+  row padding too.</p>
+
+  <div class="lbl">No order yet</div>
+  <div class="row2">
+    <div class="panel tight"><div class="phead"><div style="min-width:0;flex:1"><div class="ptitle">Copy for order entry</div><div class="pname">Hendricks — Master &amp; hall baths</div><div class="hrow"><label class="hfield need"><span>ERP #</span><input placeholder="required" aria-label="ERP 1 order number"><button class="btn ink">Add</button></label><div class="seg"><button>Compact</button><button class="on">Area + vendor</button><button>Sheet order</button></div></div><div class="fine amber">Enter the ERP 1 order number to unlock the line copies. Deliver to works now.</div></div><button class="pclose">×</button></div><div class="pbody">
+      <section><h4 class="sh">Deliver to <span class="q">?</span></h4>
+        <div class="deliver"><div class="lc"><button class="cb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></div>
+          <div class="lines"><div><b>Dana Hendricks</b></div><div>1418 Ridgeway Ct</div><div>Fort Wayne, IN 46814</div><div>(260) 555-0142</div></div></div></section>
+      <section><div class="secrow"><h4 class="sh">Special order · 4 <span class="q">?</span></h4></div>
+        <div class="box"><div class="colhead"><span></span><span>Item</span><span>Qty</span><span>Cost</span><span>Sell</span></div>
+          <div class="band">Master bath</div>
+          <div class="sp"><button class="cb lock" title="Enter the ERP 1 order number first"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><div class="truncate"><div class="l1 truncate"><span class="tag">CT</span><span class="size">12"x24"</span> <b>Daltile Emerson Wood Brazilian Walnut</b></div><div class="l2"><span class="sku">EP04 12241P6</span> 15.6 SF/CT</div></div><div class="qty num">9 <small>CT</small></div><div class="cost num">$41.20<small>/CT</small></div><div class="sell num">$62.40<small>/CT</small></div></div>
+          <div class="band">Hall bath</div>
+          <div class="sp alt"><button class="cb lock" title="Enter the ERP 1 order number first"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><div class="truncate"><div class="l1 truncate"><span class="tag">CT</span><span class="size">12"x24"</span> <b>Daltile Emerson Wood Brazilian Walnut</b></div><div class="l2"><span class="sku">EP04 12241P6</span> 15.6 SF/CT</div></div><div class="qty num">5 <small>CT</small></div><div class="cost num">$41.20<small>/CT</small></div><div class="sell num">$62.40<small>/CT</small></div></div>
+          <div class="foot">… 2 more lines</div></div></section>
+      <section><div class="secrow"><h4 class="sh">Stock · 3 <span class="q">?</span></h4><div class="acts"><button class="btn lock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy remaining (3)</button><button class="btn lock">Copy selected</button></div></div>
+        <div class="box"><div class="band">Kitchen</div>
+          <label class="st"><span class="sku">1517410</span><span class="q num">12 CT</span><span class="nm truncate">Ragno Realstone Chalk 12x24</span><input type="checkbox" disabled></label>
+          <div class="band vendor">Materials</div>
+          <label class="st"><span class="sku">05153</span><span class="q num">4 bags</span><span class="nm truncate">Mapei Ultraflex 2 gray <small>Mortar</small></span><input type="checkbox" disabled></label>
+          <div class="foot">… 1 more line</div></div></section>
+    </div></div>
+    <div style="flex:1 1 300px;max-width:420px">
+      <p class="note" style="margin-top:0"><b>Locked.</b> The amber field is the only control on the third row besides the switch. Its fine print says why everything below is grey. Deliver to is live.</p>
+    </div>
+  </div>
+
+  <div class="lbl" style="margin-top:20px">One order — the usual case</div>
+  <div class="row2">
+    <div class="panel tight"><div class="phead"><div style="min-width:0;flex:1"><div class="ptitle">Copy for order entry</div><div class="pname">Hendricks — Master &amp; hall baths</div><div class="hrow"><button class="osel" title="ERP 1 order — click for the list"><span class="k">ERP</span>48213<span class="car">▾</span></button><div class="seg"><button>Compact</button><button class="on">Area + vendor</button><button>Sheet order</button></div></div><div class="fine">3 of 7 lines keyed</div></div><button class="pclose">×</button></div><div class="pbody">
+      <section><h4 class="sh">Deliver to <span class="q">?</span></h4>
+        <div class="deliver"><div class="lc"><button class="cb done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg></button></div>
+          <div class="lines"><div><b>Dana Hendricks</b></div><div>1418 Ridgeway Ct</div><div>Fort Wayne, IN 46814</div><div>(260) 555-0142</div></div></div></section>
+      <section><div class="secrow"><h4 class="sh">Special order · 4 <span class="q">?</span></h4></div>
+        <div class="box"><div class="colhead"><span></span><span>Item</span><span>Qty</span><span>Cost</span><span>Sell</span></div>
+          <div class="band">Master bath</div>
+          <div class="sp"><div class="stk"><button class="cb done" title="Keyed on ERP 48213 — today 9:14 AM by Marcus Mast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg></button><div class="under">48213</div></div><div class="truncate"><div class="l1 truncate"><span class="tag">CT</span><span class="size">12"x24"</span> <b>Daltile Emerson Wood Brazilian Walnut</b></div><div class="l2"><span class="sku">EP04 12241P6</span> 15.6 SF/CT</div></div><div class="qty num">9 <small>CT</small></div><div class="cost num">$41.20<small>/CT</small></div><div class="sell num">$62.40<small>/CT</small></div></div>
+          <div class="band">Hall bath</div>
+          <div class="sp alt"><button class="cb" title="Copy the description field — stamps the active order"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><div class="truncate"><div class="l1 truncate"><span class="tag">CT</span><span class="size">12"x24"</span> <b>Daltile Emerson Wood Brazilian Walnut</b></div><div class="l2"><span class="sku">EP04 12241P6</span> 15.6 SF/CT</div></div><div class="qty num">5 <small>CT</small></div><div class="cost num">$41.20<small>/CT</small></div><div class="sell num">$62.40<small>/CT</small></div></div>
+          <div class="foot">… 2 more lines</div></div></section>
+      <section><div class="secrow"><h4 class="sh">Stock · 3 <span class="q">?</span></h4><div class="acts"><button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy remaining (1)</button><button class="btn" disabled>Copy selected</button></div></div>
+        <div class="box"><div class="band">Kitchen</div>
+          <label class="st"><span class="sku">1517410</span><span class="q num">12 CT</span><span class="nm truncate">Ragno Realstone Chalk 12x24</span><input type="checkbox"></label>
+          <div class="band vendor">Materials</div>
+          <label class="st"><span class="sku">05153</span><span class="q num">4 bags</span><span class="nm truncate">Mapei Ultraflex 2 gray <small>Mortar</small></span><div class="stk"><input type="checkbox" checked disabled title="Keyed on ERP 48213"><div class="under">48213</div></div></label>
+          <div class="foot">… 1 more line</div></div></section>
+    </div></div>
+    <div style="flex:1 1 300px;max-width:420px">
+      <p class="note" style="margin-top:0"><b>Unlocked.</b> The field becomes a small dropdown reading <b>ERP 48213</b>. The fine print is just the tally, "3 of 7 lines keyed". With one order there is nothing else to say, so nothing else is said.</p>
+      <p class="note">The dropdown holds the order, <b>Add another order…</b> (opens the inline field next to it) and <b>Remove 48213…</b> (confirms when lines are stamped on it).</p>
+    </div>
+  </div>
+
+  <div class="lbl" style="margin-top:20px">Two orders — the split</div>
+  <div class="row2">
+    <div class="panel tight"><div class="phead"><div style="min-width:0;flex:1"><div class="ptitle">Copy for order entry</div><div class="pname">Hendricks — Master &amp; hall baths</div><div class="hrow"><button class="osel" title="ERP 1 order — click for the list"><span class="k">ERP</span>48260<span class="car">▾</span></button><div class="seg"><button>Compact</button><button class="on">Area + vendor</button><button>Sheet order</button></div></div><div class="fine"><span class="more">+1 more order on this job</span> · 48213 (4 lines) · 5 of 7 keyed</div></div><button class="pclose">×</button></div><div class="pbody">
+      <section><h4 class="sh">Deliver to <span class="q">?</span></h4>
+        <div class="deliver"><div class="lc"><button class="cb done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg></button></div>
+          <div class="lines"><div><b>Dana Hendricks</b></div><div>1418 Ridgeway Ct</div><div>Fort Wayne, IN 46814</div><div>(260) 555-0142</div></div></div></section>
+      <section><div class="secrow"><h4 class="sh">Special order · 4 <span class="q">?</span></h4></div>
+        <div class="box"><div class="colhead"><span></span><span>Item</span><span>Qty</span><span>Cost</span><span>Sell</span></div>
+          <div class="band">Master bath</div>
+          <div class="sp"><div class="stk"><button class="cb done" title="Keyed on ERP 48213 — today 9:14 AM by Marcus Mast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg></button><div class="under">48213</div></div><div class="truncate"><div class="l1 truncate"><span class="tag">CT</span><span class="size">12"x24"</span> <b>Daltile Emerson Wood Brazilian Walnut</b></div><div class="l2"><span class="sku">EP04 12241P6</span> 15.6 SF/CT</div></div><div class="qty num">9 <small>CT</small></div><div class="cost num">$41.20<small>/CT</small></div><div class="sell num">$62.40<small>/CT</small></div></div>
+          <div class="band">Hall bath</div>
+          <div class="sp alt"><div class="stk"><button class="cb done" title="Keyed on ERP 48260 — today 2:41 PM by Marcus Mast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg></button><div class="under">48260</div></div><div class="truncate"><div class="l1 truncate"><span class="tag">CT</span><span class="size">12"x24"</span> <b>Daltile Emerson Wood Brazilian Walnut</b></div><div class="l2"><span class="sku">EP04 12241P6</span> 15.6 SF/CT</div></div><div class="qty num">5 <small>CT</small></div><div class="cost num">$41.20<small>/CT</small></div><div class="sell num">$62.40<small>/CT</small></div></div>
+          <div class="foot">… 2 more lines</div></div></section>
+      <section><div class="secrow"><h4 class="sh">Stock · 3 <span class="q">?</span></h4><div class="acts"><button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy remaining (1)</button><button class="btn" disabled>Copy selected</button></div></div>
+        <div class="box"><div class="band">Kitchen</div>
+          <label class="st"><span class="sku">1517410</span><span class="q num">12 CT</span><span class="nm truncate">Ragno Realstone Chalk 12x24</span><input type="checkbox"></label>
+          <div class="band vendor">Materials</div>
+          <label class="st"><span class="sku">05153</span><span class="q num">4 bags</span><span class="nm truncate">Mapei Ultraflex 2 gray <small>Mortar</small></span><div class="stk"><input type="checkbox" checked disabled title="Keyed on ERP 48213"><div class="under">48213</div></div></label>
+          <div class="foot">… 1 more line</div></div></section>
+    </div></div>
+    <div style="flex:1 1 300px;max-width:420px">
+      <p class="note" style="margin-top:0"><b>The fine print does the work.</b> The dropdown shows the active order, <b>48260</b>. Under it, in moss: "+1 more order on this job · 48213 (4 lines) · 5 of 7 keyed". You can tell at a glance that there's another order in the list without opening it, and which one.</p>
+      <p class="note"><b>Open</b>, the list reads each order with its line count, the active one marked, then the two actions:</p>
+      <div class="panel tight" style="box-shadow:none;overflow:visible;margin-bottom:8px"><div class="phead"><div style="min-width:0;flex:1"><div class="ptitle">Copy for order entry</div><div class="pname">Hendricks — Master &amp; hall baths</div><div class="hrow"><span class="pop"><button class="osel"><span class="k">ERP</span>48260<span class="car">▾</span></button><div class="menu"><div class="on">48260 <small>1 line · active</small></div><div>48213 <small>4 lines</small></div><div class="sep"></div><div class="act">Add another order…</div><div class="act">Remove 48260…</div></div></span><div class="seg"><button>Compact</button><button class="on">Area + vendor</button><button>Sheet order</button></div></div><div class="fine"><span class="more">+1 more order on this job</span> · 48213 (4 lines) · 5 of 7 keyed</div></div><button class="pclose">×</button></div><div style="height:112px"></div></div>
+      <p class="note"><b>Add another order…</b> puts the field inline right after the dropdown; Enter or Add creates it and makes it active, Esc closes:</p>
+      <div class="panel tight" style="box-shadow:none"><div class="phead"><div style="min-width:0;flex:1"><div class="ptitle">Copy for order entry</div><div class="pname">Hendricks — Master &amp; hall baths</div><div class="hrow"><button class="osel"><span class="k">ERP</span>48260<span class="car">▾</span></button><label class="hfield"><span>ERP #</span><input value="4831" aria-label="ERP 1 order number"><button class="btn ink">Add</button></label><div class="seg"><button>Compact</button><button class="on">Area + vendor</button><button>Sheet order</button></div></div><div class="fine"><span class="more">+1 more order on this job</span> · 48213 (4 lines) · 5 of 7 keyed</div></div><button class="pclose">×</button></div></div>
+      <p class="note">Three or more orders: the fine print reads "+2 more orders on this job · 48213 (4) · 47990 (2) · …", clipped to the row with the full list in the dropdown.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <div class="sechead"><h2>1B · round 1 — chips (superseded)</h2><span class="tag">kept for comparison</span></div>
+  <p class="note">The first cut after the 1B pick: chips in the header, one per order. Replaced by the dropdown above
+  (owner, same day) — the chips grew the row and the header wasn't compact enough.</p>
 
   <div class="lbl">No order yet — the field is the only thing in amber</div>
   <div class="row2">
@@ -475,7 +596,7 @@ numbers, <b>48213</b> and <b>48260</b>.</p>
   lines not stamped on <i>any</i> order, so the split needs no bookkeeping: add the new number, copy what's left.
   <span class="try">Try it: click a chip, then click a grey copy button</span></p>
 
-  <div class="lbl">Option 2A — chips, newest active <span class="pick">picked (chips move up into the header — section 1B)</span></div>
+  <div class="lbl">Option 2A — chips, newest active <span class="pick" style="background:var(--amber)">superseded — dropdown + fine print (section 1B revised)</span></div>
   <div class="row2">
     <div class="panel" id="p2a">
       <div class="phead">
@@ -560,10 +681,10 @@ numbers, <b>48213</b> and <b>48260</b>.</p>
     </div>
   </div>
 
-  <div class="lbl" style="margin-top:22px">Option 2B — a dropdown instead of chips</div>
-  <p class="note">One select listing the orders, plus "Add another…" at the bottom. Compact, but the whole point of
-  the split is seeing both numbers at once and which lines went where; a closed select hides the second number.
-  Better only if a project ever carries five or more orders, which nobody expects.</p>
+  <div class="lbl" style="margin-top:22px">Option 2B — a dropdown instead of chips <span class="pick">picked, round 2 — with fine print, see 1B revised</span></div>
+  <p class="note">One select listing the orders, plus "Add another…" at the bottom. The worry was that a closed
+  select hides the second number — the owner's answer is the fine-print line under it naming the other order(s), so
+  nothing is hidden and the row stays one control wide.</p>
   <div class="erp tint" style="max-width:560px">
     <div class="frow">
       <label class="field" style="gap:8px"><span>ORDER #</span><select style="border:0;outline:0;font:inherit;font-weight:700;font-size:13.5px;background:transparent"><option>48260 · 1 line</option><option>48213 · 4 lines</option><option>Add another…</option></select></label>
@@ -708,7 +829,7 @@ LIST_SELECT      += ", erp:data->erpOrders"      <i>// the browser column + sear
   <div class="overx">
   <table class="cand">
     <tr><th>Rule</th><th>Behaviour</th></tr>
-    <tr><td>Picks (owner 2026-09-19)</td><td>1B header field left of the view switch · 2A chips (in that header row) · 3B number under the check / checkbox · 4A header chip · 4C browser column. Copy remaining replaces Copy all.</td></tr>
+    <tr><td>Picks (owner 2026-09-19)</td><td>1B header field left of the view switch, compact · orders as a DROPDOWN with fine print under it when there is more than one (round 2 — replaces the 2A chips) · 3B number under the check / checkbox · 4A header chip · 4C browser column. Copy remaining replaces Copy all.</td></tr>
     <tr><td>Gate</td><td>No order on the project → every line copy, Ext, Copy remaining and Copy selected disabled (30%, tooltip). Deliver to never gated.</td></tr>
     <tr><td>Active order</td><td>The last-added chip, or the one clicked. Kept in the panel's own state — reopening the panel goes back to last-added.</td></tr>
     <tr><td>Stamp</td><td>Copying a line writes <code>erpKeyed[id] = { no: active, at, by }</code>. A merged line stamps each source. Copy remaining stamps its whole batch in one write; Copy selected the checked lines.</td></tr>
