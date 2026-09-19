@@ -39,9 +39,12 @@ header's idiom (owner, round 3): a one-line strip (project name · N-number ·
 close), then a band of three bordered columns — **Deliver to** (narrowed to a
 column), **ERP 1 order** (the entry field on top, each added order a chip
 stacked under it, a fine-print tally), and **View** (the three views stacked).
-The old title row and the body's Deliver to section go away. Every line copy
-is gated on having an order, each copied line is stamped with the active
-order, and the stamp shows as the number under the line's green check.
+The old title row and the body's Deliver to section go away. On a
+**numbered** project (one with an N-number) every line copy is gated on
+having an order; on an unnumbered one — a quick price, or a job not yet
+named — the number is optional and nothing is gated. Each copied line is
+stamped with the active order, and the stamp shows as the number under the
+line's green check. A quick price's Deliver to column is empty.
 **Copy remaining** replaces Copy all. The project header wears an `ERP 48213` chip beside the N-number,
 and the customer browser gets a searchable **ERP order** column.
 
@@ -96,13 +99,15 @@ each other, the options.js lesson).
 - `erpCounts(rows, erpKeyed)` — `{ keyed, total, byNo: { no: n } }` for the
   fine print and the chips' per-order counts (counted over `erpKeyed` for the
   per-order counts, over the visible rows for "N of M keyed").
+- `gated(proj)` — `!!proj.projectNo && erpOrders.length === 0`.
 - `who` = `profile.name || user.email || ""` (the samples doctrine).
 
 ### The panel (`src/orderentry.jsx`) — option 1C-A + 3B
 
 `OrderEntryPanel` stays pure presentation. New props:
-`erpOrders`, `erpKeyed`, `onAddOrder(no)`, `onRemoveOrder(no)`,
-`onStamp(ids, no)`, `onClearStamp(ids)`. App.jsx wires each to one
+`erpOrders`, `erpKeyed`, `projectNo` (the gate switch), `quick` (empties
+Deliver to), `onAddOrder(no)`, `onRemoveOrder(no)`, `onStamp(ids, no)`,
+`onClearStamp(ids)`. App.jsx wires each to one
 `updateProject` through the builders above. The preview harness passes
 fixtures and no-op handlers.
 
@@ -132,7 +137,9 @@ eyebrows, 7px bar padding, 6px gaps.
   stripped, max 10), an ink `+` button (18px) at its right; Enter or `+`
   calls `onAddOrder`. With no order the field is amber-outlined with
   placeholder "required" and the fine print under it reads, in amber, "Enter
-  the order number to unlock the line copies." With orders the placeholder
+  the order number to unlock the line copies." (numbered projects; on an
+  unnumbered one the field is neutral with placeholder "optional" — see
+  Gate). With orders the placeholder
   reads "another…" and each order is a full-width **chip** stacked under the
   field, newest on top: the number, its stamp count at the right (`3 lines`,
   omitted at 0), a `×`. The active chip is filled moss; clicking another
@@ -153,11 +160,33 @@ eyebrows, 7px bar padding, 6px gaps.
 - **Active order** is panel state: initialised to the last entry of
   `erpOrders`, reset on every open. Not stored.
 
-**Gate.** With `erpOrders` empty: every special-line copy button and Ext
-button, Copy remaining, Copy selected, and every stock checkbox are disabled
-(`disabled:opacity-30`, title "Enter the ERP 1 order number first"). The
-Deliver to block is never gated — it fills the ERP header that produces the
-number.
+**Gate — numbered projects only** (owner, round 4). The gate applies when
+the project carries an N-number (`projectNo`). No N-number means no saved
+customer and no real project name — a quick price or an unnamed draft — and
+blocking the copies there "doesn't really make sense": the desk keys quick
+prices without an ERP order. So:
+
+- `projectNo` present and `erpOrders` empty: every special-line copy button
+  and Ext button, Copy remaining, Copy selected, and every stock checkbox are
+  disabled (`disabled:opacity-30`, title "Enter the ERP 1 order number
+  first"). The ERP field is amber-outlined, placeholder "required", fine
+  print in amber "Enter the order number to unlock the line copies."
+- `projectNo` absent: nothing is gated. The ERP field stays, neutral, with
+  placeholder "optional" and fine print "Optional — so the job can be found
+  by its order number later." Adding a number works exactly as on a numbered
+  job (chips, active order, stamps); without one, copies simply don't stamp
+  (there is no order to stamp on) and the green checks stay session-only as
+  today. A project that later earns its N-number (first real name) becomes
+  gated from then on — the panel reads `projectNo` live.
+- The Deliver to column is never gated on either kind.
+
+**Deliver to on a quick price** (owner, round 4): a quick price (`sel.quick`)
+shows the Deliver to column **empty** — eyebrow only, no name, no address, no
+phone, no copy-all latch. Today's fallback would print the draft's auto-name
+(`Q-<item>-<m/d>`) as the delivery name, which is not a deliver-to. A
+customer-less but named (non-quick) project keeps today's behaviour: whatever
+name / address / phone the project carries, the empty-state line when it has
+none.
 
 **Stamping.** A copy that succeeds calls `onStamp(lineIds(row), active)`:
 - a special line's copy button (the description); the Ext button does NOT
@@ -264,7 +293,8 @@ managed — the header never edits them.
 
 ## Testing
 
-- `erporders.test.js`: normalize old records; digits-only `normErpNo`;
+- `erporders.test.js`: `gated(proj)` — true only with a projectNo and no
+  orders; normalize old records; digits-only `normErpNo`;
   dedupe on add; remove drops stamps; stamp/re-stamp/clear; `keyedNo` on
   plain, fully keyed, mixed and partly keyed merged rows; `remainingRows`
   excludes no-SKU rows but includes `byDesc` specials; `erpNos` ordering and
@@ -273,8 +303,8 @@ managed — the header never edits them.
 - `custbrowser.test.js`: `filterRows` hits on an ERP number; `BROWSER_COLS`
   order; `normColOrder` appends `erp` for an old saved order.
 - Preview proof (non-negotiable 3): `order-entry-preview.html` shots of the
-  bar locked (no order), one order with stamps, the two-order split, and the
-  phone-width fold; the customer
+  bar locked (numbered, no order), one order with stamps, the two-order
+  split, a quick price (ungated, empty Deliver to), and the phone-width fold; the customer
   browser column via the existing preview harness or a screenshot of the dev
   app.
 - `npm test` green; `npm run build` clean.

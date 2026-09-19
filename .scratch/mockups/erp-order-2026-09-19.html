@@ -480,6 +480,25 @@ numbers, <b>48213</b> and <b>48260</b>.</p>
     </div>
   </div>
 
+  
+  <div class="lbl" style="margin-top:22px">1C-A on a quick price — no N-number, so nothing is gated and Deliver to is empty <span class="pick">owner, round 4</span></div>
+  <p class="note">No N-number means no saved customer and no real project name, so forcing an order number there
+  makes no sense: the field stays as an <b>optional</b> entry (neutral, "optional") so the quick price can be
+  found by its order number later, and every copy works without it. The Deliver to column shows <b>nothing</b> —
+  today's fallback would have pasted the draft's auto-name as the delivery name.</p>
+  <div class="barrow">
+    <div class="panel bar"><div class="ostrip"><span class="nm truncate">Q-Ragno Realstone Chalk-9/19</span><span class="x">×</span></div><div class="obar"><div class="obox d2"><div class="ey"><span>Deliver to</span></div></div><div class="obox e2"><div class="ey"><span>ERP 1 order</span></div><div class="efield"><span class="k">ERP #</span><input placeholder="optional" aria-label="ERP 1 order number"><span class="plus">+</span></div><div class="ofine">Optional — so this can be found by its order number later.</div></div><div class="obox v2"><div class="ey"><span>View</span></div><div class="vseg"><button>Compact</button><button class="on">Area + vendor</button><button>Sheet order</button></div></div></div>
+      <div class="pbody"><section><div class="secrow"><h4 class="sh">Stock · 2 <span class="q">?</span></h4><div class="acts"><button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy all</button><button class="btn" disabled>Copy selected</button></div></div>
+        <div class="box"><div class="band">Area 1</div>
+          <label class="st"><span class="sku">1517410</span><span class="q num">12 CT</span><span class="nm truncate">Ragno Realstone Chalk 12x24</span><input type="checkbox"></label>
+          <div class="band vendor">Materials</div>
+          <label class="st"><span class="sku">05153</span><span class="q num">4 bags</span><span class="nm truncate">Mapei Ultraflex 2 gray <small>Mortar</small></span><input type="checkbox"></label></div></section></div></div>
+    <div style="flex:1 1 300px;max-width:420px">
+      <p class="note" style="margin-top:0"><b>Ungated.</b> Copies are live with no order; with no order there is nothing to stamp, so the button reads <b>Copy all</b> as today and the green checks stay session-only. Add a number and it behaves exactly like a numbered job: chip, active order, stamps, Copy remaining.</p>
+      <p class="note"><b>Later:</b> when the draft gets a customer and a real name it earns its N-number, and from then on the gate applies.</p>
+    </div>
+  </div>
+
   <div class="lbl" style="margin-top:22px">1C-B — no title row: the project name lives in the Deliver to column (not picked — shown for the ERP column's three states and the whole panel)</div>
   <p class="note">The first column is the project box from the project header, with the delivery label under the
   name: eyebrow "Order entry · deliver to", the project name and N-number in bold, then customer, street,
