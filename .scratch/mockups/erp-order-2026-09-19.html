@@ -482,7 +482,7 @@ numbers, <b>48213</b> and <b>48260</b>.</p>
   pasted into ERP 1. The close × rides the top box's eyebrow row. Two takes on the boxes; both shown at two
   orders, with the N-number and name already copied so the latch reads.</p>
 
-  <div class="lbl">1D-A — one box: N-number in the eyebrow row, name under it <span class="pick">recommended</span></div>
+  <div class="lbl">1D-A — one box: N-number in the eyebrow row, name under it <span class="pick">picked — owner 2026-09-19</span></div>
   <div class="barrow">
     <div class="panel bar"><div class="obar flush"><div class="obox d2"><div class="ey"><span>Deliver to</span><button class="cb done" title="Copy every field, then the whole label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg></button></div><div class="dl"><b>Dana Hendricks</b><br>1418 Ridgeway Ct<br>Fort Wayne, IN 46814<br>(260) 555-0142</div></div><div class="obox e2"><div class="ey"><span>ERP 1 order</span></div><div class="efield"><span class="k">ERP #</span><input placeholder="another…" aria-label="ERP 1 order number"><span class="plus">+</span></div><button class="vchip on"><span>48260</span><span class="n">1 line</span><span class="x">×</span></button><button class="vchip"><span>48213</span><span class="n">4 lines</span><span class="x">×</span></button><div class="ofine">5 of 7 keyed · 2 to go</div></div><div class="ocol"><div class="obox"><div class="ey nb"><span class="segc done" title="Copy N214">N214</span><button class="xclose" title="Close">×</button></div><button class="pname2 done" title="Copy the project name">Hendricks — Master &amp; hall baths</button></div><div class="obox vt"><div class="vseg tight"><button>Compact</button><button class="on">Area + vendor</button><button>Sheet order</button></div></div></div></div><div style="height:10px"></div></div>
     <div style="flex:1 1 300px;max-width:420px">
@@ -490,7 +490,7 @@ numbers, <b>48213</b> and <b>48260</b>.</p>
     </div>
   </div>
 
-  <div class="lbl" style="margin-top:22px">1D-B — two little boxes: N-number, then the name</div>
+  <div class="lbl" style="margin-top:22px">1D-B — two little boxes: N-number, then the name (not picked)</div>
   <div class="barrow">
     <div class="panel bar"><div class="obar flush"><div class="obox d2"><div class="ey"><span>Deliver to</span><button class="cb done" title="Copy every field, then the whole label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg></button></div><div class="dl"><b>Dana Hendricks</b><br>1418 Ridgeway Ct<br>Fort Wayne, IN 46814<br>(260) 555-0142</div></div><div class="obox e2"><div class="ey"><span>ERP 1 order</span></div><div class="efield"><span class="k">ERP #</span><input placeholder="another…" aria-label="ERP 1 order number"><span class="plus">+</span></div><button class="vchip on"><span>48260</span><span class="n">1 line</span><span class="x">×</span></button><button class="vchip"><span>48213</span><span class="n">4 lines</span><span class="x">×</span></button><div class="ofine">5 of 7 keyed · 2 to go</div></div><div class="ocol"><div class="obox"><div class="ey nb"><span class="segc done" title="Copy N214">N214</span><button class="xclose" title="Close">×</button></div></div><div class="obox"><button class="pname2 done" title="Copy the project name">Hendricks — Master &amp; hall baths</button></div><div class="obox vt"><div class="vseg tight"><button>Compact</button><button class="on">Area + vendor</button><button>Sheet order</button></div></div></div></div><div style="height:10px"></div></div>
     <div style="flex:1 1 300px;max-width:420px">
@@ -1037,7 +1037,7 @@ LIST_SELECT      += ", erp:data->erpOrders"      <i>// the browser column + sear
   <div class="overx">
   <table class="cand">
     <tr><th>Rule</th><th>Behaviour</th></tr>
-    <tr><td>Picks (owner 2026-09-19)</td><td>Round 5 in play: no strip — the third column stacks the copyable N-number and project name over a shorter View box (1D-A one box / 1D-B two boxes, pending). Deliver to column · ERP column (field on top, chips stacked, tally). Gate only on numbered projects; quick price = optional ERP #, empty Deliver to. 3B number under the check / checkbox · 4A header chip · 4C browser column · Copy remaining replaces Copy all.</td></tr>
+    <tr><td>Picks (owner 2026-09-19)</td><td>1D-A: a header bar with nothing above it — Deliver to column · ERP column (field on top, chips stacked, tally) · third column = Project box (copyable N-number + name, close ×) over a shorter View box. Gate only on numbered projects; quick price = optional ERP #, empty Deliver to. 3B number under the check / checkbox · 4A header chip · 4C browser column · Copy remaining replaces Copy all.</td></tr>
     <tr><td>Gate</td><td>No order on the project → every line copy, Ext, Copy remaining and Copy selected disabled (30%, tooltip). Deliver to never gated.</td></tr>
     <tr><td>Active order</td><td>The last-added chip, or the one clicked. Kept in the panel's own state — reopening the panel goes back to last-added.</td></tr>
     <tr><td>Stamp</td><td>Copying a line writes <code>erpKeyed[id] = { no: active, at, by }</code>. A merged line stamps each source. Copy remaining stamps its whole batch in one write; Copy selected the checked lines.</td></tr>

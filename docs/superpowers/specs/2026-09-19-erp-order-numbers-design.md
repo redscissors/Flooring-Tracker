@@ -1,7 +1,7 @@
 # ERP 1 order numbers — design
 
 **Date:** 2026-09-19 · **Status:** picks made by owner in chat; spec awaiting owner review
-**Mockup:** `.scratch/mockups/erp-order-2026-09-19.html` (picked: 1C-A header bar, round 3; 3B; 4A; 4C)
+**Mockup:** `.scratch/mockups/erp-order-2026-09-19.html` (picked: 1D-A header bar, round 5; 3B; 4A; 4C)
 
 ## Problem
 
@@ -35,11 +35,13 @@ project.erpKeyed  : { "<line id>": { no: "48213", at: 1758284040000, by: "Marcus
 ```
 
 The order-entry panel's top is rebuilt as a **header bar** in the project
-header's idiom (owner, round 3): a one-line strip (project name · N-number ·
-close), then a band of three bordered columns — **Deliver to** (narrowed to a
-column), **ERP 1 order** (the entry field on top, each added order a chip
-stacked under it, a fine-print tally), and **View** (the three views stacked).
-The old title row and the body's Deliver to section go away. On a
+header's idiom (owner, rounds 3–5): a band of three bordered columns and
+nothing above it — **Deliver to** (narrowed to a column), **ERP 1 order**
+(the entry field on top, each added order a chip stacked under it, a
+fine-print tally), and a third column stacking the **Project** box (the
+N-number and the project name, both click-to-copy, the close ×) over a
+shorter **View** box (the three views stacked). The old title row and the
+body's Deliver to section go away. On a
 **numbered** project (one with an N-number) every line copy is gated on
 having an order; on an unnumbered one — a quick price, or a job not yet
 named — the number is optional and nothing is gated. Each copied line is
@@ -102,30 +104,26 @@ each other, the options.js lesson).
 - `gated(proj)` — `!!proj.projectNo && erpOrders.length === 0`.
 - `who` = `profile.name || user.email || ""` (the samples doctrine).
 
-### The panel (`src/orderentry.jsx`) — option 1C-A + 3B
+### The panel (`src/orderentry.jsx`) — option 1D-A + 3B
 
 `OrderEntryPanel` stays pure presentation. New props:
-`erpOrders`, `erpKeyed`, `projectNo` (the gate switch), `quick` (empties
-Deliver to), `onAddOrder(no)`, `onRemoveOrder(no)`, `onStamp(ids, no)`,
+`erpOrders`, `erpKeyed`, `projectNo` (the gate switch and the Project box's
+copy chip), `quick` (empties Deliver to), `onAddOrder(no)`, `onRemoveOrder(no)`, `onStamp(ids, no)`,
 `onClearStamp(ids)`. App.jsx wires each to one
 `updateProject` through the builders above. The preview harness passes
 fixtures and no-op handlers.
 
 **The header bar** (owner, round 3 — "similar to how the project header
-works, columns of things that fit nice and neat"). Replaces the panel's title
-row (`Copy for order entry` + project name + view switch) AND the body's
-Deliver to section. Chrome borrowed from `ProjectHeaderBar`: the band tint
-(`--ft-band`) on the bar, 1px `--ft-border-strong` boxes with 6px radius, 8px
-eyebrows, 7px bar padding, 6px gaps.
+works, columns of things that fit nice and neat"; round 5 — "the View box
+has wasted space vertically", the strip folds into that column). Replaces
+the panel's title row (`Copy for order entry` + project name + view switch)
+AND the body's Deliver to section; nothing sits above the band. Chrome
+borrowed from `ProjectHeaderBar`: the band tint (`--ft-band`) on the bar,
+1px `--ft-border-strong` boxes with 6px radius, 8px eyebrows, 7px bar
+padding, 6px gaps. Widths at the panel's 560px: Deliver to takes what's
+left (~210px), ERP 152px, the third column 150px.
 
-- **Strip** (above the band, one 12px line, 6px top padding): the project
-  name (bold ink, truncating; with the option short name when scoped, as
-  today's `name` prop), the N-number as a small faint `N214` ONLY when the
-  project has one (`sel.projectNo` — unnumbered projects and installs that
-  haven't run project-numbers.sql show nothing there, the project header's
-  own rule), and the close × at the right. No "Copy for order entry" eyebrow
-  (owner: bloat).
-- **Deliver to** column (flex 1, ~200px at the panel's 560px): eyebrow
+- **Deliver to** column (flex 1): eyebrow
   "Deliver to" with the latching copy-all button (20px) at its right — the
   same `LatchCopy` over `deliverToSequence` — then the label lines at 11.5px:
   customer name bold, street, apt if any, "City, ST ZIP", phone, each piece
@@ -146,15 +144,28 @@ eyebrows, 7px bar padding, 6px gaps.
   makes it active; × removes (see Remove an order). A number already present
   selects that chip. Fine print under the chips: `5 of 7 keyed · 2 to go`
   (or `Every line is keyed`).
-- **View** column (128px): eyebrow "View"; Compact / Area + vendor / Sheet
-  order as three stacked buttons, the current one filled moss — the same
-  `aria-pressed` switch, vertical.
-- Heights: about 112px for the bar at one order; each further order adds a
-  22px chip to the ERP column (the bar follows its tallest column — the
-  Deliver to label sets it up to three orders). Old title row + Deliver to
-  section was about 250px.
+- **Third column** (150px, two boxes stacked with the bar's 6px gap):
+  - **Project box** — the eyebrow row holds the N-number as a small copy
+    chip (`N214`, 10px bold, ONLY when the project has one — `sel.projectNo`;
+    unnumbered projects and installs that haven't run project-numbers.sql
+    show nothing there, the project header's own rule) and the close × at
+    the right; under it the project name in 12px bold, clamped to two lines
+    with the full name in `title` (with the option short name when scoped,
+    as today's `name` prop). Both the N-number and the name are
+    **click-to-copy** — a `Seg`-style latch: click writes the text
+    (`N214` / the name) to the clipboard and the piece turns moss-soft with
+    moss-deep ink, like the Deliver to pieces — so either can be pasted into
+    ERP 1. A quick price's box is the auto-name and the × alone.
+  - **View box** — no eyebrow (the three names explain themselves); Compact
+    / Area + vendor / Sheet order as three stacked 17px rows, 11px semibold,
+    the current one filled moss — the same `aria-pressed` switch, vertical.
+- Heights: about 120px for the bar at one order (the third column sets it:
+  Project box ~46px + View ~62px); each further order adds a 22px chip to
+  the ERP column, which overtakes the third column at three orders. Old title
+  row + Deliver to section was about 250px.
 - **Below `lg`** (the phone's full-screen panel) the columns wrap: Deliver to
-  full width, then ERP and View side by side — the project header's fold.
+  full width, then ERP and the third column side by side — the project
+  header's fold.
 - The body opens straight on Special order; its section gap tightens to 12px
   with 10/12 padding, special rows 6/10, stock rows 5/10.
 - **Active order** is panel state: initialised to the last entry of
@@ -271,8 +282,9 @@ managed — the header never edits them.
 - Print: the order sheet and estimate don't show the ERP number. Its own ask.
 - No per-line ERP line numbers, no sync from ERP 1, no "partly keyed" amber
   header state (option 4B, declined 2026-09-19). Rounds 1 (chips in the
-  title row) and 2 (a dropdown + fine print) were superseded the same day by
-  the round-3 header bar; the mockup keeps them for the record.
+  title row), 2 (a dropdown + fine print) and 3 (a strip above the bar) were
+  superseded the same day by the round-5 bar; the mockup keeps them for the
+  record.
 - Server-side search by ERP number (see Boot light rows).
 
 ## Files
@@ -281,7 +293,7 @@ managed — the header never edits them.
 |---|---|
 | `src/erporders.js` + `.test.js` | new: normalizers, patch builders, `lineIds`, `keyedNo`, `remainingRows`, `erpCounts`, `erpNos`, `erpNosOf`, `erpHit` |
 | `src/model.js` | `normC` → `erpOrders`, `erpKeyed` |
-| `src/orderentry.jsx` | header bar (strip + Deliver to / ERP order / View columns) replacing the title row and the Deliver to section; gate; stamping; 3B check; `KeyedPop`; Copy remaining; footers; tips |
+| `src/orderentry.jsx` | header bar (Deliver to / ERP order / Project + View columns, copyable N-number and name) replacing the title row and the Deliver to section; gate; stamping; 3B check; `KeyedPop`; Copy remaining; footers; tips |
 | `src/App.jsx` | stable stock-material ids; pass `erpOrders`/`erpKeyed` + the four handlers (one `updateProject` each); header chip → open panel |
 | `src/bootload.js` + `.test.js` | `erp:data->erpOrders` on both selects; `lightRow.erpNos` |
 | `src/custbrowser.js` + `.test.js`, `src/CustomerBrowser.jsx` | `erp` column, `erpNos`, `erpHit` in both filters, lines-panel tags |
