@@ -115,8 +115,11 @@ eyebrows, 7px bar padding, 6px gaps.
 
 - **Strip** (above the band, one 12px line, 6px top padding): the project
   name (bold ink, truncating; with the option short name when scoped, as
-  today's `name` prop), the N-number as a small faint `N214`, and the close ×
-  at the right. No "Copy for order entry" eyebrow (owner: bloat).
+  today's `name` prop), the N-number as a small faint `N214` ONLY when the
+  project has one (`sel.projectNo` — unnumbered projects and installs that
+  haven't run project-numbers.sql show nothing there, the project header's
+  own rule), and the close × at the right. No "Copy for order entry" eyebrow
+  (owner: bloat).
 - **Deliver to** column (flex 1, ~200px at the panel's 560px): eyebrow
   "Deliver to" with the latching copy-all button (20px) at its right — the
   same `LatchCopy` over `deliverToSequence` — then the label lines at 11.5px:
