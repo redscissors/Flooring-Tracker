@@ -187,7 +187,7 @@
   .panel.bar .box{margin-top:5px}
   .panel.bar .colhead{padding:4px 10px}
   .panel.bar .band{padding:2px 10px}
-  .ostrip{display:flex;align-items:center;gap:8px;padding:6px 12px 0;font-size:11.5px;color:var(--muted);min-width:0}
+  .ostrip{display:flex;align-items:center;gap:8px;padding:6px 12px 0;font-size:12px;color:var(--muted);min-width:0}
   .ostrip .ey{font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--faint);flex:none}
   .ostrip .nm{font-weight:700;color:var(--ink);min-width:0}
   .ostrip .n{font-size:10px;font-weight:700;letter-spacing:.06em;color:var(--faint)}
@@ -468,17 +468,18 @@ numbers, <b>48213</b> and <b>48260</b>.</p>
   ink-strong borders, 6px radius, 8px eyebrows. Widths at the panel's 560px: Deliver to takes what's left
   (~200px), ERP 152px, View 128px; the close × sits in the View box's eyebrow row.</p>
 
-  <div class="lbl">1C-A — title folded into a slim strip above the bar</div>
-  <p class="note">One 11px line above the band carries the eyebrow, the project name, its N-number and the close ×;
-  the three columns sit under it. Deliver to keeps its own eyebrow.</p>
+  <div class="lbl">1C-A — a slim strip above the bar: project name, N-number, close <span class="pick">picked — "Copy for order entry" dropped as bloat</span></div>
+  <p class="note">One 12px line above the band: the project name, its N-number and the close ×. No "Copy for order
+  entry" eyebrow — the panel's job is obvious from what's in it. The three columns sit under the strip; Deliver to
+  keeps its own eyebrow and the View column its own (no × there in this variant).</p>
   <div class="barrow">
-    <div class="panel bar"><div class="ostrip"><span class="ey">Copy for order entry</span><span class="nm truncate">Hendricks — Master &amp; hall baths</span><span class="n">N214</span><span class="x">×</span></div><div class="obar"><div class="obox d2"><div class="ey"><span>Deliver to</span><button class="cb done" title="Copy every field, then the whole label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg></button></div><div class="dl"><b>Dana Hendricks</b><br>1418 Ridgeway Ct<br>Fort Wayne, IN 46814<br>(260) 555-0142</div></div><div class="obox e2"><div class="ey"><span>ERP 1 order</span></div><div class="efield"><span class="k">ERP #</span><input placeholder="another…" aria-label="ERP 1 order number"><span class="plus">+</span></div><button class="vchip on" title="Active — copies stamp this order. Added 2:40 PM"><span>48260</span><span class="n">1 line</span><span class="x">×</span></button><button class="vchip" title="Click to make active. Added 9:12 AM"><span>48213</span><span class="n">4 lines</span><span class="x">×</span></button><div class="ofine">5 of 7 keyed · 2 to go</div></div><div class="obox v2"><div class="ey"><span>View</span><button class="xclose" title="Close">×</button></div><div class="vseg"><button>Compact</button><button class="on">Area + vendor</button><button>Sheet order</button></div></div></div><div style="height:10px"></div></div>
+    <div class="panel bar"><div class="ostrip"><span class="nm truncate">Hendricks — Master &amp; hall baths</span><span class="n">N214</span><span class="x">×</span></div><div class="obar"><div class="obox d2"><div class="ey"><span>Deliver to</span><button class="cb done" title="Copy every field, then the whole label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg></button></div><div class="dl"><b>Dana Hendricks</b><br>1418 Ridgeway Ct<br>Fort Wayne, IN 46814<br>(260) 555-0142</div></div><div class="obox e2"><div class="ey"><span>ERP 1 order</span></div><div class="efield"><span class="k">ERP #</span><input placeholder="another…" aria-label="ERP 1 order number"><span class="plus">+</span></div><button class="vchip on" title="Active — copies stamp this order. Added 2:40 PM"><span>48260</span><span class="n">1 line</span><span class="x">×</span></button><button class="vchip" title="Click to make active. Added 9:12 AM"><span>48213</span><span class="n">4 lines</span><span class="x">×</span></button><div class="ofine">5 of 7 keyed · 2 to go</div></div><div class="obox v2"><div class="ey"><span>View</span></div><div class="vseg"><button>Compact</button><button class="on">Area + vendor</button><button>Sheet order</button></div></div></div><div style="height:10px"></div></div>
     <div style="flex:1 1 300px;max-width:420px">
-      <p class="note" style="margin-top:0">Keeps the project name readable at full width. Costs one extra row (about 22px) over 1C-B. The strip is the only text outside a box, which is how the project header treats its own title line.</p>
+      <p class="note" style="margin-top:0">Keeps the project name readable at full width. Costs one row (about 22px) over 1C-B. The strip is the only text outside a box, which is how the project header treats its own title line. The ERP and View columns and the body are exactly 1C-B's below.</p>
     </div>
   </div>
 
-  <div class="lbl" style="margin-top:22px">1C-B — no title row: the project name lives in the Deliver to column <span class="pick">recommended</span></div>
+  <div class="lbl" style="margin-top:22px">1C-B — no title row: the project name lives in the Deliver to column (not picked — shown for the ERP column's three states and the whole panel)</div>
   <p class="note">The first column is the project box from the project header, with the delivery label under the
   name: eyebrow "Order entry · deliver to", the project name and N-number in bold, then customer, street,
   city/state/ZIP, phone. The × sits in the View column's eyebrow. Nothing sits above the band — the panel opens on the
@@ -942,7 +943,7 @@ LIST_SELECT      += ", erp:data->erpOrders"      <i>// the browser column + sear
   <div class="overx">
   <table class="cand">
     <tr><th>Rule</th><th>Behaviour</th></tr>
-    <tr><td>Picks (owner 2026-09-19)</td><td>Round 3 in play: a header bar in the project header’s idiom (1C) — Deliver to column · ERP column (field on top, order chips stacked under) · View column — replacing the title row; pending the A/B pick. Still standing: 3B number under the check / checkbox · 4A header chip · 4C browser column · Copy remaining replaces Copy all.</td></tr>
+    <tr><td>Picks (owner 2026-09-19)</td><td>1C-A: a strip (project name · N-number · ×, no "Copy for order entry") over a header bar in the project header’s idiom — Deliver to column · ERP column (field on top, order chips stacked under, fine-print tally) · View column stacked. 3B number under the check / checkbox · 4A header chip · 4C browser column · Copy remaining replaces Copy all.</td></tr>
     <tr><td>Gate</td><td>No order on the project → every line copy, Ext, Copy remaining and Copy selected disabled (30%, tooltip). Deliver to never gated.</td></tr>
     <tr><td>Active order</td><td>The last-added chip, or the one clicked. Kept in the panel's own state — reopening the panel goes back to last-added.</td></tr>
     <tr><td>Stamp</td><td>Copying a line writes <code>erpKeyed[id] = { no: active, at, by }</code>. A merged line stamps each source. Copy remaining stamps its whole batch in one write; Copy selected the checked lines.</td></tr>
