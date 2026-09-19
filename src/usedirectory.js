@@ -130,8 +130,8 @@ export function useDirectory({ user, ping, flashSaved, setSidebarOpen, setFocusP
   // Mint the project's permanent number (spec 2026-08-14). Fire-and-forget and
   // idempotent server-side; before supabase/project-numbers.sql runs, the RPC
   // is missing and the catch leaves the project numberless — by design.
-  // `name` is passed by updateProject because dataRef still holds the pre-edit
-  // state when this fires — reading cur.name here would lag one keystroke.
+  // `name` is passed explicitly by updateProject rather than re-read from the
+  // row so the claim never depends on how fresh dataRef is when this fires.
   const claimInFlight = useRef(new Set());
   const claimProjectNo = (id, name) => {
     const cur = dataRef.current.projects.find((c) => c.id === id);
@@ -149,7 +149,13 @@ export function useDirectory({ user, ping, flashSaved, setSidebarOpen, setFocusP
   // Every project-content mutation goes through here: optimistic state update +
   // an UPDATE of that one row's data blob. customer_id is a column, moved via
   // linkProject — never through here.
+  // Merges onto dataRef, not the closure's `data`: callers that fire after an
+  // await (an address pick's Place Details upgrade, then its distance
+  // measurement) hold the updateProject of the render they were created in,
+  // and merging onto that render's data wrote the half-typed address back over
+  // the picked one (issue 146).
   const updateProject = (id, patch) => {
+    const data = dataRef.current;
     // A quick draft renames itself from its first line item on content saves
     // while its name still looks auto-generated ("Quick price" / Q-…-M/D) —
     // a hand-typed rename is never overwritten. See model.js quickAutoName.
@@ -159,6 +165,7 @@ export function useDirectory({ user, ping, flashSaved, setSidebarOpen, setFocusP
       if (auto !== cur.name) patch = { ...patch, name: auto };
     }
     const next = { ...data, projects: data.projects.map((c) => c.id === id ? { ...c, ...patch, updatedAt: Date.now() } : c) };
+    dataRef.current = next;
     setData(next);
     if ("name" in patch && !cur?._unsaved) claimProjectNo(id, patch.name);
     const cust = next.projects.find((c) => c.id === id);
@@ -292,7 +299,8 @@ export function useDirectory({ user, ping, flashSaved, setSidebarOpen, setFocusP
     // Functional update: setting a builder right after adding one (BuilderCombo)
     // must not clobber the freshly-added builder from a stale closure.
     setData((prev) => ({ ...prev, people: prev.people.map((c) => c.id === id ? { ...c, ...patch, updatedAt: Date.now() } : c) }));
-    const merged = { ...(data.people.find((x) => x.id === id) || {}), ...patch };
+    // The row written is merged onto dataRef for the same reason as updateProject.
+    const merged = { ...(dataRef.current.people.find((x) => x.id === id) || {}), ...patch };
     const upd = {};
     if ("builderId" in patch) upd.builder_id = patch.builderId || null;
     if (Object.keys(patch).some((k) => k !== "builderId")) upd.data = personData(merged);
