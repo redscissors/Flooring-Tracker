@@ -179,6 +179,54 @@
   .menu .sep{border-top:1px solid var(--border);margin:3px 4px;padding:0}
   .menu div.act{color:var(--muted)}
 
+
+  /* 1C round 3 (owner 2026-09-19): a header bar in the project header's idiom */
+  .panel.bar .pbody{padding:10px 12px 12px;gap:12px}
+  .panel.bar .sp{padding:6px 10px}
+  .panel.bar .st{padding:5px 10px}
+  .panel.bar .box{margin-top:5px}
+  .panel.bar .colhead{padding:4px 10px}
+  .panel.bar .band{padding:2px 10px}
+  .ostrip{display:flex;align-items:center;gap:8px;padding:6px 12px 0;font-size:11.5px;color:var(--muted);min-width:0}
+  .ostrip .ey{font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--faint);flex:none}
+  .ostrip .nm{font-weight:700;color:var(--ink);min-width:0}
+  .ostrip .n{font-size:10px;font-weight:700;letter-spacing:.06em;color:var(--faint)}
+  .ostrip .x{margin-left:auto;color:var(--faint);font-size:16px;line-height:1}
+  .obar{position:relative;margin:6px 8px 0;background:var(--band);border:1px solid var(--border);border-radius:8px;display:flex;align-items:stretch;gap:6px;padding:7px}
+  .obar.flush{margin:8px 8px 0}
+  .obox{border:1px solid var(--border-strong);border-radius:6px;padding:4px 8px 6px;min-width:0;display:flex;flex-direction:column;gap:3px;background:transparent}
+  .obox .ey{font-size:8px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--faint);display:flex;justify-content:space-between;align-items:center;gap:6px;min-height:18px}
+  .obox .ey .cb{width:20px;height:20px;border-radius:5px}
+  .obox .ey .cb svg{width:12px;height:12px}
+  .obox.d2{flex:1 1 200px}
+  .obox.e2{flex:0 0 152px}
+  .obox.v2{flex:0 0 128px}
+  .dl{font-size:11.5px;line-height:1.35;color:var(--ink)}
+  .dl b{font-size:12px}
+  .dl .pn{font-size:12.5px;font-weight:800;line-height:1.2;margin-bottom:3px}
+  .dl .pn .n{font-size:9.5px;font-weight:700;letter-spacing:.06em;color:var(--faint);margin-left:5px}
+  .vseg{display:flex;flex-direction:column;gap:2px}
+  .vseg button{display:block;width:100%;text-align:left;font-size:11.5px;font-weight:600;padding:3px 7px;border-radius:5px;color:var(--muted)}
+  .vseg button:hover{background:rgba(255,255,255,.6)}
+  .vseg button.on{background:var(--moss);color:#fff}
+  .efield{display:flex;align-items:center;gap:4px;border:1px solid var(--border-strong);border-radius:5px;background:#fff;height:24px;padding:0 3px 0 6px}
+  .efield.need{border-color:var(--amber-line);background:#fef6e2}
+  .efield .k{font-size:9px;font-weight:800;letter-spacing:.06em;color:var(--faint);flex:none}
+  .efield input{border:0;outline:0;width:100%;min-width:0;font-size:12.5px;font-weight:700;background:transparent;font-variant-numeric:tabular-nums;color:var(--ink)}
+  .efield input::placeholder{color:var(--faint);font-weight:500}
+  .efield .plus{width:18px;height:18px;border-radius:4px;background:var(--ink);color:var(--cream);display:grid;place-items:center;font-size:14px;font-weight:800;flex:none;line-height:1}
+  .vchip{display:flex;align-items:center;gap:5px;border:1px solid var(--border-strong);border-radius:5px;padding:2px 6px;font-size:12px;font-weight:700;background:#fff;font-variant-numeric:tabular-nums;color:var(--ink);width:100%;text-align:left}
+  .vchip.on{background:var(--moss);border-color:var(--moss);color:#fff}
+  .vchip .n{margin-left:auto;font-size:10px;font-weight:600;color:var(--faint)}
+  .vchip.on .n{color:rgba(255,255,255,.78)}
+  .vchip .x{font-size:11px;color:var(--faint);line-height:1}
+  .vchip.on .x{color:rgba(255,255,255,.85)}
+  .ofine{font-size:9.5px;line-height:1.3;color:var(--faint);font-variant-numeric:tabular-nums;margin-top:1px}
+  .ofine.amber{color:var(--amber)}
+  .obox .ey .xclose{color:var(--faint);font-size:15px;line-height:1;padding:0 2px;margin:-2px -4px -2px 0}
+  .barrow{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start}
+  .barrow .panel{width:560px}
+
   /* ---------- the project header (mirrors projectheader.jsx one-bar) ---------- */
   .headcard{border:1px solid var(--border);border-radius:8px;background:var(--band);display:flex;align-items:stretch;padding:10px;gap:7px;max-width:820px;flex-wrap:wrap}
   .idbox{background:transparent;border:1px solid var(--border-strong);border-radius:6px;display:flex;flex-direction:column;min-width:0;padding:7px 10px 6px;flex:1 1 200px}
@@ -410,7 +458,72 @@ numbers, <b>48213</b> and <b>48260</b>.</p>
 
 <!-- ============================================================ -->
 <section>
-  <div class="sechead"><h2>1B · revised — dropdown for the orders, compact header</h2><span class="tag">owner 2026-09-19, round 2</span></div>
+  <div class="sechead"><h2>1C · round 3 — a header bar, like the project header</h2><span class="tag">owner 2026-09-19, round 3</span></div>
+  <p class="note">The owner's third pass: build the top of the panel the way the project header is built — a band
+  with bordered columns that fit snug. <b>Deliver to</b> narrows to a column; a connected square holds the
+  <b>ERP 1 order</b> with the entry field on top and each added order as a chip stacked under it (the dropdown's
+  hidden-second-order problem goes away, because the column simply shows them all); a third square holds the
+  <b>View</b> switch stacked vertically. The "Copy for order entry / Hendricks — Master &amp; hall baths" title
+  row goes, or folds into the bar. The bar reuses the project header's exact chrome: the band tint, 1px
+  ink-strong borders, 6px radius, 8px eyebrows. Widths at the panel's 560px: Deliver to takes what's left
+  (~200px), ERP 152px, View 128px; the close × sits in the View box's eyebrow row.</p>
+
+  <div class="lbl">1C-A — title folded into a slim strip above the bar</div>
+  <p class="note">One 11px line above the band carries the eyebrow, the project name, its N-number and the close ×;
+  the three columns sit under it. Deliver to keeps its own eyebrow.</p>
+  <div class="barrow">
+    <div class="panel bar"><div class="ostrip"><span class="ey">Copy for order entry</span><span class="nm truncate">Hendricks — Master &amp; hall baths</span><span class="n">N214</span><span class="x">×</span></div><div class="obar"><div class="obox d2"><div class="ey"><span>Deliver to</span><button class="cb done" title="Copy every field, then the whole label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg></button></div><div class="dl"><b>Dana Hendricks</b><br>1418 Ridgeway Ct<br>Fort Wayne, IN 46814<br>(260) 555-0142</div></div><div class="obox e2"><div class="ey"><span>ERP 1 order</span></div><div class="efield"><span class="k">ERP #</span><input placeholder="another…" aria-label="ERP 1 order number"><span class="plus">+</span></div><button class="vchip on" title="Active — copies stamp this order. Added 2:40 PM"><span>48260</span><span class="n">1 line</span><span class="x">×</span></button><button class="vchip" title="Click to make active. Added 9:12 AM"><span>48213</span><span class="n">4 lines</span><span class="x">×</span></button><div class="ofine">5 of 7 keyed · 2 to go</div></div><div class="obox v2"><div class="ey"><span>View</span><button class="xclose" title="Close">×</button></div><div class="vseg"><button>Compact</button><button class="on">Area + vendor</button><button>Sheet order</button></div></div></div><div style="height:10px"></div></div>
+    <div style="flex:1 1 300px;max-width:420px">
+      <p class="note" style="margin-top:0">Keeps the project name readable at full width. Costs one extra row (about 22px) over 1C-B. The strip is the only text outside a box, which is how the project header treats its own title line.</p>
+    </div>
+  </div>
+
+  <div class="lbl" style="margin-top:22px">1C-B — no title row: the project name lives in the Deliver to column <span class="pick">recommended</span></div>
+  <p class="note">The first column is the project box from the project header, with the delivery label under the
+  name: eyebrow "Order entry · deliver to", the project name and N-number in bold, then customer, street,
+  city/state/ZIP, phone. The × sits in the View column's eyebrow. Nothing sits above the band — the panel opens on the
+  bar. Shown in the ERP column's three states, then the whole panel.</p>
+  <div class="barrow">
+    <div class="panel bar"><div class="obar flush"><div class="obox d2"><div class="ey"><span>Order entry · deliver to</span><button class="cb" title="Copy every field, then the whole label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></div><div class="dl"><div class="pn">Hendricks — Master &amp; hall baths<span class="n">N214</span></div><b>Dana Hendricks</b><br>1418 Ridgeway Ct<br>Fort Wayne, IN 46814<br>(260) 555-0142</div></div><div class="obox e2"><div class="ey"><span>ERP 1 order</span></div><div class="efield need"><span class="k">ERP #</span><input placeholder="required" aria-label="ERP 1 order number"><span class="plus">+</span></div><div class="ofine amber">Enter the order number to unlock the line copies.</div></div><div class="obox v2"><div class="ey"><span>View</span><button class="xclose" title="Close">×</button></div><div class="vseg"><button>Compact</button><button class="on">Area + vendor</button><button>Sheet order</button></div></div></div><div style="height:10px"></div></div>
+    <div style="flex:1 1 300px;max-width:420px"><p class="note" style="margin-top:0"><b>No order yet.</b> The field is amber with its one line of fine print; the View column and Deliver to are live, the lists below are grey.</p></div>
+  </div>
+  <div class="barrow" style="margin-top:12px">
+    <div class="panel bar"><div class="obar flush"><div class="obox d2"><div class="ey"><span>Order entry · deliver to</span><button class="cb done" title="Copy every field, then the whole label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg></button></div><div class="dl"><div class="pn">Hendricks — Master &amp; hall baths<span class="n">N214</span></div><b>Dana Hendricks</b><br>1418 Ridgeway Ct<br>Fort Wayne, IN 46814<br>(260) 555-0142</div></div><div class="obox e2"><div class="ey"><span>ERP 1 order</span></div><div class="efield"><span class="k">ERP #</span><input placeholder="another…" aria-label="ERP 1 order number"><span class="plus">+</span></div><button class="vchip on" title="Active — copies stamp this order. Added by Marcus Mast, 9:12 AM"><span>48213</span><span class="n">3 lines</span><span class="x">×</span></button><div class="ofine">3 of 7 keyed</div></div><div class="obox v2"><div class="ey"><span>View</span><button class="xclose" title="Close">×</button></div><div class="vseg"><button>Compact</button><button class="on">Area + vendor</button><button>Sheet order</button></div></div></div><div style="height:10px"></div></div>
+    <div style="flex:1 1 300px;max-width:420px"><p class="note" style="margin-top:0"><b>One order.</b> The field stays on top, now reading "another…", and the order sits under it as a moss chip with its stamp count. Fine print: the tally.</p></div>
+  </div>
+  <div class="barrow" style="margin-top:12px">
+    <div class="panel bar"><div class="obar flush"><div class="obox d2"><div class="ey"><span>Order entry · deliver to</span><button class="cb done" title="Copy every field, then the whole label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg></button></div><div class="dl"><div class="pn">Hendricks — Master &amp; hall baths<span class="n">N214</span></div><b>Dana Hendricks</b><br>1418 Ridgeway Ct<br>Fort Wayne, IN 46814<br>(260) 555-0142</div></div><div class="obox e2"><div class="ey"><span>ERP 1 order</span></div><div class="efield"><span class="k">ERP #</span><input placeholder="another…" aria-label="ERP 1 order number"><span class="plus">+</span></div><button class="vchip on" title="Active — copies stamp this order. Added 2:40 PM"><span>48260</span><span class="n">1 line</span><span class="x">×</span></button><button class="vchip" title="Click to make active. Added 9:12 AM"><span>48213</span><span class="n">4 lines</span><span class="x">×</span></button><div class="ofine">5 of 7 keyed · 2 to go</div></div><div class="obox v2"><div class="ey"><span>View</span><button class="xclose" title="Close">×</button></div><div class="vseg"><button>Compact</button><button class="on">Area + vendor</button><button>Sheet order</button></div></div></div><div style="height:10px"></div></div>
+    <div style="flex:1 1 300px;max-width:420px"><p class="note" style="margin-top:0"><b>Two orders.</b> Newest on top and active (moss); the older one below it, click to make active, × to remove (confirms when it has stamps). The column grows one chip (22px) per order; the bar's height follows the tallest column, so up to three orders the Deliver to column still sets it.</p></div>
+  </div>
+
+  <div class="lbl" style="margin-top:22px">1C-B — the whole panel, two orders</div>
+  <div class="barrow">
+    <div class="panel bar"><div class="obar flush"><div class="obox d2"><div class="ey"><span>Order entry · deliver to</span><button class="cb done" title="Copy every field, then the whole label"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg></button></div><div class="dl"><div class="pn">Hendricks — Master &amp; hall baths<span class="n">N214</span></div><b>Dana Hendricks</b><br>1418 Ridgeway Ct<br>Fort Wayne, IN 46814<br>(260) 555-0142</div></div><div class="obox e2"><div class="ey"><span>ERP 1 order</span></div><div class="efield"><span class="k">ERP #</span><input placeholder="another…" aria-label="ERP 1 order number"><span class="plus">+</span></div><button class="vchip on" title="Active — copies stamp this order. Added 2:40 PM"><span>48260</span><span class="n">1 line</span><span class="x">×</span></button><button class="vchip" title="Click to make active. Added 9:12 AM"><span>48213</span><span class="n">4 lines</span><span class="x">×</span></button><div class="ofine">5 of 7 keyed · 2 to go</div></div><div class="obox v2"><div class="ey"><span>View</span><button class="xclose" title="Close">×</button></div><div class="vseg"><button>Compact</button><button class="on">Area + vendor</button><button>Sheet order</button></div></div></div><div class="pbody">
+      <section><div class="secrow"><h4 class="sh">Special order · 4 <span class="q">?</span></h4></div>
+        <div class="box"><div class="colhead"><span></span><span>Item</span><span>Qty</span><span>Cost</span><span>Sell</span></div>
+          <div class="band">Master bath</div>
+          <div class="sp"><div class="stk"><button class="cb done" title="Keyed on ERP 48213 — today 9:14 AM by Marcus Mast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg></button><div class="under">48213</div></div><div class="truncate"><div class="l1 truncate"><span class="tag">CT</span><span class="size">12"x24"</span> <b>Daltile Emerson Wood Brazilian Walnut</b></div><div class="l2"><span class="sku">EP04 12241P6</span> 15.6 SF/CT</div></div><div class="qty num">9 <small>CT</small></div><div class="cost num">$41.20<small>/CT</small></div><div class="sell num">$62.40<small>/CT</small></div></div>
+          <div class="band">Hall bath</div>
+          <div class="sp alt"><div class="stk"><button class="cb done" title="Keyed on ERP 48260 — today 2:41 PM by Marcus Mast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg></button><div class="under">48260</div></div><div class="truncate"><div class="l1 truncate"><span class="tag">CT</span><span class="size">12"x24"</span> <b>Daltile Emerson Wood Brazilian Walnut</b></div><div class="l2"><span class="sku">EP04 12241P6</span> 15.6 SF/CT</div></div><div class="qty num">5 <small>CT</small></div><div class="cost num">$41.20<small>/CT</small></div><div class="sell num">$62.40<small>/CT</small></div></div>
+          <div class="foot">… 2 more lines</div></div></section>
+      <section><div class="secrow"><h4 class="sh">Stock · 3 <span class="q">?</span></h4><div class="acts"><button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy remaining (1)</button><button class="btn" disabled>Copy selected</button></div></div>
+        <div class="box"><div class="band">Kitchen</div>
+          <label class="st"><span class="sku">1517410</span><span class="q num">12 CT</span><span class="nm truncate">Ragno Realstone Chalk 12x24</span><input type="checkbox"></label>
+          <div class="band vendor">Materials</div>
+          <label class="st"><span class="sku">05153</span><span class="q num">4 bags</span><span class="nm truncate">Mapei Ultraflex 2 gray <small>Mortar</small></span><div class="stk"><input type="checkbox" checked disabled title="Keyed on ERP 48213"><div class="under">48213</div></div></label>
+          <div class="foot">… 1 more line</div></div></section>
+    </div></div>
+    <div style="flex:1 1 300px;max-width:420px">
+      <p class="note" style="margin-top:0"><b>From the top:</b> the bar, then straight into Special order. The Deliver to section is gone from the body — it IS the first column now, its copy-all latch in the column's eyebrow row and each line still click-to-copy as before (the city, state and ZIP each their own click).</p>
+      <p class="note"><b>Heights:</b> the bar is about 112px tall at one order; the old header plus Deliver to section came to about 250px. The lists start roughly 140px higher.</p>
+      <p class="note"><b>Below 560px (the phone's full-screen panel):</b> the three columns stack — Deliver to full width, then ERP and View side by side — same as the project header's mobile fold.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <div class="sechead"><h2>1B · revised — dropdown for the orders, compact header</h2><span class="tag">round 2 — superseded by round 3 above</span></div>
   <p class="note">Round 2 asks: the orders as a <b>dropdown</b> instead of chips, a line of <b>fine print</b>
   under it whenever the list holds more than one order (so a second order is never hidden), and the whole header
   <b>tighter</b>. Shown against the earlier chips version further down for comparison. Header padding drops from
@@ -829,7 +942,7 @@ LIST_SELECT      += ", erp:data->erpOrders"      <i>// the browser column + sear
   <div class="overx">
   <table class="cand">
     <tr><th>Rule</th><th>Behaviour</th></tr>
-    <tr><td>Picks (owner 2026-09-19)</td><td>1B header field left of the view switch, compact · orders as a DROPDOWN with fine print under it when there is more than one (round 2 — replaces the 2A chips) · 3B number under the check / checkbox · 4A header chip · 4C browser column. Copy remaining replaces Copy all.</td></tr>
+    <tr><td>Picks (owner 2026-09-19)</td><td>Round 3 in play: a header bar in the project header’s idiom (1C) — Deliver to column · ERP column (field on top, order chips stacked under) · View column — replacing the title row; pending the A/B pick. Still standing: 3B number under the check / checkbox · 4A header chip · 4C browser column · Copy remaining replaces Copy all.</td></tr>
     <tr><td>Gate</td><td>No order on the project → every line copy, Ext, Copy remaining and Copy selected disabled (30%, tooltip). Deliver to never gated.</td></tr>
     <tr><td>Active order</td><td>The last-added chip, or the one clicked. Kept in the panel's own state — reopening the panel goes back to last-added.</td></tr>
     <tr><td>Stamp</td><td>Copying a line writes <code>erpKeyed[id] = { no: active, at, by }</code>. A merged line stamps each source. Copy remaining stamps its whole batch in one write; Copy selected the checked lines.</td></tr>
