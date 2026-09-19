@@ -1,6 +1,6 @@
 # ERP 1 order numbers — design
 
-**Date:** 2026-09-19 · **Status:** picks made by owner in chat; spec awaiting owner review
+**Date:** 2026-09-19 · **Status:** approved by owner in chat 2026-09-19 · **Plan:** `docs/superpowers/plans/2026-09-19-erp-order-numbers.md`
 **Mockup:** `.scratch/mockups/erp-order-2026-09-19.html` (picked: 1D-A header bar, round 5; 3B; 4A; 4C)
 
 ## Problem
