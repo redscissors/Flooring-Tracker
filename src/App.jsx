@@ -53,6 +53,7 @@ import { FlagForClaude, ClaudeMark, CLAUDE_CLAY } from "./claudeflag.jsx";
 import { LineMenu } from "./linemenu.jsx";
 import { useLabels } from "./uselabels.js";
 import { useVersions } from "./useversions.js";
+import { addErpOrder, removeErpOrder, stampErpLines, clearErpStamps } from "./erporders.js";
 // Heavy secondary surfaces ship as their own chunks (ADR 0026 rule 5) so
 // feature work on them stops growing the boot download. Both are conditional
 // overlays; a null Suspense fallback reads as normal open latency.
@@ -2972,20 +2973,35 @@ export default function App({ user, onSignOut }) {
         (oeCats || []).forEach((a, ai) => a.products.forEach((p) => { if (!rowBlank(p)) rows.push(orderEntryRow(p, wSet, areaLabel(a, ai), descLimit, stockBookIds, bookBrands, stockSkus)); }));
         // A grout color from a family's order-book source is a vendor order,
         // not a warehouse pull — it files with the special orders.
-        const mats = oeT.matAll.filter((m) => !isSpecialMat(m, stockBookIds)).map((m, i) => {
+        const matIds = new Set();
+        const mats = oeT.matAll.filter((m) => !isSpecialMat(m, stockBookIds)).map((m) => {
           const { qty, qtyAssumed } = orderQty(m.order);
-          return { id: "mat" + i, sku: m.sku || "", qty, qtyAssumed, unitCode: unitCode(m.unit), qtyText: `${qty} ${u1(qty, m.unit)}`, name: m.product, kind: m.kind, area: "" };
+          let id = `mat|${m.kind}|${m.product}`;
+          while (matIds.has(id)) id += "#";
+          matIds.add(id);
+          return { id, sku: m.sku || "", qty, qtyAssumed, unitCode: unitCode(m.unit), qtyText: `${qty} ${u1(qty, m.unit)}`, name: m.product, kind: m.kind, area: "" };
         });
         const specialMats = oeT.matAll.filter((m) => isSpecialMat(m, stockBookIds)).map((m) => matOrderRow(m, descLimit, bookBrands));
         // Freight files with the special orders: it's billed by the same vendor
         // on the same order, and like a Sheoga line it has no SKU to key.
         const freightRows = oeT.fList.map((l) => freightOrderRow(l, descLimit));
+        const erpWho = profile.name || user.email || "";
+        // Every ERP write is ONE updateProject with the builder's whole patch;
+        // null means nothing to write (a duplicate number, an unknown order).
+        const erpPatch = (patch) => { if (patch) updateProject(sel.id, patch); };
         const name = optsUsed.length && scope !== "all" ? `${sel.name} — ${optionShort(sel, scope)}` : sel.name;
         const cust = data.people.find((c) => c.id === sel.customerId);
         const custInfo = { custName: cust?.name || sel.name || "", address: sel.address || cust?.address || "", phone: sel.phone || cust?.phone || "" };
         return (
           <Suspense fallback={null}>
-            <OrderEntryPanel name={name} custInfo={custInfo} special={[...rows.filter((r) => r.special), ...specialMats, ...freightRows]} stock={[...rows.filter((r) => !r.special), ...mats]} descLimit={descLimit} onClose={() => { setShowOrderCopy(false); setOrderScope(null); }} />
+            <OrderEntryPanel name={name} projectNo={sel.projectNo || null} quick={!!sel.quick} custInfo={custInfo}
+              special={[...rows.filter((r) => r.special), ...specialMats, ...freightRows]} stock={[...rows.filter((r) => !r.special), ...mats]} descLimit={descLimit}
+              erpOrders={sel.erpOrders || []} erpKeyed={sel.erpKeyed || {}}
+              onAddOrder={(no) => erpPatch(addErpOrder(sel, no, erpWho))}
+              onRemoveOrder={(no) => erpPatch(removeErpOrder(sel, no))}
+              onStamp={(ids, no) => erpPatch(stampErpLines(sel, ids, no, erpWho))}
+              onClearStamp={(ids) => erpPatch(clearErpStamps(sel, ids))}
+              onClose={() => { setShowOrderCopy(false); setOrderScope(null); }} />
           </Suspense>
         );
       })()}
