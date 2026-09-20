@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { X, Search, Plus, Users, Folder, FileText, ChevronRight, ChevronDown, ArrowUpRight, Zap, Clock, Check, Layers } from "lucide-react";
-import { browserRows, quickRows, draftRows, filterRows, filterBySales, sortRows, groupBySales, salesNameOf, salesRoster, defaultSalesFilter, shortDate, projNos, SORTS, NO_SALES, normColOrder, moveCol, custSamples, filterBySamples, normPanelH, clampPanelH, stripOpenDefault, STRIP_H, LINES_H } from "./custbrowser.js";
+import { browserRows, quickRows, draftRows, filterRows, filterBySales, sortRows, groupBySales, salesNameOf, salesRoster, defaultSalesFilter, shortDate, projNos, erpNos, SORTS, NO_SALES, normColOrder, moveCol, custSamples, filterBySamples, normPanelH, clampPanelH, stripOpenDefault, STRIP_H, LINES_H } from "./custbrowser.js";
+import { erpNosOf } from "./erporders.js";
 import { useEscClose, DotMenu } from "./widgets.jsx";
 
 // The customer browser (issue 040): an ERP-style directory — a dense grid of
@@ -95,6 +96,7 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
   // Per-key head config + cell renderer, laid out in `cols` order.
   const HEAD = {
     projno: { label: "Project #" },
+    erp: { label: "ERP order" },
     sales: { label: "Salesman" },
     builder: { label: "Builder" },
     phone: { label: "Phone" },
@@ -109,6 +111,11 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
     projno: (r) => {
       const nos = projNos(r.projs).join(" ");
       return <td key="projno" className={`${td} ft-mono max-w-[136px] text-slate-500`} title={nos || undefined}>{nos}</td>;
+    },
+    erp: (r) => {
+      const nos = erpNos(r.projs);
+      const shown = nos.slice(0, 3).join(" ") + (nos.length > 3 ? ` +${nos.length - 3}` : "");
+      return <td key="erp" className={`${td} ft-mono max-w-[150px] text-slate-500`} title={nos.length ? nos.join(" · ") : undefined}>{shown}</td>;
     },
     sales: (r) => <td key="sales" className={`${td} max-w-[130px] text-slate-500`}>{r.sales}</td>,
     builder: (r) => <td key="builder" className={`${td} max-w-[160px] text-slate-500`}>{r.builderName}</td>,
@@ -317,6 +324,9 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
                   <FileText size={13} className="text-slate-300 shrink-0" />
                   {p.projectNo && <span className="ft-mono text-[11px] text-slate-400 shrink-0">N{p.projectNo}</span>}
                   <span className="ft-item-name text-[12.5px] truncate">{p.name || "Untitled project"}</span>
+                  {erpNosOf(p).map((no) => (
+                    <span key={no} className="text-[10px] font-bold rounded-full px-1.5 leading-4 whitespace-nowrap" style={{ background: "var(--ft-brand-soft)", color: "var(--ft-brand-deep)" }}>✓ {no}</span>
+                  ))}
                   {salesNameOf(p) && <span className="text-[10.5px] text-slate-400 truncate">{salesNameOf(p)}</span>}
                   {sampleChips(sampleTally.get(p.id) || { need: 0, ordered: 0 })}
                   <span className="ml-auto ft-mono text-[11px] text-slate-400 whitespace-nowrap">{shortDate(p.createdAt)} · {shortDate(p.updatedAt)}</span>
