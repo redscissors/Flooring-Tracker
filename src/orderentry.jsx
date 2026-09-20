@@ -264,7 +264,7 @@ function ErpBox({ erpOrders, erpKeyed, active, setActive, locked, optional, onAd
         <div key={o.no} role="button" tabIndex={0} aria-pressed={o.no === active} onClick={() => setActive(o.no)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setActive(o.no); } }}
           title={(o.no === active ? "Active — copies stamp this order. " : "Click to make this the active order. ") + (o.addedBy ? `Added by ${o.addedBy}` : "Added") + (o.addedAt ? ` ${when(o.addedAt)}` : "")}
           className="flex items-center gap-1 rounded-[5px] border px-1.5 py-[2px] text-[12px] font-bold ft-mono cursor-pointer"
-          style={o.no === active ? DONE_MOSS : { borderColor: "var(--ft-border-strong)", background: "#fff" }}>
+          style={o.no === active ? DONE_MOSS : { borderColor: "var(--ft-border-strong)", background: "var(--ft-card)" }}>
           <span>{o.no}</span>
           {per[o.no] > 0 && <span className="ml-auto text-[10px] font-semibold" style={{ opacity: .8 }}>{per[o.no]} {per[o.no] === 1 ? "line" : "lines"}</span>}
           <button onClick={(e) => { e.stopPropagation(); askRemove(o.no); }} title={`Remove order ${o.no}`} className={"text-[11px] leading-none " + (per[o.no] > 0 ? "" : "ml-auto")} style={{ opacity: .8 }}>×</button>
@@ -329,7 +329,7 @@ function SpecialRow({ r, alt, descLimit, locked, active, erpKeyed, onStamp, onCl
       title={r.qtyAssumed ? ASSUMED_TITLE : undefined}
       className="border-t border-slate-100">
       {no
-        ? <KeyedPop stamp={stamp} active={active} onCopyAgain={copy} onClear={() => onClear(r)} render={(p) => check({ ...p, title: stampTitle(stamp) })} />
+        ? <KeyedPop stamp={stamp} active={active} onCopyAgain={copy} onClear={() => { setCopied(false); onClear(r); }} render={(p) => check({ ...p, title: stampTitle(stamp) })} />
         : check({ onClick: copy, disabled: locked, title: locked ? LOCK_TITLE : "Copy the description field" })}
 
       <div className="min-w-0">
