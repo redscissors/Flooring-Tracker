@@ -14,6 +14,7 @@
 // Earlier batches' cases (the 8/19–8/31 job-line flags, plank sizes, sheet
 // mosaics) are covered by orderentry.test.js / print.test.js and were dropped
 // from this fixture so the merge shots stay readable.
+import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import { OrderEntryPanel } from "./orderentry.jsx";
@@ -24,6 +25,7 @@ import { newProduct, uid } from "./model.js";
 import { lineItems } from "./sheoga.js";
 import { skuKeys } from "./orderbook.js";
 import { group as wediGroup } from "./wedi.js";
+import { addErpOrder, removeErpOrder, stampErpLines, clearErpStamps } from "./erporders.js";
 
 const s = normalizeSettings();
 const DESC_LIMIT = 70;
@@ -73,21 +75,49 @@ const areas = [
 
 const built = areas.flatMap(([area, rows]) => rows.map((p) => orderEntryRow(p, s, area, DESC_LIMIT, stockBookIds, bookBrands, stockSkus)));
 
-// The estimated materials, shaped as App.jsx shapes matAll for the panel.
+// The estimated materials, shaped as App.jsx shapes matAll for the panel — ids
+// follow App.jsx's stable rule (`mat|<kind>|<name>`) so the ERP fixture below
+// can key one by id and have it survive a rebuild.
 const mats = [
-  { id: "mat0", sku: "1509901", qty: 4, qtyAssumed: false, unitCode: "EA", qtyText: "4 bags", name: "Mapei Ultraflex 2 Gray 50lb", kind: "Mortar", area: "" },
-  { id: "mat1", sku: "1509955", qty: 2, qtyAssumed: false, unitCode: "EA", qtyText: "2 bags", name: "Mapei Keracolor U Warm Gray 10lb", kind: "Grout", area: "" },
-  { id: "mat2", sku: "1509960", qty: 1, qtyAssumed: false, unitCode: "EA", qtyText: "1 tube", name: "Mapei Keracaulk U Warm Gray", kind: "Caulk", area: "" },
+  { id: "mat|Mortar|Mapei Ultraflex 2 Gray 50lb", sku: "1509901", qty: 4, qtyAssumed: false, unitCode: "EA", qtyText: "4 bags", name: "Mapei Ultraflex 2 Gray 50lb", kind: "Mortar", area: "" },
+  { id: "mat|Grout|Mapei Keracolor U Warm Gray 10lb", sku: "1509955", qty: 2, qtyAssumed: false, unitCode: "EA", qtyText: "2 bags", name: "Mapei Keracolor U Warm Gray 10lb", kind: "Grout", area: "" },
+  { id: "mat|Caulk|Mapei Keracaulk U Warm Gray", sku: "1509960", qty: 1, qtyAssumed: false, unitCode: "EA", qtyText: "1 tube", name: "Mapei Keracaulk U Warm Gray", kind: "Caulk", area: "" },
 ];
 const freight = [freightOrderRow({ bookId: "bkDal", book: "Daltile", cost: 185 }, DESC_LIMIT)];
 
-createRoot(document.getElementById("preview")).render(
-  <OrderEntryPanel
-    name="Hendricks Residence — N142"
-    custInfo={{ custName: "Pat Hendricks", address: "224 Hammersley Dr, PO Box 288, Tuscarawas, OH 44682", phone: "330-432-7374" }}
-    special={[...built.filter((r) => r.special), ...freight]}
-    stock={[...built.filter((r) => !r.special), ...mats]}
-    descLimit={DESC_LIMIT}
-    onClose={() => {}}
-  />,
-);
+// ?state=none | one | two | quick picks the ERP fixture (spec 2026-09-19);
+// the handlers run the real builders so the harness is fully interactive.
+const STATE = new URLSearchParams(location.search).get("state") || "two";
+const specialRows = built.filter((r) => r.special);
+const stockRows = built.filter((r) => !r.special);
+const seeded = () => {
+  if (STATE === "none" || STATE === "quick") return { erpOrders: [], erpKeyed: {} };
+  const a = { no: "48213", addedBy: "Marcus Mast", addedAt: Date.now() - 6 * 3600e3 };
+  const b = { no: "48260", addedBy: "Marcus Mast", addedAt: Date.now() - 20 * 60e3 };
+  const on = (ids, no, minsAgo) => Object.fromEntries(ids.map((id) => [id, { no, at: Date.now() - minsAgo * 60e3, by: "Marcus Mast" }]));
+  const keyed = { ...on([specialRows[0].id, specialRows[1].id, stockRows[0].id, mats[0].id], "48213", 355) };
+  if (STATE === "one") return { erpOrders: [a], erpKeyed: keyed };
+  return { erpOrders: [a, b], erpKeyed: { ...keyed, ...on([freight[0].id], "48260", 18) } };
+};
+
+function Harness() {
+  const [proj, setProj] = useState(() => ({ projectNo: STATE === "quick" ? null : 142, quick: STATE === "quick", ...seeded() }));
+  const apply = (patch) => { if (patch) setProj((p) => ({ ...p, ...patch })); };
+  return (
+    <OrderEntryPanel
+      name={STATE === "quick" ? "Q-Ragno Bianco Subway Matte-9/19" : "Hendricks Residence"}
+      projectNo={proj.projectNo} quick={proj.quick}
+      custInfo={{ custName: "Pat Hendricks", address: "224 Hammersley Dr, PO Box 288, Tuscarawas, OH 44682", phone: "330-432-7374" }}
+      special={[...specialRows, ...freight]}
+      stock={[...stockRows, ...mats]}
+      descLimit={DESC_LIMIT}
+      erpOrders={proj.erpOrders} erpKeyed={proj.erpKeyed}
+      onAddOrder={(no) => apply(addErpOrder(proj, no, "Preview"))}
+      onRemoveOrder={(no) => apply(removeErpOrder(proj, no))}
+      onStamp={(ids, no) => apply(stampErpLines(proj, ids, no, "Preview"))}
+      onClearStamp={(ids) => apply(clearErpStamps(proj, ids))}
+      onClose={() => {}}
+    />
+  );
+}
+createRoot(document.getElementById("preview")).render(<Harness />);
