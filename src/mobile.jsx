@@ -20,6 +20,7 @@ import { FitSelect, GroutColorOptions, useEscClose, DotMenu, SalespersonPop } fr
 import { ClaudeMark } from "./claudeflag.jsx";
 import { Hit, hitKey, matchSummary, useMergedResults, NearMatchNote } from "./search.jsx";
 import { GridSizeInput, UnitPick } from "./grid.jsx";
+import { ErpChip } from "./projectheader.jsx";
 
 // Mobile bottom sheet (mobile shell 2026-07-16): the phone's pop-open editing
 // surface — scrim + slide-up panel with an optional pinned footer. Portaled so
@@ -772,7 +773,10 @@ export function MobileProjectBand({ sel, cust, builderName, profile, tv, grandTo
         <div style={{ ...BAND_BOX, padding: "3px 7px 4px" }}>
           <div className="flex items-center justify-between gap-2">
             <div className="ft-eyebrow text-[8px]" style={eyebrow}>Project</div>
-            {sel.projectNo && <div className="ft-eyebrow text-[8px]" style={{ ...eyebrow, letterSpacing: ".08em" }}>N{sel.projectNo}</div>}
+            <div className="flex items-center gap-1.5">
+              {sel.projectNo && <div className="ft-eyebrow text-[8px]" style={{ ...eyebrow, letterSpacing: ".08em" }}>N{sel.projectNo}</div>}
+              <ErpChip erpOrders={sel.erpOrders} />
+            </div>
           </div>
           <input value={sel.name} maxLength={PROJECT_NAME_MAX} onChange={(e) => updateProject(sel.id, { name: e.target.value })} placeholder="Project name"
             className="w-full bg-transparent text-[14px] font-extrabold border-b border-transparent focus:border-indigo-500 focus:outline-none min-w-0" style={{ lineHeight: 1.15, marginTop: 1 }} />
