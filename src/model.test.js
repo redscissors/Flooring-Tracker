@@ -481,3 +481,12 @@ test("normP keeps the underlayment type (spec 2026-09-18)", () => {
   assert.equal(p.cartonSf, "8.4");
   assert.equal(p.cartonUnit, "SH");
 });
+
+test("normC: erpOrders and erpKeyed normalize, stamps on unknown orders dropped", () => {
+  const c = normC({ id: "c1", categories: [], erpOrders: [{ no: "48213", addedAt: 5 }, { no: "x" }], erpKeyed: { a: { no: "48213", at: 6, by: "M" }, b: { no: "99999" } } });
+  assert.deepEqual(c.erpOrders, [{ no: "48213", addedBy: "", addedAt: 5 }]);
+  assert.deepEqual(c.erpKeyed, { a: { no: "48213", at: 6, by: "M" } });
+  const old = normC({ id: "c2", categories: [] });
+  assert.deepEqual(old.erpOrders, []);
+  assert.deepEqual(old.erpKeyed, {});
+});
