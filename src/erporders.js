@@ -49,3 +49,75 @@ export const orderCounts = (erpKeyed) => {
   for (const k of Object.values(erpKeyed || {})) if (k?.no) out[k.no] = (out[k.no] || 0) + 1;
   return out;
 };
+
+// --- patch builders: each returns { erpOrders, erpKeyed } for ONE
+// updateProject call, or null when there is nothing to write ----------------
+
+export const addErpOrder = (proj, no, who, at = Date.now()) => {
+  const n = normErpNo(no);
+  const orders = normErpOrders(proj?.erpOrders);
+  if (!n || orders.some((o) => o.no === n)) return null;
+  const erpOrders = [...orders, { no: n, addedBy: String(who || ""), addedAt: at }];
+  return { erpOrders, erpKeyed: normErpKeyed(proj?.erpKeyed, erpOrders) };
+};
+
+export const removeErpOrder = (proj, no) => {
+  const n = normErpNo(no);
+  const erpOrders = normErpOrders(proj?.erpOrders).filter((o) => o.no !== n);
+  return { erpOrders, erpKeyed: normErpKeyed(proj?.erpKeyed, erpOrders) };
+};
+
+export const stampErpLines = (proj, ids, no, who, at = Date.now()) => {
+  const n = normErpNo(no);
+  const erpOrders = normErpOrders(proj?.erpOrders);
+  if (!n || !erpOrders.some((o) => o.no === n)) return null;
+  const erpKeyed = { ...normErpKeyed(proj?.erpKeyed, erpOrders) };
+  for (const id of ids || []) if (id) erpKeyed[id] = { no: n, at, by: String(who || "") };
+  return { erpOrders, erpKeyed };
+};
+
+export const clearErpStamps = (proj, ids) => {
+  const erpOrders = normErpOrders(proj?.erpOrders);
+  const erpKeyed = { ...normErpKeyed(proj?.erpKeyed, erpOrders) };
+  for (const id of ids || []) delete erpKeyed[id];
+  return { erpOrders, erpKeyed };
+};
+
+// --- line helpers over the panel's row objects ------------------------------
+
+export const lineIds = (row) => (row?.from ? row.from.map((f) => f.id) : [row?.id]);
+
+export const lineStamp = (row, erpKeyed) => (erpKeyed && erpKeyed[lineIds(row)[0]]) || null;
+
+// A merged line is keyed only when EVERY source is; "mixed" when the sources
+// sit on different orders.
+export const keyedNo = (row, erpKeyed) => {
+  if (!erpKeyed) return null;
+  const nos = lineIds(row).map((id) => erpKeyed[id]?.no || null);
+  if (!nos.length || nos.some((n) => !n)) return null;
+  return nos.every((n) => n === nos[0]) ? nos[0] : "mixed";
+};
+
+export const copyable = (row) => !!row?.special || !!row?.sku;
+
+export const remainingRows = (rows, erpKeyed) => (rows || []).filter((r) => copyable(r) && keyedNo(r, erpKeyed) === null);
+
+export const erpCounts = (rows, erpKeyed) => {
+  const list = (rows || []).filter(copyable);
+  const byNo = {};
+  let keyed = 0;
+  for (const r of list) {
+    const no = keyedNo(r, erpKeyed);
+    if (!no) continue;
+    keyed++;
+    byNo[no] = (byNo[no] || 0) + 1;
+  }
+  return { keyed, total: list.length, byNo };
+};
+
+export const keyedNote = (rows, erpKeyed) => {
+  const { keyed, total, byNo } = erpCounts(rows, erpKeyed);
+  if (!keyed) return "";
+  const parts = Object.entries(byNo).map(([no, n]) => `${n} on ${no}`);
+  return `${keyed} of ${total} keyed · ${parts.join(", ")}`;
+};
