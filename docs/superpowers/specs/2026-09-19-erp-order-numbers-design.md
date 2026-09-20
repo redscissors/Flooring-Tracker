@@ -60,7 +60,12 @@ and the customer browser gets a searchable **ERP order** column.
 - `erpKeyed` entries whose `no` is not in `erpOrders` are dropped on
   normalize (a removed order takes its stamps with it — see Remove).
 - `custData` (usedirectory.js) strips nothing new: both fields are data and
-  ride the jsonb.
+  ride the jsonb. **Amended (final review, 2026-09-20):** it now ALSO strips
+  `erpNos` and `sales` — not `erpOrders`/`erpKeyed` themselves, but the two
+  boot-light-row projections (`bootload.js` `lightRow`) that `loadDetail`
+  merges onto the in-memory record when a full row loads over the light one.
+  Nothing reads `data.erpNos`/`data.sales` back; leaving them in would have
+  written stale boot-time projections into the jsonb on every save.
 - Versions are untouched: a version snapshots `Area[]` only. A restored
   version keeps whatever stamps still match its line ids.
 
@@ -78,6 +83,17 @@ The ids the panel already carries, made stable where they aren't:
 
 Renaming a material product orphans its stamp: the line simply reads unkeyed
 again. Accepted (rare, self-explaining) rather than inventing a material id.
+
+**Amended (final review, 2026-09-20):** "same rule as the special side" is
+almost true — the stock side (App.jsx `mats`) carries a collision guard the
+special side does not: when a `mat|<kind>|<product>` id would collide with
+another stock material's, App.jsx appends a `#` per duplicate so ids (and
+therefore stamps) stay distinct. `matOrderRow` (print.js, the special
+side) has no such guard; two special materials whose kind+product happen to
+match would share a stamp. Not fixed in this wave — collision is rare on the
+special side (kind+product is closer to a real key there) — but the
+asymmetry is worth knowing about before trusting a special-material stamp on
+an edge case.
 
 ### Patch builders (`src/erporders.js`)
 
@@ -204,7 +220,12 @@ none.
   stamp (it's the second half of the same line);
 - **Copy remaining** — `remainingRows` of the visible view, one `onStamp` with
   every id (merged rows contribute all their sources), label
-  `Copy remaining (N)`; at N = 0 disabled with title "Everything is keyed";
+  `Copy remaining (N)`; at N = 0 disabled with title "Everything is keyed".
+  **Amended (final review, 2026-09-20):** the label reads **"Copy all"**
+  instead whenever there's no active order (`active` falsy) — an unnumbered
+  project with no order yet has nothing to stamp, so "remaining" would be
+  misleading; the moment an order exists the label switches to
+  `Copy remaining (N)` even on that same unnumbered project;
 - **Copy selected** — the checked rows. A keyed stock row has no checkbox
   (its badge replaces it), so a re-copy on purpose goes through the badge's
   **Copy again**, which moves the line to the active order.
@@ -276,6 +297,14 @@ chip `ERP 48213`; two or more orders → `ERP 48213 +1`, the full list in the
 title. Rendered only when `erpOrders` is non-empty. The chip is a button that
 opens the order-entry panel (`setShowOrderCopy(true)`), where the numbers are
 managed — the header never edits them.
+
+**Amended (final review, 2026-09-20):** "in both desktop layouts and the
+mobile band" overstates the mobile chip — it renders (via the shared
+`ErpChip` export from `projectheader.jsx`) but is **static** there, with no
+click handler, because the mobile shell has no order-entry surface to open
+(order entry, print and file actions all live only in the mobile ⋯ sheet).
+Wiring a mobile order-entry surface is a desk-scoped task of its own, not
+done in this wave.
 
 ### Not in this round
 

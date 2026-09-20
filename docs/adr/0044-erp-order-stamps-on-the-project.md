@@ -49,3 +49,11 @@ copies greyed until then, the stamps remembered, and the number searchable.
 - The panel's top is a header bar (Deliver to · ERP 1 order · Project +
   View) in the project header's idiom; the title row and the body's Deliver
   to section are gone.
+- **Amended (final review, 2026-09-20):** a backup restore copies
+  `erpOrders`/`erpKeyed` onto the restored project unchanged (`normC(raw)`,
+  App.jsx), even though the restore mints the copy a fresh id and — unlike
+  the project number, which the restore deliberately does NOT carry over
+  (see the code comment at the restore's `claim_project_no` call) — nothing
+  strips the ERP stamps. Right when the original project is gone (the usual
+  reason to restore a backup), its replacement shows the same "keyed on
+  48213" as if the desk had keyed the job twice. Not fixed in this wave.

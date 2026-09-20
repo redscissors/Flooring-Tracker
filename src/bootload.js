@@ -33,8 +33,10 @@ export const lightRow = (r) => ({
   // groups by salesman without loading full blobs.
   sales: r.sales || "",
   // The ERP 1 order numbers (spec 2026-09-19) — the customer browser's column
-  // and search read these without loading full projects.
-  erpNos: (Array.isArray(r.erp) ? r.erp : []).map((o) => String(o?.no || "")).filter(Boolean),
+  // and search read these without loading full projects. Deduped (first kept)
+  // so a doubled number in the stored array can't hand the browser's tags a
+  // duplicate React key.
+  erpNos: [...new Set((Array.isArray(r.erp) ? r.erp : []).map((o) => String(o?.no || "")).filter(Boolean))],
   // ->> projects the jsonb boolean out as text "true"/"false" (or null).
   quick: r.quick === true || r.quick === "true",
   _full: false,

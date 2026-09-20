@@ -115,9 +115,17 @@ export const erpCounts = (rows, erpKeyed) => {
   return { keyed, total: list.length, byNo };
 };
 
+// A merged line whose sources sit on different orders tallies under the
+// "mixed" key (erpCounts); it reads as "N across orders", trailing the
+// per-order counts rather than sitting wherever Object.entries happened to
+// place it, so a scan of the note lands on a real order number first.
 export const keyedNote = (rows, erpKeyed) => {
   const { keyed, total, byNo } = erpCounts(rows, erpKeyed);
   if (!keyed) return "";
-  const parts = Object.entries(byNo).map(([no, n]) => `${n} on ${no}`);
+  const entries = Object.entries(byNo);
+  const parts = [
+    ...entries.filter(([no]) => no !== "mixed").map(([no, n]) => `${n} on ${no}`),
+    ...entries.filter(([no]) => no === "mixed").map(([, n]) => `${n} across orders`),
+  ];
   return `${keyed} of ${total} keyed · ${parts.join(", ")}`;
 };

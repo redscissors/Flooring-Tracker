@@ -311,6 +311,11 @@ function SpecialRow({ r, alt, descLimit, locked, active, erpKeyed, onStamp, onCl
   const no = keyedNo(r, erpKeyed);
   const stamp = lineStamp(r, erpKeyed);
   const done = !!no || copied;
+  // The session latch is a stand-in for a real stamp; it must drop the moment
+  // the stamp does — Removing an order (× → confirm) clears the stamp with no
+  // Clear click of its own, and an un-ordered project never changes `no`, so
+  // the latch still behaves as a one-way session flag there.
+  useEffect(() => { if (!no) setCopied(false); }, [no]);
   const copy = async () => { await writeClipboard(r.copy); setCopied(true); onStamp(r); };
   const copyExt = async () => { await writeClipboard(r.desc.ext); setCopiedExt(true); };
   const d = r.desc;
@@ -329,7 +334,7 @@ function SpecialRow({ r, alt, descLimit, locked, active, erpKeyed, onStamp, onCl
       title={r.qtyAssumed ? ASSUMED_TITLE : undefined}
       className="border-t border-slate-100">
       {no
-        ? <KeyedPop stamp={stamp} active={active} onCopyAgain={copy} onClear={() => { setCopied(false); onClear(r); }} render={(p) => check({ ...p, title: stampTitle(stamp) })} />
+        ? <KeyedPop stamp={stamp} active={active} onCopyAgain={copy} onClear={() => onClear(r)} render={(p) => check({ ...p, title: stampTitle(stamp) })} />
         : check({ onClick: copy, disabled: locked, title: locked ? LOCK_TITLE : "Copy the description field" })}
 
       <div className="min-w-0">
@@ -411,7 +416,7 @@ function StockRow({ r, sel, onToggle, unit, locked, active, erpKeyed, onStamp, o
   return (
     <label title={r.qtyAssumed ? ASSUMED_TITLE : undefined}
       style={r.qtyAssumed ? ASSUMED_ROW : undefined}
-      className={"flex items-center gap-2 px-2.5 py-[5px] text-[12.5px] border-t border-slate-100 " + (r.sku && !no ? "cursor-pointer hover:bg-slate-50" : "cursor-default")}>
+      className={"flex items-center gap-2 px-2.5 py-[5px] text-[12.5px] border-t border-slate-100 " + (r.sku ? "cursor-pointer" : "cursor-default") + (r.sku && !no ? " hover:bg-slate-50" : "")}>
       <span className={"ft-mono shrink-0 w-24 truncate " + (r.sku ? "text-slate-400" : "font-semibold text-red-600")} title={r.sku}>{r.sku || "no SKU"}</span>
       <span className={"ft-mono font-semibold shrink-0 min-w-[56px] whitespace-nowrap" + (r.sku ? "" : " text-red-600")}
         style={r.qtyAssumed ? { color: ASSUMED_INK } : undefined}>{r.qtyText}{r.qtyAssumed && <span className="ft-eyebrow text-[8px] font-extrabold tracking-[.06em] ml-1">assumed</span>}</span>
@@ -459,6 +464,9 @@ function CopySection({ title, bands, count, emptyText, tip, note, locked, active
   const assumed = rows.filter((r) => r.qtyAssumed).length;
   const picked = copyableRows.filter((r) => sel.has(r.id) && !keyedNo(r, erpKeyed));
   const keyed = keyedNote(rows, erpKeyed);
+  // A stamped line is done — drop it from the selection so a later Clear
+  // doesn't re-show it pre-checked.
+  const stampRows = (picked) => { onStampRows(picked); setSel((prev) => { const n = new Set(prev); for (const r of picked) n.delete(r.id); return n; }); };
   return (
     <section>
       <div className="flex items-center justify-between mb-2 gap-2">
@@ -468,7 +476,7 @@ function CopySection({ title, bands, count, emptyText, tip, note, locked, active
             <CopyBtn text={remaining.map(line).join("\n")} disabled={locked || remaining.length === 0} onCopied={() => onStampRows(remaining)}
               title={locked ? LOCK_TITLE : remaining.length === 0 ? "Everything is keyed" : undefined}
               label={active ? `Copy remaining (${remaining.length})` : "Copy all"} />
-            <CopyBtn text={picked.map(line).join("\n")} disabled={locked || picked.length === 0} onCopied={() => onStampRows(picked)}
+            <CopyBtn text={picked.map(line).join("\n")} disabled={locked || picked.length === 0} onCopied={() => stampRows(picked)}
               title={locked ? LOCK_TITLE : undefined} label={picked.length ? `Copy selected (${picked.length})` : "Copy selected"} />
           </div>
         )}

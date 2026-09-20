@@ -93,8 +93,14 @@ Customer { id, name, address, phone, email, notes, createdAt,
            // whole patch (addErpOrder / removeErpOrder / stampErpLines /
            // clearErpStamps). Line ids: the product row's id; a material's
            // `mat|<kind>|<product>`; freight's `freight|<bookId>`. The boot
-           // light row projects `erpNos` (bootload LIST_SELECT) so the
-           // customer browser shows/searches them without full rows.
+           // light row projects `erpNos` (bootload LIST_SELECT, deduped) so
+           // the customer browser shows/searches them without full rows;
+           // `custData` (usedirectory.js) strips that projection (and the
+           // sibling `sales` one) before every jsonb write so neither rides
+           // into the stored record. A `mat|<kind>|<product>` collision gets
+           // a `#`-suffix guard on the STOCK side only (App.jsx); the special
+           // side (print.js matOrderRow) has none — a rare shared stamp there
+           // is accepted, not fixed (final review, 2026-09-20).
            // freight = the job's freight master switch (ADR 0030), default ON
            // (an absent field is a job quoted before it existed). Off means no
            // freight line anywhere, whatever the rows say.

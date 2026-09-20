@@ -137,3 +137,14 @@ test("erpCounts and keyedNote describe the visible list", () => {
   assert.equal(keyedNote(rows, keyed), "3 of 4 keyed · 2 on 48213, 1 on 48260");
   assert.equal(keyedNote(rows, {}), "");
 });
+
+test("keyedNote puts a mixed merged row's tally last, as \"N across orders\"", () => {
+  // d is a merged row whose two sources (x on 48213, y on 48260) disagree —
+  // keyedNo reports it "mixed", and the note must not read "1 on mixed".
+  const rows = [
+    { id: "a", sku: "1" }, { id: "b", sku: "2" }, { id: "c", sku: "3" },
+    { id: "d", sku: "4", from: [{ id: "x" }, { id: "y" }] },
+  ];
+  const keyed = { a: { no: "48213" }, b: { no: "48260" }, x: { no: "48213" }, y: { no: "48260" } };
+  assert.equal(keyedNote(rows, keyed), "3 of 4 keyed · 1 on 48213, 1 on 48260, 1 across orders");
+});

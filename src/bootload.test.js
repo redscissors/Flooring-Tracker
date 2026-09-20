@@ -95,3 +95,9 @@ test("loadProjects projects the ERP order numbers onto the light row", async () 
   assert.deepEqual(rows[1].erpNos, []);
   assert.match(listSelect(), /erp:data->erpOrders/);
 });
+
+test("loadProjects dedupes the projected ERP numbers, first occurrence kept", async () => {
+  const db = fakeDb({ projects: [{ id: "p1", erp: [{ no: "48213" }, { no: "48213" }] }] });
+  const rows = await loadProjects(db);
+  assert.deepEqual(rows[0].erpNos, ["48213"]);
+});
