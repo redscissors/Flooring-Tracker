@@ -1,6 +1,6 @@
-// Preview proof (issue 146): the REAL OrderEntryPanel over the harness's ERP
+// Preview proof (issue 147): the REAL OrderEntryPanel over the harness's ERP
 // fixtures. Vite on :5199 (npx vite --port 5199), then
-//   node .scratch/146_erp-order-numbers/shot.mjs
+//   node .scratch/147_erp-order-numbers/shot.mjs
 import { createRequire } from "node:module";
 const { chromium } = createRequire(import.meta.url)(process.env.PW || "/opt/node22/lib/node_modules/playwright/node_modules/playwright-core");
 import { fileURLToPath } from "node:url";

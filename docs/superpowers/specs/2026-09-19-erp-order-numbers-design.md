@@ -1,6 +1,6 @@
 # ERP 1 order numbers — design
 
-**Date:** 2026-09-19 · **Status:** approved by owner in chat 2026-09-19; implemented (ADR 0044, issue 146) · **Plan:** `docs/superpowers/plans/2026-09-19-erp-order-numbers.md`
+**Date:** 2026-09-19 · **Status:** approved by owner in chat 2026-09-19; implemented (ADR 0044, issue 147) · **Plan:** `docs/superpowers/plans/2026-09-19-erp-order-numbers.md`
 **Mockup:** `.scratch/mockups/erp-order-2026-09-19.html` (picked: 1D-A header bar, round 5; 3B; 4A; 4C)
 
 ## Problem
@@ -330,7 +330,7 @@ done in this wave.
 | `src/orderentrypreview.jsx` | fixture with two orders and a mix of stamps — the preview proof |
 | `.claude/skills/floortrack-data-model/SKILL.md`, `src/CLAUDE.md` | the two fields, the id table, the write contract |
 | `docs/adr/0044-erp-order-stamps-on-the-project.md` + README index | why on the project (not a table), why per-line, why the gate |
-| `.scratch/146_erp-order-numbers/ticket.md` | the issue, preview shots |
+| `.scratch/147_erp-order-numbers/ticket.md` | the issue, preview shots |
 
 ## Testing
 

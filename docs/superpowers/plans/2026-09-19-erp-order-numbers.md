@@ -40,7 +40,7 @@
 | `src/App.jsx` | Stable stock-material ids; passes fields + handlers to the panel. |
 | `src/projectheader.jsx`, `src/mobile.jsx` | The `ERP 48213` chip beside the N-number. |
 | `src/orderentrypreview.jsx` | Stateful harness with the ERP fixtures for the preview proof. |
-| `.scratch/146_erp-order-numbers/` | Ticket + `shot.mjs` + PNGs. |
+| `.scratch/147_erp-order-numbers/` | Ticket + `shot.mjs` + PNGs. |
 | `docs/adr/0044-erp-order-stamps-on-the-project.md`, `docs/adr/README.md`, `.claude/skills/floortrack-data-model/SKILL.md`, `src/CLAUDE.md` | Records. |
 
 ---
@@ -1287,7 +1287,7 @@ git commit -m "Project header: ERP order chip beside the N-number, opens order e
 
 **Files:**
 - Modify: `src/orderentrypreview.jsx` (the mount at the bottom)
-- Create: `.scratch/146_erp-order-numbers/ticket.md`, `.scratch/146_erp-order-numbers/shot.mjs`, PNGs
+- Create: `.scratch/147_erp-order-numbers/ticket.md`, `.scratch/147_erp-order-numbers/shot.mjs`, PNGs
 
 **Interfaces:**
 - Consumes: the builders from `./erporders.js`; `OrderEntryPanel`'s new props.
@@ -1342,7 +1342,7 @@ Also change the `mats` fixture ids to the stable rule (`id: "mat|Mortar|Mapei Ul
 
 - [ ] **Step 2: The ticket**
 
-Create `.scratch/146_erp-order-numbers/ticket.md`:
+Create `.scratch/147_erp-order-numbers/ticket.md`:
 
 ```markdown
 ---
@@ -1373,12 +1373,12 @@ column and search, samples-preview harness).
 
 - [ ] **Step 3: The shot script**
 
-Create `.scratch/146_erp-order-numbers/shot.mjs` (same rig as `.scratch/143_order-entry-area-views/shot.mjs`):
+Create `.scratch/147_erp-order-numbers/shot.mjs` (same rig as `.scratch/143_order-entry-area-views/shot.mjs`):
 
 ```js
-// Preview proof (issue 146): the REAL OrderEntryPanel over the harness's ERP
+// Preview proof (issue 147): the REAL OrderEntryPanel over the harness's ERP
 // fixtures. Vite on :5199 (npx vite --port 5199), then
-//   node .scratch/146_erp-order-numbers/shot.mjs
+//   node .scratch/147_erp-order-numbers/shot.mjs
 import { createRequire } from "node:module";
 const { chromium } = createRequire(import.meta.url)(process.env.PW || "/opt/node22/lib/node_modules/playwright/node_modules/playwright-core");
 import { fileURLToPath } from "node:url";
@@ -1406,7 +1406,7 @@ await browser.close();
 
 - [ ] **Step 4: Take the shots and look at them**
 
-Run: `npx vite --port 5199 &` then `node .scratch/146_erp-order-numbers/shot.mjs`, then `kill %1`.
+Run: `npx vite --port 5199 &` then `node .scratch/147_erp-order-numbers/shot.mjs`, then `kill %1`.
 Open each PNG (Read tool). Check against the mockup's "1D-A — the whole panel" panel: three columns level, chips stacked newest-first with the active one filled, the number under each keyed check, the popover on the Master bath line, the quick price's empty Deliver to and neutral field, the fold at 420px (Deliver to full width, ERP and Project/View side by side). Fix anything off in `orderentry.jsx`, re-shoot.
 
 For the browser column: in `src/samplespreview.jsx` give two of `BROWSER_PROJECTS` an `erpNos` (`["48213", "48260"]` and `["48102"]`), run `samples-preview.html`, type `48213` in the browser's search, screenshot `browser.png`. Revert nothing — the seed stays as harness data.
@@ -1414,7 +1414,7 @@ For the browser column: in `src/samplespreview.jsx` give two of `BROWSER_PROJECT
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/orderentrypreview.jsx src/samplespreview.jsx .scratch/146_erp-order-numbers
+git add src/orderentrypreview.jsx src/samplespreview.jsx .scratch/147_erp-order-numbers
 git commit -m "Preview proof: order-entry header bar, gate, stamps, quick price, fold; browser ERP column"
 ```
 
@@ -1427,7 +1427,7 @@ git commit -m "Preview proof: order-entry header bar, gate, stamps, quick price,
 - Modify: `docs/adr/README.md` (append a row)
 - Modify: `.claude/skills/floortrack-data-model/SKILL.md` (the `Customer { … }` block, line ~81)
 - Modify: `src/CLAUDE.md` (entries for `erporders.js` (new, after `orderlines.js`), `orderentry.jsx`, `custbrowser.js`, `CustomerBrowser.jsx`, `bootload.js`, `model.js`, `projectheader.jsx`, `copybtn.jsx`)
-- Modify: `.scratch/146_erp-order-numbers/ticket.md` (`status: done`)
+- Modify: `.scratch/147_erp-order-numbers/ticket.md` (`status: done`)
 - Modify: `docs/superpowers/specs/2026-09-19-erp-order-numbers-design.md` (status line)
 
 - [ ] **Step 1: The ADR**
@@ -1528,7 +1528,7 @@ And amend the existing entries in one or two lines each: `orderentry.jsx` (the h
 
 - [ ] **Step 4: Ticket and spec status**
 
-Set `status: done` in `.scratch/146_erp-order-numbers/ticket.md`. Change the spec's status line to `**Status:** approved by owner in chat 2026-09-19; implemented (ADR 0044, issue 146)`.
+Set `status: done` in `.scratch/147_erp-order-numbers/ticket.md`. Change the spec's status line to `**Status:** approved by owner in chat 2026-09-19; implemented (ADR 0044, issue 147)`.
 
 - [ ] **Step 5: Full verification**
 
@@ -1538,8 +1538,8 @@ Expected: all clean. Paste the test summary line into the ticket under a `## Ver
 - [ ] **Step 6: Commit and push**
 
 ```bash
-git add docs/adr/0044-erp-order-stamps-on-the-project.md docs/adr/README.md .claude/skills/floortrack-data-model/SKILL.md src/CLAUDE.md .scratch/146_erp-order-numbers/ticket.md docs/superpowers/specs/2026-09-19-erp-order-numbers-design.md
-git commit -m "Record ADR 0044 (ERP order stamps on the project), data model, file map, issue 146"
+git add docs/adr/0044-erp-order-stamps-on-the-project.md docs/adr/README.md .claude/skills/floortrack-data-model/SKILL.md src/CLAUDE.md .scratch/147_erp-order-numbers/ticket.md docs/superpowers/specs/2026-09-19-erp-order-numbers-design.md
+git commit -m "Record ADR 0044 (ERP order stamps on the project), data model, file map, issue 147"
 git push -u origin claude/relaxed-goldberg-8eml9n
 ```
 
