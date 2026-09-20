@@ -99,8 +99,12 @@ export function useDirectory({ user, ping, flashSaved, setSidebarOpen, setFocusP
   // column; ownerId/visibility/archived are legacy fields old records may carry).
   // customerId is the projects.customer_id column, not part of the data blob.
   // projectNo mirrors the project_no column (spec 2026-08-14) — column only,
-  // so the DB stays the sole authority on the number.
-  const custData = ({ ownerId, visibility, archived, versions, _full, _unsaved, updatedAt, customerId, projectNo, ...rest }) => rest;
+  // so the DB stays the sole authority on the number. erpNos/sales are boot-time
+  // LIST_SELECT projections (bootload.js lightRow) rebuilt from erpOrders/the
+  // salesperson snapshot on every load — nothing reads them off the full record,
+  // so they never belong in the jsonb (loadDetail merges a full row over the
+  // light one, which is how they'd otherwise ride along and get written back).
+  const custData = ({ ownerId, visibility, archived, versions, _full, _unsaved, updatedAt, customerId, projectNo, erpNos, sales, ...rest }) => rest;
 
   // Settings live in one shared record (ADR 0002) — last-write-wins across the
   // whole team, the same as a Public customer's data.

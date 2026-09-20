@@ -1,3 +1,5 @@
+import { erpHit, erpNosOf } from "./erporders.js";
+
 // Customer browser pure logic (issue 040): the ERP-style directory grid —
 // one compact row per customer, grouped by salesperson, sortable and
 // searchable — assembled from the boot's light rows only (people + light
@@ -22,6 +24,15 @@ export const projNoHit = (p, q) => !!(p && p.projectNo) && !!q && `n${p.projectN
 // list, not a field: the numbers are what the team quotes by, and the newest
 // one leads because that's the job on the phone.
 export const projNos = (projs = []) => projs.filter((p) => p.projectNo).map((p) => `N${p.projectNo}`);
+
+// The customer's ERP 1 order numbers (spec 2026-09-19) — the grid's ERP order
+// column. Newest job first (the caller's order), each job's newest order
+// first, deduped: the number on the phone is the latest one.
+export const erpNos = (projs = []) => {
+  const out = [];
+  for (const p of projs) for (const no of [...erpNosOf(p)].reverse()) if (!out.includes(no)) out.push(no);
+  return out;
+};
 
 // One grid row per customer. `activity` bubbles on any edit — the customer's
 // own or any of their projects' (same rule as the sidebar's "Newest" sort).
@@ -61,7 +72,7 @@ function unfiledRows(projects, wantQuick, q, sales) {
   const sp = (sales || "").trim().toLowerCase();
   return projects
     .filter((p) => !p.customerId && !!p.quick === wantQuick)
-    .filter((p) => !s || (p.name || "").toLowerCase().includes(s) || salesNameOf(p).toLowerCase().includes(s) || projNoHit(p, s))
+    .filter((p) => !s || (p.name || "").toLowerCase().includes(s) || salesNameOf(p).toLowerCase().includes(s) || projNoHit(p, s) || erpHit(p, s))
     .filter((p) => !sp || salesNameOf(p).toLowerCase().includes(sp))
     .sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
 }
@@ -76,7 +87,7 @@ export function filterRows(rows, q) {
   const has = (f) => (f || "").toLowerCase().includes(s);
   return rows.filter((r) =>
     [r.name, r.phone, r.email, r.address, r.builderName].some(has) ||
-    r.projs.some((p) => has(p.name) || projNoHit(p, s)));
+    r.projs.some((p) => has(p.name) || projNoHit(p, s) || erpHit(p, s)));
 }
 
 // Every salesperson the shop's saved jobs carry, A–Z. The boot's light rows
@@ -160,7 +171,7 @@ export function groupBySales(rows) {
 // app_data blob (ui.browserCols), so each salesperson's arrangement follows
 // their login. `sales` carries the salesman in the default flat view — the
 // band grouping only kicks in once the salesperson box has a name.
-export const BROWSER_COLS = ["projno", "sales", "builder", "phone", "address", "email", "jobs", "samples", "created", "modified"];
+export const BROWSER_COLS = ["projno", "erp", "sales", "builder", "phone", "address", "email", "jobs", "samples", "created", "modified"];
 
 // Sanitize a saved order: unknown keys drop, duplicates collapse, columns
 // added since the save append in default position.

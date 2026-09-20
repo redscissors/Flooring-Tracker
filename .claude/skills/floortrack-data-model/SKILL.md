@@ -84,7 +84,23 @@ Customer { id, name, address, phone, email, notes, createdAt,
            priceTier: "retail|builder|employee|sale|custom", customPct,
            printPricing: "full|unit|none", freight: bool,
            optionNames: {A?..L?},   // optionNames = quote-option labels (ADR 0031; slots A–L since 2026-08-26)
-           sheogaBasket: [], wediBasket: [], schluterBasket: [] }
+           sheogaBasket: [], wediBasket: [], schluterBasket: [],
+           erpOrders: [{ no, addedBy, addedAt }],          // ERP 1 orders the job was keyed
+           erpKeyed: { [lineId]: { no, at, by } } }        // under + one stamp per order-entry
+           // line (ADR 0044, spec 2026-09-19). Normalized by src/erporders.js
+           // (normErpOrders / normErpKeyed — a stamp on an unknown order is
+           // dropped); written ONLY through updateProject with a builder's
+           // whole patch (addErpOrder / removeErpOrder / stampErpLines /
+           // clearErpStamps). Line ids: the product row's id; a material's
+           // `mat|<kind>|<product>`; freight's `freight|<bookId>`. The boot
+           // light row projects `erpNos` (bootload LIST_SELECT, deduped) so
+           // the customer browser shows/searches them without full rows;
+           // `custData` (usedirectory.js) strips that projection (and the
+           // sibling `sales` one) before every jsonb write so neither rides
+           // into the stored record. A `mat|<kind>|<product>` collision gets
+           // a `#`-suffix guard on the STOCK side only (App.jsx); the special
+           // side (print.js matOrderRow) has none — a rare shared stamp there
+           // is accepted, not fixed (final review, 2026-09-20).
            // freight = the job's freight master switch (ADR 0030), default ON
            // (an absent field is a job quoted before it existed). Off means no
            // freight line anywhere, whatever the rows say.

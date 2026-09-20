@@ -2,6 +2,7 @@ import { num } from "./catalog.js";
 import { normTier, normPrintPricing } from "./pricing.js";
 import { normBasketEntry } from "./sheoga.js";
 import { normDistance } from "./mapslookup.js";
+import { normErpOrders, normErpKeyed } from "./erporders.js";
 import { TYPES, TLBL } from "./uiconst.js";
 
 export const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
@@ -166,7 +167,7 @@ export const normKitBasketEntry = (e) => {
 };
 const normKitBasket = (v) => (Array.isArray(v) ? v.map(normKitBasketEntry).filter(Boolean) : []);
 
-export const normC = (c) => ({ ...c, customerId: c.customerId ?? null, createdAt: c.createdAt || Date.now(), quick: !!c.quick, freight: c.freight !== false, categories: (c.categories || []).map(normA), versions: c.versions || [], attachments: c.attachments || [], salesperson: c.salesperson || null, priceTier: normTier(c.priceTier), customPct: c.customPct ?? "", printPricing: normPrintPricing(c.printPricing), waste: normWasteJob(c.waste), sheogaBasket: (c.sheogaBasket || []).map(normBasketEntry).filter(Boolean), wediBasket: normKitBasket(c.wediBasket), schluterBasket: normKitBasket(c.schluterBasket), optionNames: (() => { const out = {}; const v = c.optionNames; if (v && typeof v === "object") for (const s of OPTION_SLOTS) { const n = typeof v[s] === "string" ? v[s].trim() : ""; if (n) out[s] = n; } return out; })(), distance: normDistance(c.distance) });
+export const normC = (c) => ({ ...c, customerId: c.customerId ?? null, createdAt: c.createdAt || Date.now(), quick: !!c.quick, freight: c.freight !== false, categories: (c.categories || []).map(normA), versions: c.versions || [], attachments: c.attachments || [], salesperson: c.salesperson || null, priceTier: normTier(c.priceTier), customPct: c.customPct ?? "", printPricing: normPrintPricing(c.printPricing), waste: normWasteJob(c.waste), sheogaBasket: (c.sheogaBasket || []).map(normBasketEntry).filter(Boolean), wediBasket: normKitBasket(c.wediBasket), schluterBasket: normKitBasket(c.schluterBasket), optionNames: (() => { const out = {}; const v = c.optionNames; if (v && typeof v === "object") for (const s of OPTION_SLOTS) { const n = typeof v[s] === "string" ? v[s].trim() : ""; if (n) out[s] = n; } return out; })(), distance: normDistance(c.distance), erpOrders: normErpOrders(c.erpOrders), erpKeyed: normErpKeyed(c.erpKeyed, normErpOrders(c.erpOrders)) });
 
 // --- configurator kit landing (ADR 0035) ----------------------------------
 // One configurator emission (anchor + companions) is one KIT: every line lands

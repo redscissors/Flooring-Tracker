@@ -18,6 +18,20 @@ import { money } from "./model.js";
 // Both take the same props from App and share all state — switching layouts
 // never loses in-progress work. Mobile (<768px) has its own shell in App.jsx.
 
+// The ERP 1 order chip beside the N-number (spec 2026-09-19): shows once the
+// job has an order; two or more read "+N" with the full list on hover. A
+// button where order entry exists (desktop), a static chip on mobile.
+export function ErpChip({ erpOrders = [], onOpen }) {
+  if (!erpOrders.length) return null;
+  const nos = erpOrders.map((o) => o.no);
+  const label = `ERP ${nos[nos.length - 1]}${nos.length > 1 ? ` +${nos.length - 1}` : ""}`;
+  const cls = "ft-mono rounded px-1.5 font-extrabold whitespace-nowrap";
+  const style = { fontSize: 9, letterSpacing: ".05em", lineHeight: "15px", background: "var(--ft-brand-soft)", color: "var(--ft-brand-deep)" };
+  const title = `ERP 1 order${nos.length > 1 ? "s" : ""}: ${[...nos].reverse().join(", ")}${onOpen ? " — open order entry" : ""}`;
+  return onOpen ? <button type="button" onClick={onOpen} title={title} className={cls + " hover:opacity-80"} style={style}>{label}</button>
+    : <span title={title} className={cls} style={style}>{label}</span>;
+}
+
 // ---- one-bar ----------------------------------------------------------------
 
 const MINI = "ft-tip w-[45px] h-[26px] flex items-center justify-center rounded-md hover:bg-slate-50";
@@ -192,7 +206,10 @@ export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTot
           <div style={{ ...idbox, flex: "0 0 auto", justifyContent: "flex-start", padding: "4px 8px 5px" }}>
             <div className="flex items-center justify-between gap-2">
               <div className="ft-eyebrow text-[8px]" style={{ color: "var(--ft-faint)" }}>Project</div>
-              {sel.projectNo && <div className="ft-eyebrow text-[8px]" style={{ color: "var(--ft-faint)", letterSpacing: ".08em" }}>N{sel.projectNo}</div>}
+              <div className="flex items-center gap-1.5">
+                {sel.projectNo && <div className="ft-eyebrow text-[8px]" style={{ color: "var(--ft-faint)", letterSpacing: ".08em" }}>N{sel.projectNo}</div>}
+                <ErpChip erpOrders={sel.erpOrders} onOpen={() => setShowOrderCopy(true)} />
+              </div>
             </div>
             <input ref={nameRef} value={sel.name} maxLength={PROJECT_NAME_MAX} onChange={(e) => updateProject(sel.id, { name: e.target.value })} placeholder="Project name"
               className={"w-full bg-transparent text-[15px] font-bold border-b border-transparent focus:border-indigo-500 focus:outline-none min-w-0 transition" + (focusName ? " border-indigo-300" : "")} style={{ lineHeight: 1.15, marginTop: 1 }} />
@@ -306,6 +323,7 @@ export function ProjectHeaderClassic({ sel, cust, builderName, profile, tv, gran
           </div>
           {saveOk && <span className="absolute top-0 text-[11px] font-medium whitespace-nowrap" style={{ left: 16, color: "var(--ft-brand)" }}>Saved ✓</span>}
           <div className="ft-eyebrow text-[9px] mb-1 text-center">Project{sel.projectNo ? <span style={{ letterSpacing: ".08em" }}> · N{sel.projectNo}</span> : null}</div>
+          {sel.erpOrders?.length > 0 && <div className="flex justify-center mb-1"><ErpChip erpOrders={sel.erpOrders} onOpen={() => setShowOrderCopy(true)} /></div>}
           <input ref={nameRef} value={sel.name} maxLength={PROJECT_NAME_MAX} onChange={(e) => updateProject(sel.id, { name: e.target.value })} placeholder="Project name" className={"ft-serif w-full bg-transparent border-b-2 border-transparent focus:border-indigo-500 focus:outline-none pb-0.5 min-w-0 transition text-center" + (focusName ? " border-indigo-300" : "")} style={{ fontSize: "clamp(19px,2.6vw,24px)", lineHeight: 1.05 }} />
           <input value={sel.address} onChange={(e) => updateProject(sel.id, { address: e.target.value })} placeholder="Project address…" className="w-full bg-transparent text-xs text-slate-500 border-b border-transparent focus:border-indigo-500 focus:outline-none mt-1 text-center" />
         </div>

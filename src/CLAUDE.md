@@ -11,7 +11,9 @@ src/
   Root.jsx          # Supabase config check + auth session gate
   bootload.js       # boot loaders + row mappers, client injected as a required
                     # param (ADR 0026) — must never import lib/supabase.js so
-                    # node --test can drive them with a fake builder
+                    # node --test can drive them with a fake builder. Both
+                    # LIST_SELECTs project `erp:data->erpOrders` (ADR 0044)
+                    # onto the light row's `erpNos`
   boottrace.js      # boot timing spans; every boot writes ft-boot-trace to
                     # localStorage, dev builds console.table it (ADR 0026)
   Auth.jsx          # sign-in screen (sign-up disabled by design)
@@ -105,6 +107,8 @@ src/
                     # {areaId, rowId, kitId} an entry staged from a reconfigure
                     # carries (normKitTarget — both ids or nothing; kitId is
                     # the move-time staleness check)
+                    # ; `normC` now carries `erpOrders`/`erpKeyed` (ADR 0044,
+                    # normalized by src/erporders.js)
   print.js          # print/order math: `printProduct`, `orderLineCost`, `lineTotal`,
                     # `printAreaFloor`, `areaPrintLabel`, `orderEntryRow`,
                     # `ESTIMATE_PRINT_LAYOUT`… (print.test.js). Each
@@ -186,7 +190,10 @@ src/
                     # switch (Settings → General, localStorage "ft-header"):
                     # `ProjectHeaderBar` (the 2026-07-21 one-bar) and
                     # `ProjectHeaderClassic` (the print-sheet original, kept
-                    # whole so the team can flip back without a revert)
+                    # whole so the team can flip back without a revert).
+                    # Exported `ErpChip` (ADR 0044, `ERP 48213` · `+N`) mounts
+                    # in both layouts (opens order entry) and is imported by
+                    # mobile.jsx for the band (static there)
   TeamTodos.jsx     # the Issues & To-Do modal: the team list (issue 006,
                     # unchanged) behind a tab strip beside the central Claude
                     # issue bucket (issue 087) — every "Flag for Claude" from
@@ -279,7 +286,9 @@ src/
                     # an empty unfiled folder says otherwise, and a drag may
                     # never shrink a panel below one row or grow it past 60% of
                     # the overlay — the minimum outranking the maximum on a
-                    # short window
+                    # short window. `erpNos(projs)` + `erpHit` (ADR 0044) feed
+                    # both `filterRows` and `unfiledRows`; `"erp"` joins
+                    # BROWSER_COLS right after `"projno"`
   CustomerBrowser.jsx  # the customer browser, a `React.lazy` chunk (ADR 0026):
                     # near-fullscreen ERP-style directory grid — dense customer
                     # rows grouped by salesman over a bottom project-lines panel —
@@ -303,7 +312,10 @@ src/
                     # toggle state and both heights ride `initialPanels` /
                     # `onPanels` up to App's `saveUiPref({ browserPanels })`,
                     # the same per-user `ui` blob as the column order; a
-                    # committed size saves once per drag, on release
+                    # committed size saves once per drag, on release. The ERP
+                    # order column (ADR 0044) shows three numbers then +N; the
+                    # lines panel tags each project's rows with a per-order
+                    # `✓ 48213` chip
   EstimatePrint.jsx # `EstimatePaper` (+ `PRINT_DASH`) — the print/Preview-tab "paper", one
                     # component behind both call sites so they can never drift. STATIC import only:
                     # `window.print()` fires right after the print-mode render, so a `React.lazy`
@@ -1839,7 +1851,12 @@ src/
                     # 0026): orderlines.js pulls wedi.js + schluter.js for
                     # the grouping, which must stay off boot — which is also
                     # why CopyBtn lives in copybtn.jsx (samples.jsx imports
-                    # it statically)
+                    # it statically). A header bar (Deliver to · ERP 1 order ·
+                    # Project + View, ADR 0044) replaces the title row and the
+                    # Deliver to section; props `projectNo`/`quick`/`erpOrders`/
+                    # `erpKeyed` + four one-patch callbacks gate copies on a
+                    # numbered, keyed job and stamp lines — `KeyedPop` (Copy
+                    # again / Clear / Keep), Copy remaining replaces Copy all
   orderlines.js     # merge-and-sort for the panel (owner 2026-09-14): ERP One
                     # keeps two pasted lines with one SKU as two lines, so
                     # `mergeOrderLines` combines them — same SKU in any
@@ -1870,6 +1887,16 @@ src/
                     # into groupOrderLines' vendor bands beneath; both rank
                     # tile & flooring before misc ahead of the SKU compare
                     # (orderlines.test.js)
+  erporders.js      # ERP 1 order numbers on a project (ADR 0044): normalizers
+                    # (normErpNo digits-only ≤10; normErpOrders dedupes; normErpKeyed
+                    # drops stamps on unknown orders), the ONE-PATCH builders
+                    # (addErpOrder / removeErpOrder / stampErpLines / clearErpStamps
+                    # — null = nothing to write), `gated` (numbered + no order),
+                    # line helpers over the panel's rows (lineIds — a merged
+                    # row's sources; keyedNo — "mixed" across orders, null
+                    # when any source is unstamped; remainingRows; keyedNote),
+                    # erpNosOf/erpHit for the browser's column + search over
+                    # light or full rows. Never imports model.js (erporders.test.js)
   clipseq.js        # `writeSequence` + `CLIP_GAP_MS` (400): writes a list of
                     # texts to the clipboard one after another, a pause
                     # between, so Windows clipboard history (Win+V) keeps
@@ -1882,7 +1909,8 @@ src/
   copybtn.jsx       # `CopyBtn` + `DONE_MOSS` + `writeClipboard` — the copy
                     # button both the order-entry and samples panels mount,
                     # in its own file so samples.jsx (boot chunk) never
-                    # imports orderentry.jsx (lazy, catalog-bearing)
+                    # imports orderentry.jsx (lazy, catalog-bearing). `onCopied`
+                    # (ADR 0044) lets order-entry stamp a line on a real copy
   samples.js        # sample-ordering pure logic (spec 2026-08-28, reworked off
                     # the issue 115 v1): request rows are the ONE source —
                     # shared `sample_requests` rows (snapshot + live ids, the

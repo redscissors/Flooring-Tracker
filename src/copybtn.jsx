@@ -20,14 +20,15 @@ export const writeClipboard = async (text) => {
   }
 };
 
-export function CopyBtn({ text, label = "Copy", disabled = false, className = "" }) {
+export function CopyBtn({ text, label = "Copy", disabled = false, className = "", title, onCopied }) {
   const [done, setDone] = useState(false);
   const copy = async () => {
     await writeClipboard(text);
     setDone(true); setTimeout(() => setDone(false), 1400);
+    if (onCopied) onCopied();
   };
   return (
-    <button onClick={copy} disabled={disabled || !text} style={done ? DONE_MOSS : undefined}
+    <button onClick={copy} disabled={disabled || !text} title={title} style={done ? DONE_MOSS : undefined}
       className={"inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] font-semibold border transition-colors disabled:opacity-40 disabled:cursor-default " + (done ? "" : "border-slate-200 hover:bg-slate-50 ") + className}>
       {done ? <><Check size={13} /> Copied</> : <><Copy size={13} /> {label}</>}
     </button>

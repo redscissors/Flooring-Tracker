@@ -84,3 +84,20 @@ test("personRow normalizes the distance jsonb it gets back", () => {
   assert.deepEqual(personRow(row).distance, { miles: 18.4, minutes: 27, from: "shop", to: "job", at: 5 });
   assert.equal(personRow({ id: "p2" }).distance, null);
 });
+
+test("loadProjects projects the ERP order numbers onto the light row", async () => {
+  const db = fakeDb({ projects: [
+    { id: "p1", customer_id: null, created_at: "2026-01-01", updated_at: "2026-01-02", name: "Smith", erp: [{ no: "48213", addedBy: "M", addedAt: 1 }, { no: "48260" }, { no: "" }] },
+    { id: "p2", customer_id: null, created_at: "2026-01-01", updated_at: "2026-01-02", name: "Jones", erp: null },
+  ] });
+  const rows = await loadProjects(db);
+  assert.deepEqual(rows[0].erpNos, ["48213", "48260"]);
+  assert.deepEqual(rows[1].erpNos, []);
+  assert.match(listSelect(), /erp:data->erpOrders/);
+});
+
+test("loadProjects dedupes the projected ERP numbers, first occurrence kept", async () => {
+  const db = fakeDb({ projects: [{ id: "p1", erp: [{ no: "48213" }, { no: "48213" }] }] });
+  const rows = await loadProjects(db);
+  assert.deepEqual(rows[0].erpNos, ["48213"]);
+});

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { salesNameOf, salesRoster, defaultSalesFilter, browserRows, quickRows, draftRows, filterRows, filterBySales, sortRows, groupBySales, NO_SALES, shortDate, BROWSER_COLS, normColOrder, moveCol, projNoHit, projNos, custSamples, filterBySamples, normPanelH, clampPanelH, stripOpenDefault, PANEL_MIN, STRIP_H, LINES_H } from "./custbrowser.js";
+import { salesNameOf, salesRoster, defaultSalesFilter, browserRows, quickRows, draftRows, filterRows, filterBySales, sortRows, groupBySales, NO_SALES, shortDate, BROWSER_COLS, normColOrder, moveCol, projNoHit, projNos, erpNos, custSamples, filterBySamples, normPanelH, clampPanelH, stripOpenDefault, PANEL_MIN, STRIP_H, LINES_H } from "./custbrowser.js";
 
 const people = [
   { id: "c1", name: "Sarah Jones", phone: "(330) 555-0101", address: "4905 Harris Rd", builderId: "b1", createdAt: 100, updatedAt: 150 },
@@ -274,4 +274,37 @@ test("the panel defaults clear the minimum, and the strip default is three rows 
   assert.ok(STRIP_H >= BAND + 3 * ROW, `STRIP_H ${STRIP_H} no longer fits three rows`);
   assert.equal(clampPanelH(STRIP_H, 900), STRIP_H);
   assert.equal(clampPanelH(LINES_H, 900), LINES_H);
+});
+
+test("erpNos lists a customer's order numbers newest project first, newest order first, deduped", () => {
+  const projs = [
+    { id: "a", updatedAt: 900, erpNos: ["48213", "48260"] },
+    { id: "b", updatedAt: 500, erpOrders: [{ no: "47901" }, { no: "48213" }], _full: true },
+    { id: "c", updatedAt: 100 },
+  ];
+  assert.deepEqual(erpNos(projs), ["48260", "48213", "47901"]);
+  assert.deepEqual(erpNos([]), []);
+});
+
+test("BROWSER_COLS carries the ERP order column right after Project #, and old saved orders append it", () => {
+  assert.equal(BROWSER_COLS[BROWSER_COLS.indexOf("projno") + 1], "erp");
+  const saved = ["sales", "projno", "builder", "phone", "address", "email", "jobs", "samples", "created", "modified"];
+  const order = normColOrder(saved);
+  assert.equal(order[order.length - 1], "erp");
+});
+
+test("filterRows and the unfiled lists hit on an ERP order number", () => {
+  const ppl = [{ id: "c9", name: "Dana Hendricks", createdAt: 1, updatedAt: 1 }];
+  const prj = [
+    { id: "p9", customerId: "c9", name: "Master bath", updatedAt: 5, erpNos: ["48213"] },
+    { id: "q9", customerId: null, name: "Quick price", quick: true, updatedAt: 6, erpNos: ["48260"] },
+    { id: "d9", customerId: null, name: "Draft", updatedAt: 7, erpNos: ["47901"] },
+  ];
+  const r = browserRows({ people: ppl, projects: prj, builders: [] });
+  assert.equal(filterRows(r, "48213").length, 1);
+  assert.equal(filterRows(r, "482").length, 1);
+  assert.equal(filterRows(r, "99999").length, 0);
+  assert.equal(quickRows(prj, "48260").length, 1);
+  assert.equal(quickRows(prj, "48213").length, 0);
+  assert.equal(draftRows(prj, "47901").length, 1);
 });

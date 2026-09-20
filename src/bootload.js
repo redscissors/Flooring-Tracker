@@ -18,7 +18,7 @@ export const SHARED_SETTINGS_ID = "singleton";
 // run supabase/project-numbers.sql would fail the whole projects load on it,
 // so loadProjects retries without and listSelect() remembers which select
 // works (App's server-side search reuses it). Downgrade-once per page load.
-const LIST_SELECT_LEGACY = "id, created_at, updated_at, customer_id, name:data->>name, address:data->>address, phone:data->>phone, email:data->>email, quick:data->>quick, sales:data->salesperson->>name";
+const LIST_SELECT_LEGACY = "id, created_at, updated_at, customer_id, name:data->>name, address:data->>address, phone:data->>phone, email:data->>email, quick:data->>quick, sales:data->salesperson->>name, erp:data->erpOrders";
 export const LIST_SELECT = LIST_SELECT_LEGACY + ", project_no";
 let activeListSelect = LIST_SELECT;
 export const listSelect = () => activeListSelect;
@@ -32,6 +32,11 @@ export const lightRow = (r) => ({
   // The salesperson snapshot's name only (ADR 0008) — the customer browser
   // groups by salesman without loading full blobs.
   sales: r.sales || "",
+  // The ERP 1 order numbers (spec 2026-09-19) — the customer browser's column
+  // and search read these without loading full projects. Deduped (first kept)
+  // so a doubled number in the stored array can't hand the browser's tags a
+  // duplicate React key.
+  erpNos: [...new Set((Array.isArray(r.erp) ? r.erp : []).map((o) => String(o?.no || "")).filter(Boolean))],
   // ->> projects the jsonb boolean out as text "true"/"false" (or null).
   quick: r.quick === true || r.quick === "true",
   _full: false,

@@ -4,7 +4,7 @@
 import { useState, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
-import { ProjectHeaderBar } from "./projectheader.jsx";
+import { ProjectHeaderBar, ProjectHeaderClassic } from "./projectheader.jsx";
 import { MobileProjectBand } from "./mobile.jsx";
 import { PriceBookLibrary } from "./pricebooklib.jsx";
 import { normOrderItem } from "./orderbook.js";
@@ -15,34 +15,46 @@ const lbl = "ft-eyebrow text-[10px] mb-1 block";
 const noop = () => {};
 const DAY = 86400000;
 
-function ProjectHeaderDemo() {
+// Shared demo state both the one-bar and classic headers mount (widened scope,
+// Task 10): a two-order ERP fixture (spec 2026-09-19) so the header chip
+// renders "ERP 48260 +1" with both orders on hover.
+function useHeaderDemoState() {
   const nameRef = useRef(null), nameTabRef = useRef(null), orderEntryRef = useRef(null), attRef = useRef(null);
   const [proj, setProj] = useState({
     id: "p1", projectNo: 214, name: "Marsh — whole first floor", address: "214 Old Mill Rd, Chagrin Falls",
     notes: "Tear-out week of the 24th. Owner wants the herringbone quote separate.",
     salesperson: { name: "Danny", phone: "(555) 210-0114" },
     priceTier: "retail", customPct: "", printPricing: "full", freight: true, attachments: [], versions: [],
+    erpOrders: [{ no: "48213", addedBy: "Danny", addedAt: Date.now() - 3600e3 }, { no: "48260", addedBy: "Danny", addedAt: Date.now() - 600e3 }],
   });
   const [namingVersion, setNamingVersion] = useState(false);
   const [versionName, setVersionName] = useState("");
   const waste = { tile: proj.waste?.tile ?? 15, floor: proj.waste?.floor ?? 10, tileOn: proj.waste?.tileOn ?? true, floorOn: proj.waste?.floorOn ?? false };
-  return (
-    <ProjectHeaderBar
-      sel={proj} cust={{ name: "Kathy Marsh", address: "214 Old Mill Rd" }} builderName="Meridian Homes"
-      profile={{ name: "Danny", phone: "(555) 210-0114" }}
-      tv={{ tier: proj.priceTier, pct: proj.priceTier === "builder" ? 8 : proj.priceTier === "sale" ? 15 : proj.priceTier === "custom" ? Number(proj.customPct) || 0 : 0 }} grandTotal={12847.2}
-      freightCost={214} saveOk settings={{ pricing: {}, waste: { tile: 15, floor: 10 } }} jobWasteUI={waste}
-      updateProject={(id, patch) => setProj((p) => ({ ...p, ...patch }))}
-      onOpenCustomer={noop} onPromote={noop}
-      nameRef={nameRef} nameTabRef={nameTabRef} orderEntryRef={orderEntryRef} attRef={attRef}
-      focusName={false} namingVersion={namingVersion} setNamingVersion={setNamingVersion}
-      versionName={versionName} setVersionName={setVersionName}
-      startVersionName={() => setNamingVersion(true)} confirmVersion={() => setNamingVersion(false)}
-      openAttachment={noop} delAttachment={noop} addAttachment={noop}
-      setShowVersions={noop} setPrintMode={noop} setConfirm={noop} setShowOrderCopy={noop}
-      samples={{ need: 2, ordered: 1, total: 3 }} onOpenSamples={noop}
-    />
-  );
+  return {
+    sel: proj, cust: { name: "Kathy Marsh", address: "214 Old Mill Rd" }, builderName: "Meridian Homes",
+    profile: { name: "Danny", phone: "(555) 210-0114" },
+    tv: { tier: proj.priceTier, pct: proj.priceTier === "builder" ? 8 : proj.priceTier === "sale" ? 15 : proj.priceTier === "custom" ? Number(proj.customPct) || 0 : 0 }, grandTotal: 12847.2,
+    saveOk: true, settings: { pricing: {}, waste: { tile: 15, floor: 10 } }, jobWasteUI: waste,
+    updateProject: (id, patch) => setProj((p) => ({ ...p, ...patch })),
+    onOpenCustomer: noop, onPromote: noop,
+    nameRef, nameTabRef, orderEntryRef, attRef,
+    focusName: false, namingVersion, setNamingVersion,
+    versionName, setVersionName,
+    startVersionName: () => setNamingVersion(true), confirmVersion: () => setNamingVersion(false),
+    openAttachment: noop, delAttachment: noop, addAttachment: noop,
+    setShowVersions: noop, setPrintMode: noop, setConfirm: noop, setShowOrderCopy: noop,
+    samples: { need: 2, ordered: 1, total: 3 }, onOpenSamples: noop,
+  };
+}
+
+function ProjectHeaderDemo() {
+  const props = useHeaderDemoState();
+  return <ProjectHeaderBar {...props} freightCost={214} />;
+}
+
+function ClassicHeaderDemo() {
+  const props = useHeaderDemoState();
+  return <ProjectHeaderClassic {...props} />;
 }
 
 const BOOKS = [
@@ -97,6 +109,7 @@ function MobileBandDemo() {
     id: "p2", projectNo: 142, name: "Hendricks — Main Floor", address: "418 Ridgeline Ct, Bend OR",
     salesperson: { name: "Marcus", phone: "(555) 210-8834" },
     priceTier: "builder", customPct: "", printPricing: "full", freight: true, attachments: [], versions: [],
+    erpOrders: [{ no: "48213", addedBy: "Marcus", addedAt: Date.now() - 3600e3 }],
   });
   const pct = proj.priceTier === "builder" ? 15 : proj.priceTier === "sale" ? 10 : proj.priceTier === "custom" ? Number(proj.customPct) || 0 : 0;
   return (
@@ -117,6 +130,8 @@ function Page() {
     <div className="p-5" style={{ background: "var(--ft-cream)", minHeight: "100vh" }}>
       <div className="ft-eyebrow text-[10px] mb-2">Project header — one-bar, compact</div>
       <div id="proj-header" style={{ maxWidth: 1120 }}><ProjectHeaderDemo /></div>
+      <div className="ft-eyebrow text-[10px] mt-6 mb-2">Project header — classic</div>
+      <div id="proj-header-classic" style={{ maxWidth: 1120 }}><ClassicHeaderDemo /></div>
       <div className="ft-eyebrow text-[10px] mt-6 mb-2">Project header — phone band at Fold 5 cover width (344px)</div>
       <MobileBandDemo />
       <div className="ft-eyebrow text-[10px] mt-6 mb-2">Price books — landing header, compact</div>

@@ -49,8 +49,11 @@ const BROWSER_PEOPLE = [
   { id: "k2", name: "Nolan Price" },
 ];
 const BROWSER_PROJECTS = [
-  { id: "c1", customerId: "k1", name: "Marsh — whole first floor", quick: false, createdAt: Date.now(), updatedAt: Date.now(), salesperson: { name: "Dana" } },
-  { id: "c9", customerId: "k1", name: "Marsh — basement", quick: false, createdAt: Date.now(), updatedAt: Date.now() },
+  // Two carry erpNos (spec 2026-09-19, Task 10 preview proof) — the light-row
+  // shape the boot loader projects, so the browser's ERP order column and
+  // search have something to show and narrow.
+  { id: "c1", customerId: "k1", name: "Marsh — whole first floor", quick: false, createdAt: Date.now(), updatedAt: Date.now(), salesperson: { name: "Dana" }, erpNos: ["48213", "48260"] },
+  { id: "c9", customerId: "k1", name: "Marsh — basement", quick: false, createdAt: Date.now(), updatedAt: Date.now(), erpNos: ["48102"] },
   { id: "c10", customerId: "k2", name: "Price — kitchen", quick: false, createdAt: Date.now(), updatedAt: Date.now() },
   // Five unfiled projects, so the default-open strip shows its three quick
   // prices with the next row peeking — and the drag has something to reveal.
