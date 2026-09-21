@@ -3072,8 +3072,8 @@ export default function App({ user, onSignOut }) {
         const exact = m && m.kind === "exact";
         const close = () => { setPromoteId(null); setPromoteQ(""); };
         return (
-          <Modal onClose={close} title="File under customer">
-            <p className="text-sm text-slate-500 mb-3">Filing <b>{proj.name || "this quote"}</b> under a customer turns it into a normal job{proj.quick ? " — it leaves Quick Prices and starts keeping versions" : ""}.</p>
+          <Modal onClose={close} title={<>File under customer <HelpTip className="align-middle" w={280} tip="Filing a project under a customer turns it into a normal job - a quick price leaves Quick Prices and starts keeping versions." /></>}>
+            <p className="text-sm text-slate-500 mb-3">Filing <b>{proj.name || "this quote"}</b> under a customer.</p>
             <input autoFocus value={promoteQ} onChange={(e) => setPromoteQ(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); close(); } if (e.key === "Enter" && term && !exact) promoteToNewCustomer(promoteId, term); }}
               placeholder="Search customers, or type a new name…" className={inp} />
@@ -3130,8 +3130,7 @@ export default function App({ user, onSignOut }) {
         const pickExisting = (id) => { setNewCust(null); setOpenCust((s) => ({ ...s, [id]: true })); setCustModal(id); };
         const n = m ? projectsOf(m.item.id).length : 0;
         return (
-          <Modal onClose={() => setNewCust(null)} title="New customer">
-            <p className="text-sm text-slate-500 mb-3">Type the customer's name. If they already exist, jump straight to them instead of making a duplicate.</p>
+          <Modal onClose={() => setNewCust(null)} title={<>New customer <HelpTip className="align-middle" w={280} tip="Type the customer's name. If they already exist, jump straight to them instead of making a duplicate." /></>}>
             <input autoFocus value={newCust} onChange={(e) => setNewCust(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") { if (m) pickExisting(m.item.id); else if (newCust.trim()) create(); } if (e.key === "Escape") { e.preventDefault(); setNewCust(null); } }}
               placeholder="e.g. Sarah Jones" className={inp} />

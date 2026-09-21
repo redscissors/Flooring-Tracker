@@ -146,9 +146,8 @@ function OrderSourceConfirm({ fam, books, bookStock, orderBookStock, loadFamilyB
     onSave({ bookId, prefix: rule.prefix.trim(), suffix: rule.suffix.trim() });
   };
   return (
-    <Modal title={`Special-order colors — ${fam.name}`} onClose={onClose}>
-      <p className="text-xs text-slate-500">Colors the shop doesn't stock, offered from the vendor's full price list. They price at the family's catalog price and file with the special orders at order entry.</p>
-      <label className={lbl + " mt-3"}>Vendor price book</label>
+    <Modal title={<>Special-order colors — {fam.name} <HelpTip className="align-middle" w={280} tip="Colors the shop doesn't stock, offered from the vendor's full price list. They price at the family's catalog price and file with the special orders at order entry." /></>} onClose={onClose}>
+      <label className={lbl}>Vendor price book</label>
       {orderBooks.length === 0 ? (
         <p className="text-xs text-amber-600">No special-order price book is imported yet — add the vendor's price list in Settings → Price book first.</p>
       ) : (
@@ -198,8 +197,7 @@ function LinkMigration({ catalog, bookStock, books, onApply, onClose }) {
   const byCompany = new Map();
   proposals.forEach((pr, i) => { if (!byCompany.has(pr.companyName)) byCompany.set(pr.companyName, []); byCompany.get(pr.companyName).push({ ...pr, idx: i }); });
   return (
-    <Modal title="Link products to stock books" onClose={onClose}>
-      <p className="text-xs text-slate-500 mb-2">Matched by SKU against the imported stock books — uncheck any you don't want linked.</p>
+    <Modal title={<>Link products to stock books <HelpTip className="align-middle" w={280} tip="Matched by SKU against the imported stock books - uncheck any you don't want linked." /></>} onClose={onClose}>
       <div className="max-h-72 overflow-y-auto rounded-lg border border-slate-200 divide-y divide-slate-100">
         {[...byCompany.entries()].map(([companyName, rows]) => (
           <div key={companyName} className="p-2">
@@ -543,6 +541,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
         ) : (
           <h2 className="ft-serif text-3xl leading-tight mt-1 flex items-center gap-2.5"><Tag size={22} className="text-slate-400" /> {c.name}
             <button onClick={() => setCatRename({ value: c.name })} title={`Rename ${c.name}`} className="text-slate-300 hover:text-slate-600"><Pencil size={15} /></button>
+            <HelpTip className="align-middle" w={280} tip="Job rows pick these up in an upcoming update - for now this builds the catalog." />
           </h2>
         )}
         <div className="mt-5 space-y-5 max-w-md">
@@ -567,7 +566,6 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
           </div>
           <label className="flex items-center gap-1.5 text-xs text-slate-500">{box(c.enabled, () => onChange(updateCategory(catalog, c.id, { enabled: !c.enabled })), c.enabled ? "Hide this add-on's chip from job rows" : "Offer this add-on's chip on job rows")} offered on jobs</label>
         </div>
-        <p className="text-xs text-slate-400 mt-6">Job rows pick these up in an upcoming update — for now this builds the catalog.</p>
         <div className="mt-8 pt-5 border-t border-slate-100">
           {confirmDelCat ? (
             <div className="flex items-center gap-2 text-xs">
@@ -631,10 +629,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
           <div className="w-36">{txtField("SKU", g.sku || "", (v) => setProduct(co.id, "grouts", g.id, { sku: v }))}</div>
           <HelpTip className="pb-2.5" w={300} tip={<>Coverage is calibrated here — the book doesn't carry one. Enter the manufacturer's sq ft per unit for a <b>12×12 tile, 3/8" thick, 1/8" joint</b> (the baseline on the bag's coverage chart). Each job row rescales it for its own tile size, joint and thickness, then divides the row's sq ft plus waste by that coverage and rounds up.</>} />
         </div>
-        <div className="mt-6 flex items-baseline justify-between gap-3">
-          <div className="font-medium text-sm">Colors &amp; SKUs</div>
-          {family && <span className="text-[11px] text-slate-400">picking a color on a job stamps that color's SKU on the estimate</span>}
-        </div>
+        <div className="mt-6 font-medium text-sm flex items-center gap-1.5">Colors &amp; SKUs <HelpTip className="align-middle" w={280} tip="Picking a color on a job stamps that color's SKU on the estimate." /></div>
         {g.book ? (family ? (
           <>
             {zeroMatch && <div className="mt-2 flex items-center gap-1.5 text-xs text-amber-600 rounded-md border border-amber-200 px-3 py-2"><Link2Off size={12} className="shrink-0" /> This family's rule matched nothing in the last import — colors shown are the last known set. Re-check the rule.</div>}
@@ -675,7 +670,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
           {g.book && <button onClick={() => setProduct(co.id, "grouts", g.id, { book: "" })} className="text-xs text-slate-400 hover:text-red-500 shrink-0">Unlink colors</button>}
         </div>
         <div className="mt-6 max-w-2xl">
-          <label className={lbl}>Base unit <span className="text-slate-400 font-normal normal-case tracking-normal">(a two-part grout's base — ordered with the kits and shown in the order summary; "per" = kits one base covers)</span></label>
+          <label className={lbl}>Base unit <HelpTip className="align-middle" w={280} tip={<>A two-part grout's base - ordered with the kits and shown in the order summary; "per" = kits one base covers.</>} /></label>
           {g.base ? (
             <div className="grid gap-1.5 items-end grid-cols-[1.6fr_.9fr_.6fr_.7fr_.7fr_.7fr_auto]">
               {txtField("Name", g.base.name, (v) => setProduct(co.id, "grouts", g.id, { base: { ...g.base, name: v } }))}
@@ -729,7 +724,7 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
       </div>
       <div className="mt-4">{typeChips(u.types, (v) => setProduct(co.id, "underlayments", u.id, { types: v }), floorTypeList)}</div>
       <div className="mt-6 max-w-3xl">
-        <label className={lbl}>Install materials <span className="text-slate-400 font-normal normal-case tracking-normal">(added when a job checks "Install materials"; mortar rows pull unit &amp; price from that mortar and combine with the job's mortar totals)</span></label>
+        <label className={lbl}>Install materials <HelpTip className="align-middle" w={280} tip={<>Added when a job checks "Install materials"; mortar rows pull unit &amp; price from that mortar and combine with the job's mortar totals.</>} /></label>
         <div className="space-y-1.5">
           {(u.install || []).map((m) => (
             <div key={m.id} className={`grid gap-1.5 items-end ${m.kind === "mortar" ? "grid-cols-[auto_1.6fr_1fr_auto]" : "grid-cols-[auto_1.3fr_.8fr_.6fr_.6fr_.9fr_auto]"}`}>
@@ -949,30 +944,26 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
           </>
         ) : section === "profile" ? (
           <div className="flex-1 overflow-y-auto p-6">
-            <h2 className="ft-serif text-3xl">Your details</h2>
-            <p className="text-sm text-slate-500 mt-1 max-w-xl">Your contact info prints at the top of the estimate ("Your salesperson") so the customer knows who to reach. It's saved with your login — each person on the team sets their own.</p>
+            <h2 className="ft-serif text-3xl flex items-center gap-2">Your details <HelpTip className="align-middle" w={280} tip={<>Your contact info prints at the top of the estimate ("Your salesperson") so the customer knows who to reach. It's saved with your login - each person on the team sets their own. Leave a field blank to keep it off the estimate.</>} /></h2>
             <div className="mt-5 space-y-3 max-w-md">
               <div><label className={lbl}>Name</label><input value={profile.name} onChange={(e) => saveProfile({ name: e.target.value })} placeholder="Your name" className={inp} /></div>
               <div><label className={lbl}>Phone</label><input type="tel" inputMode="tel" value={profile.phone} onChange={(e) => saveProfile({ phone: phoneChange(profile.phone, e.target.value) })} placeholder="Phone number" className={inp} /></div>
               <div><label className={lbl}>Email</label><input value={profile.email} onChange={(e) => saveProfile({ email: e.target.value })} placeholder={user.email || "Email"} className={inp} /></div>
             </div>
-            <p className="text-xs text-slate-400 mt-4">Signed in as {user.email}. Leave a field blank to keep it off the estimate.</p>
+            <p className="text-xs text-slate-400 mt-4">Signed in as {user.email}.</p>
           </div>
         ) : section === "general" ? (
           <div className="flex-1 overflow-y-auto p-6">
-            <h2 className="ft-serif text-3xl">General</h2>
-            <p className="text-sm text-slate-500 mt-1 max-w-xl">Calibrate coverage to your real-world results and set unit prices. Grout scales automatically for tile size, joint, and thickness from a 12×12×3/8" / 1/8"-joint baseline.</p>
+            <h2 className="ft-serif text-3xl flex items-center gap-2">General <HelpTip className="align-middle" w={300} tip={<>Calibrate coverage to your real-world results and set unit prices. Grout scales automatically for tile size, joint, and thickness from a 12×12×3/8" / 1/8"-joint baseline. Waste is the rate a new project starts with. Each job carries its own waste from there - changing these never touches a project that already exists.</>} /></h2>
             <div className="mt-5 flex gap-6">
               <div><label className={lbl}>Tile waste (%)</label><input type="number" value={settings.waste.tile} onChange={(e) => setSettings({ waste: { ...settings.waste, tile: e.target.value } })} className={inp + " w-28"} /></div>
               <div><label className={lbl}>Flooring waste (%)</label><input type="number" value={settings.waste.floor} onChange={(e) => setSettings({ waste: { ...settings.waste, floor: e.target.value } })} className={inp + " w-28"} /><div className="text-[11px] text-slate-400 mt-1">Hardwood, vinyl, laminate, carpet</div></div>
-              <div className="text-[11px] text-slate-400 self-end pb-1 max-w-[15rem]">The rates a new project starts with. Each job carries its own waste from there — changing these never touches a project that already exists.</div>
             </div>
             <div className="mt-8 pt-6 border-t border-slate-100">
-              <label className={lbl + " mb-2"}>Shop address <HelpTip className="align-middle" w={300} tip="Where job distance is measured from. Team-wide — one address, so a distance means the same thing whoever looked it up. Leave blank to turn job distance off." /></label>
+              <label className={lbl + " mb-2"}>Shop address <HelpTip className="align-middle" w={300} tip="Where job distance is measured from. Team-wide — one address, so a distance means the same thing whoever looked it up. Leave blank to turn job distance off. Job distance is internal - it never prints on an estimate." /></label>
               <div className="max-w-xl">
                 <AddressField suggest value={settings.shop?.address || ""} onChange={(v) => setSettings({ shop: { address: v } })} inp={inp} placeholder="Shop address…" ping={ping} />
               </div>
-              <div className="text-[11px] text-slate-400 mt-1">Job distance is internal — it never prints on an estimate.</div>
               <div className="flex items-center gap-2 mt-2">
                 <button type="button" onClick={runProbe} disabled={probing}
                   className="rounded-md border border-slate-200 px-2.5 py-1 text-[12px] font-semibold text-slate-500 hover:border-indigo-300 hover:text-indigo-700 disabled:opacity-40">
