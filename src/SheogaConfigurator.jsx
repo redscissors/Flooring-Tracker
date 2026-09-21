@@ -5,7 +5,7 @@
 // row keeps the raw configuration (product.sheoga) so Reconfigure reopens here.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { X, Grid3X3, Plus, ChevronUp } from "lucide-react";
-import { useEscClose } from "./widgets.jsx";
+import { useEscClose, HelpTip } from "./widgets.jsx";
 import {
   MODES, HB_RETIRED, defaultConfig, calcConfig, calcFloor, calcStocked, calcHerringbone, calcVent,
   floorBase, floorWidths, floorCellCost, floorGridIncludes, WIDTHS, WIDTH_LABEL, LIVE_SAWN_SP, LIVE_SAWN, SPECIES, SP_SHORT, UNFINISHED,
@@ -26,13 +26,19 @@ const fm = (n) => "$" + n.toFixed(2);
 const fmInt = (n) => "$" + n.toLocaleString(undefined, { maximumFractionDigits: 0 });
 const clampPct = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 0; };
 
+// Standing help behind the headings' ? (ADR 0045).
+const SHEOGA_TIP = <>Bought by description - no SKUs. The description is the order - read it to Sheoga, or reconfigure from the row later. Sheet prices are distributor cost · flooring effective Jan 19 2026 · vents Feb 2022 · custom orders 5-10% overrun, no returns.</>;
+const MULTI_WIDTH_TIP = <>Split ∝ width, editable - tick the widths above; job size splits proportionally to plank width. Adjust each share on the right.</>;
+const DAMPER_TIP = <>Loose dampers. To price a damper attached to a vent (+$5 attach), use the Wood vents tab.</>;
+
 // --- small option controls ----------------------------------------------------
 
-function Sect({ title, hint, extra, children }) {
+function Sect({ title, hint, tip, extra, children }) {
   return (
     <div className="mb-4">
       <div className="flex items-baseline gap-2 mb-1.5">
         <span className="ft-eyebrow text-[10px]">{title}</span>
+        {tip && <HelpTip className="align-middle" w={280} tip={tip} />}
         {extra}
         {hint && <span className="ml-auto text-[10.5px] text-slate-400">{hint}</span>}
       </div>
@@ -147,15 +153,13 @@ function WidthRow({ items, cur, multi, selected, onPick, onToggle, onMultiToggle
       <div className="mt-2.5 rounded-lg p-3" style={{ border: "1px solid var(--ft-tint-border)", background: "var(--ft-tint)" }}>
         <div className="flex items-center gap-2.5">
           <span className="ft-eyebrow text-[10px]">Multi-width</span>
-          <span className="text-[11px] font-semibold text-slate-500">How many widths?</span>
+          <span className="text-[11px] font-semibold text-slate-500 inline-flex items-center gap-1.5">How many widths? <HelpTip className="align-middle" w={280} tip={MULTI_WIDTH_TIP} /></span>
           <div className="inline-flex rounded-md border border-slate-300 overflow-hidden bg-white">
             <button onClick={() => onStep(-1)} className="w-7 h-7 text-base font-bold">−</button>
             <span className="w-8 text-center font-bold text-[13px] leading-7">{count}</span>
             <button onClick={() => onStep(1)} className="w-7 h-7 text-base font-bold">+</button>
           </div>
-          <span className="ml-auto text-[10.5px] text-slate-400 font-medium">split ∝ width · editable →</span>
         </div>
-        <div className="mt-1.5 text-[11px] text-slate-500 font-medium">Tick the widths above; job size splits proportionally to plank width. Adjust each share on the right.</div>
       </div>
     )}
   </>);
@@ -656,12 +660,11 @@ function VentRail({ v, set, tsell, onGrid, onCopyFloor, copySrc }) {
 
 function DamperRail({ d, set, tsell }) {
   return (<>
-    <Sect title="Size" hint="sell each at markup">
+    <Sect title="Size" hint="sell each at markup" tip={DAMPER_TIP}>
       <Chips cur={d.size} onPick={(size) => set({ ...d, size })}
         items={Object.keys(DAMPERS).map((sz) => ({ id: sz, label: sz + '"', sub: fm(tsell(DAMPERS[sz])) }))} />
     </Sect>
     <Sect title="Quantity"><QtyInput value={d.qty} onChange={(qty) => set({ ...d, qty })} /></Sect>
-    <p className="text-[11px] text-slate-400 leading-relaxed font-medium">Loose dampers. To price a damper attached to a vent (+$5 attach), use the Wood vents tab.</p>
   </>);
 }
 
@@ -1512,12 +1515,6 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
         className="w-20 rounded-md border border-slate-300 px-2 py-1 text-center text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500" data-sheoga-sf /> sq ft
     </label>
   );
-  const priceNote = (
-    <p className="mt-3 text-[10.5px] text-slate-400 font-medium leading-relaxed">
-      Sheet prices are distributor cost · flooring effective Jan 19 2026 · vents Feb 2022 · custom orders 5–10% overrun, no returns.
-    </p>
-  );
-
   const tierBar = (
     <TierBar value={tierId} customPct={customPct} builderPct={builderPct} salePct={salePct}
       onPick={(v) => setTier({ priceTier: v })} onPct={(v) => setTier({ priceTier: "custom", customPct: v })} />
@@ -1526,7 +1523,7 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
     <div className="flex items-center gap-3 px-4 pt-3">
       <div className="leading-tight">
         <div className="ft-eyebrow text-[9px]">Vendor configurator</div>
-        <div className="text-lg font-extrabold">Sheoga Hardwood <span className="text-xs font-semibold text-slate-500 ml-1.5">bought by description — no SKUs</span></div>
+        <div className="text-lg font-extrabold inline-flex items-center gap-2">Sheoga Hardwood <HelpTip className="align-middle" w={300} tip={SHEOGA_TIP} /></div>
       </div>
       <div className="ml-auto flex items-center gap-3">
         {isWide && tierBar}
@@ -1587,13 +1584,11 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
               ) : (
                 <BuildCard c={c} sell={sell} activeMarkup={activeMarkup} tierId={tierId} pct={pct} tierColor={tierColor} tfee={tfee} isEa={isEa} qty={qty} ctn={ctn} feesTot={feesTot} jobTot={jobTot} sf={sf} onGrid={dockGrid ? null : () => setGrid(true)} onAdd={add} onAddBasket={addSingleToBasket} />
               ))}
-              {priceNote}
             </div>
           </div>
           <div className="flex items-center gap-5 px-4 py-2.5 border-t border-slate-300" style={{ background: "var(--ft-cream)" }}>
             {markupInput}
             {sfInput}
-            <span className="ml-auto text-[10.5px] text-slate-400 font-medium">The description is the order — read it to Sheoga, or reconfigure from the row later.</span>
           </div>
         </>) : (<>
           {/* mobile: options fill the screen; price bar pinned; sheet pulls up */}
@@ -1643,7 +1638,6 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
                 onAddBasket={addBundleToBasket} onMove={moveBundleToLine} showActions={false} />
             ) : (c && <BuildCard c={c} sell={sell} activeMarkup={activeMarkup} tierId={tierId} pct={pct} tierColor={tierColor} tfee={tfee} isEa={isEa} qty={qty} ctn={ctn} feesTot={feesTot} jobTot={jobTot} sf={sf} showActions={false} />)}
             <div className="flex items-center gap-5 px-1 pt-3">{markupInput}{sfInput}</div>
-            {priceNote}
           </MobileBuildSheet>
           {mobileGrid && gridTab && (
             <div className="absolute inset-0 z-[58] flex flex-col bg-white" data-sheoga-gridsheet>

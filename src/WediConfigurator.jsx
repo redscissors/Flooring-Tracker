@@ -10,14 +10,14 @@
 // "Add to product lines" hands lineItems() payloads back to the caller; the
 // anchor row keeps the raw configuration (product.wedi) so Reconfigure reopens
 // here pre-filled.
-import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Plus, Printer, Copy, Eye } from "lucide-react";
-import { useEscClose, SourceSwitch, NumIn, KitBasketPanel, KitOverwriteConfirm } from "./widgets.jsx";
+import { useEscClose, SourceSwitch, NumIn, KitBasketPanel, KitOverwriteConfirm, HelpTip } from "./widgets.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
   item, group, pans, curbs, kitFor, solve, figureConsumables, panelPlan,
-  expandWallFaces, WALL_THICK, curbWidth, curbInsets, applyCurbInset, openCorners, curbRuns, CORNER_CUT, BROWSE_SECTIONS, sectionHit,
+  expandWallFaces, WALL_THICK, curbWidth, curbInsets, applyCurbInset, openCorners, curbRuns, BROWSE_SECTIONS, sectionHit,
   tierPrice, lineItems, coverFrames, inch, round2, TIERS, SKU, MODULE_DEPTH, MODEXT_DEPTH,
   FINISHES, GROUP_LABEL, BUILDER_MULT, SO_MIN_NET,
   normBench, benchPremades, benchPanRoom, benchPanPlan, smallerPanFor,
@@ -396,8 +396,6 @@ const CSS = `
 .wedi-pop .ptable .mono{font-weight:700;white-space:nowrap}
 .wedi-pop .ptable .mark{font-size:9.5px;font-weight:700;color:var(--ft-brand-deep);background:var(--ft-brand-soft);border-radius:4px;padding:1px 6px;white-space:nowrap}
 .wedi-pop .ptable .mark.part{color:var(--ft-faint);background:var(--ft-sand)}
-.wedi-pop .mnote{font-size:11px;color:var(--ft-muted);line-height:1.55;margin-top:10px}
-.wedi-pop .mnote b{color:var(--ft-text)}
 .wedi-toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--ft-text);color:var(--ft-cream);border:1px solid var(--ft-border-strong);font-size:12.5px;font-weight:700;border-radius:8px;padding:10px 18px;z-index:95;box-shadow:0 12px 40px rgba(0,0,0,.4);font-family:var(--ft-ui)}
 `;
 
@@ -2421,6 +2419,13 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     );
   })();
 
+  const payloadTip = (<>
+    Rows land <b>RETAIL</b> - the job sheet's own tier lens reprices them (ADR 0018). The one wedi rule rides
+    along: every line carries <b>tierPrice = retail × {bMult.toFixed(2)}</b>, which pricing.js prefers over the
+    flat Builder %. The anchor (pan) row carries <b>wedi:{"{mode,cfg}"}</b> so the "wedi - reconfigure" chip
+    reopens this popup pre-filled; companions carry <b>wedi:{"{part:true}"}</b>. Stocked rows key the ERP SKU;
+    special-order rows go by description with the US-SKU leading it. Quantities and prices stay editable on the row afterwards.
+  </>);
   const payloadModal = payload && (
     // Stop the click here: this backdrop sits inside the popup's own backdrop,
     // which would otherwise read the same press as "close the configurator".
@@ -2429,7 +2434,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
       <div className="wedi-pop w-full max-w-[900px] max-h-[82vh] flex flex-col rounded-xl overflow-hidden shadow-2xl"
         style={{ background: "var(--ft-cream)" }} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2.5 px-4 py-3 border-b" style={{ borderColor: "var(--ft-border-strong)" }}>
-          <div className="text-sm font-extrabold">{edit ? "Update this kit — the payload" : "Add to product lines — the payload"}</div>
+          <div className="text-sm font-extrabold inline-flex items-center gap-1.5">{edit ? "Update this kit — the payload" : "Add to product lines — the payload"} <HelpTip className="align-middle" w={320} tip={payloadTip} /></div>
           <div className="text-[11px] font-semibold text-slate-500">{payload.length} rows {edit ? "replace this kit's lines" : "land on the job sheet"}{areaName ? " in " + areaName : ""}</div>
           <button className="xbtn ml-auto" onClick={() => setPayload(null)}><X size={15} /></button>
         </div>
@@ -2453,17 +2458,9 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
               ))}
             </tbody>
           </table>
-          <div className="mnote">
-            Rows land <b>RETAIL</b> — the job sheet's own tier lens reprices them (ADR 0018). The one wedi rule rides
-            along: every line carries <b>tierPrice = retail × {bMult.toFixed(2)}</b>, which pricing.js prefers over the
-            flat Builder %. The anchor (pan) row carries <b>wedi:{"{mode,cfg}"}</b> so the "wedi — reconfigure" chip
-            reopens this popup pre-filled; companions carry <b>wedi:{"{part:true}"}</b>. Stocked rows key the ERP SKU;
-            special-order rows go by description with the US-SKU leading it.
-          </div>
         </div>
         <div className="flex items-center gap-2 px-4 py-3 border-t" style={{ borderColor: "var(--ft-border-strong)", background: "var(--ft-sand)" }}>
-          <span className="text-[11px] font-semibold text-slate-500">Quantities and prices stay editable on the row afterwards.</span>
-          <button className="wbtn" style={{ flex: "none", padding: "8px 14px" }} onClick={() => setPayload(null)}>Cancel</button>
+          <button className="wbtn ml-auto" style={{ flex: "none", padding: "8px 14px" }} onClick={() => setPayload(null)}>Cancel</button>
           {edit && onAddNew && (
             <button className="wbtn" style={{ flex: "none", padding: "8px 14px" }} data-wedi-addnew
               onClick={() => { setPayload(null); onAddNew(payload); }}>
