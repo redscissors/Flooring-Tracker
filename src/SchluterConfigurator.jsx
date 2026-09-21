@@ -11,7 +11,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Plus, Eye, Printer, Copy } from "lucide-react";
-import { useEscClose, SourceSwitch, NumIn, KitBasketPanel, KitOverwriteConfirm } from "./widgets.jsx";
+import { useEscClose, SourceSwitch, NumIn, KitBasketPanel, KitOverwriteConfirm, HelpTip } from "./widgets.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
   trayCandidates, pickRolls, buildKit, tierPrice, lineItems, orderCopyLines, normBench, benchTrayRoom,
@@ -22,6 +22,11 @@ import { useSchluterCatalog } from "./useschlutercatalog.js";
 import { normKitBasketEntry } from "./model.js";
 import { schluterDiag, schluterWalls, schluterWallOn, schluterCurb, schluterOpenCorners, schluterCuts } from "./schluterdraw.js";
 import { TopDown, Iso, railSplit, RAIL_DESIGN_W, round2, WALL_THICK } from "./showerdraw.jsx";
+
+// Standing help behind the headings' ? (ADR 0045).
+const ADDONS_TIP = <>Benches: the Bench chip, or hover the tray on the drawing along a wall or into a corner and click the zone - a bench's own zone edits its size and build. Right-click a wall band for its size.</>;
+const BENCH_PICK_TIP = <>A pick lands on the next open wall or corner; its zone on the drawing edits size, build and placement.</>;
+const NICHE_PICK_TIP = <>Self-contained: band frame + screws in the box.</>;
 
 // The Compare tab drags in comparekit → BOTH engines' tables, so it stays its
 // own chunk behind this popup's own lazy boundary (ADR 0026).
@@ -287,9 +292,6 @@ const CSS = `
 .sch-pop .ptable .mono{font-weight:700;white-space:nowrap}
 .sch-pop .ptable .mark{font-size:9.5px;font-weight:700;color:var(--ft-brand-deep);background:var(--ft-brand-soft);border-radius:4px;padding:1px 6px;white-space:nowrap}
 .sch-pop .ptable .mark.part{color:var(--ft-faint);background:var(--ft-sand)}
-.sch-pop .mnote{font-size:11px;color:var(--ft-muted);line-height:1.55;margin-top:10px}
-.sch-pop .mnote b{color:var(--ft-text)}
-.sch-pop .bg-hint{font-size:9.5px;color:var(--ft-faint);font-weight:600;line-height:1.4;padding:2px 0 0}
 .sch-swap{position:fixed;z-index:90;background:var(--ft-card);color:var(--ft-text);border:1px solid var(--ft-border-strong);border-radius:9px;box-shadow:0 18px 50px rgba(0,0,0,.3);width:300px;max-height:340px;overflow-y:auto;padding:6px;font-family:var(--ft-ui)}
 .sch-swap .ph{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.11em;color:var(--ft-muted);padding:6px 8px 4px}
 .sch-swap .srow{display:flex;align-items:center;gap:8px;width:100%;border:none;background:none;padding:6px 8px;border-radius:6px;cursor:pointer;text-align:left}
@@ -1592,7 +1594,7 @@ export default function SchluterConfigurator({
               a pick lands on the next open zone; the drawing's zones stay
               the place a bench moves, resizes or changes build. */}
           <div className="bgroup">
-            <div className="bg-h">Add-ons</div>
+            <div className="bg-h">Add-ons <HelpTip className="align-middle" w={280} tip={ADDONS_TIP} /></div>
             <div className="addchips">
               {(() => {
                 const extras = cat.filter((i) => i.g === "extra");
@@ -1641,7 +1643,6 @@ export default function SchluterConfigurator({
                 </>);
               })()}
             </div>
-            <div className="bg-hint">Benches: the Bench chip, or hover the tray on the drawing along a wall or into a corner and click the zone — a bench's own zone edits its size and build. Right-click a wall band for its size.</div>
           </div>
           {stockStat && (
             <div className="bc-meter">
@@ -1725,13 +1726,20 @@ export default function SchluterConfigurator({
     </div>
   );
 
+  const payloadTip = (<>
+    Rows land <b>RETAIL</b> - the job sheet's own tier lens reprices them (ADR 0018). Every line carries
+    <b> tierPrice = retail −{bPct}%</b> (the Schluter Builder knob, ADR 0032). The anchor (tray) row carries
+    <b> schluter:{"{mode,cfg}"}</b> so the "Schluter - reconfigure" chip reopens this popup pre-filled;
+    companions carry <b>schluter:{"{part:true}"}</b>. Stocked rows key the shop's ERP SKU; special-order rows
+    go by description. Quantities and prices stay editable on the row afterwards.
+  </>);
   const payloadModal = payload && (
     <div className="print:hidden fixed inset-0 z-[80] flex items-center justify-center p-8" style={{ background: "rgba(20,15,10,.5)" }}
       onClick={(e) => { e.stopPropagation(); setPayload(null); }}>
       <div className="sch-pop w-full max-w-[900px] max-h-[82vh] flex flex-col rounded-xl overflow-hidden shadow-2xl"
         style={{ background: "var(--ft-cream)" }} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2.5 px-4 py-3 border-b" style={{ borderColor: "var(--ft-border-strong)" }}>
-          <div className="text-sm font-extrabold">{edit ? "Update this kit — the payload" : "Add to product lines — the payload"}</div>
+          <div className="text-sm font-extrabold inline-flex items-center gap-1.5">{edit ? "Update this kit — the payload" : "Add to product lines — the payload"} <HelpTip className="align-middle" w={320} tip={payloadTip} /></div>
           <div className="text-[11px] font-semibold text-slate-500">{payload.length} rows {edit ? "replace this kit's lines" : "land on the job sheet"}{areaName ? " in " + areaName : ""}</div>
           <button className="xbtn ml-auto" onClick={() => setPayload(null)}><X size={15} /></button>
         </div>
@@ -1755,17 +1763,9 @@ export default function SchluterConfigurator({
               ))}
             </tbody>
           </table>
-          <div className="mnote">
-            Rows land <b>RETAIL</b> — the job sheet's own tier lens reprices them (ADR 0018). Every line carries
-            <b> tierPrice = retail −{bPct}%</b> (the Schluter Builder knob, ADR 0032). The anchor (tray) row carries
-            <b> schluter:{"{mode,cfg}"}</b> so the "Schluter — reconfigure" chip reopens this popup pre-filled;
-            companions carry <b>schluter:{"{part:true}"}</b>. Stocked rows key the shop's ERP SKU; special-order rows
-            go by description.
-          </div>
         </div>
         <div className="flex items-center gap-2 px-4 py-3 border-t" style={{ borderColor: "var(--ft-border-strong)", background: "var(--ft-sand)" }}>
-          <span className="text-[11px] font-semibold text-slate-500">Quantities and prices stay editable on the row afterwards.</span>
-          <button className="wbtn" style={{ flex: "none", padding: "8px 14px" }} onClick={() => setPayload(null)}>Cancel</button>
+          <button className="wbtn ml-auto" style={{ flex: "none", padding: "8px 14px" }} onClick={() => setPayload(null)}>Cancel</button>
           {edit && onAddNew && (
             <button className="wbtn" style={{ flex: "none", padding: "8px 14px" }} data-schluter-addnew
               onClick={() => { setPayload(null); onAddNew(payload); }}>
@@ -2029,7 +2029,7 @@ export default function SchluterConfigurator({
       });
       return createPortal(
         <div className="sch-swap sch-picker sch-benchmenu" style={style} data-schluter-picker onClick={(e) => e.stopPropagation()}>
-          <div className="ph">Benches — a pick lands on the next open wall or corner; its zone on the drawing edits size, build and placement</div>
+          <div className="ph">Benches <HelpTip className="align-middle ml-1" w={260} tip={BENCH_PICK_TIP} /></div>
           {benches.map((b2) => {
             const nb = normBench(b2, cfg, cat);
             const it = nb.part ? itemBySku(nb.part) : null;
@@ -2095,7 +2095,7 @@ export default function SchluterConfigurator({
     const list = pool(cat.filter((i) => i.g === "extra" && i.extra === "niche")).sort(byShelf);
     return createPortal(
       <div className="sch-swap sch-picker" style={style} data-schluter-picker onClick={(e) => e.stopPropagation()}>
-        <div className="ph">Niches — self-contained: band frame + screws in the box</div>
+        <div className="ph">Niches <HelpTip className="align-middle ml-1" w={220} tip={NICHE_PICK_TIP} /></div>
         {list.map((e) => {
           const n = qtyIn(e.sku);
           return (

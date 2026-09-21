@@ -34,10 +34,19 @@ help you can find when you need it, not help you have to look past.
 3. **One `?` per heading, not per sentence.** The tip carries the whole
    rule set for that surface or section; a surface does not sprout a trail
    of question marks.
-4. **Existing footers migrate as their surfaces are touched.** No sweep on
-   its own: a standing-help paragraph moves into a `?` the next time a
-   change already lands on that surface (with the usual preview proof). New
-   surfaces follow this from the start.
+4. **What stays inline, by name.** A confirm dialog's body that states
+   what the action will do (delete customer, land quote options) is the
+   confirmation itself, not help. A caption that changes with the current
+   selection ("included in the prefinish charge") is state. Text inside a
+   transient popover or menu is already found-when-needed, not always-on.
+   A short sub-label on a heading (`Sect hint=`, an eyebrow's tail) is a
+   label, not a paragraph. Printed sheets are out of scope: a `?` cannot
+   print. `title=` on a button names the action and is unaffected.
+5. **The existing footers were swept, not left to drift.** The owner asked
+   for the rule app-wide (2026-09-21), so every always-on standing-help
+   paragraph found in a survey of `src/` moved in one follow-up PR, with a
+   preview shot for each surface a dev harness reaches and the deploy
+   preview for the rest. New surfaces follow this from the start.
 
 ## Consequences
 

@@ -258,8 +258,7 @@ export function ImportRouter({ files, preferTarget, targets, sourceKeys, linkedS
       <div className="print:hidden fixed inset-0 flex items-center justify-center p-4 z-[60]" style={{ background: "rgba(20,15,10,.5)" }} onClick={onClose}>
         <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto p-5 border border-slate-200" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between mb-1">{/* Counts the rows, not the dropped files — the Add row can grow the pass. */}
-            <h3 className="ft-serif text-2xl">Route {(rows || files).length} file{(rows || files).length === 1 ? "" : "s"}</h3><button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button></div>
-          <p className="text-xs text-slate-400 mb-3">Files heading for the same book are reviewed together, one book at a time. Unfamiliar files need a book picked.</p>
+            <h3 className="ft-serif text-2xl inline-flex items-center gap-2">Route {(rows || files).length} file{(rows || files).length === 1 ? "" : "s"}<HelpTip className="align-middle" w={280} tip={<>Files heading for the same book are reviewed together, one book at a time. Unfamiliar files need a book picked.</>} /></h3><button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button></div>
           {rows == null ? <p className="text-sm text-slate-400 py-6 text-center">Reading files…</p> : (
             <div className="divide-y divide-slate-100 border border-slate-100 rounded-lg">
               {rows.map((r, i) => (
@@ -508,9 +507,9 @@ export function PriceBookLibrary({ books, addBook, updateBook, confirmBook, delB
           panels one control-height tall, and the standing-rule captions moved
           behind HelpTips — the board starts a full panel row higher. */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-baseline gap-2 min-w-0">
+        <div className="flex items-center gap-2 min-w-0">
           <h2 className="ft-serif text-xl">Price books</h2>
-          <p className="text-xs text-slate-400 truncate hidden sm:block">Every book in one place — grouped by portal sign-in.</p>
+          <HelpTip className="align-middle" tip={<>Every book in one place - grouped by portal sign-in.</>} />
         </div>
         <div className="flex items-center gap-2 shrink-0 flex-wrap">
           {sel === "library" && (
@@ -761,11 +760,13 @@ export function ManualSourcesCard({ sources, onDeclare, onUndeclare, inp }) {
     // are remapped near-white, leaving the card unreadable in dark mode.
     <div className="mt-3 max-w-xl rounded-lg border border-slate-200 bg-slate-50/50 px-3 py-2.5">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[9px] font-semibold uppercase tracking-widest text-slate-400">Added by hand</span>
+        <span className="text-[9px] font-semibold uppercase tracking-widest text-slate-400 inline-flex items-center gap-1.5">Added by hand
+          <HelpTip className="align-middle" w={280} tip={<>Say so here if this book also needs a file you supply yourself - a chart or spec sheet the portal doesn't serve - and every refresh will ask for it.</>} />
+        </span>
         {!adding && <button onClick={() => setAdding(true)} className="text-[11px] font-medium text-slate-500 hover:text-slate-700">+ Needs another file</button>}
       </div>
       {manual.length === 0 && !adding && (
-        <p className="mt-1 text-[11px] text-slate-400">Nothing. Say so here if this book also needs a file you supply yourself — a chart or spec sheet the portal doesn’t serve — and every refresh will ask for it.</p>
+        <p className="mt-1 text-[11px] text-slate-400">Nothing.</p>
       )}
       <div className="mt-1 space-y-1">
         {manual.map((s) => (
@@ -845,12 +846,14 @@ function ConfirmCurrentCard({ book, stale: st, conf, onConfirm }) {
   if (!onConfirm || (!book.data?.lastImport && !conf)) return null;
   return (
     <div className={`mt-3 w-72 shrink-0 rounded-lg border px-3 py-2.5 ${st.stale ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-slate-50/50"}`}>
-      <span className={`text-[9px] font-semibold uppercase tracking-widest ${st.stale ? "text-amber-700" : "text-slate-400"}`}>Still good?</span>
-      <p className={`mt-1 text-[11px] ${st.stale ? "text-amber-700" : "text-slate-400"}`}>
-        {conf
-          ? <>Confirmed current {new Date(conf.at).toLocaleDateString()}{conf.by ? ` by ${conf.by}` : ""} — the stale clock restarted there.</>
-          : <>Checked the vendor's list and nothing moved? Confirm it — the {st.threshold}-day stale clock restarts from today, no re-import needed.</>}
-      </p>
+      <span className={`text-[9px] font-semibold uppercase tracking-widest inline-flex items-center gap-1.5 ${st.stale ? "text-amber-700" : "text-slate-400"}`}>Still good?
+        <HelpTip className="align-middle" w={280} tip={<>Checked the vendor's list and nothing moved? Confirm it - the {st.threshold}-day stale clock restarts from today, no re-import needed.</>} />
+      </span>
+      {conf && (
+        <p className={`mt-1 text-[11px] ${st.stale ? "text-amber-700" : "text-slate-400"}`}>
+          Confirmed current {new Date(conf.at).toLocaleDateString()}{conf.by ? ` by ${conf.by}` : ""} — the stale clock restarted there.
+        </p>
+      )}
       <button onClick={onConfirm} className={`mt-2 flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium ${st.stale ? "border-amber-300 bg-white text-amber-800 hover:bg-amber-100" : "border-slate-200 text-slate-600 hover:bg-white"}`}>
         <Check size={12} /> {conf ? "Confirm again" : "Confirm prices current"}
       </button>
@@ -1445,9 +1448,8 @@ export function MarkupEditor({ book, items, onSave, inp, lbl, embedded }) {   //
         <div className="flex items-center gap-2 flex-wrap">
           {!embedded && <Percent size={14} className="text-slate-400" />}
           {!embedded && <span className="text-sm font-medium">Markup</span>}
-          <span className="text-[11px] text-slate-400">selling price = the vendor's published retail</span>
+          <HelpTip className="align-middle" w={300} tip={<>selling price = the vendor's published retail. No markup applies to this book. Its price sheet carries the vendor's own retail on every row, so a pick sells at that retail and the cost column is the distributor's net - nothing sells at cost. A markup typed here would not change any price.</>} />
         </div>
-        <p className="mt-1.5 text-[11.5px] text-slate-500 max-w-xl">No markup applies to this book. Its price sheet carries the vendor's own retail on every row, so a pick sells at that retail and the cost column is the distributor's net — nothing sells at cost. A markup typed here would not change any price.</p>
       </div>
     );
   }
@@ -1460,7 +1462,7 @@ export function MarkupEditor({ book, items, onSave, inp, lbl, embedded }) {   //
       <div className="flex items-center gap-2 flex-wrap">
         {!embedded && <Percent size={14} className={noMarkup ? "text-red-500" : "text-slate-400"} />}
         {!embedded && <span className={"text-sm font-medium " + (noMarkup ? "text-red-600" : "")}>Markup</span>}
-        <span className={"text-[11px] " + (noMarkup ? "text-red-600" : "text-slate-400")}>selling price = cost × (1 + markup)</span>
+        <HelpTip className="align-middle" tip={<>selling price = cost × (1 + markup)</>} />
       </div>
       {noMarkup && (
         <p className="mt-1.5 text-[11.5px] text-red-600">No markup set — every item in this book sells at the vendor's cost, and so does every job that picks one.</p>
@@ -1550,9 +1552,7 @@ export function FreightCard({ book, onSave, inp, lbl, embedded }) {   // exporte
       <div className="flex items-center gap-2 flex-wrap">
         {!embedded && <Truck size={14} className="text-slate-400" />}
         {!embedded && <span className="text-sm font-medium">Freight</span>}
-        <span className="text-[11px] text-slate-400 flex items-center gap-1.5">charged once per order, on top of the item cost
-          <HelpTip tip="Rates read live — changing one moves every open quote, saved estimates included." />
-        </span>
+        <HelpTip className="align-middle" w={300} tip={<>Charged once per order, on top of the item cost. Rates read live - changing one moves every open quote, saved estimates included.{on && <><br />120 sf of 12×12 → <b>{demo(120, 12, 12)}</b> · 120 sf of 12×12 mosaic → <b>{demo(120, 12, 12, "Mosaic")}</b> · 120 sf of 8×16 → <b>{demo(120, 8, 16)}</b> · 300 sf of 12×24 → <b>{demo(300, 12, 24)}</b></>}</>} />
         {/* Switching a blank program on prefills it — but only on the book the
             transcribed sheet belongs to (freightSeedFor). Any other vendor opens
             empty rather than wearing Glazzio's rates. */}
@@ -1600,9 +1600,6 @@ export function FreightCard({ book, onSave, inp, lbl, embedded }) {   // exporte
               </div>
             ))}
           </div>
-          <p className="text-[11px] text-slate-400 mt-3">
-            120 sf of 12×12 → <b className="text-slate-500">{demo(120, 12, 12)}</b> · 120 sf of 12×12 mosaic → <b className="text-slate-500">{demo(120, 12, 12, "Mosaic")}</b> · 120 sf of 8×16 → <b className="text-slate-500">{demo(120, 8, 16)}</b> · 300 sf of 12×24 → <b className="text-slate-500">{demo(300, 12, 24)}</b>
-          </p>
           {isSeedBook(book) && freightIsSeed(f) && (
             <p className="text-[11px] text-amber-600 mt-1.5">
               Prefilled from the Glazzio 2026 shipping sheet, Ohio column — check it against the sheet in hand before quoting from it.
@@ -1675,17 +1672,16 @@ export function ContactsCard({ book, onSave, inp, lbl }) {   // exported for the
         <div><label className={lbl}>Phone</label><input value={form.repPhone} onChange={set("repPhone")} placeholder="(555) 555-0100" className={inp} /></div>
       </div>
 
-      <div className="ft-eyebrow text-[10px] tracking-[.12em] text-slate-500 mt-4 mb-1.5">Sample requests</div>
+      <div className="ft-eyebrow text-[10px] tracking-[.12em] text-slate-500 mt-4 mb-1.5 inline-flex items-center gap-1.5">Sample requests
+        <HelpTip className="align-middle" w={280} tip={<>Leave blank to send sample requests to the rep. The Samples panel emails this vendor here - samples ship to the customer, so this is just who gets the request.</>} />
+      </div>
       <div className="grid grid-cols-2 gap-3">
         <div><label className={lbl}>Name or company</label><input value={form.sampleName} onChange={set("sampleName")} placeholder="Glazzio samples desk" className={inp} /></div>
         <div><label className={lbl}>Email</label><input value={form.sampleEmail} onChange={set("sampleEmail")} placeholder="samples@vendor.com" className={inp} /></div>
       </div>
-      <p className="text-[11px] text-slate-400 mt-1.5">Leave blank to send sample requests to the rep.</p>
-
       <div className="mt-3 flex items-center gap-2">
         <button disabled={!dirty} onClick={save}
           className="rounded-md bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 text-xs font-semibold disabled:opacity-40">Save</button>
-        <span className="text-[11px] text-slate-400">The Samples panel emails this vendor here — samples ship to the customer, so this is just who gets the request.</span>
       </div>
     </div>
   );
@@ -1778,19 +1774,12 @@ function ImportDiffDetail({ bucket, diff, hideCosts, canFlag, flaggedSkus, onFla
 
 // The amber surface stays light under the dark theme while slate inks are
 // remapped to near-white, so it states an amber ink instead of inheriting.
-// Exported for the preview harness.
 function AddFileNotice({ knownSlot }) {
   return (
-    <div className={"mb-2 rounded-lg border px-3 py-2 text-[11.5px] " + (knownSlot ? "border-amber-200 bg-amber-50 text-amber-900" : "border-slate-200 text-slate-500")}>
-      {knownSlot ? (
-        <>
-          <span className="font-medium">This file is already one of this book's sources</span> — last seen as “{knownSlot.label}”.
-          Adding it refreshes the rows it contains but retires nothing, so anything dropped from the file stays in the book.
-          To make it the book's full contents instead, close this and use <span className="font-medium">Import…</span>.
-        </>
-      ) : (
-        <>Adding a file to this book: its rows join the existing ones and <span className="font-medium">nothing is retired</span>. The book will remember it, so a later import can tell when it's missing.</>
-      )}
+    <div className="mb-2 rounded-lg border px-3 py-2 text-[11.5px] border-amber-200 bg-amber-50 text-amber-900">
+      <span className="font-medium">This file is already one of this book's sources</span> — last seen as “{knownSlot.label}”.
+      Adding it refreshes the rows it contains but retires nothing, so anything dropped from the file stays in the book.
+      To make it the book's full contents instead, close this and use <span className="font-medium">Import…</span>.
     </div>
   );
 }
@@ -2069,9 +2058,14 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
   return (
     <div className="print:hidden fixed inset-0 flex items-center justify-center p-4 z-[60]" style={{ background: "rgba(20,15,10,.5)" }} onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-5xl max-h-[92vh] overflow-y-auto p-5 border border-slate-200" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-3"><h3 className="ft-serif text-2xl">Import — {book.name || "book"}</h3><button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button></div>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="ft-serif text-2xl inline-flex items-center gap-2">Import — {book.name || "book"}
+            <HelpTip className="align-middle" w={300} tip={<>{addMode && <>Adding a file to this book: its rows join the existing ones and <b>nothing is retired</b>. The book will remember it, so a later import can tell when it's missing. </>}Nothing is saved until you apply. The file is parsed here in your browser.</>} />
+          </h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+        </div>
         {stepNote}
-        {addMode && <AddFileNotice knownSlot={knownSlot} />}
+        {addMode && knownSlot && <AddFileNotice knownSlot={knownSlot} />}
 
         {!sheets ? (
           <div className="py-8 text-center">
@@ -2080,7 +2074,6 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
               <input type="file" accept=".xlsx,.xls,.pdf,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={onFile} className="hidden" />
             </label>
             {err && <p className="text-xs text-red-500 mt-3">{err}</p>}
-            <p className="text-[11px] text-slate-400 mt-3 max-w-md mx-auto">Nothing is saved until you apply. The file is parsed here in your browser.</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -2195,9 +2188,9 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
               {lastOfBundle && sheet && items.length > 0 && (
                 <label className="mt-2 flex items-start gap-2 text-xs cursor-pointer">
                   <input type="checkbox" className="mt-0.5" checked={force} onChange={(e) => setForce(e.target.checked)} />
-                  <span className="min-w-0">
+                  <span className="min-w-0 inline-flex items-center gap-1.5">
                     <span className="font-medium text-slate-600">Force full re-import — rewrite every row &amp; re-sync</span>
-                    <span className="block text-[11px] text-slate-400">Pushes the whole sheet through even when nothing changed: rewrites all {rewriteCount} row{rewriteCount === 1 ? "" : "s"}, re-stamps the import date, and re-runs the linked-catalog / family sync. Rows missing from the sheet still retire.</span>
+                    <HelpTip className="align-middle" w={300} tip={<>Pushes the whole sheet through even when nothing changed: rewrites all {rewriteCount} row{rewriteCount === 1 ? "" : "s"}, re-stamps the import date, and re-runs the linked-catalog / family sync. Rows missing from the sheet still retire.</>} />
                   </span>
                 </label>
               )}
@@ -2232,7 +2225,9 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
             {problems.length > 0 && (
               <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <span className="text-sm font-medium text-amber-800">{problems.length} problem row{problems.length === 1 ? "" : "s"} — these will misprice unless fixed at the source</span>
+                  <span className="text-sm font-medium text-amber-800 inline-flex items-center gap-1.5">{problems.length} problem row{problems.length === 1 ? "" : "s"} — these will misprice unless fixed at the source
+                    <HelpTip className="align-middle" w={280} tip={<>Ignored rows still import, but disabled - hidden from SKU search. Turn any back on later from the book table.</>} />
+                  </span>
                   <div className="flex gap-2 text-xs">
                     <button onClick={() => setIgnored(new Set(problems.map((p) => p.it.sku)))} className="rounded-md border border-amber-300 px-2 py-1 text-amber-700 hover:bg-amber-100">Ignore all</button>
                     <button onClick={() => setIgnored(new Set())} className="rounded-md border border-slate-200 px-2 py-1 text-slate-500 hover:bg-white">Include all</button>
@@ -2250,7 +2245,7 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
                     );
                   })}
                 </div>
-                <p className="mt-1.5 text-[11px] text-amber-700">Ignored rows still import, but disabled — hidden from SKU search. Turn any back on later from the book table.{quietNote ? ` ${quietNote}.` : ""}</p>
+                {quietNote && <p className="mt-1.5 text-[11px] text-amber-700">{quietNote}.</p>}
               </div>
             )}
             {problems.length === 0 && quietNote && (
@@ -2259,7 +2254,9 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
 
             {supersedes.length > 0 && (
               <div className="rounded-lg border border-slate-200 p-3">
-                <span className="text-sm font-medium">{supersedes.length} superseded SKU{supersedes.length === 1 ? "" : "s"} — a new “N” code replaces an older one</span>
+                <span className="text-sm font-medium inline-flex items-center gap-1.5">{supersedes.length} superseded SKU{supersedes.length === 1 ? "" : "s"} — a new “N” code replaces an older one
+                  <HelpTip className="align-middle" w={280} tip={<>Checked = disable the old SKU (kept for saved estimates, just hidden from new search). Uncheck to keep it active.</>} />
+                </span>
                 <div className="mt-2 max-h-56 overflow-y-auto divide-y divide-slate-100 border-t border-slate-100">
                   {supersedes.map((p) => (
                     <label key={`${p.oldSku}>${p.newSku}`} className="py-1.5 flex items-center gap-2 text-xs cursor-pointer">
@@ -2272,13 +2269,14 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
                     </label>
                   ))}
                 </div>
-                <p className="mt-1.5 text-[11px] text-slate-400">Checked = disable the old SKU (kept for saved estimates, just hidden from new search). Uncheck to keep it active.</p>
               </div>
             )}
 
             {reclassified.length > 0 && (
               <div className="rounded-lg border border-slate-200 p-3">
-                <span className="text-sm font-medium">{reclassified.length} trim{reclassified.length === 1 ? "" : "s"} will quote per piece — the sheet prices them by the square foot off coverage that isn't real</span>
+                <span className="text-sm font-medium inline-flex items-center gap-1.5">{reclassified.length} trim{reclassified.length === 1 ? "" : "s"} will quote per piece — the sheet prices them by the square foot off coverage that isn't real
+                  <HelpTip className="align-middle" w={280} tip={<>Checked = sells per piece (enter pieces on the job; carton-sold SKUs round up to whole cartons). Uncheck to keep one a square-foot line.</>} />
+                </span>
                 <div className="mt-2 max-h-56 overflow-y-auto divide-y divide-slate-100 border-t border-slate-100">
                   {reclassified.map((it) => (
                     <label key={it.sku} className="py-1.5 flex items-center gap-2 text-xs cursor-pointer">
@@ -2289,7 +2287,6 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
                     </label>
                   ))}
                 </div>
-                <p className="mt-1.5 text-[11px] text-slate-400">Checked = sells per piece (enter pieces on the job; carton-sold SKUs round up to whole cartons). Uncheck to keep one a square-foot line.</p>
               </div>
             )}
 

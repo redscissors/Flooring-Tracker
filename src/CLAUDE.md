@@ -1663,9 +1663,10 @@ src/
   CompareTab.jsx    # the Compare surface (phase 5, ADR 0034, prototype P3):
                     # the fourth tab in EITHER vendor popup — the category rail
                     # beside a wedi column and a Schluter column, a Retail/
-                    # Builder lens, totals + the delta line (with the
-                    # walls-aren't-apples-to-apples caveat), the three
-                    # diffnotes cards, and the optional quote-options footer,
+                    # Builder lens, totals + the delta line, and the optional
+                    # quote-options footer (its standing notes — the walls
+                    # caveat, the three difference cards, the quote-options
+                    # caption — live behind one ? on the title, ADR 0045),
                     # whose confirm modal takes its own rung on the Esc ladder
                     # (useEscClose, ADR 0028) so a press dismisses the modal
                     # and leaves the live build standing. The popup passes its

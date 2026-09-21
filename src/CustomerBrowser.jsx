@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { X, Search, Plus, Users, Folder, FileText, ChevronRight, ChevronDown, ArrowUpRight, Zap, Clock, Check, Layers } from "lucide-react";
 import { browserRows, quickRows, draftRows, filterRows, filterBySales, sortRows, groupBySales, salesNameOf, salesRoster, defaultSalesFilter, shortDate, projNos, erpNos, SORTS, NO_SALES, normColOrder, moveCol, custSamples, filterBySamples, normPanelH, clampPanelH, stripOpenDefault, STRIP_H, LINES_H } from "./custbrowser.js";
 import { erpNosOf } from "./erporders.js";
-import { useEscClose, DotMenu } from "./widgets.jsx";
+import { useEscClose, DotMenu, HelpTip } from "./widgets.jsx";
 
 // The customer browser (issue 040): an ERP-style directory — a dense grid of
 // every customer, grouped by salesman, over a bottom panel of the selected
@@ -253,8 +253,7 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
             <div className="flex-1 min-h-0 overflow-y-auto">
               {quickCount > 0 && (<>
                 <div className="flex items-center gap-2 px-3 md:px-4 py-1.5 sticky top-0" style={{ background: "var(--ft-band)" }}>
-                  <span className="ft-eyebrow text-[9.5px] flex items-center gap-1.5"><Zap size={11} className="text-indigo-500" /> Quick prices <span className="normal-case tracking-normal font-normal text-slate-400">· {quickShown.length === quickCount ? quickCount : `${quickShown.length} of ${quickCount}`}</span></span>
-                  <span className="ml-auto text-[9.5px] text-slate-400 whitespace-nowrap">unfiled drafts clear 30 days after their last edit</span>
+                  <span className="ft-eyebrow text-[9.5px] flex items-center gap-1.5"><Zap size={11} className="text-indigo-500" /> Quick prices <span className="normal-case tracking-normal font-normal text-slate-400">· {quickShown.length === quickCount ? quickCount : `${quickShown.length} of ${quickCount}`}</span><HelpTip className="align-middle" tip="Unfiled drafts clear 30 days after their last edit." /></span>
                 </div>
                 <div className="px-1.5 py-1">
                   {quickShown.length === 0 && <div className="text-[12px] text-slate-400 px-2.5 py-1.5">No matches</div>}
