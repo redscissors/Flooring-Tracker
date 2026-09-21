@@ -22,7 +22,7 @@ const BOOKS = [
   // merge into one group and one email.
   { id: "bkGlzStk", kind: "stock", name: "Glazzio stock", data: { sampleContact: { name: "Jeff Krejci", email: "Jeff@Glazzio.example" } } },
 ];
-const PROJECT = { id: "c1", name: "Marsh — whole first floor", address: "214 Old Mill Rd, Chagrin Falls", phone: "(555) 210-0114" };
+const PROJECT = { id: "c1", name: "Marsh — whole first floor", address: "214 Old Mill Rd, Chagrin Falls, OH 44022", phone: "(555) 210-0114" };
 const area = (id, name) => normA({ id, name, products: [{}] });
 // Stock-book lines pass their cached item so the request carries the
 // manufacturer's codes (owner 2026-09-14) — p3 has them, p6 doesn't.

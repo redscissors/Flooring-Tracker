@@ -144,22 +144,31 @@ test("repEmail: item lines + ship-to, greeting by first name, NO salesperson inf
     req({ id: "r4", bookId: "b2", item: { name: "Carrara Hex", sku: "GLZ-STK-44", mfg: "", size: "", type: "tile" } }),
   ];
   const { subject, body } = repEmail({ rows, custName: "Kathy Marsh", address: "214 Old Mill Rd", phone: "(555) 210-0114", repName: "Jeff Krejci" });
-  assert.equal(subject, "Sample request — Kathy Marsh");
+  assert.equal(subject, "Sample request - Kathy Marsh");
   assert.ok(body.startsWith("Hi Jeff,"));
-  assert.ok(body.includes("- 12×24 Calacatta Gold — CM1224"));
+  assert.ok(body.includes("- 12×24 Calacatta Gold - CM1224"));
   assert.ok(body.includes("- Hand entered\n"));
-  assert.ok(body.includes("- 12×24 Hanoi White Matte — HAN-WM-1224"));
+  assert.ok(body.includes("- 12×24 Hanoi White Matte - HAN-WM-1224"));
   assert.ok(body.includes("- Carrara Hex\n"));
   assert.ok(!body.includes("05153") && !body.includes("GLZ-STK-44"));
   assert.ok(body.includes("Ship to:\nKathy Marsh\n214 Old Mill Rd\n(555) 210-0114"));
   assert.ok(!/sales/i.test(body));
+  assert.ok(!body.includes("\u2014") && !subject.includes("\u2014"));
   const bare = repEmail({ rows, custName: "", address: "", phone: "", repName: "" });
   assert.ok(bare.body.startsWith("Hi,"));
 });
 
+test("repEmail: ship-to stacks city, state and ZIP under the street (owner 2026-09-21)", () => {
+  const { body } = repEmail({ rows: [req()], custName: "Kathy Marsh", address: "214 Old Mill Rd, Chagrin Falls, OH 44022", phone: "(555) 210-0114", repName: "" });
+  assert.ok(body.includes("Ship to:\nKathy Marsh\n214 Old Mill Rd\nChagrin Falls, OH 44022\n(555) 210-0114"));
+  // A line the splitter can't read (no state) still ships whole, never dropped.
+  const loose = repEmail({ rows: [req()], custName: "", address: "Behind the barn on Rt 39", phone: "", repName: "" });
+  assert.ok(loose.body.includes("Ship to:\nBehind the barn on Rt 39\n"));
+});
+
 test("mailtoHref encodes subject and body", () => {
-  const href = mailtoHref("rep@vendor.com", "Sample request — K & M", "line one\nline two");
-  assert.ok(href.startsWith("mailto:rep%40vendor.com?subject=Sample%20request%20%E2%80%94%20K%20%26%20M&body=line%20one%0Aline%20two"));
+  const href = mailtoHref("rep@vendor.com", "Sample request - K & M", "line one\nline two");
+  assert.ok(href.startsWith("mailto:rep%40vendor.com?subject=Sample%20request%20-%20K%20%26%20M&body=line%20one%0Aline%20two"));
 });
 
 test("status vocabulary is exactly two states, each labeled", () => {
