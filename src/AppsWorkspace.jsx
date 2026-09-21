@@ -3,6 +3,7 @@ import { X, Search, Plus, Trash2, Printer, Eye, EyeOff, GripVertical, ChevronLef
 import { LABEL_FIELDS, KIND_OF, VARIANT_KEYS, newDraftFromPreset, normPreset, stockToLabelFields, perLetterSheet, sheetsForLabels, labelCardHTML, clampSize, isKeimHeader, isSpacer, clampSpace, newSpacerLine } from "./labels.js";
 import { searchStock } from "./stock.js";
 import { stampKit } from "./model.js";
+import { HelpTip } from "./widgets.jsx";
 import SheogaConfigurator from "./SheogaConfigurator.jsx";
 import { DOCK_FRAME_W } from "./sheoga.js";
 import keimLogo from "./assets/keim-logo-ink.png";
@@ -285,7 +286,6 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
             {schluter && <button onClick={() => pickApp("schluter")} className={`w-full flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-left ${app === "schluter" ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>Schluter configurator</button>}
             <div className="w-full flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-slate-400">More coming soon</div>
           </nav>
-          <div className="mt-auto p-4 text-[11px] text-slate-400 border-t border-slate-100">A home for shop tools.</div>
         </aside>
 
         {/* main */}
@@ -333,9 +333,8 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
                 <div className="text-[10px] text-slate-400 pb-1 whitespace-nowrap">≈{perLetterSheet(draft)}/sheet</div>
               </div>
               <label className="block mb-2">
-                <div className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold">Header</div>
+                <div className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold flex items-center gap-1">Header<HelpTip className="align-middle" tip={<>“Keim” (or blank) shows the Keim logo; anything else prints as text.</>} /></div>
                 <input value={draft.header} onChange={(e) => patchDraft({ header: e.target.value })} className="w-full border border-slate-200 rounded-md px-2 py-0.5 text-sm" placeholder="Keim" />
-                <div className="text-[10px] text-slate-400 mt-0.5">“Keim” (or blank) shows the Keim logo; anything else prints as text.</div>
               </label>
               <div className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-1">Fill from stock book</div>
               <SkuLookup stock={stock} onPick={fillFrom} onBulk={bulkFrom} />
@@ -344,16 +343,15 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
                 <input type="checkbox" checked={!!draft.twoVariant} onChange={(e) => setTwoVariant(e.target.checked)} className="accent-indigo-600" />
                 <span className="font-semibold">Second SKU / size / price</span>
                 <span className="text-slate-400">— two sizes on one label</span>
+                <HelpTip className="align-middle" tip={<>SKU, Size, and Price get a “2nd” box below; both columns print side by side.</>} />
               </label>
               {draft.twoVariant && (
                 <div className="mt-1 pl-3 border-l-2 border-slate-100">
                   <SkuLookup stock={stock} onPick={fillFrom2} onBulk={fillFrom2} placeholder="Search stock book to fill the 2nd column…" hint="Pick to fill the 2nd column" />
-                  <div className="text-[10px] text-slate-400 mt-0.5">SKU, Size, and Price get a “2nd” box below; both columns print side by side.</div>
                 </div>
               )}
 
-              <div className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold mt-3 mb-0.5">Label lines</div>
-              <div className="text-[11px] text-slate-400 mb-1">Toggle, drag to reorder, resize — then Save Label.</div>
+              <div className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold mt-3 mb-1 flex items-center gap-1">Label lines<HelpTip className="align-middle" tip={<>Toggle, drag to reorder, resize - then Save Label.</>} /></div>
               {draft.lines.map((l) => {
                 const rowCls = `flex items-center gap-1.5 py-0.5 border-b border-slate-50 ${l.show ? "" : "opacity-50"} ${dragKey === l.key ? "bg-indigo-50/70 rounded-md" : ""}`;
                 if (isSpacer(l.key)) {

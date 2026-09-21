@@ -14,7 +14,7 @@ import {
   COMPARE_CATS, roomFromSchluter, roomFromWedi, wediBuildFor, schluterBuildFor,
   wediCompareRows, schluterCompareRows, compareTotals,
 } from "./comparekit.js";
-import { useEscClose } from "./widgets.jsx";
+import { useEscClose, HelpTip } from "./widgets.jsx";
 import { useSchluterCatalog } from "./useschlutercatalog.js";
 import { useWediCatalog } from "./usewedicatalog.js";
 import { mortarItemFrom } from "./schluteradapter.js";
@@ -28,7 +28,7 @@ const CSS = `
 .cmp-tab{flex:1 1 0;min-width:0;display:flex;flex-direction:column;overflow-y:auto;position:relative;
   background:var(--ft-card);color:var(--ft-text)}
 .cmp-tab .cmp-head{display:flex;align-items:center;gap:14px;padding:12px 18px;border-bottom:1px solid var(--ft-border-strong);flex-wrap:wrap}
-.cmp-tab .cmp-head .t{font-size:15px;font-weight:800}
+.cmp-tab .cmp-head .t{font-size:15px;font-weight:800;display:inline-flex;align-items:center;gap:6px}
 .cmp-tab .cmp-head .room{font-size:11.5px;font-weight:700;color:var(--ft-muted);background:var(--ft-tint);border:1px solid var(--ft-tint-border);border-radius:6px;padding:3px 9px}
 .cmp-tab .lensseg{margin-left:auto;display:inline-flex;border:1px solid var(--ft-border-strong);border-radius:7px;overflow:hidden;background:var(--ft-card)}
 .cmp-tab .lensseg button{border:none;background:var(--ft-card);color:var(--ft-muted);font-size:11.5px;font-weight:700;padding:5px 11px;cursor:pointer;line-height:1.15;text-align:left;font-family:inherit}
@@ -59,12 +59,7 @@ const CSS = `
 .cmp-tab .cmp-tot .tv small{font-size:10.5px;font-weight:600;color:var(--ft-faint);margin-left:6px}
 .cmp-tab .delta{margin:0 18px 12px;background:var(--ft-tint);border:1px solid var(--ft-border);border-radius:9px;padding:10px 14px;font-size:12.5px;line-height:1.5;color:var(--ft-muted)}
 .cmp-tab .delta b{color:var(--ft-text)}
-.cmp-tab .diffnotes{padding:4px 18px 18px;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px}
-.cmp-tab .diffnotes .dn{border:1px solid var(--ft-border);border-radius:9px;padding:10px 12px;background:var(--ft-card)}
-.cmp-tab .diffnotes .dn h4{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:var(--ft-brand-deep);margin-bottom:4px}
-.cmp-tab .diffnotes .dn p{font-size:11.5px;color:var(--ft-muted);line-height:1.5}
 .cmp-tab .qfoot{margin-top:auto;flex:none;border-top:1px solid var(--ft-border-strong);background:var(--ft-sand);padding:9px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-.cmp-tab .qfoot .hint{font-size:11px;color:var(--ft-muted);font-weight:600}
 .cmp-tab .cbtn{border:1px solid var(--ft-border-strong);background:var(--ft-card);color:var(--ft-text);border-radius:7px;font-size:11.5px;font-weight:800;padding:7px 14px;cursor:pointer;font-family:inherit}
 .cmp-tab .cbtn.primary{background:var(--ft-brand);border-color:var(--ft-brand);color:#fff}
 .cmp-tab .cbtn.primary:hover{background:var(--ft-brand-deep)}
@@ -195,6 +190,24 @@ export default function CompareTab({
     setConfirm({ wediLines, schluterLines });
   };
 
+  const tip = (
+    <div className="space-y-1.5">
+      <p><b>Walls</b> - wedi: structural foam panel, no backer, sealant seams. Schluter: KERDI membrane over cement board
+        (cheap material, more labor) or KERDI-BOARD (closest to wedi). The wall line isn't apples-to-apples: the wedi
+        panel <i>is</i> the substrate, while KERDI membrane needs backer (by others) under it. Switch the Schluter build
+        to KERDI-BOARD to compare like-for-like structure.</p>
+      <p><b>Fit strategy</b> - wedi extends pans and cuts them (extensions + the 6″/12″ deep-cut rule). Schluter cuts
+        trays only - no extension parts - so odd rooms lean on the next tray up or a mortar bed.</p>
+      <p><b>Pricing model</b> - wedi publishes retail; cost is the ERP net, no markup knob. Schluter is a markup book:
+        the shop stock sheet prices its rows at retail = 1.5 × cost. Builder runs off two separate knobs in Settings →
+        Price book - <b>wedi builder %</b> ({wPct}% ≡ ×{((100 - wPct) / 100).toFixed(2)}) and <b>Schluter builder %</b>{" "}
+        (−{sPct}%) - neither one moves the other.</p>
+      {onQuoteOptions && (
+        <p><b>Quote options</b> - Land both builds on this area as quote options - the estimate prints them side by side.</p>
+      )}
+    </div>
+  );
+
   const totCell = (miss, t) => (
     <div>
       {miss ? <span className="tv">—</span>
@@ -210,7 +223,7 @@ export default function CompareTab({
     <div className="cmp-tab">
       <style>{CSS}</style>
       <div className="cmp-head">
-        <div className="t">Compare — one room, both systems</div>
+        <div className="t">Compare — one room, both systems<HelpTip className="align-middle" w={320} tip={tip} /></div>
         <div className="room">
           {roomOk ? `${room.w}″ × ${room.d}″ · ${room.curbed ? "curbed" : "curbless"} · ${DRAIN_LBL[room.drain] || "point drain"}` : "no room yet"}
         </div>
@@ -250,35 +263,12 @@ export default function CompareTab({
       {bothPriced && (
         <div className="delta">
           <b>{wLess ? "wedi is " + fm(Math.abs(diff)) + " less on material" : "Schluter is " + fm(Math.abs(diff)) + " less on material"}</b>{" "}
-          for this room at this tier — but the wall line isn't apples-to-apples: the wedi panel <i>is</i> the
-          substrate, while KERDI membrane needs backer (by others) under it. Switch the Schluter build to
-          KERDI-BOARD to compare like-for-like structure.
+          for this room at this tier.
         </div>
       )}
 
-      <div className="diffnotes">
-        <div className="dn">
-          <h4>Walls</h4>
-          <p>wedi: structural foam panel, no backer, sealant seams. Schluter: KERDI membrane over cement board
-            (cheap material, more labor) or KERDI-BOARD (closest to wedi).</p>
-        </div>
-        <div className="dn">
-          <h4>Fit strategy</h4>
-          <p>wedi extends pans and cuts them (extensions + the 6″/12″ deep-cut rule). Schluter cuts trays only —
-            no extension parts — so odd rooms lean on the next tray up or a mortar bed.</p>
-        </div>
-        <div className="dn">
-          <h4>Pricing model</h4>
-          <p>wedi publishes retail; cost is the ERP net, no markup knob. Schluter is a markup book: the shop stock
-            sheet prices its rows at retail = 1.5 × cost. Builder runs off two separate knobs in Settings → Price
-            book — <b>wedi builder %</b> ({wPct}% ≡ ×{((100 - wPct) / 100).toFixed(2)}) and <b>Schluter builder %</b>{" "}
-            (−{sPct}%) — neither one moves the other.</p>
-        </div>
-      </div>
-
       {onQuoteOptions && (
         <div className="qfoot">
-          <span className="hint">Land both builds on this area as quote options — the estimate prints them side by side.</span>
           <button className="cbtn primary" disabled={!!wediMiss || !!schMiss} onClick={openQuote}>
             Quote options: wedi → A · Schluter → B
           </button>

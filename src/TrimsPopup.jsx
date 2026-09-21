@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Minus, Plus } from "lucide-react";
-import { Modal } from "./widgets.jsx";
+import { Modal, HelpTip } from "./widgets.jsx";
 import { money } from "./model.js";
 import { orderUnitOf, isCartonUnit } from "./stock.js";
 
@@ -24,8 +24,8 @@ export default function TrimsPopup({ floorName, trims, seed, onApply, onClose })
   const total = picked.reduce((t, it) => t + (it.price || 0) * qtyOf(it.sku), 0);
 
   return (
-    <Modal title="Trims & transitions" onClose={onClose}>
-      <div className="text-sm text-slate-500 -mt-2 mb-3">For <span className="font-medium text-slate-700">{floorName}</span> — lines land right below the floor and stay adjustable on the grid.</div>
+    <Modal title={<span className="inline-flex items-center gap-2">Trims &amp; transitions<HelpTip className="align-middle" w={260} tip={<>Lines land right below the floor and stay adjustable on the grid.</>} /></span>} onClose={onClose}>
+      <div className="text-sm text-slate-500 -mt-2 mb-3">For <span className="font-medium text-slate-700">{floorName}</span></div>
       <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg overflow-hidden">
         {trims.map((it) => {
           const s = seedBySku.get(it.sku);
