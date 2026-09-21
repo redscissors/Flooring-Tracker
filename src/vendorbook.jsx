@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { Trash2 } from "lucide-react";
 import { BookTab, FreightCard, BrandCard, ContactsCard } from "./pricebooklib.jsx";
+import { HelpTip } from "./widgets.jsx";
 import { normFreight } from "./freight.js";
 import { normVendorMarkups } from "./vendorbook.js";
 import { sellOf, UNFINISHED, VENT_STD, SHEET_NOTE } from "./sheoga.js";
@@ -76,9 +77,9 @@ export function VendorMarkupCard({ book, onSave, inp, lbl }) {   // exported for
   const [form, setForm] = useState({ flooring: String(saved.flooring), vents: String(saved.vents) });
   const next = normVendorMarkups(form);
   const dirty = next.flooring !== saved.flooring || next.vents !== saved.vents;
-  const field = (k, label, ex, per) => (
+  const field = (k, label, ex, per, tip) => (
     <div>
-      <label className={lbl}>{label}</label>
+      <label className={lbl}>{label}{tip && <HelpTip className="align-middle ml-1" w={280} tip={tip} />}</label>
       <div className="flex items-center gap-2">
         <span className="text-slate-400">+</span>
         <input type="number" min="0" step="5" value={form[k]} onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.value }))} className={`${inp} w-20 text-right`} />
@@ -89,9 +90,8 @@ export function VendorMarkupCard({ book, onSave, inp, lbl }) {   // exported for
   );
   return (
     <div className="pt-3 max-w-xl">
-      <p className="text-[11px] text-slate-400 mb-3">Applied over Sheoga's distributor cost when a configurator line is added, and adjustable per configuration in the popup. Future picks only — saved estimates keep their price.</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {field("flooring", "Flooring & stocked prefinished", EX_FLOOR, " /sf")}
+        {field("flooring", "Flooring & stocked prefinished", EX_FLOOR, " /sf", <>Applied over Sheoga's distributor cost when a configurator line is added, and adjustable per configuration in the popup. Future picks only - saved estimates keep their price.</>)}
         {field("vents", "Wood vents & dampers", EX_VENT, "")}
       </div>
       <div className="mt-3 flex items-center gap-2">

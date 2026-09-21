@@ -3,6 +3,11 @@ import { Plus, Hand, Check, Trash2 } from "lucide-react";
 import { escPush } from "./escstack.js";
 import { ClaudeMark, CLAUDE_CLAY } from "./claudeflag.jsx";
 import { issueRef, issueReport, SOURCE_LABEL } from "./claudeissues.js";
+import { HelpTip } from "./widgets.jsx";
+
+// The tab strip is the panes' only heading, so each tab's ? sits beside its label.
+const TEAM_TIP = <>Shared with the whole team - anyone can add bugs, feature ideas, or shop reminders. Drag the handle to put the most important on top; check an item off when it's handled.</>;
+const CLAUDE_TIP = <>Anything flagged for Claude - from a job line's menu, a price book, or typed here - collects on this list. Copy the report and paste it into a Claude session to work them.</>;
 
 // The shared team issue / to-do list (issue 006), now two tabs (issue 087):
 // the team list unchanged, and the central Claude issue bucket — everything
@@ -15,11 +20,13 @@ export function TeamTodos({ todos, onAdd, onToggle, onDelete, onReorder, onClear
   return (
     <div>
       {claude && (
-        <div className="flex gap-1.5 mb-3">
+        <div className="flex items-center gap-1.5 mb-3">
           <button onClick={() => onTab("team")} className={tabCls(tab === "team")}>Team list{openTeam ? ` (${openTeam})` : ""}</button>
+          <HelpTip w={280} tip={TEAM_TIP} />
           <button onClick={() => onTab("claude")} className={tabCls(tab === "claude")}>
             <span style={tab === "claude" ? { color: CLAUDE_CLAY } : undefined}><ClaudeMark size={12} /></span> Claude{openClaude ? ` (${openClaude})` : ""}
           </button>
+          <HelpTip w={280} tip={CLAUDE_TIP} />
         </div>
       )}
       {claude && tab === "claude"
@@ -63,7 +70,6 @@ function ClaudeIssuesPane({ issues, onAdd, onToggle, onDelete, onClearDone, inp 
   );
   return (
     <div>
-      <p className="text-sm text-slate-500 mb-3">Anything flagged for Claude — from a job line's menu, a price book, or typed here — collects on this list. Copy the report and paste it into a Claude session to work them.</p>
       <div className="flex items-center gap-2 mb-3">
         <button onClick={copyReport} disabled={open.length === 0} className="flex items-center gap-1.5 text-xs font-bold rounded-md bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 disabled:opacity-50">
           <span style={{ color: CLAUDE_CLAY }}><ClaudeMark size={12} /></span> {copied ? "Copied ✓" : "Copy report for Claude"}
@@ -145,7 +151,6 @@ function TeamList({ todos, onAdd, onToggle, onDelete, onReorder, onClearDone, in
 
   return (
     <div>
-      <p className="text-sm text-slate-500 mb-3">Shared with the whole team — anyone can add bugs, feature ideas, or shop reminders. Drag the handle to put the most important on top; check an item off when it's handled.</p>
       <div className="flex gap-2 mb-3">
         <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submit(); }} placeholder="Add an issue or idea…" className={inp} />
         <button onClick={submit} disabled={!text.trim()} className="shrink-0 flex items-center gap-1 text-sm rounded-md bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-3 disabled:opacity-50"><Plus size={15} /> Add</button>

@@ -176,21 +176,23 @@ async function runFetch(entry, token, onProgress) {
   return { error: msg };
 }
 
-// The bookmarklet setup steps (drag-to-bookmarks + copy), shared by the empty
-// state and the "Set up one-click fetch" disclosure.
-function VendorBookmarklet() {
+// The bookmarklet setup steps (drag-to-bookmarks + copy) behind the
+// "Set up bookmark" disclosure.
+function VendorBookmarklet({ lbl }) {
   const bmSrc = bookmarkletSource();
   const [copied, setCopied] = useState(false);
   return (
-    <ol className="text-sm text-slate-600 list-decimal ml-5 space-y-1.5">
+    <>
+      <label className={lbl}>Bookmark setup <HelpTip className="align-middle" w={280} tip={<>Copying the code: make a new bookmark and paste the code as its URL.</>} /></label>
+      <ol className="text-sm text-slate-600 list-decimal ml-5 space-y-1.5">
       <li>Drag this button to your bookmarks bar:{" "}
         <a ref={(el) => { if (el) el.setAttribute("href", bmSrc); }} onClick={(e) => e.preventDefault()} className="inline-block rounded-md border border-indigo-200 bg-indigo-50 text-indigo-700 px-2 py-0.5 text-xs font-medium cursor-grab" title="Drag me to the bookmarks bar">⤓ FloorTrack sheets</a>
         {" "}<button onClick={() => { navigator.clipboard?.writeText(bmSrc).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); }); }} className="text-[11px] text-slate-400 underline hover:text-slate-600">{copied ? "copied" : "or copy the code"}</button>
-        <span className="block text-[11px] text-slate-400">(copying: make a new bookmark and paste the code as its URL)</span>
       </li>
       <li>Log into the vendor portal (e.g. Virginia Tile connect24) — any page works once you're signed in.</li>
       <li>Click the bookmark — it copies your sign-in to the clipboard (no new tab). Come back here and hit <span className="font-medium text-slate-600">Paste sign-in</span> to unlock every saved sheet, ready to download. (On portals that list their sheets as links, it grabs those too.)</li>
-    </ol>
+      </ol>
+    </>
   );
 }
 
@@ -786,15 +788,15 @@ export function PasteSignInPopover({ vf, setupOpen, setSetupOpen, inp, lbl }) {
       {open && (
         <div className="absolute left-0 mt-1 w-80 max-w-[calc(100vw-2rem)] z-50 rounded-xl border border-slate-200 bg-white shadow-xl p-3">
           <div className="flex items-center justify-between gap-2">
-            <label className={lbl + " mb-0"}>Add a sign-in</label>
+            <label className={lbl + " mb-0"}>Add a sign-in <HelpTip className="align-middle" w={280} tip={<>Click the bookmark on a vendor portal, then paste it here - no new tab. One bookmark copies your portal sign-in to the clipboard - paste it here to unlock every saved sheet for download. First time on a portal, or the bookmark can't reach your sign-in? Open one sheet, copy its link from the browser's Downloads page (<b>Ctrl+J</b> → right-click → Copy link address), then use “paste a link instead” → “Add to board” to save it.</>} /></label>
             <button onClick={() => setSetupOpen((v) => !v)} className="text-[11px] text-indigo-600 hover:underline shrink-0">{setupOpen ? "Hide setup" : "Set up bookmark"}</button>
           </div>
-          <p className="text-[11px] text-slate-400 mt-0.5 mb-2">Click the bookmark on a vendor portal, then paste it here — no new tab.</p>
-          <SignInPaste onPasteSession={vf.pasteSignIn} onUnlock={vf.unlockPasted} onAdd={vf.addPasted} inp={inp} />
+          <div className="mt-2">
+            <SignInPaste onPasteSession={vf.pasteSignIn} onUnlock={vf.unlockPasted} onAdd={vf.addPasted} inp={inp} />
+          </div>
           {setupOpen && (
             <div className="mt-3 border-t border-slate-200 pt-3">
-              <p className="text-xs text-slate-500 mb-2">One bookmark copies your portal sign-in to the clipboard — paste it here to unlock every saved sheet for download. <HelpTip className="align-middle" w={280} tip={<>First time on a portal, or the bookmark can't reach your sign-in? Open one sheet, copy its link from the browser's Downloads page (<b>Ctrl+J</b> → right-click → Copy link address), then use “paste a link instead” → “Add to board” to save it.</>} /></p>
-              <VendorBookmarklet />
+              <VendorBookmarklet lbl={lbl} />
             </div>
           )}
         </div>
