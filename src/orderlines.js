@@ -63,9 +63,12 @@ export function mergeOrderLines(rows, scope = "") {
   return out.filter((_, i) => !drop.has(i));
 }
 
-// The desk's group order (owner 2026-09-14): wedi by catalog group — building
-// panels right after curbs — then Schluter by family, Sheoga, book brands
-// alphabetically, hand-entered lines, the estimated materials, freight.
+// The desk's group order (owner 2026-09-14): wedi, then Schluter, Sheoga, book
+// brands alphabetically, hand-entered lines, the estimated materials, freight.
+// wedi and Schluter each read as ONE band (owner 2026-09-21: the per-group
+// eyebrows — Pans, Drains, Curbs… — made a wedi order "insanely busy"); the
+// catalog group / family survives as `sub`, the rank inside the band, building
+// panels right after curbs.
 const WEDI_GROUPS = [
   ["Pans", ["pan", "module"]],
   ["Drains", ["cover", "coverFrame", "drainKit"]],
@@ -87,28 +90,28 @@ const SCHLUTER_FAMILIES = [
   ["Seams & corners", "seam"], ["Niches & benches", "extra"], ["Sets", "set"], ["Kits", "kit"],
 ];
 const V = { wedi: 0, schluter: 1, sheoga: 2, brand: 3, other: 4, materials: 5, freight: 6 };
-const at = (vendor, sub, label) => ({ key: label, label, order: V[vendor] * 100 + sub });
+const at = (vendor, label, sub = 0) => ({ key: label, label, order: V[vendor], sub });
 
 export function lineGroup(r) {
-  if (r.freight) return at("freight", 0, "Freight");
-  if (r.kind) return at("materials", 0, "Materials");
+  if (r.freight) return at("freight", "Freight");
+  if (r.kind) return at("materials", "Materials");
   if (r.wedi) {
     const key = wediRowKey(r);
     const g = key ? wediItem(key)?.group : "";
     const i = WEDI_GROUPS.findIndex(([, gs]) => gs.includes(g));
-    return i < 0 ? at("wedi", WEDI_GROUPS.length, "wedi") : at("wedi", i, `wedi · ${WEDI_GROUPS[i][0]}`);
+    return at("wedi", "wedi", i < 0 ? WEDI_GROUPS.length : i);
   }
   if (r.schluter) {
     const m = r.schluter;
     const code = typeof m.part === "string" ? m.part : typeof m.key === "string" ? m.key : r.sku;
     const g = schluterClassify({ sku: code })?.g;
     const i = SCHLUTER_FAMILIES.findIndex(([, f]) => f === g);
-    return i < 0 ? at("schluter", SCHLUTER_FAMILIES.length, "Schluter") : at("schluter", i, `Schluter · ${SCHLUTER_FAMILIES[i][0]}`);
+    return at("schluter", "Schluter", i < 0 ? SCHLUTER_FAMILIES.length : i);
   }
-  if (r.sheoga) return at("sheoga", 0, "Sheoga");
+  if (r.sheoga) return at("sheoga", "Sheoga");
   const brand = String(r.brand || "").trim();
-  if (brand) return at("brand", 0, brand);
-  return at("other", 0, "Other items");
+  if (brand) return at("brand", brand);
+  return at("other", "Other items");
 }
 
 // Tile and flooring lead a run, trims and other misc rows follow (owner
@@ -119,21 +122,21 @@ const bySku = (a, b) => String(a.sku || "").localeCompare(String(b.sku || ""), u
 const kindRank = (k) => { const i = PRINT_KINDS.indexOf(k); return i < 0 ? PRINT_KINDS.length : i; };
 const byMaterial = (a, b) => kindRank(a.kind) - kindRank(b.kind) || bySku(a, b);
 
-// Rows → [{ key, label, rows }] in desk order; within a group by SKU (the
-// materials by their print-sheet kind first). Every row lands in exactly one
-// group.
+// Rows → [{ key, label, rows }] in desk order; within a group by the line's
+// catalog rank (`sub`) then SKU (the materials by their print-sheet kind
+// first). Every row lands in exactly one group.
 export function groupOrderLines(rows) {
   const groups = new Map();
   rows.forEach((r, i) => {
     const g = lineGroup(r);
     if (!groups.has(g.key)) groups.set(g.key, { ...g, rows: [] });
-    groups.get(g.key).rows.push({ r, i });
+    groups.get(g.key).rows.push({ r, i, sub: g.sub });
   });
   return [...groups.values()]
     .sort((a, b) => a.order - b.order || a.label.localeCompare(b.label))
     .map((g) => ({
       key: g.key, label: g.label,
-      rows: g.rows.sort((a, b) => (g.label === "Materials" ? byMaterial(a.r, b.r) : bySku(a.r, b.r)) || a.i - b.i).map((x) => x.r),
+      rows: g.rows.sort((a, b) => (g.label === "Materials" ? byMaterial(a.r, b.r) : a.sub - b.sub || bySku(a.r, b.r)) || a.i - b.i).map((x) => x.r),
     }));
 }
 

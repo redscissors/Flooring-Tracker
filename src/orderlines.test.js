@@ -109,26 +109,27 @@ test("mergeOrderLines: stock and special lines never merge with each other", () 
   assert.equal(out.length, 2);
 });
 
-test("lineGroup: a wedi line files under its catalog group, in the desk's order", () => {
+test("lineGroup: every wedi line files under ONE wedi band, ranked inside it by catalog group in the desk's order", () => {
   const pan = wediGroup("pan")[0].key, curb = wediGroup("curb")[0].key, panel = wediGroup("panel")[0].key, ext = wediGroup("extension")[0].key;
   const g = (key) => lineGroup(stock({ wedi: { part: key } }));
-  assert.equal(g(pan).label, "wedi · Pans");
-  assert.equal(g(curb).label, "wedi · Curbs");
-  assert.equal(g(panel).label, "wedi · Building panels");
-  assert.equal(g(ext).label, "wedi · Extensions");
-  assert.ok(g(pan).order < g(curb).order);
-  assert.ok(g(curb).order < g(panel).order, "building panels follow curbs (owner 2026-09-14)");
-  assert.ok(g(panel).order < g(ext).order);
+  for (const k of [pan, curb, panel, ext]) assert.equal(g(k).label, "wedi");
+  assert.equal(new Set([pan, curb, panel, ext].map((k) => g(k).order)).size, 1, "one band, one order");
+  assert.ok(g(pan).sub < g(curb).sub);
+  assert.ok(g(curb).sub < g(panel).sub, "building panels follow curbs (owner 2026-09-14)");
+  assert.ok(g(panel).sub < g(ext).sub);
   // the anchor row's marker carries the key under `key`, not `part`
-  assert.equal(lineGroup(stock({ wedi: { mode: "kit", cfg: {}, key: pan } })).label, "wedi · Pans");
+  assert.equal(lineGroup(stock({ wedi: { mode: "kit", cfg: {}, key: pan } })).label, "wedi");
 });
 
-test("lineGroup: a Schluter line files by its family, read off the marker's manufacturer code", () => {
-  assert.equal(lineGroup(stock({ sku: "1509824", schluter: { part: "KST965BF" } })).label, "Schluter · Trays");
-  assert.equal(lineGroup(stock({ sku: "", schluter: { key: "KB12SN12x28", mode: "kit", cfg: {} } })).label, "Schluter · Niches & benches");
-  assert.equal(lineGroup(stock({ sku: "KD2FLK", schluter: { part: "KD2FLK" } })).label, "Schluter · Drains");
-  // a Schluter code the classifier doesn't know still files under Schluter
-  assert.equal(lineGroup(stock({ sku: "A80", schluter: { part: "A80" } })).label, "Schluter");
+test("lineGroup: every Schluter line files under ONE Schluter band, ranked by family off the marker's manufacturer code", () => {
+  const tray = lineGroup(stock({ sku: "1509824", schluter: { part: "KST965BF" } }));
+  const niche = lineGroup(stock({ sku: "", schluter: { key: "KB12SN12x28", mode: "kit", cfg: {} } }));
+  const drain = lineGroup(stock({ sku: "KD2FLK", schluter: { part: "KD2FLK" } }));
+  // a Schluter code the classifier doesn't know still files under Schluter, last
+  const unknown = lineGroup(stock({ sku: "A80", schluter: { part: "A80" } }));
+  for (const g of [tray, niche, drain, unknown]) assert.equal(g.label, "Schluter");
+  assert.equal(new Set([tray, niche, drain, unknown].map((g) => g.order)).size, 1, "one band, one order");
+  assert.ok(tray.sub < drain.sub && drain.sub < niche.sub && niche.sub < unknown.sub);
 });
 
 test("lineGroup: book brand, Sheoga, hand-entered, materials and freight each have a home, in that order", () => {
@@ -149,7 +150,7 @@ test("lineGroup: book brand, Sheoga, hand-entered, materials and freight each ha
   assert.equal(new Set(orders).size, orders.length);
 });
 
-test("groupOrderLines: groups come out in desk order, lines within a group by SKU", () => {
+test("groupOrderLines: groups come out in desk order, lines within a group by catalog rank then SKU", () => {
   const pan = wediGroup("pan")[0].key, curb = wediGroup("curb")[0].key;
   const rows = [
     { id: "mat0", sku: "1509901", qty: 4, name: "Ultraflex 2", kind: "Mortar" },
@@ -160,7 +161,8 @@ test("groupOrderLines: groups come out in desk order, lines within a group by SK
     stock({ id: "h", sku: "05153" }),
   ];
   const groups = groupOrderLines(rows);
-  assert.deepEqual(groups.map((g) => g.label), ["wedi · Pans", "wedi · Curbs", "Ragno", "Other items", "Materials"]);
+  assert.deepEqual(groups.map((g) => g.label), ["wedi", "Ragno", "Other items", "Materials"]);
+  assert.deepEqual(groups[0].rows.map((r) => r.id), ["p", "c"], "pan before curb inside the one wedi band, though the curb's SKU sorts first");
   assert.deepEqual(groups.find((g) => g.label === "Ragno").rows.map((r) => r.id), ["r1", "r2"]);
   assert.equal(groups.flatMap((g) => g.rows).length, rows.length);
 });
@@ -264,13 +266,14 @@ test("areaVendorBands: configurator wedi and Schluter lines leave their areas fo
     mat(),
     special({ id: "f", freight: true, sku: "", area: "whole order" }),
   ]);
-  assert.deepEqual(bands.map((b) => b.label), ["Master bath", "Hall bath", "wedi · Pans", "wedi · Curbs", "Schluter · Niches & benches", "Materials", "Freight"]);
+  assert.deepEqual(bands.map((b) => b.label), ["Master bath", "Hall bath", "wedi", "Schluter", "Materials", "Freight"]);
   assert.deepEqual(bands[0].rows.map((r) => r.id), ["t1"]);
   assert.deepEqual(bands[1].rows.map((r) => r.id), ["j"]);
-  const pans = bands[2].rows;
-  assert.equal(pans.length, 1);
-  assert.equal(pans[0].qty, 2);
-  assert.deepEqual(pans[0].from.map((f) => f.area), ["Master bath", "Hall bath"]);
+  const wedi = bands[2].rows;
+  assert.equal(wedi.length, 2, "the two pans merge into one line; the curb follows it");
+  assert.equal(wedi[0].qty, 2);
+  assert.deepEqual(wedi[0].from.map((f) => f.area), ["Master bath", "Hall bath"]);
+  assert.equal(wedi[1].id, "c1");
   assert.ok(bands.slice(2).every((b) => !b.area));
 });
 

@@ -1856,7 +1856,15 @@ src/
                     # Deliver to section; props `projectNo`/`quick`/`erpOrders`/
                     # `erpKeyed` + four one-patch callbacks gate copies on a
                     # numbered, keyed job and stamp lines — `KeyedPop` (Copy
-                    # again / Clear / Keep), Copy remaining replaces Copy all
+                    # again / Clear / Keep), Copy remaining replaces Copy all.
+                    # Cleanup (owner 2026-09-21, .scratch/148): the ERP field
+                    # takes focus on open (fine-pointer screens only — no
+                    # phone keyboard over the list) with "ERP #" as its gray
+                    # placeholder, no prefix; the special rows' zebra is gone
+                    # and a COPIED line's whole row wears the Order summary's
+                    # `--ft-tint` in both lists (`rowStyle` — the amber edge
+                    # bar rides over it), a ticked-but-uncopied stock row
+                    # showing only its checkbox
   orderlines.js     # merge-and-sort for the panel (owner 2026-09-14): ERP One
                     # keeps two pasted lines with one SKU as two lines, so
                     # `mergeOrderLines` combines them — same SKU in any
@@ -1870,10 +1878,13 @@ src/
                     # all-assumed merge stays an assumed 1. No-SKU lines
                     # (Sheoga by description, freight) never merge; a line
                     # left alone is the same object. `lineGroup`/
-                    # `groupOrderLines` file lines in the desk's order — wedi
-                    # by catalog group off the row's marker (rowItemKey →
-                    # item().group; building panels RIGHT AFTER curbs, owner)
-                    # · Schluter by family (`classify` over the marker's
+                    # `groupOrderLines` file lines in the desk's order — ONE
+                    # wedi band (owner 2026-09-21, .scratch/148: the per-group
+                    # "wedi · Pans / Drains / Curbs" eyebrows were "insanely
+                    # busy"), ranked inside by catalog group off the row's
+                    # marker (`sub`: rowItemKey → item().group; building
+                    # panels RIGHT AFTER curbs, owner) · ONE Schluter band,
+                    # ranked by family (`classify` over the marker's
                     # manufacturer code — the sheet sku is the shop number,
                     # which the grammar can't read) · Sheoga · book brands
                     # A–Z · Other items (hand-typed) · Materials (print-sheet
