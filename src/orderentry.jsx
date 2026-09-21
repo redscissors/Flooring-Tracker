@@ -75,13 +75,17 @@ const money = (n) => `$${(n || 0).toLocaleString(undefined, { minimumFractionDig
 // row, so it keys as 1). Amber is already this app's "we changed this, look at
 // it" signal: the grid rings a missing Sq Ft cell in the same amber, and the
 // split-description Ext button below is amber too. Inline, like DONE_MOSS,
-// because the row's zebra background is inline and would otherwise win.
+// because the row's copied tint is inline and would otherwise win.
 const ASSUMED_BG = "#fef6e2";
 const ASSUMED_INK = "#b45309";
 // A tinted row alone is easy to skim past on a long order; the edge bar is what
 // makes the flagged lines countable down the side of the list.
 const ASSUMED_ROW = { background: ASSUMED_BG, boxShadow: "inset 3px 0 0 #f59e0b" };
 const ASSUMED_TITLE = "No quantity on this line — the panel keyed it as 1. Set the real quantity when you enter the order.";
+// A copied line's whole row wears the Order summary's pale moss (owner
+// 2026-09-21), so what's keyed reads down the list at a glance; the flag rows
+// keep their amber edge bar over it, the tint wins the background.
+const rowStyle = (r, done) => ({ ...(r.qtyAssumed ? ASSUMED_ROW : null), ...(done ? { background: "var(--ft-tint)" } : null) });
 // Cost/sell read in the sell unit; "SF" shows lowercase to match the estimate's
 // "/sf", the rest stay uppercase codes (CT/SH/PC/EA).
 const perUnit = (code) => "/" + (code === "SF" ? "sf" : code);
@@ -233,10 +237,16 @@ function DeliverBox({ custInfo, quick }) {
 }
 
 // The ERP 1 order column: the entry field on top, each order a chip stacked
-// under it (newest on top, the active one filled), fine print for state.
-function ErpBox({ erpOrders, erpKeyed, active, setActive, locked, optional, onAdd, onRemove, note }) {
+// under it (newest on top, the active one filled), fine print for state. The
+// field takes focus as the panel opens so the desk types the number straight
+// away (owner 2026-09-21) — on a mouse-and-keyboard screen only, so a phone's
+// keyboard doesn't rise over the list. "ERP #" is the placeholder, typed over.
+const FINE_POINTER = () => typeof window !== "undefined" && window.matchMedia?.("(hover: hover) and (pointer: fine)").matches;
+function ErpBox({ erpOrders, erpKeyed, active, setActive, locked, onAdd, onRemove, note }) {
   const [draft, setDraft] = useState("");
   const [confirmNo, setConfirmNo] = useState(null);
+  const inputRef = useRef(null);
+  useEffect(() => { if (FINE_POINTER()) inputRef.current?.focus(); }, []);
   const per = orderCounts(erpKeyed);
   const submit = () => { const n = normErpNo(draft); if (!n) return; onAdd(n); setDraft(""); };
   const askRemove = (no) => { if (per[no]) setConfirmNo(no); else onRemove(no); };
@@ -246,10 +256,9 @@ function ErpBox({ erpOrders, erpKeyed, active, setActive, locked, optional, onAd
     <div style={BOX} className="w-[152px] shrink-0 flex flex-col gap-[3px]">
       <div className={EYE}><span>ERP 1 order</span></div>
       <div className={field} style={locked ? { borderColor: "#f59e0b", background: ASSUMED_BG } : undefined}>
-        <span className="ft-eyebrow text-[9px] shrink-0" style={{ letterSpacing: ".06em" }}>ERP #</span>
-        <input value={draft} inputMode="numeric" aria-label="ERP 1 order number" placeholder={erpOrders.length ? "another…" : optional ? "optional" : "required"}
+        <input ref={inputRef} value={draft} inputMode="numeric" aria-label="ERP 1 order number" placeholder="ERP #"
           onChange={(e) => setDraft(normErpNo(e.target.value))} onKeyDown={(e) => { if (e.key === "Enter") submit(); }}
-          className="min-w-0 w-full bg-transparent text-[12.5px] font-bold outline-none ft-mono placeholder:font-medium placeholder:text-slate-400" />
+          className="min-w-0 w-full bg-transparent text-[12.5px] font-bold outline-none ft-mono placeholder:font-semibold placeholder:text-slate-300" />
         <button onClick={submit} title="Add this order number" className="grid place-items-center w-[18px] h-[18px] rounded shrink-0" style={{ background: "var(--ft-accent)", color: "var(--ft-accent-ink)" }}><Plus size={13} /></button>
       </div>
       {chips.map((o) => o.no === confirmNo ? (
@@ -304,7 +313,7 @@ function ViewBox({ view, setView }) {
 
 // One special-order line. The copy button copies the whole item (with tag) and
 // stays a green check with the ERP order it was keyed on under it.
-function SpecialRow({ r, alt, descLimit, locked, active, erpKeyed, onStamp, onClear }) {
+function SpecialRow({ r, descLimit, locked, active, erpKeyed, onStamp, onClear }) {
   const [copied, setCopied] = useState(false);
   const [copiedExt, setCopiedExt] = useState(false);
   const [showFrom, setShowFrom] = useState(false);
@@ -330,7 +339,7 @@ function SpecialRow({ r, alt, descLimit, locked, active, erpKeyed, onStamp, onCl
     </div>
   );
   return (
-    <div style={{ ...GRID, padding: "6px 10px", background: alt ? "var(--ft-prod)" : "transparent", ...(r.qtyAssumed ? ASSUMED_ROW : null) }}
+    <div style={{ ...GRID, padding: "6px 10px", ...rowStyle(r, done) }}
       title={r.qtyAssumed ? ASSUMED_TITLE : undefined}
       className="border-t border-slate-100">
       {no
@@ -415,7 +424,7 @@ function StockRow({ r, sel, onToggle, unit, locked, active, erpKeyed, onStamp, o
   );
   return (
     <label title={r.qtyAssumed ? ASSUMED_TITLE : undefined}
-      style={r.qtyAssumed ? ASSUMED_ROW : undefined}
+      style={rowStyle(r, !!no)}
       className={"flex items-center gap-2 px-2.5 py-[5px] text-[12.5px] border-t border-slate-100 " + (r.sku ? "cursor-pointer" : "cursor-default") + (r.sku && !no ? " hover:bg-slate-50" : "")}>
       <span className={"ft-mono shrink-0 w-24 truncate " + (r.sku ? "text-slate-400" : "font-semibold text-red-600")} title={r.sku}>{r.sku || "no SKU"}</span>
       <span className={"ft-mono font-semibold shrink-0 min-w-[56px] whitespace-nowrap" + (r.sku ? "" : " text-red-600")}
@@ -561,7 +570,7 @@ export function OrderEntryPanel({ name, projectNo = null, quick = false, custInf
             band of bordered columns, nothing above it. */}
         <div className="shrink-0 m-2 mb-0 rounded-lg border flex flex-wrap lg:flex-nowrap gap-1.5 p-[7px]" style={{ background: "var(--ft-band)", borderColor: "var(--ft-border)" }}>
           <DeliverBox custInfo={custInfo} quick={quick} />
-          <ErpBox erpOrders={erpOrders} erpKeyed={erpKeyed} active={active} setActive={setActive} locked={locked} optional={!projectNo} onAdd={addOrder} onRemove={onRemoveOrder} note={note} />
+          <ErpBox erpOrders={erpOrders} erpKeyed={erpKeyed} active={active} setActive={setActive} locked={locked} onAdd={addOrder} onRemove={onRemoveOrder} note={note} />
           <div className="w-[150px] shrink-0 flex flex-col gap-1.5">
             <ProjectBox name={name} projectNo={projectNo} onClose={onClose} />
             <ViewBox view={view} setView={setView} />
@@ -586,12 +595,12 @@ export function OrderEntryPanel({ name, projectNo = null, quick = false, custInf
                   <span className="ft-eyebrow text-[9px] tracking-[.09em] text-slate-500 text-right">Cost</span>
                   <span className="ft-eyebrow text-[9px] tracking-[.09em] text-slate-500 text-right">Sell</span>
                 </div>
-                {(() => { let i = 0; return spv.bands.map((b) => (
+                {spv.bands.map((b) => (
                   <div key={b.label} className="contents">
                     <Band label={b.label} area={b.area} />
-                    {b.rows.map((r) => <SpecialRow key={r.id} r={r} alt={i++ % 2 === 1} descLimit={descLimit} locked={locked} active={active} erpKeyed={erpKeyed} onStamp={(row) => stamp([row])} onClear={clear} />)}
+                    {b.rows.map((r) => <SpecialRow key={r.id} r={r} descLimit={descLimit} locked={locked} active={active} erpKeyed={erpKeyed} onStamp={(row) => stamp([row])} onClear={clear} />)}
                   </div>
-                )); })()}
+                ))}
                 {(specialKeyed || specialNote || assumed > 0 || splits > 0) && (
                   <div className="px-3 py-1.5 text-[11px] text-slate-400 border-t border-slate-100 space-x-1">
                     {specialKeyed && <span className="font-semibold" style={{ color: "var(--ft-brand-deep)" }}>{specialKeyed}.</span>}
