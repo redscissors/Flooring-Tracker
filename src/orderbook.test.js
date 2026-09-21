@@ -5,7 +5,7 @@ import {
   pricedItem, orderPatch, orderDrift, bookRowPreview, mergeSearch, markupGroups, diffBookItems, forceDiff, editedInDiff,
   bookStaleness, bookFreshAt, bookNoMarkup, bookPublishesPrice, DEFAULT_STALE_DAYS, specialOrderMargin, orderFloorFirst, unitComboWarnings,
   itemProblems, supersedePairs, rowAdvisories, importSanityWarnings, classifyTrim, itemFlags,
-  flagReviewed, flagReviewBySku, trimsForFloor, sameProduct, collapseCopies, rankMerged, skuKeys,
+  flagReviewed, flagReviewBySku, trimsForFloor, sameProduct, collapseCopies, rankMerged, mergedRungs, skuKeys,
   BOOK_FIELDS, BOOK_FIELD_LABELS, changedFieldBits,
 } from "./orderbook.js";
 
@@ -1319,4 +1319,34 @@ test("bookPublishesPrice: the wedi pricelist book is known by name, as pickWediS
   assert.equal(bookPublishesPrice({ kind: "order", name: "Swedish Oak", data: {} }), false);   // \b-anchored
   assert.equal(bookPublishesPrice({ kind: "stock", name: "wedi", data: {} }), false);
   assert.equal(bookNoMarkup({ kind: "order", name: "wedi", data: { lastImport: { at: 1 } } }), false);
+});
+
+// --- mergedRungs (the selection-row search's exact → near → wider walk) ------
+
+test("mergedRungs: a pending order query never claims 'no exact match'", () => {
+  // The reported bug: stock has only a near-miss for "hanoi", and the special-
+  // order query is still in flight (debounce + server), so the walk fell to the
+  // near rung and the amber note flashed before the search had finished.
+  const stock = [{ sku: "93790", description: "Custom 380 Haystack Part A", active: true }];
+  const none = { exact: [], near: [], wider: [] };
+  const pending = mergedRungs(stock, none, "hanoi", { strictness: 0.3, fallback: 0.2, pending: true });
+  assert.equal(pending.near, false);
+  assert.equal(pending.pending, true);
+  assert.deepEqual(pending.results, []);
+  // Settled with an exact order hit: the exact rung, no note.
+  const hit = [{ sku: "TL-77", bookId: "vtc", description: "Hanoi Collection Hanoi White" }];
+  const settled = mergedRungs(stock, { ...none, exact: hit }, "hanoi", { strictness: 0.3, fallback: 0.2, pending: false });
+  assert.equal(settled.near, false);
+  assert.deepEqual(settled.results.map((it) => it.sku), ["TL-77"]);
+  // Settled with nothing exact anywhere: the near rung, note on.
+  const near = mergedRungs(stock, none, "haystak", { strictness: 0.3, fallback: 0.2, pending: false });
+  assert.equal(near.near, true);
+  assert.deepEqual(near.results.map((it) => it.sku), ["93790"]);
+});
+
+test("mergedRungs: a stock exact hit shows while the order query is still pending", () => {
+  const stock = [{ sku: "S-1", description: "Hanoi White", active: true }];
+  const out = mergedRungs(stock, { exact: [], near: [], wider: [] }, "hanoi", { strictness: 0.3, fallback: 0.2, pending: true });
+  assert.deepEqual(out.results.map((it) => it.sku), ["S-1"]);
+  assert.equal(out.near, false);
 });

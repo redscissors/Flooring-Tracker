@@ -2,10 +2,10 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { searchStock, relaxSearchWords } from "./stock.js";
 import { suggestSeries } from "./booklink.js";
-import { rankMerged } from "./orderbook.js";
+import { mergedRungs, SKU_SHOW } from "./orderbook.js";
 import { useAnchoredPanel, vPos } from "./widgets.jsx";
 
-export const SKU_SHOW = 30;
+export { SKU_SHOW };
 
 // A stable id for a search hit across stock and every order book — the same
 // string used as the React key and to dedupe the multi-select. Stock items have
@@ -115,12 +115,17 @@ export const searchPanelBox = (pos) => {
 // word literally present), then the two near-match cutoffs. `stockExact` says
 // the stock tier already answered the query exactly, which settles the rung for
 // the merged list — so the near-match queries are never issued at all.
-const NO_ORDER = { exact: [], near: [], wider: [] };
+//
+// The results carry the query they answer (`q`): until this query's land, the
+// state is the previous query's and the search is `pending` — the rung walk
+// treats it as no order results yet rather than merging stale hits, and holds
+// the near rungs (see mergedRungs).
+const NO_ORDER = { exact: [], near: [], wider: [], q: "" };
 
 function useOrderResults(query, searchOrder, strictness, fallback, stockExact) {
   const [state, setState] = useState(NO_ORDER);
+  const q = (query || "").trim();
   useEffect(() => {
-    const q = (query || "").trim();
     if (!q || !searchOrder) { setState(NO_ORDER); return; }
     let stale = false;
     const t = setTimeout(async () => {
@@ -133,23 +138,14 @@ function useOrderResults(query, searchOrder, strictness, fallback, stockExact) {
         // the near pass didn't).
         const widerOn = fallback != null && strictness != null && fallback < strictness;
         const wider = (!settled && !near.length && widerOn) ? await searchOrder(q, fallback) : [];
-        if (!stale) setState({ exact, near, wider });
-      } catch { if (!stale) setState(NO_ORDER); }
+        if (!stale) setState({ exact, near, wider, q });
+      } catch { if (!stale) setState({ ...NO_ORDER, q }); }
     }, 250);
     return () => { stale = true; clearTimeout(t); };
-  }, [query, searchOrder, strictness, fallback, stockExact]);
-  return state;
+  }, [q, searchOrder, strictness, fallback, stockExact]);
+  const pending = !!q && !!searchOrder && state.q !== q;
+  return pending ? { ...NO_ORDER, pending } : { ...state, pending };
 }
-
-// Instant stock matches + streamed order matches, merged into ONE
-// relevance-ordered list (rankMerged) with the exact-SKU collision resolved to
-// stock and two order books' copies of one product collapsed to the cheaper.
-// Each stock match is shallow-copied so mergeSearch's alsoOn tag never lands on
-// the shared in-memory stock objects.
-// `stockAll` is the whole cache, so an order hit whose stocked twin the typed
-// words missed still resolves to stock (mergeSearch's wide index).
-const mergeCombined = (stockMatches, orderRaw, query, stockAll) =>
-  rankMerged(stockMatches.map((it) => ({ ...it })), orderRaw, query, stockAll);
 
 // A quiet banner over the results when they came from the looser fallback pass
 // (the set strictness matched nothing), so a near-match is never mistaken for
@@ -160,21 +156,28 @@ export const NearMatchNote = () => (
   </div>
 );
 
-// Exact first, fuzzy only when exact finds nothing. The strictness/fallback
-// cutoffs govern the near-match rungs alone — a trigram threshold is far too
-// generous to decide the primary results (see searchStock's note: "hanoi"
-// matched Haystack, Haze and Hard at any usable cutoff), so exactness decides
-// them and the sliders only tune how forgiving the retry is.
+// The searching indicator over a results panel while the order query is out:
+// the kit's indeterminate moss bar (vendorpanel's fetch progress), 2px so it
+// reads as activity, not chrome. It stays up over stock hits already listed —
+// more rows may still stream in under them.
+export const SearchingBar = () => (
+  <div className="ft-progress ft-progress-indeterminate h-[2px] shrink-0 rounded-none" title="Searching the order books…" />
+);
+
+// Instant stock matches + streamed order matches, merged into ONE
+// relevance-ordered list (mergedRungs → rankMerged): exact first, fuzzy only
+// when exact finds nothing. The strictness/fallback cutoffs govern the
+// near-match rungs alone — a trigram threshold is far too generous to decide
+// the primary results (see searchStock's note: "hanoi" matched Haystack, Haze
+// and Hard at any usable cutoff), so exactness decides them and the sliders
+// only tune how forgiving the retry is. `pending` is true while the order
+// query is still out; the walk then shows only stock exact hits and no
+// near-match note, and the pickers say "searching" instead of "no match".
 export function useMergedResults(active, stock, query, searchOrder, strictness, fallback) {
-  const stockExact = active ? searchStock(stock, query) : [];
+  const stockAll = active ? stock : [];
+  const stockExact = searchStock(stockAll, query);
   const order = useOrderResults(active ? query : "", searchOrder, strictness, fallback, stockExact.length > 0);
-  const exact = mergeCombined(stockExact, order.exact, query, active ? stock : []);
-  if (exact.length) return { results: exact.slice(0, SKU_SHOW), total: exact.length, near: false };
-  const near = mergeCombined(active ? searchStock(stock, query, strictness) : [], order.near, query, active ? stock : []);
-  if (near.length) return { results: near.slice(0, SKU_SHOW), total: near.length, near: true };
-  const widerOn = active && fallback != null && strictness != null && fallback < strictness;
-  const wider = mergeCombined(widerOn ? searchStock(stock, query, fallback) : [], order.wider, query, active ? stock : []);
-  return { results: wider.slice(0, SKU_SHOW), total: wider.length, near: wider.length > 0 };
+  return mergedRungs(stockAll, order, query, { strictness, fallback, pending: order.pending, stockExact });
 }
 
 // Price book lookup for the Settings catalog's add-product form: picking an

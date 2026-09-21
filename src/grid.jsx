@@ -10,7 +10,7 @@ import { queryHit as wediQueryHit, parseQuery as wediParseQuery, querySummary as
 // schluterquery.js, never schluter.js — same boot contract (ADR 0026).
 import { queryHit as schluterQueryHit, parseQuery as schluterParseQuery, querySummary as schluterQuerySummary } from "./schluterquery.js";
 import { useAnchoredPanel, vPos, useEscClose } from "./widgets.jsx";
-import { Hit, searchPanelBox, hitKey, matchSummary, useMergedResults, NearMatchNote } from "./search.jsx";
+import { Hit, searchPanelBox, hitKey, matchSummary, useMergedResults, NearMatchNote, SearchingBar } from "./search.jsx";
 import { MARKUP_PRESETS, unitMargin, editCost, editMarkup, editPrice } from "./costentry.js";
 import { BUNDLE_UNITS, COUNT_UNITS } from "./units.js";
 
@@ -306,7 +306,7 @@ export function GridProductBox({ value, stock, onChange, onPick, searchOrder, bo
   const wrapRef = useRef(null);
   const panelRef = useRef(null);
   const mirrorRef = useRef(null);
-  const { results: matches, near } = useMergedResults(open, stock, value, searchOrder, strictness, fallback);
+  const { results: matches, near, pending } = useMergedResults(open, stock, value, searchOrder, strictness, fallback);
   const pos = useAnchoredPanel(open, wrapRef, panelRef, () => setOpen(false));
   // Measured, not guessed, so the single/two-line toggle survives any column
   // width — single-line text keeps today's centered look. scrollHeight includes
@@ -350,10 +350,12 @@ export function GridProductBox({ value, stock, onChange, onPick, searchOrder, bo
           </span>
         )}
       </div>
-      {open && pos && matches.length > 0 && createPortal(
+      {open && pos && (matches.length > 0 || pending) && createPortal(
         <div ref={panelRef} style={searchPanelBox(pos)}
-          className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 flex flex-col">
+          className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 flex flex-col overflow-hidden">
+          {pending && <SearchingBar />}
           {near && <NearMatchNote />}
+          {pending && matches.length === 0 && <div className="px-2.5 py-1.5 text-[11px] text-slate-400">Searching the order books…</div>}
           <div className="max-h-60 min-h-0 overflow-y-auto">
             {matches.map((it) => (
               <button key={(it.bookId || "stock") + "|" + it.sku} onMouseDown={(e) => { e.preventDefault(); onPick(it); setOpen(false); }} className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 border-b border-slate-100 last:border-0">
@@ -385,7 +387,7 @@ export function GridOmniSearch({ stock, stockReady, query, onQuery, onPick, onPi
   const pickedRef = useRef(picked); pickedRef.current = picked;
   const blurTimer = useRef(null);
   useEffect(() => () => { if (blurTimer.current) clearTimeout(blurTimer.current); }, []);
-  const { results, total, near } = useMergedResults(open, stock, query, searchOrder, strictness, fallback);
+  const { results, total, near, pending } = useMergedResults(open, stock, query, searchOrder, strictness, fallback);
   const close = () => { setOpen(false); setPicked([]); };
   const pos = useAnchoredPanel(open, wrapRef, panelRef, close);
   const pick = (it) => { committedRef.current = true; onPick(it); close(); };
@@ -424,9 +426,10 @@ export function GridOmniSearch({ stock, stockReady, query, onQuery, onPick, onPi
     else if (results[hi]) pick(results[hi]);
     else if (results.length) pick(results[0]);
     else if (vendor) goVendor(vendorRows[0].id);
-    // No results while the book is still loading is not "not in the book" —
-    // Enter must not silently commit a real SKU to manual entry.
-    else if (query.trim() && stockReady) goManual();
+    // No results while the book is still loading or the order query is still
+    // out is not "not in the book" — Enter must not silently commit a real SKU
+    // to manual entry.
+    else if (query.trim() && stockReady && !pending) goManual();
   };
   const onKey = (e) => {
     if (e.key === "ArrowDown" && results.length) { e.preventDefault(); setHi((h) => Math.min(h + 1, results.length - 1)); }
@@ -445,9 +448,10 @@ export function GridOmniSearch({ stock, stockReady, query, onQuery, onPick, onPi
   // lands on a fresh node) — it read as the popup closing on you. preventDefault
   // keeps focus in the field so the pick never trips blur/focus-out dismissal.
   const onRow = (e, it) => { e.preventDefault(); e.shiftKey ? toggle(it) : pick(it); };
-  const noHits = query.trim() && (stock.length > 0 || !!searchOrder) && results.length === 0;
+  const noHits = query.trim() && (stock.length > 0 || !!searchOrder) && results.length === 0 && !pending;
   const bookLoading = !stockReady && query.trim() && results.length === 0;
-  const panelShowing = open && (results.length > 0 || picked.length > 0 || noHits || vendor || bookLoading);
+  const searching = pending && results.length === 0;
+  const panelShowing = open && (results.length > 0 || picked.length > 0 || noHits || vendor || bookLoading || searching);
   return (
     <div ref={wrapRef} className="relative flex-1 min-w-0 self-stretch flex" onDoubleClick={goManual}>
       <input ref={inputRef} value={query} onChange={(e) => { onQuery(e.target.value); setOpen(true); setHi(0); }} onFocus={() => { committedRef.current = false; setOpen(true); }} onBlur={onBlur}
@@ -455,7 +459,8 @@ export function GridOmniSearch({ stock, stockReady, query, onQuery, onPick, onPi
         title="Search the price book by SKU or product name, then pick a match to fill the whole row. Shift-click to add several. Double-click to enter a product by hand." />
       {panelShowing && pos && createPortal(
         <div ref={panelRef} style={searchPanelBox(pos)}
-          className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 flex flex-col">
+          className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 flex flex-col overflow-hidden">
+          {pending && <SearchingBar />}
           {near && results.length > 0 && <NearMatchNote />}
           {results.length > 0 && (
             <div className="max-h-72 min-h-0 overflow-y-auto">
@@ -491,6 +496,8 @@ export function GridOmniSearch({ stock, stockReady, query, onQuery, onPick, onPi
           <div className="shrink-0 flex items-center gap-2 px-2.5 py-1.5 border-t border-slate-200 text-[11px] text-slate-400 bg-slate-50/60">
             {bookLoading ? (
               <span className="truncate">Price book still loading…</span>
+            ) : searching ? (
+              <span className="truncate">Searching the order books…</span>
             ) : noHits ? (
               <><span className="truncate">No price-book match.</span>
                 <button onMouseDown={(e) => { e.preventDefault(); onManual(); }} className="ml-auto shrink-0 rounded-md bg-indigo-600 text-white px-2.5 py-1 text-xs font-medium hover:bg-indigo-700">Enter "{query.trim()}" by hand</button></>
