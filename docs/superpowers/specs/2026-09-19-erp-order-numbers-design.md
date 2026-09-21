@@ -179,7 +179,9 @@ left (~210px), ERP 152px, the third column 150px.
   Project box ~46px + View ~62px); each further order adds a 22px chip to
   the ERP column, which overtakes the third column at three orders. Old title
   row + Deliver to section was about 250px.
-- **Below `lg`** (the phone's full-screen panel) the columns wrap: Deliver to
+- **Below `sm`** (640px — the phone's full-screen panel; the panel is full
+  width below `lg`, so a half-screen window is wider than the 560px panel
+  the bar fits) the columns wrap: Deliver to
   full width, then ERP and the third column side by side — the project
   header's fold.
 - The body opens straight on Special order; its section gap tightens to 12px

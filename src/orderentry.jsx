@@ -216,7 +216,7 @@ function DeliverBox({ custInfo, quick }) {
   const split = splitAddress(custInfo?.address);
   const any = !quick && rows.some((r) => r.value);
   return (
-    <div style={BOX} className="basis-full lg:basis-auto lg:flex-1">
+    <div style={BOX} className="basis-full sm:basis-auto sm:flex-1">
       <div className={EYE}>
         <span className="inline-flex items-center gap-1">Deliver to{!quick && <HelpTip className="align-middle" w={280} tip={DELIVER_TIP} />}</span>
         {any && <LatchCopy small texts={deliverToSequence(rows)} title={"Copy every field, then the whole label.\nCtrl+V pastes the label; Win+V lists each field for the delivery form."} />}
@@ -568,7 +568,7 @@ export function OrderEntryPanel({ name, projectNo = null, quick = false, custInf
       <div className="flex flex-col bg-white border-l border-slate-200 shadow-2xl w-full lg:w-[560px] max-w-full h-full" onClick={(e) => e.stopPropagation()}>
         {/* The header bar (owner, rounds 3–5): the project header's idiom — a
             band of bordered columns, nothing above it. */}
-        <div className="shrink-0 m-2 mb-0 rounded-lg border flex flex-wrap lg:flex-nowrap gap-1.5 p-[7px]" style={{ background: "var(--ft-band)", borderColor: "var(--ft-border)" }}>
+        <div className="shrink-0 m-2 mb-0 rounded-lg border flex flex-wrap sm:flex-nowrap gap-1.5 p-[7px]" style={{ background: "var(--ft-band)", borderColor: "var(--ft-border)" }}>
           <DeliverBox custInfo={custInfo} quick={quick} />
           <ErpBox erpOrders={erpOrders} erpKeyed={erpKeyed} active={active} setActive={setActive} locked={locked} onAdd={addOrder} onRemove={onRemoveOrder} note={note} />
           <div className="w-[150px] shrink-0 flex flex-col gap-1.5">
