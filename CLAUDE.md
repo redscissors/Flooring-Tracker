@@ -167,6 +167,9 @@ they agree or the auto quantity isn't computable.
   (`Auth.jsx`) and the app share one palette. Reuse existing utility classes
   rather than inventing new colors; adjust the `--ft-*` variables in
   `index.css` to retheme.
+- Standing help (true every day, read once) lives behind a `HelpTip` `?` on
+  the surface's or section's heading — never an always-on paragraph or
+  footer. Text that reports state or a warning stays inline (ADR 0045).
 
 ## Non-negotiables
 

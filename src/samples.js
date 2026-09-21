@@ -7,6 +7,7 @@
 import { areaLabel, uid } from "./model.js";
 import { TLBL } from "./uiconst.js";
 import { vendorBookForRow } from "./vendorbook.js";
+import { deliverToRows, deliverToLabel } from "./deliverto.js";
 
 export const SAMPLE_STATUSES = ["need", "ordered"];
 export const SAMPLE_LABEL = { need: "To order", ordered: "Ordered" };
@@ -156,12 +157,14 @@ export const contactLabel = (contact) => {
 };
 
 // The rep email. Ship-to is the CUSTOMER (samples ship direct — owner call),
-// read live from the project by the caller. No salesperson info (owner call
-// 2026-08-28).
+// read live from the project by the caller, laid out as the mailing label
+// (city/state/ZIP under the street — owner 2026-09-21). No salesperson info
+// (owner call 2026-08-28). Plain hyphens only: mail clients and the ERP
+// mangle em dashes (owner 2026-09-21).
 export const repEmail = ({ rows, custName, address, phone, repName }) => {
   const items = rows.map((r) =>
-    "- " + [r.item.size, r.item.name].filter(Boolean).join(" ") + (r.item.mfg ? ` — ${r.item.mfg}` : ""));
-  const ship = [custName, address, phone].filter(Boolean);
+    "- " + [r.item.size, r.item.name].filter(Boolean).join(" ") + (r.item.mfg ? ` - ${r.item.mfg}` : ""));
+  const ship = deliverToLabel(deliverToRows({ custName, address, phone })).split("\n").filter(Boolean);
   const body = [
     repName ? `Hi ${repName.trim().split(/\s+/)[0]},` : "Hi,",
     "", "Could you send samples of the following?", "",
@@ -169,7 +172,7 @@ export const repEmail = ({ rows, custName, address, phone, repName }) => {
     "", "Ship to:", ...ship,
     "", "Thank you",
   ].join("\n");
-  return { subject: `Sample request — ${custName || "our customer"}`, body };
+  return { subject: `Sample request - ${custName || "our customer"}`, body };
 };
 
 export const mailtoHref = (email, subject, body) =>

@@ -8,7 +8,10 @@
 
 import { X, Layers, Mail } from "lucide-react";
 import { CopyBtn } from "./copybtn.jsx";
+import { HelpTip } from "./widgets.jsx";
 import { sampleGroups, repEmail, mailtoHref, contactLabel, SAMPLE_LABEL, SAMPLE_CHIP, SAMPLE_COLOR, SAMPLE_STATUSES } from "./samples.js";
+
+const SAMPLES_TIP = <>Samples ship straight to the customer - the email carries their name and the project address. After sending, <b>Mark all ordered</b>; statuses are shared, so the whole team sees what's in flight.</>;
 
 const dateShort = (at) => (at ? new Date(at).toLocaleDateString(undefined, { month: "numeric", day: "numeric" }) : "");
 
@@ -38,7 +41,7 @@ function VendorGroup({ g, custInfo, onOrdered, onRemove }) {
           {need.length > 0 && (
             <button onClick={() => onOrdered(need.map((r) => r.id), true)}
               className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] font-semibold border border-slate-200 hover:bg-slate-50"
-              title="The order's placed — move every To-order line in this group to Ordered">
+              title="The order's placed - move every To-order line in this group to Ordered">
               Mark all ordered
             </button>
           )}
@@ -53,7 +56,7 @@ function VendorGroup({ g, custInfo, onOrdered, onRemove }) {
         </div>
       </div>
       {!contact?.email && g.bookId && (
-        <p className="text-[10.5px] text-slate-400 -mt-1 mb-1.5">No sample contact on file — add a rep or samples email on this vendor's book page (Contacts tab) to send with one click.</p>
+        <p className="text-[10.5px] text-slate-400 -mt-1 mb-1.5">No sample contact on file - add a rep or samples email on this vendor's book page (Contacts tab) to send with one click.</p>
       )}
       <div className="rounded-lg border border-slate-200 divide-y divide-slate-100">
         {g.rows.map((r, i) => (
@@ -84,7 +87,7 @@ export function SamplesPanel({ name, requests, custInfo, contactFor, onOrdered, 
       <div className="flex flex-col bg-white border-l border-slate-200 shadow-2xl w-full lg:w-[560px] max-w-full h-full" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 shrink-0">
           <div className="min-w-0">
-            <div className="ft-serif text-xl leading-tight flex items-center gap-2"><Layers size={17} className="text-slate-400" /> Samples</div>
+            <div className="ft-serif text-xl leading-tight flex items-center gap-2"><Layers size={17} className="text-slate-400" /> Samples <HelpTip className="align-middle" w={280} tip={SAMPLES_TIP} /></div>
             <div className="text-[12px] text-slate-400 truncate">{name}</div>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 shrink-0"><X size={18} /></button>
@@ -92,17 +95,14 @@ export function SamplesPanel({ name, requests, custInfo, contactFor, onOrdered, 
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
           {groups.length === 0 ? (
             <p className="text-[13px] text-slate-400 rounded-lg border border-dashed border-slate-200 px-3 py-3">
-              No sample requests on this project yet. Mark a line from its ⋯ menu — <b>Request sample</b> — and it collects here, grouped by vendor and ready to email.
+              No sample requests on this project yet. Mark a line from its ⋯ menu - <b>Request sample</b> - and it collects here, grouped by vendor and ready to email.
             </p>
           ) : (
             <>
               {!custInfo.address && (
-                <p className="text-[11px]" style={{ color: "#b45309" }}>No ship-to address on this project — the sample email will have nowhere to send the samples. Add the project (or customer) address first.</p>
+                <p className="text-[11px]" style={{ color: "#b45309" }}>No ship-to address on this project - the sample email will have nowhere to send the samples. Add the project (or customer) address first.</p>
               )}
               {groups.map((g) => <VendorGroup key={g.key} g={g} custInfo={custInfo} onOrdered={onOrdered} onRemove={onRemove} />)}
-              <p className="text-[11px] text-slate-400">
-                Samples ship straight to the customer — the email carries their name and the project address. After sending, <b>Mark all ordered</b>; statuses are shared, so the whole team sees what's in flight.
-              </p>
             </>
           )}
         </div>
