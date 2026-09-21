@@ -18,7 +18,7 @@ import { unitCode, bundleUnit, BUNDLE_UNITS, COUNT_UNITS } from "./units.js";
 import { MARKUP_PRESETS, unitMargin, editCost, editMarkup, editPrice } from "./costentry.js";
 import { FitSelect, GroutColorOptions, useEscClose, DotMenu, SalespersonPop } from "./widgets.jsx";
 import { ClaudeMark } from "./claudeflag.jsx";
-import { Hit, hitKey, matchSummary, useMergedResults, NearMatchNote } from "./search.jsx";
+import { Hit, hitKey, matchSummary, useMergedResults, NearMatchNote, SearchingBar } from "./search.jsx";
 import { GridSizeInput, UnitPick } from "./grid.jsx";
 import { ErpChip } from "./projectheader.jsx";
 
@@ -129,7 +129,7 @@ export function MobileSearchSheet({ stock, stockReady, searchOrder, bookName, in
   const [picked, setPicked] = useState([]);
   const inputRef = useRef(null);
   useEffect(() => { inputRef.current?.focus(); inputRef.current?.select?.(); }, []);
-  const { results, total, near } = useMergedResults(true, stock, q, searchOrder, strictness, fallback);
+  const { results, total, near, pending } = useMergedResults(true, stock, q, searchOrder, strictness, fallback);
   const toggle = (it) => setPicked((prev) => prev.some((x) => hitKey(x) === hitKey(it)) ? prev.filter((x) => hitKey(x) !== hitKey(it)) : [...prev, it]);
   const commit = () => { if (picked.length === 1) onPick(picked[0]); else if (picked.length) onPickMany(picked); };
   // Neither configurator's goods book-match — pin the same vendor rows the
@@ -150,6 +150,7 @@ export function MobileSearchSheet({ stock, stockReady, searchOrder, bookName, in
         {q && <button onClick={() => { setQ(""); inputRef.current?.focus(); }} className="shrink-0 w-6 h-6 flex items-center justify-center rounded-full text-slate-400"><X size={14} /></button>}
         <button onClick={onClose} className="shrink-0 text-[12.5px] font-bold text-slate-500 px-1">Cancel</button>
       </div>
+      {pending && <SearchingBar />}
       <div className="flex-1 min-h-0 overflow-y-auto">
         {near && results.length > 0 && <NearMatchNote />}
         {results.map((it) => {
@@ -173,20 +174,22 @@ export function MobileSearchSheet({ stock, stockReady, searchOrder, bookName, in
             <span className="shrink-0 font-extrabold" style={{ color: "var(--ft-brand-deep)" }}>→</span>
           </button>
         ))}
-        {noHits && !vendor && (stockReady ? (
+        {noHits && !vendor && (!stockReady ? (
+          // A no-match claim would be a lie while stage 2 is in flight — it
+          // steers a real book SKU into hand entry with no snapshot.
+          <div className="px-4 py-6 text-center text-sm text-slate-400">Price book still loading…</div>
+        ) : pending ? (
+          <div className="px-4 py-6 text-center text-sm text-slate-400">Searching the order books…</div>
+        ) : (
           <div className="px-4 py-6 text-center text-sm text-slate-400">
             No price-book match.
             <button onClick={() => onManual(q.trim())} className="mt-3 mx-auto block rounded-md bg-indigo-600 text-white px-4 h-[38px] text-[12.5px] font-bold">Enter "{q.trim()}" by hand</button>
           </div>
-        ) : (
-          // A no-match claim would be a lie while stage 2 is in flight — it
-          // steers a real book SKU into hand entry with no snapshot.
-          <div className="px-4 py-6 text-center text-sm text-slate-400">Price book still loading…</div>
         ))}
         {!q.trim() && <div className="px-4 py-6 text-center text-sm text-slate-300">Type a SKU or product words — picks fill the row.</div>}
       </div>
       <div className="shrink-0 flex items-center gap-2 px-3 pt-2 border-t border-slate-200 text-[11px] text-slate-400" style={{ paddingBottom: "max(10px, env(safe-area-inset-bottom))" }}>
-        <span className="truncate">{q.trim() ? matchSummary(results.length, total) : ""}</span>
+        <span className="truncate">{q.trim() && !(pending && results.length === 0) ? matchSummary(results.length, total) : ""}</span>
         {picked.length > 0 ? (
           <button onClick={commit} className="ml-auto shrink-0 rounded-md bg-indigo-600 text-white px-3 h-[34px] text-xs font-bold">Add {picked.length} product{picked.length === 1 ? "" : "s"}</button>
         ) : q.trim() ? (

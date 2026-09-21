@@ -13,7 +13,7 @@
 // tierPrices (book-defined contractor pricing). Picking one produces the same
 // patch stockPatch builds, then adds bookId/cost/markupPct and the flags.
 
-import { stockPatch, stockPriceSqft, priceUnitOf, orderUnitOf, perCartonFactor, fillsFlooring, isPieceUnit, isCartonUnit, parseTileSize, hitRank, unitPrice, unitCost, feetArea } from "./stock.js";
+import { stockPatch, stockPriceSqft, priceUnitOf, orderUnitOf, perCartonFactor, fillsFlooring, isPieceUnit, isCartonUnit, parseTileSize, hitRank, unitPrice, unitCost, feetArea, searchStock } from "./stock.js";
 
 const str = (v) => (v == null ? "" : String(v).trim());
 const numOr = (v, d = null) => {
@@ -481,6 +481,27 @@ export function rankMerged(stockMatches, orderMatches, query, stockAll) {
     ...stock.map((it, i) => ({ it, rank: rankOf(it), shelf: 0, i })),
     ...order.map((it, i) => ({ it, rank: hitRank(it, query), shelf: 1, i })),
   ].sort((a, b) => a.rank - b.rank || a.shelf - b.shelf || a.i - b.i).map((r) => r.it);
+}
+
+export const SKU_SHOW = 30;
+
+// The selection-row search's rung walk (search.jsx useMergedResults): exact
+// first, the near rungs only when exact finds nothing anywhere. `pending` means
+// the special-order query hasn't answered THIS query yet; its exact hits would
+// settle the walk on rung one, so until they land the near rungs are
+// speculative and the walk stops at the stock exact rung — it never claims "no
+// exact match" while the answer is still on its way. Each stock hit is
+// shallow-copied so mergeSearch's alsoOn tag never lands on the shared cache.
+export function mergedRungs(stock, order, query, { strictness, fallback, pending = false, stockExact } = {}) {
+  const merged = (stockHits, orderHits) => rankMerged(stockHits.map((it) => ({ ...it })), orderHits, query, stock);
+  const rung = (items, near) => ({ results: items.slice(0, SKU_SHOW), total: items.length, near, pending });
+  const exact = merged(stockExact || searchStock(stock, query), order.exact);
+  if (exact.length || pending) return rung(exact, false);
+  const near = merged(searchStock(stock, query, strictness), order.near);
+  if (near.length) return rung(near, true);
+  const widerOn = fallback != null && strictness != null && fallback < strictness;
+  const wider = merged(widerOn ? searchStock(stock, query, fallback) : [], order.wider);
+  return rung(wider, wider.length > 0);
 }
 
 // --- the same product in two order books -------------------------------------
