@@ -823,6 +823,30 @@ test("wedi panel planner: level courses, mixed sizes, vertical only when seamles
   })(), "plan detail carries per-wall courses with laid lengths (for the wall drawing)");
 });
 
+test("wedi panel planner: no vertical seam when horizontal 4×8s cover the run", () => {
+  const p = panelPlan([{ len: 72, h: 108, side: "back" }, { len: 54, h: 108, side: "left" }]);
+  const back = p.detail[0].courses.map((c) => c.ch + ":" + c.lens.join("+")).join("/");
+  assert.equal(p.vSeams, 0, "72×108 back + 54×108 left: no vertical seams");
+  assert.equal(back, "48:72/48:72/12:72", "back: two 4×8 courses and a 12\" top strip");
+  const sheets = p.lines.reduce((t, l) => t + l.qty, 0);
+  assert.ok(sheets <= 5, "the top strips share a ripped sheet: " + JSON.stringify(p.lines));
+
+  // every curbed kit at 96" and 108": walls up to 96" long never seam
+  pans({ family: "fundo" }).forEach((pan) => {
+    const hi = Math.max(pan.w, pan.d), lo = Math.min(pan.w, pan.d);
+    [96, 108].forEach((h) => {
+      const k = panelPlan([{ len: hi, h, side: "back" }, { len: lo, h, side: "left" }, { len: lo, h, side: "right" }]);
+      assert.equal(k.vSeams, 0, pan.key + " at " + h + "\": " + JSON.stringify(k.detail));
+      k.detail.forEach((d) => assert.equal(d.courses.reduce((t, c) => t + c.ch, 0), h, "courses cover the wall height"));
+    });
+  });
+});
+
+test("wedi panel planner: a run longer than a 4×8 still seams", () => {
+  const p = panelPlan([{ len: 130, h: 96 }]);
+  assert.equal(p.vSeams, 2, "130\" > 96\": one butt joint per course");
+});
+
 // --- line payloads ------------------------------------------------------------
 
 test("wedi line payloads: the pan anchors the kit, cfg round-trips (requirement 12)", () => {

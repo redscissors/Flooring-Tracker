@@ -27,6 +27,7 @@
 // retail, net, section, discount, erp} (+ {kitNote, section} rows).
 
 import { queryHit, parseQuery, querySummary, seedFromQuery } from "./wediquery.js";
+import { planPanels } from "./panelplan.js";
 import { WALL_THICK, CURB_LAP, panThick, benchFootprint, BENCH_DEPTH, curbWidthOf } from "./showerdraw.js";
 
 export { queryHit, parseQuery, querySummary, seedFromQuery };
@@ -5959,10 +5960,7 @@ export function solve(input) {
 // wall panel planner
 // ============================================================================
 //
-// Sheets laid HORIZONTAL, stacked in level courses, mixing the three stocked
-// ½" sizes — so the joints run level and vertical seams stay rare (owner
-// rule 2026-07-29). A course is 48" tall (4×8 / 4×5 sheets) or 36" tall
-// (3×5); a long course prefers one 4×8 cut down over two butted 4×5s.
+// The three stocked ½" sizes through the shared course planner (panelplan.js).
 
 const PANEL_SHEETS = [
   { key: "US8000015", w: 48, len: 96 },
@@ -5970,101 +5968,11 @@ const PANEL_SHEETS = [
   { key: "US8000017", w: 36, len: 60 },
 ];
 
-function coursesFor(h) {
-  let best = null;
-  for (let a = 0; a <= 3; a++) for (let b = 0; b <= 3; b++) {
-    const tot = a * 48 + b * 36;
-    if (tot < h - 0.01 || (a === 0 && b === 0)) continue;
-    const cand = { n: a + b, over: round2(tot - h), a: a, b: b };
-    if (!best || cand.n < best.n || (cand.n === best.n && cand.over < best.over)) best = cand;
-  }
-  if (!best) return [];
-  const stack = [];
-  for (let i = 0; i < best.a; i++) stack.push(48);
-  for (let j = 0; j < best.b; j++) stack.push(36);
-  return stack;
-}
-
-function courseFill(ch, L) {
-  const long_ = PANEL_SHEETS.filter((s) => s.w === ch && s.len === 96)[0];
-  const short_ = PANEL_SHEETS.filter((s) => s.w === ch && s.len === 60)[0];
-  let best = null;
-  for (let n = 0; n <= Math.ceil(L / 96); n++) {
-    if (n > 0 && !long_) break;
-    const rem = round2(L - n * 96);
-    const m = rem > 0.01 ? Math.ceil(rem / 60) : 0;
-    if (m > 0 && !short_) continue;
-    const cand = { n96: n, n60: m, n: n + m, waste: round2(n * 96 + m * 60 - L) };
-    if (cand.n === 0) continue;
-    if (!best || cand.n < best.n || (cand.n === best.n && cand.waste < best.waste)) best = cand;
-  }
-  if (!best) return null;
-  const out = [], lens = [];
-  let left = L;
-  for (let i = 0; i < best.n96; i++) {
-    out.push(long_.key);
-    const t96 = Math.min(96, left); lens.push(round2(t96)); left = round2(left - t96);
-  }
-  for (let j = 0; j < best.n60; j++) {
-    out.push(short_.key);
-    const t60 = Math.min(60, left); lens.push(round2(t60)); left = round2(left - t60);
-  }
-  return { sheets: out, lens: lens, vSeams: best.n - 1 };
-}
-
-// One sheet stood on end covering the whole wall. Vertical is allowed only
-// when it leaves NO vertical seam (owner rule 2026-07-29) — so exactly one
-// column, one piece: a 48"-wide wall takes a 4×8 standing up, uncut.
-function verticalSheet(L, H) {
-  let best = null;
-  PANEL_SHEETS.forEach((s) => {
-    if (s.w < L - 0.01 || s.len < H - 0.01) return;
-    const waste = round2(s.w * s.len - L * H);
-    if (!best || waste < best.waste) best = { key: s.key, waste: waste };
-  });
-  return best;
-}
-
 export function panelPlan(walls) {
-  const byKey = {}, order = [], detail = [];
-  let vSeams = 0, courses = 0;
-  const take = (k) => {
-    if (!byKey[k]) { byKey[k] = 0; order.push(k); }
-    byKey[k]++;
-  };
-  (walls || []).forEach((wall) => {
-    const L = +wall.len || 0, H = +wall.h || 0;
-    const d = { len: L, h: H, side: wall.side || "", courses: [], vertical: false };
-    detail.push(d);
-    if (!(L > 0) || !(H > 0)) return;
-    const horiz = [];
-    let y0 = 0, hSheets = 0;
-    coursesFor(H).forEach((ch) => {
-      const c = courseFill(ch, L);
-      if (!c) return;
-      horiz.push({ y0: y0, ch: Math.min(ch, round2(H - y0)), lens: c.lens, sheets: c.sheets });
-      y0 = round2(y0 + ch);
-      hSheets += c.sheets.length;
-    });
-    const vert = verticalSheet(L, H);
-    if (vert && hSheets > 1) {
-      d.vertical = true;
-      d.courses.push({ y0: 0, ch: H, lens: [L], vertical: true });
-      courses++;
-      take(vert.key);
-    } else {
-      horiz.forEach((c) => {
-        courses++;
-        vSeams += c.lens.length - 1;
-        d.courses.push({ y0: c.y0, ch: c.ch, lens: c.lens });
-        c.sheets.forEach(take);
-      });
-    }
-  });
-  return {
-    lines: order.map((k) => ({ key: k, qty: byKey[k] })),
-    vSeams: vSeams, courses: courses, detail: detail,
-  };
+  return planPanels(walls, PANEL_SHEETS.map((s) => {
+    const e = item(s.key);
+    return { ...s, price: (e && +e.retail) || s.w * s.len / 144 };
+  }));
 }
 
 // ============================================================================

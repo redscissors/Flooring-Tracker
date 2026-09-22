@@ -14,6 +14,7 @@
 
 import { queryHit, parseQuery, querySummary, seedFromQuery } from "./schluterquery.js";
 import { BENCH_DEPTH, WALL_THICK } from "./showerdraw.js";
+import { planPanels } from "./panelplan.js";
 
 export { queryHit, parseQuery, querySummary, seedFromQuery };
 
@@ -691,13 +692,9 @@ export function openRuns(cfg) {
 }
 
 // ---------------------------------------------------------------------------
-// KERDI-BOARD wall panel planner (round 7) — the wedi panelPlan doctrine over
-// the LIVE registry board range (ADR 0032: no transcribed sheet table).
-// Sheets laid HORIZONTAL, stacked in level courses, mixing the ½" sizes the
-// books actually carry, so the joints run level and vertical seams stay rare;
-// a wall goes VERTICAL only when one sheet stood on end covers it whole —
-// zero seams — and the horizontal plan would have used more than one sheet
-// (the wedi owner rules 2026-07-29/30, ported verbatim in spirit).
+// KERDI-BOARD wall panel planner (round 7) — the shared course planner
+// (panelplan.js, the wedi doctrine) over the LIVE registry board range
+// (ADR 0032: no transcribed sheet table).
 
 // The one wall-panel pool Fit and One-size both pick from: ½" boards only
 // (thickMm keys it so a fatter live board can't sneak in), never the
@@ -715,7 +712,7 @@ export function boardSheets(cat, { source } = {}) {
     .filter((i) => i.bw > 0 && i.bl > 0)
     .slice().sort((a, b) => (b.stock ? 1 : 0) - (a.stock ? 1 : 0) || (+a.price || 0) - (+b.price || 0))
     .filter((i) => { const k = i.bw + "x" + i.bl; if (seen[k]) return false; seen[k] = true; return true; })
-    .map((i) => ({ sku: i.sku, w: i.bw, len: i.bl }))
+    .map((i) => ({ sku: i.sku, w: i.bw, len: i.bl, price: +i.price || 0 }))
     .sort((a, b) => b.w - a.w || b.len - a.len);
 }
 
@@ -742,117 +739,14 @@ export function expandBoardFaces(cfg) {
   return faces;
 }
 
-// Level course stack for a wall height: cover or overshoot, fewest courses,
-// then least overshoot — taller courses at the bottom.
-function boardCourses(h, heights) {
-  let best = null;
-  const search = (idx, stack, tot) => {
-    if (tot >= h - 0.01 && stack.length) {
-      if (!best || stack.length < best.stack.length
-        || (stack.length === best.stack.length && round2(tot - h) < best.over)) {
-        best = { stack: stack.slice(), over: round2(tot - h) };
-      }
-      return;
-    }
-    if (stack.length >= 6 || (best && stack.length >= best.stack.length)) return;
-    for (let i = idx; i < heights.length; i++) {
-      stack.push(heights[i]);
-      search(i, stack, tot + heights[i]);
-      stack.pop();
-    }
-  };
-  search(0, [], 0);
-  return best ? best.stack.sort((a, b) => b - a) : [];
-}
-
-// Fill one course along the run with the sheets of that course height:
-// fewest pieces, then least linear waste; longest sheets lead and the last
-// piece is the cut-down one, so the butt joints are the running lens sums.
-function boardCourseFill(ch, L, sheets) {
-  const opts = sheets.filter((s) => s.w === ch).sort((a, b) => b.len - a.len);
-  if (!opts.length) return null;
-  const maxPieces = Math.ceil(L / opts[opts.length - 1].len) + 1;
-  let best = null;
-  const search = (idx, picks, run) => {
-    if (run >= L - 0.01 && picks.length) {
-      if (!best || picks.length < best.picks.length
-        || (picks.length === best.picks.length && round2(run - L) < best.waste)) {
-        best = { picks: picks.slice(), waste: round2(run - L) };
-      }
-      return;
-    }
-    if (picks.length >= maxPieces || (best && picks.length >= best.picks.length)) return;
-    for (let i = idx; i < opts.length; i++) {
-      picks.push(opts[i]);
-      search(i, picks, run + opts[i].len);
-      picks.pop();
-    }
-  };
-  search(0, [], 0);
-  if (!best) return null;
-  const lens = [];
-  let left = L;
-  best.picks.forEach((p) => { const t = Math.min(p.len, left); lens.push(round2(t)); left = round2(left - t); });
-  return { sheets: best.picks.map((p) => p.sku), lens, vSeams: best.picks.length - 1 };
-}
-
-// One sheet stood on end covering the whole wall — allowed only when it
-// leaves NO vertical seam; smallest-waste sheet wins.
-function boardVertical(L, H, sheets) {
-  let best = null;
-  sheets.forEach((s) => {
-    if (s.w < L - 0.01 || s.len < H - 0.01) return;
-    const waste = round2(s.w * s.len - L * H);
-    if (!best || waste < best.waste) best = { sku: s.sku, waste };
-  });
-  return best;
-}
-
 /**
  * The Fit plan: expanded wall faces in, { lines: [{sku, qty}], vSeams,
- * courses, detail } out — detail index-aligned with the input, each entry
- * carrying the drawing-ready courses ({y0, ch, lens}; a vertical wall is one
- * {y0:0, ch:H, lens:[L], vertical:true} course). y0 steps by the NOMINAL
- * course height while the stored ch clamps to what the wall has left, so the
- * isometric's top course never overshoots. Every piece bills a whole sheet —
- * no off-cut reuse.
+ * courses, detail } out — detail index-aligned with the input.
  */
 export function boardPlan(faces, cat, { source } = {}) {
-  const sheets = boardSheets(cat, { source });
-  const heights = [...new Set(sheets.map((s) => s.w))].sort((a, b) => b - a);
-  const byKey = {}, order = [], detail = [];
-  let vSeams = 0, courses = 0;
-  const take = (k) => { if (!byKey[k]) { byKey[k] = 0; order.push(k); } byKey[k]++; };
-  (faces || []).forEach((wall) => {
-    const L = +wall.len || 0, H = +wall.h || 0;
-    const d = { len: L, h: H, side: wall.side || "", courses: [], vertical: false };
-    detail.push(d);
-    if (!(L > 0) || !(H > 0) || !sheets.length) return;
-    const horiz = [];
-    let y0 = 0, hSheets = 0;
-    boardCourses(H, heights).forEach((ch) => {
-      const c = boardCourseFill(ch, L, sheets);
-      if (!c) return;
-      horiz.push({ y0, ch: Math.min(ch, round2(H - y0)), lens: c.lens, sheets: c.sheets });
-      y0 = round2(y0 + ch);
-      hSheets += c.sheets.length;
-    });
-    const vert = boardVertical(L, H, sheets);
-    if (vert && hSheets > 1) {
-      d.vertical = true;
-      d.courses.push({ y0: 0, ch: H, lens: [L], vertical: true });
-      courses++;
-      take(vert.sku);
-    } else {
-      horiz.forEach((c) => {
-        courses++;
-        vSeams += c.lens.length - 1;
-        d.courses.push({ y0: c.y0, ch: c.ch, lens: c.lens });
-        c.sheets.forEach(take);
-      });
-    }
-  });
-  return { lines: order.map((k) => ({ sku: k, qty: byKey[k] })), vSeams, courses, detail };
+  const sheets = boardSheets(cat, { source }).map((s) => ({ ...s, key: s.sku, price: s.price || s.w * s.len / 144 }));
+  const p = planPanels(faces, sheets);
+  return { ...p, lines: p.lines.map((l) => ({ sku: l.key, qty: l.qty })) };
 }
 
 /**
