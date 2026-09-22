@@ -776,6 +776,14 @@ test("vertical is refused when the horizontal plan is already one sheet", () => 
   assert.equal(p.lines.reduce((t, l) => t + l.qty, 0), 1);
 });
 
+test("108\" walls: top strips share ripped sheets, no vertical seams", () => {
+  const p = boardPlan([{ len: 72, h: 108, side: "back" }, { len: 48, h: 108, side: "left" }, { len: 48, h: 108, side: "right" }], CAT, { source: "all" });
+  assert.equal(p.vSeams, 0);
+  assert.deepEqual(p.detail[0].courses.map((c) => c.ch), [48, 48, 12]);
+  // was 7 sheets, one per 12" strip; the three strips now come out of one board
+  assert.equal(p.lines.reduce((t, l) => t + l.qty, 0), 5);
+});
+
 test("expandBoardFaces appends extra faces AFTER the drawn walls, in schluterWalls order", () => {
   const c = cfg({ xwalls: [{ id: 1, edge: "entry", at: "lo", len: 24, h: 84, faces: "in-end" }] });
   c.walls = c.walls.map((w, i) => (i === 1 ? { ...w, faces: "both" } : w));

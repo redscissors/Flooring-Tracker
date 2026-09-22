@@ -27,6 +27,7 @@
 // retail, net, section, discount, erp} (+ {kitNote, section} rows).
 
 import { queryHit, parseQuery, querySummary, seedFromQuery } from "./wediquery.js";
+import { planPanels } from "./panelplan.js";
 import { WALL_THICK, CURB_LAP, panThick, benchFootprint, BENCH_DEPTH, curbWidthOf } from "./showerdraw.js";
 
 export { queryHit, parseQuery, querySummary, seedFromQuery };
@@ -5959,211 +5960,19 @@ export function solve(input) {
 // wall panel planner
 // ============================================================================
 //
-// Sheets laid HORIZONTAL, stacked in level courses, mixing the three stocked
-// ½" sizes — so the joints run level and vertical seams stay rare (owner
-// rule 2026-07-29). Full courses are 48" (4×8 / 4×5); anything shorter is a
-// strip ripped from a sheet, and strips from every wall share sheets — one
-// 4×8 ripped in half can top off two walls. The plan with the fewest
-// vertical seams wins unless it costs more than SEAM_PREMIUM over the
-// cheapest plan (owner 2026-09-22: "zero seams wins unless it's way more");
-// among those, fewer pieces on the wall, then fewer ripped pieces, win unless
-// they cost PIECE_PREMIUM more — two 48" courses and a top strip beat three
-// 36" rips.
+// The three stocked ½" sizes through the shared course planner (panelplan.js).
 
 const PANEL_SHEETS = [
   { key: "US8000015", w: 48, len: 96 },
   { key: "US8000014", w: 48, len: 60 },
   { key: "US8000017", w: 36, len: 60 },
 ];
-const SEAM_PREMIUM = 0.25;
-const PIECE_PREMIUM = 0.2;
-const PLAN_COMBOS = 4000;
-
-function sheetPrice(s) {
-  const e = item(s.key);
-  return (e && +e.retail) || s.w * s.len / 144;
-}
-
-// A full 48" course: fewest sheets, then least waste — a long course prefers
-// one 4×8 cut down over two butted 4×5s.
-function courseFill(L) {
-  let best = null;
-  for (let n = 0; n <= Math.ceil(L / 96); n++) {
-    const rem = round2(L - n * 96);
-    const m = rem > 0.01 ? Math.ceil(rem / 60) : 0;
-    const cand = { n96: n, n60: m, n: n + m, waste: round2(n * 96 + m * 60 - L) };
-    if (cand.n === 0) continue;
-    if (!best || cand.n < best.n || (cand.n === best.n && cand.waste < best.waste)) best = cand;
-  }
-  const sheets = [], lens = [];
-  let left = L;
-  const lay = (key, len) => { sheets.push(key); const t = Math.min(len, left); lens.push(round2(t)); left = round2(left - t); };
-  for (let i = 0; i < best.n96; i++) lay("US8000015", 96);
-  for (let j = 0; j < best.n60; j++) lay("US8000014", 60);
-  return { sheets, lens };
-}
-
-// A 36" course piece a 3×5 covers as-is — laid whole, not ripped.
-const isWhole35 = (h, l) => Math.abs(h - 36) < 0.01 && l <= 60.01;
-
-function stripLens(L) {
-  const lens = [];
-  let left = L;
-  while (left > 0.01) { const t = Math.min(96, left); lens.push(round2(t)); left = round2(left - t); }
-  return lens;
-}
-
-// Rips strip pieces {h, l} out of sheets: lanes across a sheet's width, pieces
-// end to end along a lane. Greedy per sheet size (pieces too long or tall for
-// it fall back to 4×8s), then each sheet drops to the cheapest size that
-// still holds its lanes; the cheapest outcome wins.
-function packStrips(pieces) {
-  if (!pieces.length) return { sheets: [], cost: 0 };
-  let best = null;
-  PANEL_SHEETS.forEach((prim) => {
-    const fits = (s, p) => p.h <= s.w + 0.01 && p.l <= s.len + 0.01;
-    const bins = [];
-    pieces.slice().sort((a, b) => b.h - a.h || b.l - a.l).forEach((p) => {
-      const s = fits(prim, p) ? prim : PANEL_SHEETS[0];
-      let lane = null;
-      bins.forEach((b) => {
-        if (b.s !== s) return;
-        b.lanes.forEach((ln) => {
-          if (ln.h >= p.h - 0.01 && s.len - ln.used >= p.l - 0.01 && (!lane || ln.h < lane.h)) lane = ln;
-        });
-      });
-      if (!lane) {
-        let bin = bins.find((b) => b.s === s && s.w - b.usedW >= p.h - 0.01);
-        if (!bin) { bin = { s, usedW: 0, lanes: [] }; bins.push(bin); }
-        lane = { h: p.h, used: 0 };
-        bin.lanes.push(lane);
-        bin.usedW = round2(bin.usedW + p.h);
-      }
-      lane.used = round2(lane.used + p.l);
-    });
-    const sheets = bins.map((b) => {
-      const len = Math.max(...b.lanes.map((ln) => ln.used));
-      return PANEL_SHEETS.filter((s) => s.w >= b.usedW - 0.01 && s.len >= len - 0.01)
-        .sort((x, y) => sheetPrice(x) - sheetPrice(y))[0].key;
-    });
-    const cost = round2(sheets.reduce((t, k) => t + sheetPrice(PANEL_SHEETS.find((s) => s.key === k)), 0));
-    if (!best || cost < best.cost || (cost === best.cost && sheets.length < best.sheets.length)) best = { sheets, cost };
-  });
-  return best;
-}
-
-// Every way to cover one wall: a × 48" full courses, b × 36" strip courses,
-// a top strip for what's left; or one sheet stood on end (only when a single
-// column covers the width — no vertical seam, owner rule 2026-07-29) with a
-// top strip if the wall is taller than the sheet.
-function wallOptions(L, H) {
-  const out = [];
-  for (let a = 0; a * 48 <= H + 0.01; a++) {
-    for (let b = 0; a * 48 + b * 36 <= H + 0.01; b++) {
-      const t = round2(H - a * 48 - b * 36);
-      if (t > 48.01) continue;
-      const hs = [];
-      for (let i = 0; i < a; i++) hs.push(48);
-      for (let j = 0; j < b; j++) hs.push(36);
-      if (t > 0.01) hs.push(t);
-      const o = { courses: [], whole: [], strips: [], seams: 0, rips: 0, vertical: false };
-      let y0 = 0;
-      hs.forEach((ch) => {
-        const full = ch >= 48 - 0.01;
-        const c = full ? courseFill(L) : { sheets: [], lens: stripLens(L) };
-        o.courses.push({ y0, ch, lens: c.lens });
-        o.whole.push(...c.sheets);
-        if (!full) c.lens.forEach((l) => { o.strips.push({ h: ch, l }); if (!isWhole35(ch, l)) o.rips++; });
-        o.seams += c.lens.length - 1;
-        y0 = round2(y0 + ch);
-      });
-      out.push(o);
-    }
-  }
-  PANEL_SHEETS.forEach((s) => {
-    if (s.w < L - 0.01) return;
-    const t = round2(H - s.len);
-    if (t > 48.01) return;
-    const o = { courses: [{ y0: 0, ch: Math.min(H, s.len), lens: [L] }], whole: [s.key], strips: [], seams: 0, rips: 0, vertical: true };
-    if (t > 0.01) { o.courses.push({ y0: s.len, ch: t, lens: [L] }); o.strips.push({ h: t, l: L }); o.rips++; }
-    out.push(o);
-  });
-  out.forEach((o) => {
-    o.pieces = o.courses.reduce((n, c) => n + c.lens.length, 0);
-    o.alone = round2(o.whole.reduce((t, k) => t + sheetPrice(PANEL_SHEETS.find((s) => s.key === k)), 0) + packStrips(o.strips).cost);
-  });
-  return out;
-}
-
-// A wall's shortlist: the cheapest few, the fewest-seam few, and the
-// fewest-seam-then-fewest-pieces few.
-function shortlist(opts, k) {
-  const orders = [
-    (x, y) => x.alone - y.alone || x.seams - y.seams,
-    (x, y) => x.seams - y.seams || x.alone - y.alone,
-    (x, y) => x.seams - y.seams || x.pieces - y.pieces || x.rips - y.rips || x.alone - y.alone,
-  ].map((f) => opts.slice().sort(f));
-  const keep = [];
-  for (let i = 0; i < k; i++) orders.forEach((l) => { if (l[i] && keep.indexOf(l[i]) < 0) keep.push(l[i]); });
-  return keep;
-}
 
 export function panelPlan(walls) {
-  const detail = [], live = [];
-  (walls || []).forEach((wall) => {
-    const L = +wall.len || 0, H = +wall.h || 0;
-    const d = { len: L, h: H, side: wall.side || "", courses: [], vertical: false };
-    detail.push(d);
-    if (L > 0 && H > 0) live.push({ d, opts: wallOptions(L, H) });
-  });
-  let k = 3, lists;
-  for (;;) {
-    lists = live.map((w) => shortlist(w.opts, k));
-    if (k === 1 || lists.reduce((p, l) => p * l.length, 1) <= PLAN_COMBOS) break;
-    k--;
-  }
-  const combos = [];
-  const walk = (i, pick) => {
-    if (i === lists.length) {
-      const strips = [], whole = [];
-      pick.forEach((o) => { strips.push(...o.strips); whole.push(...o.whole); });
-      const pk = packStrips(strips);
-      const cost = round2(whole.reduce((t, key) => t + sheetPrice(PANEL_SHEETS.find((s) => s.key === key)), 0) + pk.cost);
-      combos.push({
-        pick, sheets: whole.concat(pk.sheets), cost,
-        seams: pick.reduce((s, o) => s + o.seams, 0),
-        rips: pick.reduce((s, o) => s + o.rips, 0),
-        pieces: pick.reduce((s, o) => s + o.pieces, 0),
-      });
-      return;
-    }
-    lists[i].forEach((o) => walk(i + 1, pick.concat([o])));
-  };
-  walk(0, []);
-  const cheapest = (list) => (list.length ? Math.min(...list.map((c) => c.cost)) : 0);
-  const floor = cheapest(combos);
-  const ok = combos.filter((c) => c.cost <= floor * (1 + SEAM_PREMIUM) + 0.01);
-  const fewest = ok.length ? Math.min(...ok.map((c) => c.seams)) : 0;
-  const seamless = ok.filter((c) => c.seams === fewest);
-  const floor2 = cheapest(seamless);
-  const best = seamless.filter((c) => c.cost <= floor2 * (1 + PIECE_PREMIUM) + 0.01)
-    .sort((x, y) => x.pieces - y.pieces || x.rips - y.rips || x.cost - y.cost || x.sheets.length - y.sheets.length)[0];
-
-  const byKey = {};
-  let courses = 0;
-  if (best) {
-    best.pick.forEach((o, i) => {
-      const d = live[i].d;
-      d.vertical = o.vertical;
-      d.courses = o.courses.map((c) => ({ ...c }));
-      courses += o.courses.length;
-    });
-    best.sheets.forEach((key) => { byKey[key] = (byKey[key] || 0) + 1; });
-  }
-  return {
-    lines: PANEL_SHEETS.filter((s) => byKey[s.key]).map((s) => ({ key: s.key, qty: byKey[s.key] })),
-    vSeams: best ? best.seams : 0, courses, detail,
-  };
+  return planPanels(walls, PANEL_SHEETS.map((s) => {
+    const e = item(s.key);
+    return { ...s, price: (e && +e.retail) || s.w * s.len / 144 };
+  }));
 }
 
 // ============================================================================

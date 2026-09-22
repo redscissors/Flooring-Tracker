@@ -703,10 +703,7 @@ src/
                     # illustrated price list drawings — `OFFSET_DRAIN`,
                     # `LINEAR_DRAIN`, `moduleDrain` (channel + outlet dead centre
                     # of the module) — not derived), `panelPlan`
-                    # (½" sheets in level courses, mixed sizes, vertical when that
-                    # kills the seams; short courses are strips ripped from
-                    # sheets shared across walls; fewest vertical seams wins
-                    # unless 25% dearer, then fewest pieces unless 20%), benches (issue 069: `normBench`/
+                    # (the three stocked ½" sheets through panelplan.js), benches (issue 069: `normBench`/
                     # `benchFootprint`/`benchLines` — a premade catalog piece,
                     # site-built 2" material (top + face + a support about every
                     # foot), or installer-framed with a ½" wrap and the pan cut
@@ -1055,6 +1052,18 @@ src/
                     # on mount (sessionFromRows over the marker rebuilt with
                     # the default session), so a quantity typed on the sheet
                     # reopens as the override, not the recipe's figure
+  panelplan.js      # `planPanels(walls, sheets)` — the wall-board course
+                    # planner both shower engines share (wedi `panelPlan`,
+                    # Schluter `boardPlan`; owner 2026-09-22): full courses
+                    # at the widest sheet, shorter courses as strips ripped
+                    # from sheets SHARED across walls (lane packing, then each
+                    # sheet drops to the cheapest size that holds its lanes),
+                    # a wall stood vertical only when one column covers it.
+                    # Every wall's options are shortlisted and the combination
+                    # picked by fewest vertical seams unless >25% dearer than
+                    # the cheapest plan, then fewest pieces and rips unless
+                    # >20% dearer, then cost. Lines come out in first-use
+                    # order; detail is index-aligned with the walls
   showerdraw.js     # the shared shower drawings' pure-geometry half — TopDown/
                     # Iso's constants and math, extracted out of
                     # WediConfigurator.jsx (issue 097, ADR 0033) so a second
@@ -1173,12 +1182,8 @@ src/
                     # `expandBoardFaces` turns cfg walls+xwalls into planner
                     # faces in schluterWalls' exact order, extra faces
                     # appended AFTER so detail[i] indexes the drawn walls;
-                    # `boardPlan` levels courses (cover-or-overshoot,
-                    # fewest then least overshoot), fills each along the
-                    # run (fewest pieces then least waste, longest sheets
-                    # lead, last piece cut), and stands a wall VERTICAL
-                    # only when one sheet covers it whole — zero seams —
-                    # and horizontal would have used more than one sheet.
+                    # `boardPlan` runs that ladder (priced off each
+                    # board's registry price) through panelplan.js.
                     # halfBoardPool is the ONE wall-panel pool Fit and the
                     # One-size area pick both draw from (exported — the
                     # popup's board swap lists it). wallArea is exported
