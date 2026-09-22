@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Project header — three layouts</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --cream:#F6F3EC; --card:#FFFFFF; --sand:#EDE9DD; --band:#E7E3D6;
+    --border:rgba(28,26,23,.10); --border-strong:rgba(28,26,23,.25);
+    --ink:#1C1A17; --muted:#57534C; --faint:#8A8378;
+    --moss:#57703A; --moss-deep:#40542A;
+    --moss-soft:color-mix(in oklab, var(--moss) 13%, transparent);
+    --seg-on:color-mix(in oklab, var(--moss) 16%, transparent);
+    --hover:color-mix(in oklab, var(--moss) 7%, transparent);
+    --prim-bg:var(--ink); --prim-fg:var(--cream);
+    --amber:#B45309; --amber-soft:#FEF3C7;
+    --tier:var(--moss-deep);
+  }
+  .ned-dark{
+    --cream:#1C1A17; --card:#26231F; --sand:#33302A; --band:#2B2721;
+    --border:rgba(246,243,236,.10); --border-strong:rgba(246,243,236,.24);
+    --ink:#F6F3EC; --muted:#A8A29A; --faint:#7A756C;
+    --moss:#93B56A; --moss-deep:#93B56A;
+    --prim-bg:#F6F3EC; --prim-fg:#1C1A17;
+    --amber:#F5B860; --amber-soft:#4A3A1E;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{background:var(--cream)}
+  body{background:var(--cream);color:var(--ink);font-family:Manrope,system-ui,sans-serif;padding:18px 20px 140px;max-width:1160px;margin:0 auto}
+  button{font-family:inherit;cursor:pointer;color:inherit;background:none;border:0;font-size:inherit}
+  input,textarea{font-family:inherit;color:var(--ink);background:transparent;border:0;outline:none}
+  input::placeholder,textarea::placeholder{color:color-mix(in oklab, var(--ink) 42%, transparent)}
+  svg{display:block;flex:none}
+  h1{font-size:20px;font-weight:800;letter-spacing:-.01em}
+  .sub{font-size:12.5px;color:var(--muted);margin:4px 0 0;max-width:780px;line-height:1.55}
+  .sechead{margin:38px 0 4px;display:flex;align-items:baseline;gap:10px;border-top:2px solid var(--border-strong);padding-top:18px}
+  .sechead h2{font-size:16px;font-weight:800}
+  .sechead .tag{font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--moss-deep);background:var(--moss-soft);border-radius:5px;padding:2px 8px}
+  .note{font-size:12.5px;color:var(--muted);line-height:1.55;max-width:780px;margin:6px 0 14px}
+  .note b{color:var(--ink)}
+  .eyebrow{font-size:8px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+  .mono{font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .toolbar{position:fixed;top:12px;right:16px;display:flex;gap:6px;z-index:9}
+  .toolbar button{font-size:11px;font-weight:700;border:1px solid var(--border-strong);border-radius:6px;padding:4px 10px;background:var(--card)}
+  .frame{max-width:1120px}
+  a{color:var(--moss-deep)}
+
+  /* ---------- shared header atoms ---------- */
+  .hdr{border:1px solid var(--border-strong);border-radius:6px;background:var(--card);overflow:visible;position:relative}
+  .row{display:flex;align-items:stretch;min-height:40px}
+  .row+.row{border-top:1px solid var(--border)}
+  .cell{display:flex;flex-direction:column;justify-content:center;padding:4px 8px;min-width:0;position:relative}
+  .cell+.cell::before{content:"";position:absolute;left:0;top:7px;bottom:7px;width:1px;background:var(--border)}
+  .cell.full::before{top:0;bottom:0}
+  .val{font-size:12.5px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .subv{font-size:9.5px;color:var(--muted);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:4px}
+  .link{color:var(--moss);display:inline-flex;align-items:center;gap:3px}
+  .prim{background:var(--prim-bg);color:var(--prim-fg);font-weight:800;font-size:12px;white-space:nowrap;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0 10px;border-radius:6px}
+  .prim.tier{background:var(--tier);color:#fff}
+  .prim small{font-size:9px;font-weight:600;opacity:.7}
+  .prim span{display:inline-flex;align-items:center;gap:6px}
+  .ghost{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--muted);padding:0 9px;border-radius:5px;height:26px;white-space:nowrap}
+  .ghost:hover{background:var(--hover);color:var(--ink)}
+  .ghost.danger:hover{color:#B42318;background:color-mix(in oklab,#B42318 8%,transparent)}
+  .count{font-size:10px;font-weight:800;background:var(--amber-soft);color:var(--amber);border-radius:4px;padding:0 5px;line-height:15px}
+  .erp{font-size:9px;font-weight:800;letter-spacing:.05em;line-height:15px;background:var(--moss-soft);color:var(--moss-deep);border-radius:4px;padding:0 6px;white-space:nowrap}
+  .saved{font-size:9.5px;font-weight:600;color:var(--moss);text-transform:none;letter-spacing:0}
+  .seg{display:inline-flex;border:1px solid var(--border-strong);border-radius:5px;overflow:hidden;height:22px}
+  .seg button{font-size:10px;font-weight:700;color:var(--muted);padding:0 7px;display:flex;align-items:center;gap:4px;white-space:nowrap}
+  .seg button+button{border-left:1px solid var(--border)}
+  .seg button:hover{background:var(--hover)}
+  .seg button.on{background:var(--seg-on);color:var(--ink);font-weight:800}
+  .seg button.on[data-c]{background:var(--c);color:#fff}
+  .seg button input{width:18px;text-align:right;font-weight:800;font-size:10.5px;color:inherit}
+  .seg button.on .dim{opacity:.6}
+  .tot{font-size:16px;font-weight:800;color:var(--tier);line-height:1.1}
+  .tierbadge{font-size:8px;font-weight:700;border-radius:3px;padding:0 4px;line-height:12px;background:var(--tsoft,var(--moss-soft));color:var(--tier);text-transform:none;letter-spacing:0}
+  .mini{width:30px;height:26px;display:inline-flex;align-items:center;justify-content:center;border-radius:5px;color:var(--muted)}
+  .mini:hover{background:var(--hover);color:var(--ink)}
+  .minis{display:flex;gap:2px}
+  .lockbtn{color:var(--faint);display:inline-flex;margin-left:4px}
+
+  /* ---------- D: title band + property chips ---------- */
+  .chips{display:flex;align-items:center;gap:1px;flex-wrap:nowrap;padding:0 4px;min-width:0}
+  .chip{display:inline-flex;align-items:center;gap:4px;height:26px;padding:0 6px;border-radius:5px;font-size:11px;font-weight:700;color:var(--ink);white-space:nowrap;position:relative}
+  .chip:hover{background:var(--hover)}
+  .chip .k{font-size:8px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+  .chip .dot{width:8px;height:8px;border-radius:50%;background:var(--c,var(--ink));display:inline-block}
+  .chip.muted{color:var(--muted);font-weight:600}
+  .chip .caret{color:var(--faint)}
+  .chipsep{width:1px;height:16px;background:var(--border);flex:none;margin:0 2px}
+  .menu{position:absolute;top:calc(100% + 4px);left:0;min-width:160px;background:var(--card);border:1px solid var(--border-strong);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.14);padding:4px;z-index:20;display:none;text-align:left}
+  .chip.open .menu{display:block}
+  .menu button{display:flex;align-items:center;gap:8px;width:100%;padding:6px 8px;border-radius:4px;font-size:12px;font-weight:600;color:var(--ink)}
+  .menu button:hover{background:var(--hover)}
+  .menu button.on{background:var(--seg-on);font-weight:800}
+  .menu button .dot{width:8px;height:8px;border-radius:50%;background:var(--c,var(--ink))}
+  .menu .pct{margin-left:auto;font-size:10.5px;color:var(--muted)}
+
+  /* ---------- F: sheet head ---------- */
+  .sheet .tools{display:flex;align-items:center;gap:2px;padding:5px 8px;min-height:36px}
+  .sheet .tools .sp{flex:1}
+  .sheet .hero{display:flex;align-items:flex-end;gap:16px;padding:10px 16px 10px}
+  .sheet .hero input.title{font-size:21px;font-weight:800;letter-spacing:-.01em;width:100%;line-height:1.15;border-bottom:1px solid transparent}
+  .sheet .hero input.title:focus{border-bottom-color:var(--moss)}
+  .sheet .hero input.addr{font-size:11.5px;color:var(--muted);width:100%;margin-top:2px}
+  .sheet .hero .bigtot{text-align:right;flex:none}
+  .sheet .hero .bigtot .tot{font-size:24px}
+  .facts{display:flex;align-items:stretch;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+  .fact{flex:1 1 0;min-width:0;padding:6px 12px;display:flex;flex-direction:column;justify-content:center;gap:2px;position:relative;cursor:pointer}
+  .fact+.fact::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:1px;background:var(--border)}
+  .fact:hover{background:var(--hover)}
+  .fact .v{font-size:12px;font-weight:700;display:flex;align-items:center;gap:4px;white-space:nowrap;overflow:hidden}
+  .fact .v .caret{color:var(--faint);margin-left:auto}
+  .fact.wide{flex:1.15 1 0}
+  .notesline{display:flex;flex:1;align-items:center;gap:8px;padding:6px 16px;color:var(--muted);font-size:12px;min-height:32px}
+  .notesline input{flex:1;font-size:12px;color:var(--ink)}
+
+  /* research board */
+  .refs{display:grid;grid-template-columns:repeat(2,1fr);gap:10px 24px;font-size:12.5px;line-height:1.5;color:var(--muted);max-width:980px}
+  .refs b{color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="toolbar"><button onclick="document.documentElement.classList.toggle('ned-dark')">Light / dark</button></div>
+<h1>Project header — three layouts</h1>
+<p class="sub">Same job, same controls, three structures borrowed from how Shopify, Stripe, Linear and Zoho lay out a dense record header. Everything you can press in the real header is here; segments and chips are live so you can feel the click count. Throwaway — nothing in <code>src/</code> changes.</p>
+
+<!-- ============================================================ D -->
+<div class="sechead"><h2>D — Title band + property chips</h2><span class="tag">Linear · Shopify</span></div>
+<p class="note">A thin title row (number, editable name, ERP, saved state, total) with the two primaries at the right and the housekeeping actions behind ⋯. Under it, <b>one row of chips</b> — every setting is a chip you click to open a small menu, exactly as Linear's Properties row and Shopify's order badges work. Notes are a single line that grows on focus. <b>Trade-off:</b> price level and estimate-shows become two clicks (chip → menu) instead of one; the header shrinks to ~100px.</p>
+<div class="frame" id="d">
+  <div class="hdr" data-tier="retail">
+    <div class="row" style="min-height:46px">
+      <div class="cell" style="flex:1;padding-left:12px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="eyebrow" style="letter-spacing:.08em">N214</span>
+          <input value="Marsh — whole first floor" style="font-size:15px;font-weight:800;line-height:1.15;flex:1;min-width:0" />
+          <span class="erp">ERP 48260 +1</span>
+          <span class="saved">Saved ✓</span>
+        </div>
+        <input value="214 Old Mill Rd, Chagrin Falls" style="font-size:10.5px;color:var(--muted);margin-top:1px" />
+      </div>
+      <div class="cell" style="align-items:flex-end;padding-right:12px">
+        <div class="eyebrow">Job total <span class="tierbadge tb" hidden></span></div>
+        <div class="tot mono">$12,847.20</div>
+      </div>
+      <div class="cell" style="flex-direction:row;align-items:center;gap:5px;padding:5px 6px 5px 8px">
+        <button class="prim tier"><span>⧉ Order entry</span><small>For ERP One</small></button>
+        <button class="prim tier"><span>⎙ Print</span></button>
+        <button class="mini" title="More: Order sheet, Files, Save version, History, Delete">⋯</button>
+      </div>
+    </div>
+    <div class="row" style="min-height:34px">
+      <div class="chips" style="flex:1">
+        <div role="button" tabindex="0" class="chip"><span class="k">Customer</span> Kathy Marsh <span class="caret">▾</span></div>
+        <div role="button" tabindex="0" class="chip muted">Meridian Homes</div>
+        <span class="chipsep"></span>
+        <div role="button" tabindex="0" class="chip"><span class="k">Sales</span> Danny <span class="caret">▾</span></div>
+        <span class="chipsep"></span>
+        <div role="button" tabindex="0" class="chip tierchip" onclick="toggleMenu(this)"><span class="dot" style="--c:var(--tier)"></span><span class="tierlabel">Retail</span> <span class="caret">▾</span>
+          <div class="menu" onclick="event.stopPropagation()">
+            <button class="on" onclick="setTier(this,'retail','Retail')"><span class="dot"></span>Retail</button>
+            <button onclick="setTier(this,'builder','Builder')" style="--c:#2563eb"><span class="dot"></span>Builder <span class="pct">8% off</span></button>
+            <button onclick="setTier(this,'employee','Employee')" style="--c:#0d9488"><span class="dot"></span>Employee <span class="pct">cost + 6%</span></button>
+            <button onclick="setTier(this,'sale','Sale')" style="--c:#db2777"><span class="dot"></span>Sale <span class="pct">15% off</span></button>
+            <button onclick="setTier(this,'custom','Custom')" style="--c:#7c3aed"><span class="dot"></span>Custom <span class="pct">__ %</span></button>
+          </div>
+        </div>
+        <div role="button" tabindex="0" class="chip" onclick="toggleMenu(this)"><span class="k">Shows</span> All prices <span class="caret">▾</span>
+          <div class="menu"><button class="on">All prices</button><button>Unit only</button><button>No prices</button></div>
+        </div>
+        <div role="button" tabindex="0" class="chip" onclick="toggleMenu(this)"><span class="k">Freight</span> Included · $214 <span class="caret">▾</span>
+          <div class="menu"><button class="on">Included — vendor shipping at cost</button><button>None on this job</button></div>
+        </div>
+        <div role="button" tabindex="0" class="chip" onclick="toggleMenu(this)"><span class="k">Waste</span> Tile 15% · Floor — <span class="caret">▾</span>
+          <div class="menu" style="min-width:210px"><button class="on">Tile 15% <span class="pct">applied</span></button><button>Flooring 10% <span class="pct">off</span></button><button style="color:var(--muted)">🔓 Change the rates…</button></div>
+        </div>
+        <span class="chipsep"></span>
+        <div role="button" tabindex="0" class="chip"><span class="k">Samples</span> <span class="count">2</span></div>
+      </div>
+    </div>
+    <div class="row" style="min-height:30px">
+      <div class="notesline" style="padding-left:14px"><span style="font-size:10px;color:var(--faint)">✎</span><input value="Tear-out week of the 24th. Owner wants the herringbone quote separate." placeholder="Project notes…" /></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ E -->
+<div class="sechead"><h2>E — Ruled grid, uniform rows</h2><span class="tag">your idea, made to line up</span></div>
+<p class="note">Your hairline-grid instinct, but built so it <b>can't</b> mis-align: three rows of identical height, full-width horizontal rules, short inset vertical dividers (Stripe's trick — short lines never have to meet the lines in the row above). Every setting turns horizontal: Price level, Estimate shows and Waste become segmented controls on one line, so one click still does everything it does today. Row 1 is identity, row 2 is settings, row 3 is details. ~124px tall.</p>
+<div class="frame" id="e">
+  <div class="hdr" data-tier="retail">
+    <div class="row">
+      <div class="cell" style="width:190px">
+        <div class="eyebrow">Customer</div>
+        <div class="val link">Kathy Marsh <span style="font-size:9px">▾</span></div>
+        <div class="subv">🏢 Meridian Homes</div>
+      </div>
+      <div class="cell" style="width:150px">
+        <div class="eyebrow">🔒 Salesperson</div>
+        <div class="val">Danny</div>
+        <div class="subv">(555) 210-0114</div>
+      </div>
+      <div class="cell" style="flex:1">
+        <div style="display:flex;align-items:center;justify-content:space-between"><span class="eyebrow">Project</span><span style="display:flex;gap:6px;align-items:center"><span class="eyebrow" style="letter-spacing:.08em">N214</span><span class="erp">ERP 48260 +1</span></span></div>
+        <input value="Marsh — whole first floor" style="font-size:15px;font-weight:800;line-height:1.15" />
+      </div>
+      <div class="cell" style="width:160px">
+        <div class="eyebrow" style="display:flex;gap:4px;align-items:center">Job total <span class="tierbadge tb" hidden></span> <span class="saved" style="margin-left:auto">Saved ✓</span></div>
+        <div class="tot mono">$12,847.20</div>
+      </div>
+      <div class="cell" style="width:252px;flex-direction:row;gap:5px;padding:5px 6px">
+        <button class="prim tier" style="flex:1"><span>⧉ Order entry</span><small>For ERP One</small></button>
+        <button class="prim tier" style="flex:1"><span>⎙ Print</span></button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="cell" style="width:310px">
+        <div class="eyebrow">Price level</div>
+        <div class="seg" style="margin-top:2px">
+          <button class="on" onclick="segTier(this,'retail','Retail')">Retail</button>
+          <button data-c style="--c:#2563eb" onclick="segTier(this,'builder','Builder')">Builder</button>
+          <button data-c style="--c:#0d9488" onclick="segTier(this,'employee','Employee')">Employee</button>
+          <button data-c style="--c:#db2777" onclick="segTier(this,'sale','Sale')">Sale</button>
+          <button data-c style="--c:#7c3aed" onclick="segTier(this,'custom','Custom')">Custom <input value="" placeholder="%" onclick="event.stopPropagation()" /></button>
+        </div>
+      </div>
+      <div class="cell" style="width:218px">
+        <div class="eyebrow">Estimate shows</div>
+        <div class="seg" style="margin-top:2px"><button class="on" onclick="seg(this)">All prices</button><button onclick="seg(this)">Unit only</button><button onclick="seg(this)">No prices</button></div>
+      </div>
+      <div class="cell" style="width:150px">
+        <div class="eyebrow">Freight</div>
+        <div class="seg" style="margin-top:2px"><button class="on" onclick="seg(this)">Included <span class="dim mono">$214</span></button><button onclick="seg(this)">None</button></div>
+      </div>
+      <div class="cell" style="flex:1">
+        <div class="eyebrow">Waste <span class="lockbtn">🔒</span></div>
+        <div class="seg" style="margin-top:2px"><button class="on" onclick="this.classList.toggle('on')">Tile <span class="dim mono">15%</span></button><button onclick="this.classList.toggle('on')">Flooring <span class="dim mono">10%</span></button></div>
+      </div>
+      <div class="cell" style="width:252px;flex-direction:row;align-items:center;justify-content:flex-end;gap:2px;padding:4px 6px">
+        <button class="ghost"><span class="count">2</span> Samples</button>
+        <span class="chipsep"></span>
+        <button class="mini" title="Order sheet">☰</button><button class="mini" title="Files">📎</button><button class="mini" title="Save version">💾</button><button class="mini" title="History">🕘</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="cell" style="width:310px">
+        <div class="eyebrow">Address</div>
+        <input value="214 Old Mill Rd, Chagrin Falls" placeholder="Project address…" style="font-size:12px;font-weight:600" />
+      </div>
+      <div class="cell" style="flex:1">
+        <div class="eyebrow">Notes</div>
+        <input value="Tear-out week of the 24th. Owner wants the herringbone quote separate." placeholder="Project notes…" style="font-size:12px" />
+      </div>
+      <div class="cell" style="width:252px;flex-direction:row;align-items:center;justify-content:flex-end;padding:4px 6px">
+        <button class="ghost danger">🗑 Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ F -->
+<div class="sechead"><h2>F — Sheet head</h2><span class="tag">Stripe · Xero · Zoho</span></div>
+<p class="note">The header reads like the top of the estimate it prints: a quiet toolbar, then a <b>hero</b> (big name at left, big total at right, the way Stripe leads with the amount), then a <b>facts strip</b> — label-over-value cells for customer, builder, salesperson, level, shows, freight, waste. Each fact is a click to change (popover), like Zoho's quote strip. Most "modern" of the three, and the tallest at ~150px; settings are two clicks.</p>
+<div class="frame" id="f">
+  <div class="hdr sheet" data-tier="retail">
+    <div class="tools">
+      <span class="eyebrow" style="letter-spacing:.08em;padding-left:8px">N214</span>
+      <span class="erp" style="margin-left:8px">ERP 48260 +1</span>
+      <span class="saved" style="margin-left:8px">Saved ✓</span>
+      <span class="sp"></span>
+      <button class="ghost">☰ Order sheet</button>
+      <button class="ghost">📎 Files</button>
+      <button class="ghost">💾 Save version</button>
+      <button class="ghost">🕘 History</button>
+      <button class="ghost">Samples <span class="count">2</span></button>
+      <button class="ghost danger">🗑 Delete</button>
+      <span class="chipsep" style="margin:0 6px"></span>
+      <button class="prim tier" style="height:30px;flex-direction:row;gap:6px;font-size:12px"><span>⧉ Order entry</span></button>
+      <button class="prim tier" style="height:30px;flex-direction:row;font-size:12px;margin-left:4px"><span>⎙ Print</span></button>
+    </div>
+    <div class="hero" style="border-top:1px solid var(--border)">
+      <div style="flex:1;min-width:0">
+        <input class="title" value="Marsh — whole first floor" />
+        <input class="addr" value="214 Old Mill Rd, Chagrin Falls" placeholder="Project address…" />
+      </div>
+      <div class="bigtot">
+        <div class="eyebrow" style="display:flex;justify-content:flex-end;gap:4px">Job total <span class="tierbadge tb" hidden></span></div>
+        <div class="tot mono">$12,847.20</div>
+      </div>
+    </div>
+    <div class="facts">
+      <div class="fact wide"><span class="eyebrow">Customer</span><span class="v link">Kathy Marsh <span class="caret">▾</span></span></div>
+      <div class="fact"><span class="eyebrow">Builder</span><span class="v">Meridian Homes</span></div>
+      <div class="fact"><span class="eyebrow">🔒 Salesperson</span><span class="v">Danny <span class="caret">▾</span></span></div>
+      <div class="fact" onclick="cycleTier(this)"><span class="eyebrow">Price level</span><span class="v"><span class="dot" style="width:8px;height:8px;border-radius:50%;background:var(--tier);display:inline-block"></span> <span class="tierlabel">Retail</span> <span class="caret">▾</span></span></div>
+      <div class="fact"><span class="eyebrow">Estimate shows</span><span class="v">All prices <span class="caret">▾</span></span></div>
+      <div class="fact"><span class="eyebrow">Freight</span><span class="v">Included <span class="mono" style="color:var(--muted);font-weight:600">$214</span> <span class="caret">▾</span></span></div>
+      <div class="fact"><span class="eyebrow">Waste</span><span class="v">Tile 15% <span style="color:var(--faint);font-weight:500">· Floor —</span> <span class="caret">▾</span></span></div>
+    </div>
+    <div class="notesline"><span style="font-size:10px;color:var(--faint)">✎</span><input value="Tear-out week of the 24th. Owner wants the herringbone quote separate." placeholder="Project notes…" /></div>
+  </div>
+</div>
+
+<!-- ============================================================ research -->
+<div class="sechead"><h2>What the big products do</h2><span class="tag">Mobbin · 2026-09-22</span></div>
+<p class="note">The recurring shape: a <b>thin title row</b> (identifier + name + status badges, primaries top-right, the rest behind a menu) and then <b>one uniform strip</b> — either facts (label-over-value) or interactive property chips. Nobody stacks vertical option lists in the header; choices open as menus or sit in horizontal segments, so every row is the same height and the lines line up for free.</p>
+<div class="refs">
+  <div><b>Shopify — order page.</b> "#1003 · Paid · Fulfilled" badges inline with the title, date line under, Refund / Return / Edit / Print / More actions top-right; everything else is cards below. <a href="https://mobbin.com/screens/9565322e-d10e-45ce-b417-28da8ff6dc6f">screen</a></div>
+  <div><b>Stripe — payment / invoice.</b> Leads with the amount and a status pill ("MYR 2.00 · Succeeded"), "Charged to ___" under it, Refund top-right; a Details column of label-over-value facts. <a href="https://mobbin.com/screens/71e2e744-2c2e-45ef-8d77-5a8d9e5ed9a2">screen</a> · <a href="https://mobbin.com/screens/de9b8395-9d09-4450-9e76-344d8f068e4d">invoice</a></div>
+  <div><b>Linear — project overview.</b> Title, summary, then a "Properties" row of chips (status, priority, lead, dates, team) each opening a menu. The most compact way to keep many settings one row high. <a href="https://mobbin.com/screens/c2cbaff3-1a8d-4fd4-af9a-c5c31533082c">screen</a></div>
+  <div><b>Zoho CRM — quote.</b> A key-value strip (Quote Number / Stage / Owner / Valid Until / Carrier) directly under the title with Convert / Edit / ⋯ top-right. <a href="https://mobbin.com/screens/65ec79b5-33b5-42e6-baa8-764a11add7c4">screen</a></div>
+  <div><b>Pipedrive — deal.</b> Title with owner + follower pills, Won / Lost buttons top-right, then a full-width stage bar. <a href="https://mobbin.com/screens/b1ba3b4e-6bc3-49b7-bae4-fa89632f1496">screen</a></div>
+  <div><b>Attio — record.</b> Title row with three text actions right; status chips under it; tab strip; facts in a right column. <a href="https://mobbin.com/screens/297adfeb-8312-496b-8acf-41839a6cf775">screen</a></div>
+</div>
+
+<script>
+  const TIER = { retail:["var(--moss-deep)","var(--moss-soft)",""], builder:["#2563eb","#dbeafe","Builder 8% off"], employee:["#0d9488","#ccfbf1","Employee"], sale:["#db2777","#fce7f3","Sale 15% off"], custom:["#7c3aed","#ede9fe","Custom"] };
+  function paint(hdr, t, label){
+    const [main, soft, badge] = TIER[t];
+    hdr.style.setProperty("--tier", main); hdr.style.setProperty("--tsoft", soft);
+    hdr.querySelectorAll(".tb").forEach(b => { b.hidden = !badge; b.textContent = badge; });
+    hdr.querySelectorAll(".tierlabel").forEach(l => l.textContent = label);
+  }
+  function toggleMenu(chip){ const open = chip.classList.contains("open"); document.querySelectorAll(".chip.open").forEach(c => c.classList.remove("open")); if (!open) chip.classList.add("open"); event.stopPropagation(); }
+  document.addEventListener("click", () => document.querySelectorAll(".chip.open").forEach(c => c.classList.remove("open")));
+  function setTier(btn, t, label){ const menu = btn.parentElement; menu.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === btn)); const chip = menu.closest(".chip"); chip.classList.remove("open"); paint(chip.closest(".hdr"), t, label); }
+  function seg(btn){ btn.parentElement.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === btn)); }
+  function segTier(btn, t, label){ seg(btn); paint(btn.closest(".hdr"), t, label); }
+  const ORDER = ["retail","builder","employee","sale","custom"], LABEL = { retail:"Retail", builder:"Builder", employee:"Employee", sale:"Sale", custom:"Custom" };
+  function cycleTier(fact){ const hdr = fact.closest(".hdr"); const i = (ORDER.indexOf(hdr.dataset.tier) + 1) % ORDER.length; hdr.dataset.tier = ORDER[i]; paint(hdr, ORDER[i], LABEL[ORDER[i]]); }
+</script>
+</body>
+</html>
