@@ -334,6 +334,34 @@ test("a finish sub-heading right under the header does not swallow the Item # la
   assert.equal(items[0].description, "Xenia Neige Glossy"); // line fronts the name
 });
 
+// Renaissance (Price-List_2, 2026-09-18): the same "Polished" / "Matte"
+// sub-heading as Xenia, but the color names do NOT repeat the finish — the
+// sub-heading is the only place the sheet says it (owner, 2026-09-22).
+const renaissancePage = [
+  item(52, 197.5, 90, "Renaissance Collection"),
+  ...xeniaHeader(217.1),
+  item(52, 227.6, 30, "Polished"),
+  ...xeniaRow(238.3, "REN1201", "Calacatta"),
+  ...xeniaRow(248.4, "REN1202", "Carrara"),
+  item(52, 258.8, 21, "Matte"),
+  ...xeniaRow(269.4, "REN1211", "Calacatta"),
+  ...xeniaRow(279.5, "REN1212", "Carrara"),
+];
+
+test("a finish sub-heading is carried onto the rows beneath it", () => {
+  const { items } = parse(renaissancePage);
+  assert.deepEqual(
+    items.map((i) => [i.sku, i.description]),
+    [["REN1201", "Renaissance Calacatta Polished"], ["REN1202", "Renaissance Carrara Polished"],
+     ["REN1211", "Renaissance Calacatta Matte"], ["REN1212", "Renaissance Carrara Matte"]],
+  );
+});
+
+test("a color name that already carries the finish is not doubled", () => {
+  const { items } = parse(xeniaPage);
+  assert.deepEqual(items.map((i) => i.description), ["Xenia Neige Glossy", "Xenia Nebbia Glossy", "Xenia Neige Matte"]);
+});
+
 test("a one-item '$ per Box' label still types the box price column", () => {
   const { items } = parse(yosemitePage);
   const it = items.find((i) => i.sku === "YSM081");
