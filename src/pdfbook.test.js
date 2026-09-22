@@ -357,6 +357,30 @@ test("a finish sub-heading is carried onto the rows beneath it", () => {
   );
 });
 
+// The Renaissance heading carries "Collection" in the MIDDLE with a size
+// qualifier after it ("Renaissance Collection - 12x12"); Sarmento's carries a
+// worded one ("Sarmento Collection: Plain"). Owner, 2026-09-22: drop the word
+// there as well.
+const titledPage = (title) => [
+  item(52, 197.5, 90, title),
+  ...xeniaHeader(217.1),
+  ...xeniaRow(238.3, "REN1201", "Calacatta"),
+  ...xeniaRow(248.4, "REN1202", "Renaissance Carrara"),
+];
+
+test("a mid-heading 'Collection' with a size qualifier is dropped with the size", () => {
+  const { items } = parse(titledPage("Renaissance Collection - 12x12"));
+  assert.equal(items[0].productLine, "Renaissance");
+  assert.equal(items[0].description, "Renaissance Calacatta");
+  assert.equal(items[1].description, "Renaissance Carrara", "the series-lead dedupe fires again");
+});
+
+test("a mid-heading 'Collection' with a worded qualifier keeps the qualifier", () => {
+  const { items } = parse(titledPage("Sarmento Collection: Plain"));
+  assert.equal(items[0].productLine, "Sarmento Plain");
+  assert.equal(items[0].description, "Sarmento Plain Calacatta");
+});
+
 test("a color name that already carries the finish is not doubled", () => {
   const { items } = parse(xeniaPage);
   assert.deepEqual(items.map((i) => i.description), ["Xenia Neige Glossy", "Xenia Nebbia Glossy", "Xenia Neige Matte"]);

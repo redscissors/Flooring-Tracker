@@ -38,3 +38,14 @@ descriptions show in the wizard's diff review.
 Tests (`src/pdfbook.test.js`): a Renaissance-shaped page yields "Renaissance
 Calacatta Polished" / "… Calacatta Matte" for the two same-color rows; the Xenia
 page's descriptions are unchanged.
+
+## Follow-up (owner, 2026-09-22): "Collection" in the middle of the heading
+
+The Renaissance heading reads "Renaissance Collection - 12x12" and Sarmento's
+"Sarmento Collection: Plain"; `collectionTitleFor` only stripped a TRAILING
+"Collection" (issue 093), so those rows read "Renaissance Collection - 12x12
+Calacatta …" and the series-lead dedupe could not fire (it needs the name to
+lead with the whole product line). Now the word and its separator are dropped
+wherever they sit; a worded qualifier stays ("Sarmento Plain"), a letterless one
+is a size tag already in the row's size column and goes too ("Renaissance").
+Two tests pin both shapes. Issue 145's "not addressed" note is closed by this.

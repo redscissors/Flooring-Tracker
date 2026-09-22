@@ -264,11 +264,17 @@ function collectionTitleFor(rows, header, floorY) {
     // A letterless heading ("24x48-6", the large-format pages' size label) is a
     // format tag, not a collection name — keep scanning for a real one.
     if (!/[a-z]/i.test(text.replace(/[x×]/gi, " "))) continue;
-    // Glazzio sets every heading as "<NAME> COLLECTION". The trailing word is
-    // typography, not the name: kept, it bloats every label and defeats the
-    // series-lead dedupe when the color names repeat the series ("Rythmique
-    // Collection Rythmique …", the RYM5532 report 2026-08-18).
-    return text.replace(/\s+collection$/i, "");
+    // Glazzio sets every heading as "<NAME> COLLECTION", sometimes with a
+    // qualifier after it ("Renaissance Collection - 12x12", "Sarmento
+    // Collection: Plain"). The word is typography, not the name: kept, it
+    // bloats every label and defeats the series-lead dedupe when the color
+    // names repeat the series ("Rythmique Collection Rythmique …", the RYM5532
+    // report 2026-08-18). A worded qualifier stays as part of the name; a
+    // letterless one is a size tag, already in the row's own size column.
+    const m = text.match(/^(.*?)\s+collection\b\s*[-:–—]?\s*(.*)$/i);
+    if (!m) return text;
+    const rest = m[2].trim();
+    return /[a-z]/i.test(rest.replace(/[x×]/gi, " ")) ? `${m[1]} ${rest}` : m[1];
   }
   return "";
 }
