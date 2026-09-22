@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Project header — hairline grid prototypes</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root{--cream:#F6F3EC;--border:rgba(28,26,23,.10);--border-strong:rgba(28,26,23,.25);--ink:#1C1A17;--muted:#57534C;--faint:#8A8378;--moss:#57703A;--moss-deep:#40542A;--moss-soft:color-mix(in oklab,#57703A 13%,transparent)}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--cream);color:var(--ink);font-family:Manrope,system-ui,sans-serif;padding:18px 20px 120px;max-width:1180px;margin:0 auto}
+  h1{font-size:20px;font-weight:800;letter-spacing:-.01em}
+  .sub{font-size:12.5px;color:var(--muted);margin:4px 0 0;max-width:760px;line-height:1.55}
+  .sechead{margin:34px 0 4px;display:flex;align-items:baseline;gap:10px;border-top:2px solid var(--border-strong);padding-top:18px}
+  .sechead h2{font-size:16px;font-weight:800}
+  .sechead .tag{font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--moss-deep);background:var(--moss-soft);border-radius:5px;padding:2px 8px}
+  .note{font-size:12.5px;color:var(--muted);line-height:1.55;max-width:760px;margin:6px 0 14px}
+  .lbl{font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:16px 0 6px}
+  img{display:block;width:100%;max-width:1120px;border-radius:6px}
+  code{font-size:11.5px;background:rgba(28,26,23,.06);padding:1px 5px;border-radius:4px}
+</style>
+</head>
+<body>
+<h1>Project header — hairline grid</h1>
+<p class="sub">Spike, 2026-09-22. The one-bar header with the 5px gutters closed: one outer frame, inner boxes lose their own borders and rounding, and faint hairlines (the rail's <code>--ft-border</code>) divide the cells — the way the logo block in the left rail is ruled. Every shot is the REAL <code>ProjectHeaderBar</code> in <code>header-preview.html</code> with one of the CSS files here injected (<code>render.mjs</code>); nothing in <code>src/</code> changed. Throwaway — the CSS is an override sheet, not the implementation.</p>
+
+<div class="sechead"><h2>Current</h2><span class="tag">as shipped</span></div>
+<p class="note">Each box carries its own <code>border-strong</code> line and 6px radius, on the band tint, with 5px gaps. Twelve separate outlines inside one outline.</p>
+<div class="lbl">Light</div><img src="current.png" alt="current header, light" />
+<div class="lbl">Dark</div><img src="current-dark.png" alt="current header, dark" />
+
+<div class="sechead"><h2>A — Hairline grid</h2><span class="tag">a-hairline-grid.css</span></div>
+<p class="note">Only the lines change: gutters to 0, inner borders and radii off, hairlines between every cell, one outer frame. Band tint, sand section strips and the ink pressed rows all stay. The smallest possible step.</p>
+<div class="lbl">Light</div><img src="a.png" alt="variant A, light" />
+<div class="lbl">Dark</div><img src="a-dark.png" alt="variant A, dark" />
+
+<div class="sechead"><h2>B — Paper grid</h2><span class="tag">b-paper-grid.css</span></div>
+<p class="note">A, and the header sits on the card surface like the rail does, with the sand strips behind ESTIMATE SHOWS / PRICE LEVEL / WASTE dropped, so the hairlines are the only structure. Pressed rows keep the ink fill.</p>
+<div class="lbl">Light</div><img src="b.png" alt="variant B, light" />
+<div class="lbl">Dark</div><img src="b-dark.png" alt="variant B, dark" />
+
+<div class="sechead"><h2>C — Paper grid, quiet selection</h2><span class="tag">c-paper-grid-moss.css</span></div>
+<p class="note">B, and the pressed option rows swap the black slab for the moss segment tint the tab strips already use (<code>--ft-seg-on-bg</code>) with a 3px moss edge, so only Order entry / Print stay solid. Tier colours still paint the tier row and the two primaries — the one thing that must keep shouting.</p>
+<div class="lbl">Light</div><img src="c.png" alt="variant C, light" />
+<div class="lbl">Dark</div><img src="c-dark.png" alt="variant C, dark" />
+
+<div class="sechead"><h2>Known rough edges (would be fixed in the real change, not here)</h2></div>
+<p class="note">1. The Estimate-shows/Freight stack and the Price-level column have different row counts, so their hairlines don't line up across the two columns — visible now that the lines are continuous. The implementation would give <code>.ft-hopt</code> a fixed row height so rows align, or move Freight beside Waste.<br/>2. The two ink primaries touch; the divider between them is the band colour here. A 1px paper line, or a 2px gap, is a taste call.<br/>3. Focus rings on the name/address/notes fields become inset rings (a rounded ring in a square cell looks wrong).</p>
+</body>
+</html>

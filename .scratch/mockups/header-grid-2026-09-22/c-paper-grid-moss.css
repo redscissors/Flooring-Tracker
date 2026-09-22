@@ -1,0 +1,11 @@
+/* C — Paper grid, quiet selection: B, and the pressed option rows swap the
+   black slab for the moss segment tint (the same --ft-seg-on-bg the tab
+   strips use) with ink text, so only Order entry / Print stay solid ink and
+   the header reads as one calm sheet. Tier colours still paint the tier
+   row and the two primaries. */
+@import url("b-paper-grid.css");
+.ft-hbar .ft-hopt.on:not([style*="background"]){background:var(--ft-seg-on-bg) !important;color:var(--ft-text) !important;box-shadow:inset 3px 0 0 var(--ft-brand) !important}
+.ft-hbar .ft-hopt.on:not([style*="background"]) *{color:var(--ft-text) !important}
+.ft-hbar .ft-hopt.on[style*="background"]{box-shadow:none !important}
+.ft-hbar .ft-hopt[style*="var(--ft-text)"]{background:var(--ft-seg-on-bg) !important;box-shadow:inset 3px 0 0 var(--ft-brand) !important}
+.ft-hbar .ft-hopt[style*="var(--ft-text)"] *{color:var(--ft-text) !important}

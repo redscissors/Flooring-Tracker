@@ -1,0 +1,7 @@
+/* B — Paper grid: A, and the header sits on paper like the rail (card
+   surface, no band tint) with the sand strips behind the section names
+   dropped, so the hairlines are the only structure. Active choices keep the
+   ink fill. */
+@import url("a-hairline-grid.css");
+.ft-hbar{background:var(--ft-card) !important}
+.ft-hbar .ft-hhead{background:transparent !important}

@@ -1,0 +1,18 @@
+/* A — Hairline grid: the current header with the gutters closed. One outer
+   frame, every inner box loses its own border and rounding, faint hairlines
+   (--ft-border, the rail's line) divide the cells. Nothing else changes. */
+.ft-hbar{padding:0 !important;gap:0 !important;overflow:hidden;border-color:var(--ft-border-strong) !important;border-radius:6px !important}
+.ft-hbar>*{gap:0 !important}
+.ft-hbar>*+*{border-left:1px solid var(--ft-border)}
+.ft-hbar .ft-hcol,.ft-hbar div[style*="border-radius: 6px"]{border:0 !important;border-radius:0 !important}
+.ft-hbar.ft-hbar>*>*+*{border-top:1px solid var(--ft-border) !important}
+.ft-hbar div[style*="border-radius: 6px"]{padding:3px 8px !important}
+.ft-hbar textarea{border:0 !important;border-top:1px solid var(--ft-border) !important;border-radius:0 !important;background:transparent !important;padding:5px 8px !important}
+.ft-hbar textarea:focus{box-shadow:inset 0 0 0 2px var(--ft-brand) !important}
+.ft-hbar .ft-tip{border:0 !important;border-radius:0 !important;width:auto !important;height:auto !important;min-height:26px}
+.ft-hbar .grid{grid-template-columns:1fr 1fr !important;gap:0 !important}
+.ft-hbar .grid>*:nth-child(odd){border-right:1px solid var(--ft-border)}
+.ft-hbar .grid>*:nth-child(n+3){border-top:1px solid var(--ft-border)}
+.ft-hbar>*:last-child>button{border:0 !important;border-radius:0 !important;height:auto !important;min-height:22px}
+.ft-hbar>*:last-child>button+button{border-top:1px solid var(--ft-border) !important}
+.ft-hbar>*:last-child>button.bg-indigo-600+button.bg-indigo-600{border-top:1px solid var(--ft-band) !important}
