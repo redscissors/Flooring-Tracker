@@ -704,7 +704,9 @@ src/
                     # `LINEAR_DRAIN`, `moduleDrain` (channel + outlet dead centre
                     # of the module) — not derived), `panelPlan`
                     # (½" sheets in level courses, mixed sizes, vertical when that
-                    # kills the seams), benches (issue 069: `normBench`/
+                    # kills the seams; short courses are strips ripped from
+                    # sheets shared across walls; fewest vertical seams wins
+                    # unless 25% dearer, then fewest pieces unless 20%), benches (issue 069: `normBench`/
                     # `benchFootprint`/`benchLines` — a premade catalog piece,
                     # site-built 2" material (top + face + a support about every
                     # foot), or installer-framed with a ½" wrap and the pan cut
