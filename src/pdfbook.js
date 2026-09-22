@@ -163,6 +163,16 @@ const isLegendRow = (rowItems) => {
   return toks.length >= 2 && toks.every(isSkuish);
 };
 
+// A finish sub-heading — the 2026-09 Glazzio sheets print "Polished" / "Matte"
+// / "Glossy" alone at the left margin above a run of rows instead of as a column
+// or in the color name (Renaissance, owner 2026-09-22). Only a lone finish word
+// qualifies, so a size label or prose line can never be taken for one.
+const FINISH_RE = /^(?:polished|semi[- ]?polished|unpolished|matte?|glossy|gloss|honed|satin|textured|brushed|lappato|natural)$/i;
+const finishOf = (rowItems) => {
+  const text = [...rowItems].sort((a, b) => a.x - b.x).map((it) => it.str).join(" ").trim();
+  return FINISH_RE.test(text) ? text : "";
+};
+
 // Order-note / disclaimer boilerplate printed around the tables. A collection
 // title is the plain heading line above a header that is NOT one of these.
 const TITLE_SKIP = /square foot|full box|place order|quantity only|sold by|reference only|^effective|tariff|digital price|encourage customers|guarantee pricing|actual tile|variation|dry layout|coverage|sheet size|pallet|shipping program/i;
@@ -254,11 +264,17 @@ function collectionTitleFor(rows, header, floorY) {
     // A letterless heading ("24x48-6", the large-format pages' size label) is a
     // format tag, not a collection name — keep scanning for a real one.
     if (!/[a-z]/i.test(text.replace(/[x×]/gi, " "))) continue;
-    // Glazzio sets every heading as "<NAME> COLLECTION". The trailing word is
-    // typography, not the name: kept, it bloats every label and defeats the
-    // series-lead dedupe when the color names repeat the series ("Rythmique
-    // Collection Rythmique …", the RYM5532 report 2026-08-18).
-    return text.replace(/\s+collection$/i, "");
+    // Glazzio sets every heading as "<NAME> COLLECTION", sometimes with a
+    // qualifier after it ("Renaissance Collection - 12x12", "Sarmento
+    // Collection: Plain"). The word is typography, not the name: kept, it
+    // bloats every label and defeats the series-lead dedupe when the color
+    // names repeat the series ("Rythmique Collection Rythmique …", the RYM5532
+    // report 2026-08-18). A worded qualifier stays as part of the name; a
+    // letterless one is a size tag, already in the row's own size column.
+    const m = text.match(/^(.*?)\s+collection\b\s*[-:–—]?\s*(.*)$/i);
+    if (!m) return text;
+    const rest = m[2].trim();
+    return /[a-z]/i.test(rest.replace(/[x×]/gi, " ")) ? `${m[1]} ${rest}` : m[1];
   }
   return "";
 }
@@ -471,12 +487,15 @@ export function parsePdfPages(pages, name = "Price list") {
       // Restricting to these keeps the full-width marketing/legend rows from
       // filling every column gutter (which would collapse the grid).
       const skuX = Math.min(...header.items.filter((h) => /item|sku/i.test(h.str)).map((h) => h.x), Infinity);
-      const productRows = clustered.filter((row) => {
-        if (row.y <= header.y + 2 || row.y >= nextY) return false;
+      const inSection = clustered.filter((row) => row.y > header.y + 2 && row.y < nextY);
+      const productRows = inSection.filter((row) => {
         if (isLegendRow(row.items)) return false;
         const left = row.items.reduce((a, b) => (b.x < a.x ? b : a));
         return isSkuish(left.str) && (!Number.isFinite(skuX) || left.x <= skuX + 20);
       });
+      // Finish sub-headings in this section, top-down; each product row takes
+      // the nearest one above it.
+      const finishes = inSection.map((row) => ({ y: row.y, finish: finishOf(row.items) })).filter((f) => f.finish);
       const columns = detectColumns(productRows.flatMap((row) => row.items), header.items);
       if (!columns.some((c) => c.field === "sku")) continue;
       pageHadTable = true;
@@ -489,6 +508,12 @@ export function parsePdfPages(pages, name = "Price list") {
         // The book has no Collection column, so stamp the section heading; a
         // page that ever does carry one keeps its own value.
         if (title && !str(raw.collection)) raw.collection = title;
+        // The sub-heading's finish joins the name unless the name already says
+        // it ("Neige Glossy" under "Glossy" must not read "Neige Glossy Glossy").
+        const fin = finishes.filter((f) => f.y < row.y).pop();
+        if (fin && !new RegExp(`\\b${fin.finish}\\b`, "i").test(`${str(raw.name)} ${str(raw.desc)}`)) {
+          raw.name = [str(raw.name), fin.finish].filter(Boolean).join(" ");
+        }
         const canon = canonRow(raw, sheet);
         if (canon) rows.push(canon);
       }

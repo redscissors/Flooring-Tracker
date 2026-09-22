@@ -468,7 +468,9 @@ src/
                     # dims, no lone-fraction thickness, KERDI-LINE grate
                     # length as size
   pdfbook.js        # text-PDF vendor price list -> canonical rows + mapping,
-                    # header-driven per page, feeds the mapped import (ADR 0010)
+                    # header-driven per page, feeds the mapped import (ADR 0010);
+                    # a lone finish sub-heading ("Polished" / "Matte") above a
+                    # run of rows joins those rows' names unless already there
   manningtonbook.js # Mannington "Cartons Detail" price list -> canonical rows,
                     # fixed x-band grid (leftmost col is Pattern, not the code);
                     # floors keyed by Color Code, trims imported as their own
