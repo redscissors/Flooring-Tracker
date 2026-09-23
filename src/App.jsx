@@ -3,7 +3,7 @@ import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText,
 import { supabase } from "./lib/supabase.js";
 import { listSelect, lightRow, loadProjects, loadPeople, loadBuilders, loadTodos, loadClaudeIssues, loadBooks, loadSettingsRow, resolveSharedSettings, loadSampleRequests } from "./bootload.js";
 import { bootTrace, traceRows } from "./boottrace.js";
-import { num, wasteFor, withProjWaste, normalizeSettings, serializeSettings, groutExact, mortarExact, getGrout, getMortar, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, offeredAttached, offeredCategories, getAttached, qtyDrift, underlaymentForSku } from "./catalog.js";
+import { num, wasteFor, wasteVaries, withProjWaste, normalizeSettings, serializeSettings, groutExact, mortarExact, getGrout, getMortar, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, offeredAttached, offeredCategories, getAttached, qtyDrift, underlaymentForSku } from "./catalog.js";
 import { findStock, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant, groutFamilies, groutSnapshotPatch, groutColorOptions, switchToSqftPatch, switchChipText } from "./stock.js";
 import { pricedItem, orderPatch, orderDrift, rowCostSqft, skuKeys } from "./orderbook.js";
 import { isSpecialOrder, isSpecialMat, nameBudget, orderQty } from "./orderentry.js";
@@ -51,6 +51,7 @@ import { useClaudeIssues } from "./useclaudeissues.js";
 import { jobSource } from "./claudeissues.js";
 import { FlagForClaude, ClaudeMark, CLAUDE_CLAY } from "./claudeflag.jsx";
 import { LineMenu } from "./linemenu.jsx";
+import { LineWastePop, wasteTag, wasteTagTitle, takesWaste, POP_W } from "./linewaste.jsx";
 import { useLabels } from "./uselabels.js";
 import { useVersions } from "./useversions.js";
 import { useJobShowers } from "./usejobshowers.js";
@@ -592,6 +593,7 @@ export default function App({ user, onSignOut }) {
   // The line menu (issue 087): { x, y, aid, pid, pi } — opened by a click on a
   // row's ⋯ or a right-click on the row. flagCtx feeds the shared popover.
   const [lineMenu, setLineMenu] = useState(null);
+  const [wastePop, setWastePop] = useState(null);
   const [flagCtx, setFlagCtx] = useState(null);
   // The row whose note box is showing before any text exists — the menu's
   // "Add note" reveals the same box the extras strip shows once a note is
@@ -1233,6 +1235,7 @@ export default function App({ user, onSignOut }) {
   // the Settings screen edits.
   const wSet = withProjWaste(settings, sel && sel._full ? sel : null);
   const jobWaste = wSet.waste;
+  const jobWasteVaries = sel && sel._full ? wasteVaries(sel.categories, wSet) : false;
   // What the header control shows and writes back. A project from before waste
   // moved off Settings (`waste == null`) was quoted with both families applied
   // at the shop rate — present it that way, and the first press materializes it.
@@ -2115,8 +2118,22 @@ export default function App({ user, onSignOut }) {
                               </div>
                               <div style={{ ...gridCell, justifyContent: "flex-end", gap: 3 }}>
                                 {p.type !== "misc" && C ? (<>
-                                  <input tabIndex={-1} type="number" value={String(C.order)} onChange={(e) => updProduct(a.id, p.id, { cartonManual: e.target.value })} data-c="order" className="ft-cell text-right" style={{ width: 42, flex: "none", padding: "6px 2px" }} title={`Cartons to order — type to override${cEx != null ? ` (exact ${cEx.toFixed(2)}, ${sf1(C.order * C.sf)} sf ordered)` : ""}`} />
-                                  <span className="shrink-0" style={{ fontSize: 9.5 }}>{C.unit}</span>
+                                  {(() => {
+                                    const wt = wasteTag(p, wSet);
+                                    const qtyIn = <input tabIndex={-1} type="number" value={String(C.order)} onChange={(e) => updProduct(a.id, p.id, { cartonManual: e.target.value })} data-c="order" className="ft-cell text-right" style={{ width: 42, flex: "none", padding: wt ? "0 2px" : "6px 2px" }} title={`Cartons to order — type to override${cEx != null ? ` (exact ${cEx.toFixed(2)}, ${sf1(C.order * C.sf)} sf ordered)` : ""}`} />;
+                                    const unit = <span className="shrink-0" style={{ fontSize: 9.5 }}>{C.unit}</span>;
+                                    if (!wt) return <>{qtyIn}{unit}</>;
+                                    // Two lines, like the tier Total cell: an inline tag clips a
+                                    // 3-digit count on a small laptop (mockup 2026-09-23).
+                                    return (
+                                      <span className="flex flex-col items-end min-w-0" style={{ lineHeight: 1.1 }}>
+                                        <span className="flex items-center" style={{ gap: 3 }}>{qtyIn}{unit}</span>
+                                        <button tabIndex={-1} data-waste-tag={p.id} title={wasteTagTitle(p, wSet, C)}
+                                          onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setWastePop({ aid: a.id, pid: p.id, x: r.right - POP_W, y: r.bottom + 4 }); }}
+                                          className="hover:underline" style={{ fontSize: 8.5, lineHeight: 1.1, paddingRight: 1, fontWeight: wt.own ? 800 : 600, color: wt.own ? "var(--ft-brand-deep)" : "var(--ft-faint)" }}>{wt.text}</button>
+                                      </span>
+                                    );
+                                  })()}
                                   <span className="ft-noprint flex flex-col shrink-0 pr-1">
                                     <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { cartonManual: String(C.order + 1) })} title="One more carton" className="text-slate-300 hover:text-slate-600" style={{ lineHeight: 0, padding: "1px 0" }}><ChevronUp size={9} /></button>
                                     <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, { cartonManual: String(Math.max(0, C.order - 1)) })} title="One less carton" className="text-slate-300 hover:text-slate-600" style={{ lineHeight: 0, padding: "1px 0" }}><ChevronDown size={9} /></button>
@@ -2554,7 +2571,7 @@ export default function App({ user, onSignOut }) {
                           <MarginLine margin={margin} show={showMargin} onToggle={() => setShowMargin((v) => !v)} />
                         </div>
                       )}
-                      <div style={{ fontSize: 10.5, color: "var(--ft-faint)", marginTop: 10 }}>{wasteNote(jobWaste) ? `Figures include ${wasteNote(jobWaste)}. ` : ""}Verify before ordering.</div>
+                      <div style={{ fontSize: 10.5, color: "var(--ft-faint)", marginTop: 10 }}>{wasteNote(jobWaste, jobWasteVaries) ? `Figures include ${wasteNote(jobWaste, jobWasteVaries)}. ` : ""}Verify before ordering.</div>
                     </div>
                   </div>
                 </div>
@@ -2681,7 +2698,7 @@ export default function App({ user, onSignOut }) {
                 ))}
               </tbody>
             </table>
-            <div className="text-xs mt-3 text-slate-600">Quantities and prices are estimates{wasteNote(jobWaste) ? `, incl. ${wasteNote(jobWaste)}` : ""}. Confirm against product specs and final measurements before ordering.</div>
+            <div className="text-xs mt-3 text-slate-600">Quantities and prices are estimates{wasteNote(jobWaste, jobWasteVaries) ? `, incl. ${wasteNote(jobWaste, jobWasteVaries)}` : ""}. Confirm against product specs and final measurements before ordering.</div>
           </div>
           );
         })() : <EstimatePaper {...paperProps} />)}
@@ -2800,9 +2817,17 @@ export default function App({ user, onSignOut }) {
           sampleOn={sampleByProduct.has(p.id)}
           onSample={() => toggleSample(a, ai, p)}
           hasNote={!!p.note} onNote={() => setNoteOpen(p.id)}
+          wasteText={takesWaste(p) ? (wasteTag(p, wSet)?.text || "none") : null}
+          onWaste={takesWaste(p) ? () => setWastePop({ aid: a.id, pid: p.id, x: lineMenu.x, y: lineMenu.y }) : null}
           onFlag={() => setFlagCtx({ source: jobSource(sel, { name: areaLabel(a, ai) }, p) })}
           onDelete={() => setConfirmProd({ aid: a.id, pid: p.id })} />;
       })()}
+      {wastePop && sel && (
+        <LineWastePop pop={wastePop} s={wSet} dflt={settings.waste[sel.categories.find((x) => x.id === wastePop.aid)?.products.find((x) => x.id === wastePop.pid)?.type === "tile" ? "tile" : "floor"]}
+          p={sel.categories.find((x) => x.id === wastePop.aid)?.products.find((x) => x.id === wastePop.pid)}
+          onPatch={(patch) => updProduct(wastePop.aid, wastePop.pid, patch)}
+          onClose={() => setWastePop(null)} />
+      )}
       <FlagForClaude ctx={flagCtx} onClose={() => setFlagCtx(null)}
         onAdd={(text, source) => { addClaudeIssue(text, source); ping("Added to Claude issues"); }} />
 

@@ -135,7 +135,11 @@ Area     { id, name, option: ""|"A"…"L", products: Product[] }   // option = q
 Product  { id, type:"tile|hardwood|vinyl|laminate|carpet|underlayment|misc",
            sku, L, W, thickness, sizeText, brandColor, priceSqft,
            qtyType:"sqft|count", qty,
-           cartonSf, cartonPc, cartonUnit, cartonManual, note,
+           cartonSf, cartonPc, cartonUnit, cartonManual, waste, note,
+           // waste (ADR 0046) = this line's own waste %, a string: "" follows
+           // the job's family rate (every row saved before it), "0" is a
+           // deliberate none. A set rate wins even with the job's family off;
+           // never on underlayment/misc (lineWastePct in catalog.js).
            grout:{checked,product,color,sku,joint,manual,caulk,caulkSku,caulkPrice,caulkCost,bookId}, mortar:{checked,product,manual},
            // grout.sku = the picked color's own price-book SKU, snapshotted at
            // color-pick time when the grout is linked to a book family

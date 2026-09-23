@@ -91,9 +91,20 @@ export const projWaste = (proj, s) => {
 // path (which reads `s.waste`) picks it up without a signature change.
 export const withProjWaste = (s, proj) => ({ ...s, waste: projWaste(proj, s) });
 
-// An underlayment row (spec 2026-09-18) orders exactly what the floor measures —
-// the sheet or roll count is already the rounding, so no waste on top.
-export const wasteFor = (p, s) => p?.type === "underlayment" ? 1 : 1 + num(p?.type === "tile" ? s?.waste?.tile : s?.waste?.floor) / 100;
+const familyWaste = (p, s) => num(p?.type === "tile" ? s?.waste?.tile : s?.waste?.floor);
+
+// A line's own waste rate (`p.waste`, "" = follow the job) is a decision like a
+// manual carton count: it wins even when the job's family is switched off, and
+// "0" means "no waste on this line", not "follow the job". An underlayment row
+// (spec 2026-09-18) orders exactly what the floor measures — the sheet or roll
+// count is already the rounding — so it never takes waste, line rate or not.
+export const ownWaste = (p) => p?.waste != null && p.waste !== "" && p.type !== "underlayment" && p.type !== "misc";
+export const lineWastePct = (p, s) => p?.type === "underlayment" ? 0 : ownWaste(p) ? num(p.waste) : familyWaste(p, s);
+export const wasteFor = (p, s) => 1 + lineWastePct(p, s) / 100;
+
+// Whether any sq ft line orders a rate other than the job's — the estimate's
+// waste note says so rather than claim one rate for the whole job.
+export const wasteVaries = (areas, s) => (areas || []).some((a) => (a.products || []).some((p) => p.qtyType === "sqft" && ownWaste(p) && num(p.waste) !== familyWaste(p, s)));
 
 // Normalize a loaded/imported Settings object back to the full shape, filling
 // gaps from DEFAULTS so older records stay valid. (`s.mortar` is a legacy

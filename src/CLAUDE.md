@@ -241,11 +241,19 @@ src/
                     # hides again) /
                     # Move to area (inline expand, no floating submenu) /
                     # Request sample (spec 2026-08-28 — toggles a shared
-                    # sample_requests row for this line, see samples.js) / Flag
+                    # sample_requests row for this line, see samples.js) /
+                    # Waste… (sq ft lines only, ADR 0046 — opens LineWastePop) / Flag
                     # for Claude / Delete (routes to the existing inline
                     # confirm). The old hand + trash hover icons are retired on
                     # product rows; the empty search-row adder wears the same ⋯
                     # dots (drag-only grip — no menu) and keeps its trash
+  linewaste.jsx     # per-line waste (ADR 0046): `wasteTag` (the Order cell's
+                    # second line — grey job rate, moss "line" rate, null when
+                    # no waste), `LineWasteControl` (Job rate / None / Custom,
+                    # mounted inline in the phone row sheet) and `LineWastePop`
+                    # (the same control anchored off the tag or the line
+                    # menu's Waste…). Writes only through the caller's
+                    # updProduct patch
   claudeissuespreview.jsx  # dev-only harness (claude-issues-preview.html): the
                     # REAL TeamTodos tabs + LineMenu + FlagForClaude over local
                     # mock state, no Supabase; not part of the app build
@@ -434,7 +442,10 @@ src/
                     # `unitCost` — the Employee lens's input, never the totals'.
                     # `wasteFor` = 1 on underlayment rows; `getUnderlay` null
                     # there, `underlaymentForSku` links the row's own entry
-                    # (ADR 0043)
+                    # (ADR 0043). `lineWastePct`/`ownWaste` — a row's own
+                    # `waste` rate wins over the job's, even with the family
+                    # off (ADR 0046); `wasteVaries` feeds the estimate's
+                    # "some lines differ" note
   pricing.js        # price tiers as a display lens (ADR 0018): `tierView` maps
                     # the raw { project, settings } pair to the tier-priced pair
                     # every total/print reads. Employee = cost × 1.06 on costed

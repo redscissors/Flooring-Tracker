@@ -1,0 +1,62 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Line waste — order cell fit</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--ft-card:#fff;--ft-text:#1C1A17;--ft-muted:#57534C;--ft-faint:#8A8378;--ft-brand:#57703A;--ft-brand-deep:#40542A;--ft-border:rgba(28,26,23,.10);--ft-row-line:#ECE8DC;--ft-grid-line:rgba(28,26,23,.34);--ft-area-head:#E7E3D6;--ft-area-row:#F6F3EC;--ft-cream:#F6F3EC;--ft-brand-soft:color-mix(in oklab,#57703A 13%,transparent);}
+body{margin:0;padding:24px;background:var(--ft-cream);font-family:Manrope,system-ui,sans-serif;color:var(--ft-text)}
+h2{font-size:14px;margin:26px 0 4px}p.d{font-size:12px;color:var(--ft-muted);margin:0 0 10px;max-width:900px}
+.w{font-size:10px;color:var(--ft-faint);margin:8px 0 2px;letter-spacing:.08em;text-transform:uppercase}
+.g{display:grid;grid-template-columns:0.85fr 2.75fr 1fr 0.55fr 0.5fr 0.55fr 0.7fr 0.8fr 44px;font-size:11px;font-weight:600;background:var(--ft-area-row);border-bottom:1px solid var(--ft-grid-line)}
+.h{background:var(--ft-area-head);font-size:8px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ft-muted);border-top:1px solid var(--ft-border);border-bottom:1px solid var(--ft-border)}
+.h>div{padding:5px 8px;border-right:1px solid var(--ft-row-line)}.r{text-align:right}
+.c{border-right:1px solid var(--ft-row-line);min-width:0;display:flex;align-items:center;padding:6px 8px;white-space:nowrap;overflow:hidden}
+.chip{display:inline-flex;width:16px;height:16px;border-radius:4px;background:#2E3B20;color:#fff;font-size:9px;align-items:center;justify-content:center;margin-right:6px}
+.tot{background:color-mix(in oklab,#E7E3D6 55%,transparent);justify-content:flex-end;font-weight:700}
+.o{justify-content:flex-end;gap:3px;padding:0 0 0 0;position:relative}
+.o .n{width:42px;flex:none;text-align:right;padding:6px 2px}
+.u{font-size:9.5px;flex:none}.st{display:flex;flex-direction:column;color:#c8c2b6;font-size:7px;line-height:8px;padding-right:4px;flex:none}
+.tag{font-size:9px;font-weight:600;color:var(--ft-faint);flex:none}
+.tag.cu{color:var(--ft-brand-deep);font-weight:800}
+.stack{display:flex;flex-direction:column;align-items:flex-end;line-height:1.05}
+.stack .sub{font-size:8.5px;font-weight:600;color:var(--ft-faint);padding-right:1px}
+.stack .sub.cu{color:var(--ft-brand-deep);font-weight:800}
+.corner{position:absolute;top:0;right:0;width:0;height:0;border-top:7px solid var(--ft-faint);border-left:7px solid transparent}
+.corner.cu{border-top-color:var(--ft-brand)}
+.clip{outline:2px dashed #c0392b;outline-offset:-2px}
+.pop{margin-top:8px;display:inline-block;background:#fff;border:1px solid var(--ft-border);border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,.12);padding:10px 12px;font-size:11.5px;width:220px}
+.pop .t{font-size:8px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ft-muted);margin-bottom:6px}
+.opt{display:flex;align-items:center;gap:6px;padding:5px 6px;border-radius:4px}
+.opt.on{background:var(--ft-brand-soft);color:var(--ft-brand-deep);font-weight:700}
+.opt input{width:34px;border:none;border-bottom:1px solid var(--ft-brand);background:transparent;text-align:right;font:inherit}
+.foot{font-size:10.5px;color:var(--ft-faint);margin-top:6px;border-top:1px solid var(--ft-row-line);padding-top:6px}
+</style></head><body>
+<div id="root"></div>
+<script>
+const W=[900,1150,1500];
+const head=`<div class="g h"><div>Size / Type ▾</div><div>Product / Color ▾</div><div>SKU</div><div>Cov.</div><div class="r">SF/EA</div><div class="r">Price</div><div class="r">Order</div><div class="r">Total</div><div></div></div>`;
+const row=(order,prod="Daltile Volume 1.0 — Ash Grey",sku="VL05-1224",qty="250",total="$1,194.03")=>`<div class="g">
+<div class="c" style="padding-left:4px"><span class="chip">T</span>12×24</div><div class="c">${prod}</div><div class="c" style="font-size:9.5px">${sku}</div>
+<div class="c" style="font-size:9.5px;justify-content:flex-end">15.5 <b style="font-size:9px;margin-left:2px">SF/CT</b></div>
+<div class="c" style="justify-content:flex-end">${qty}</div><div class="c" style="justify-content:flex-end">$4.29</div>
+<div class="c o">${order}</div><div class="c tot">${total}</div><div class="c" style="justify-content:center;color:#c8c2b6">•••</div></div>`;
+const st=`<span class="st"><span>▲</span><span>▼</span></span>`;
+const today=(n)=>`<span class="n">${n}</span><span class="u">ct</span>${st}`;
+const A=(n,t,cu)=>`<span class="n">${n}</span><span class="u">ct</span><span class="tag ${cu?'cu':''}">${t}</span>${st}`;
+const B=(n,t,cu)=>`<span class="stack"><span style="display:flex;gap:3px;align-items:baseline"><span class="n" style="padding:0 2px">${n}</span><span class="u">ct</span></span><span class="sub ${cu?'cu':''}">${t}</span></span>${st}`;
+const C=(n,cu)=>`<span class="corner ${cu?'cu':''}"></span>${today(n)}`;
+const sec=(title,desc,rows)=>`<h2>${title}</h2><p class="d">${desc}</p>`+W.map(w=>`<div class="w">grid ${w}px wide ${w===900?'(small laptop / split screen)':w===1150?'(typical laptop)':'(desktop monitor)'}</div><div style="width:${w}px">${head}${rows}</div>`).join("");
+let h="";
+h+=sec("Today","The Order cell already holds the carton count, the unit and the ▲▼ stepper.",row(today(18)));
+h+=sec("Option A — inline “+10%” after the unit","Job rate in grey (first row), a line's own rate in moss (second row). On a small laptop the tag pushes the stepper out of the cell and gets clipped.",row(A(18,"+10%"))+row(A(18,"+15%",1)));
+h+=sec("Option B — second line under the count (recommended)","The same two-line layout the Total cell already uses for tier pricing (big number, small note under it). Fits at every width and the row stays the same height. The second row has its own rate, so it shows in moss with the label “line”.",row(B(18,"+10%"))+row(B(19,"+15% line",1),"Daltile Volume 1.0 — Ash Grey","VL05-1224","250","$1,265.66")+row(today(12),"Anatolia Soho — Canvas White","SOH-1212","180","$772.20"));
+h+=sec("Stress test — 3-digit count, “+12.5%” line rate","Big jobs order 100+ cartons. Top two rows: option A. Bottom two rows: option B.",row(A(124,"+10%"))+row(A(128,"+12.5%",1))+row(B(124,"+10%"))+row(B(128,"+12.5% line",1)));
+h+=sec("Option C — corner mark only","A small triangle in the cell's corner, like a spreadsheet comment marker. Takes no width, but you can't see the % until you hover over it.",row(C(18))+row(C(19,1)));
+h+=`<h2>Clicking the tag (option B) opens this</h2><p class="d">It's anchored under the Order cell. Right-click → Waste… opens the same popover on a line that has no tag.</p>
+<div class="pop"><div class="t">Waste — this line</div>
+<div class="opt">○ Job rate <span style="margin-left:auto;color:var(--ft-faint)">tile 10%</span></div>
+<div class="opt">○ None</div>
+<div class="opt on">● Custom <span style="margin-left:auto"><input value="15">%</span></div>
+<div class="foot">250 sf measured → 287.5 sf ordered · 19 ct</div></div>`;
+document.getElementById("root").innerHTML=h;
+// mark clipped cells
+requestAnimationFrame(()=>document.querySelectorAll('.o').forEach(c=>{if(c.scrollWidth>c.clientWidth+1)c.classList.add('clip')}));
+</script></body></html>
