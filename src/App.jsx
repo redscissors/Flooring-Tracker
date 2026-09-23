@@ -1781,7 +1781,7 @@ export default function App({ user, onSignOut }) {
                           ? (C ? getCarton({ ...p, cartonManual: "" }, wSet)?.order : PC ? getPieceCarton({ ...p, cartonManual: "" })?.cartons : null)
                           : null;
                         const cDrift = qtyDrift(overridden(p.cartonManual) ? p.cartonManual : "", cAuto);
-                        const sfState = showers ? sfPartsState(p, showers) : null;
+                        const sfState = showers && p.type !== "misc" && p.qtyType !== "count" ? sfPartsState(p, showers) : null;
                         const cUnit = (C ? C.unit : PC ? PC.unit : "ct").toUpperCase();
                         const countUnit = unitCode(p.sellUnit || "EA");
                         const line = lineTotal(p, C, PC, num(p.priceSqft));
@@ -1932,7 +1932,7 @@ export default function App({ user, onSignOut }) {
                         const wediCfg = p.wedi?.cfg?.panKey && !p.wedi.part ? p.wedi : null;
                         // Schluter's anchor test is the room (cfg.w) — its cfg has no panKey.
                         const schluterCfg = p.schluter?.cfg?.w && !p.schluter.part ? p.schluter : null;
-                        const driftBlock = (drift || oDrift || cDrift || switchPatch || p.freightFlag || stockRetired || baseAlt || p.sheoga?.cfg || wediCfg || schluterCfg || sfState?.drift || sfState?.gone.length) ? (
+                        const driftBlock = (drift || oDrift || cDrift || switchPatch || p.freightFlag || stockRetired || baseAlt || p.sheoga?.cfg || wediCfg || schluterCfg || sfState?.drift || sfState?.gone.length || sfState?.dropped.length) ? (
                           <div className="ft-noprint flex items-center gap-2 text-xs flex-wrap" style={{ padding: "2px 12px 4px 26px" }}>
                             {p.sheoga?.cfg && (
                               <button tabIndex={-1} onClick={() => setSheogaPop({ aid: a.id, pid: p.id, seed: p.sheoga })} data-sheoga-reconfig

@@ -98,7 +98,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
                         ))}
                       </div>
                     )}
-                    {p.sfParts?.length > 0 && (
+                    {p.sfParts?.length > 0 && p.type !== "misc" && p.qtyType !== "count" && (
                       <div style={{ padding: "0 12px 4px 24px", fontSize: 9.5, color: "var(--ft-muted)" }}>{sfPartsText(p.sfParts)}</div>
                     )}
                     {p.note && <div className="italic" style={{ padding: "0 12px 6px 24px", fontSize: 10.5, color: "var(--ft-muted)" }}>{p.note}</div>}
