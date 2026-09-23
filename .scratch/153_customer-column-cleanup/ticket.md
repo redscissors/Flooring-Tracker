@@ -23,8 +23,25 @@ make the Recent customers text smaller and cleaner; drop the outline on the
   `…` loses its border (hover fill instead) and stays always visible for
   touch. Nested project rows and "New project" drop half a size.
 
+## Round 2 (owner, same day)
+
+"More spacing between Sheoga and Recent … what if the three-dot menus turn
+into a right click on the customer instead?" Picked a small menu (matching
+the area-header right-click) over opening the details box directly.
+
+- Top block gets 10px more bottom padding before RECENT.
+- Right-click a customer row → menu at the cursor: Customer details…, New
+  project, Delete customer… (the usual confirm). Esc / outside click /
+  another right-click close it; the row stays washed while its menu is up.
+- The `…` shows only where there is no mouse or trackpad at all
+  (`(any-pointer: fine)` false — phones, keyboard-less tablets; iOS never
+  fires contextmenu), lined up with the name instead of the row's middle.
+  Row tooltip adds "· right-click for more" where right-click exists.
+
 ## Proof
 
 Real app over a stubbed Supabase with Manrope served locally (`shot.mjs`):
 `rail-*-before.png` vs `rail-*-after.png`, `rail-hover-after.png`,
-`phone-drawer-after.png`. `npm run build` ok; `npm test` 1563/1563.
+`phone-drawer-after.png` (touch emulation: dots shown),
+`rail-rightclick-after.png`, `delete-confirm-after.png`; the script also
+asserts Esc / outside click close the menu and Customer details… opens. `npm run build` ok; `npm test` 1563/1563.

@@ -31,8 +31,8 @@ const restData = (url, wantsObject) => {
 };
 
 const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome", args: ["--no-sandbox"] });
-const shoot = async (file, { width = 1440, height = 900, open, drawer, hover } = {}) => {
-  const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 2 });
+const shoot = async (file, { width = 1440, height = 900, open, drawer, hover, rightClick, touch, after } = {}) => {
+  const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 2, ...(touch ? { isMobile: true, hasTouch: true } : {}) });
   await page.addInitScript(([k, s]) => localStorage.setItem(k, s), ["sb-stub-auth-token", JSON.stringify(session)]);
   await page.route("https://stub.supabase.co/**", (route) => {
     const req = route.request();
@@ -63,14 +63,35 @@ const shoot = async (file, { width = 1440, height = 900, open, drawer, hover } =
   await page.getByText("Tom Marsh").first().waitFor({ timeout: 15000 });
   if (open) { await page.getByText(open).first().click(); }
   if (hover) { await page.locator(hover).first().hover(); }
+  if (rightClick) { await page.getByText(rightClick).first().click({ button: "right" }); }
+  console.log(file, "any-pointer:fine =", await page.evaluate(() => matchMedia("(any-pointer: fine)").matches), "| dots:", await page.locator('aside button[title="Customer details"]').count());
   await page.waitForTimeout(700);
   await page.evaluate(() => document.fonts.ready);
   const rail = await page.locator("aside").boundingBox();
-  await page.screenshot({ path: join(dir, file), clip: { x: 0, y: 0, width: rail.width + 40, height } });
+  await page.screenshot({ path: join(dir, file), clip: { x: 0, y: 0, width: rightClick ? rail.width + 180 : rail.width + 40, height } });
+  if (after) await after(page);
   await page.close();
 };
 await shoot(`rail${suffix}.png`);
 await shoot(`rail-open${suffix}.png`, { open: "Kelly Anderson-Whitfield" });
 await shoot(`rail-hover${suffix}.png`, { hover: 'button[title="Browse all customers"]', height: 520 });
-await shoot(`phone-drawer${suffix}.png`, { width: 390, height: 844, drawer: true });
+await shoot(`phone-drawer${suffix}.png`, { width: 390, height: 844, drawer: true, touch: true });
+await shoot(`rail-rightclick${suffix}.png`, { rightClick: "Kelly Anderson-Whitfield" });
+// The menu's items reach the right places; Escape and an outside click close it.
+await shoot(`menu-check${suffix}.png`, { rightClick: "Tom Marsh", after: async (page) => {
+  const menuOpen = () => page.getByText("Customer details…").count();
+  await page.keyboard.press("Escape"); await page.waitForTimeout(200);
+  console.log("Esc closes menu:", (await menuOpen()) === 0);
+  await page.getByText("Tom Marsh").first().click({ button: "right" });
+  await page.mouse.click(1000, 600); await page.waitForTimeout(200);
+  console.log("outside click closes menu:", (await menuOpen()) === 0);
+  await page.getByText("Tom Marsh").first().click({ button: "right" });
+  await page.getByText("Customer details…").click(); await page.waitForTimeout(300);
+  console.log("details box opens:", (await page.getByText("Delete customer", { exact: true }).count()) === 1);
+  await page.keyboard.press("Escape"); await page.waitForTimeout(200);
+  await page.getByText("Ruth Olsen").first().click({ button: "right" });
+  await page.getByText("Delete customer…").click(); await page.waitForTimeout(300);
+  console.log("delete asks to confirm:", (await page.getByText("Delete customer?").count()) === 1);
+  await page.screenshot({ path: join(dir, `delete-confirm${suffix}.png`) });
+} });
 await browser.close();

@@ -1,5 +1,5 @@
 import { Fragment, lazy, Suspense, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
-import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Phone, Mail, MapPin, Building2, StickyNote, MoreHorizontal, AlignJustify, AlertTriangle, Zap, Folder, LayoutGrid, ShowerHead, TreePine, Layers, Bath } from "lucide-react";
+import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Phone, Mail, MapPin, Building2, StickyNote, MoreHorizontal, AlignJustify, AlertTriangle, Zap, Folder, LayoutGrid, ShowerHead, TreePine, Layers, Bath, UserRound } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { listSelect, lightRow, loadProjects, loadPeople, loadBuilders, loadTodos, loadClaudeIssues, loadBooks, loadSettingsRow, resolveSharedSettings, loadSampleRequests } from "./bootload.js";
 import { bootTrace, traceRows } from "./boottrace.js";
@@ -81,6 +81,9 @@ import NedLogo from "./NedLogo.jsx";
 // the cards. UI_ZOOM_FLOOR stops the shrink where the type stops being readable;
 // it lands just about where the mobile shell takes over (768px) anyway.
 const RAIL_W = 205;
+// Any mouse or trackpad attached (an iPad with a keyboard case counts): the
+// customer rows' "…" gives way to right-click. Touch-only screens keep it.
+const CAN_RIGHT_CLICK = typeof window !== "undefined" && !!window.matchMedia?.("(any-pointer: fine)").matches;
 const UI_DESIGN_W = RAIL_W + 896;
 const UI_ZOOM_FLOOR = 0.7;
 
@@ -325,6 +328,7 @@ export default function App({ user, onSignOut }) {
   const [confirmProd, setConfirmProd] = useState(null); // { aid, pid }
   const [confirmArea, setConfirmArea] = useState(null); // area id
   const [areaMenu, setAreaMenu] = useState(null); // { aid, x, y } — the area band's option menu
+  const [custMenu, setCustMenu] = useState(null); // { cid, x, y } — a customer row's right-click menu
   const showers = useJobShowers(sel?.categories);
   const [sfMenu, setSfMenu] = useState(null); // { aid, pid, x?, y? } — a row's sq ft breakdown menu
   const [renamingOpt, setRenamingOpt] = useState(null); // option slot ("A"/"B"/"C") whose rename modal is open
@@ -1146,6 +1150,7 @@ export default function App({ user, onSignOut }) {
   });
   useEscClose(!!custChip, () => setCustChip(null));
   useEscClose(!!areaMenu, () => setAreaMenu(null));
+  useEscClose(!!custMenu, () => setCustMenu(null));
   useEscClose(viewTab === "preview", () => setViewTab("edit"));
   useEscClose(!!confirmArea, () => setConfirmArea(null));
   useEscClose(!!confirmProd, () => setConfirmProd(null));
@@ -1349,16 +1354,17 @@ export default function App({ user, onSignOut }) {
     };
     return (
       <div key={c.id} className="mb-0.5">
-        <div className={`w-full rounded-md flex items-center gap-0.5 border ${on ? "bg-white border-slate-200 shadow-[0_1px_4px_var(--ft-shadow)]" : "border-transparent hover:bg-slate-50"}`}>
-          <button onClick={clickName} title={projs.length === 1 ? "Open project" : isOpen ? "Collapse" : "Expand"} className="flex items-center gap-1.5 min-w-0 flex-1 py-1 pl-[13px] pr-1 text-left">
+        <div onContextMenu={(e) => { e.preventDefault(); setCustMenu({ cid: c.id, x: e.clientX, y: e.clientY }); }}
+          className={`w-full rounded-md flex items-center gap-0.5 border ${on ? "bg-white border-slate-200 shadow-[0_1px_4px_var(--ft-shadow)]" : custMenu?.cid === c.id ? "border-transparent bg-[var(--ft-hover)]" : "border-transparent hover:bg-slate-50"}`}>
+          <button onClick={clickName} title={`${projs.length === 1 ? "Open project" : isOpen ? "Collapse" : "Expand"}${CAN_RIGHT_CLICK ? " · right-click for more" : ""}`} className="flex items-center gap-1.5 min-w-0 flex-1 py-1 pl-[13px] pr-1 text-left">
             <div className="min-w-0 flex-1">
               <div className="ft-item-name text-[12.5px] font-semibold truncate">{c.name || "Unnamed customer"}</div>
               <div className="text-[10.5px] text-slate-400 truncate">{[bn, `${projs.length} project${projs.length === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}</div>
             </div>
           </button>
-          <button onClick={() => setCustModal(c.id)} title="Customer details" className="shrink-0 mr-1 rounded-md p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100">
+          {!CAN_RIGHT_CLICK && <button onClick={() => setCustModal(c.id)} title="Customer details" className="shrink-0 self-start mt-1 mr-1 rounded-md p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100">
             <MoreHorizontal size={13} />
-          </button>
+          </button>}
         </div>
         {acc(isOpen, (
           <div className="ml-6 mt-0.5 mb-1 space-y-0.5 border-l border-slate-200 pl-1.5">
@@ -1405,7 +1411,7 @@ export default function App({ user, onSignOut }) {
               {!isWide && <button onClick={() => setSidebarOpen(false)} className="p-1 text-slate-400"><X size={18} /></button>}
             </div>
           </div>
-          <div className="p-2.5 space-y-2">
+          <div className="p-2.5 pb-5 space-y-2">
             <div className="relative"><Search size={16} className="absolute left-2.5 top-2.5 text-slate-400" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search" className={inp + " pl-8"} /></div>
             {/* The rail's two starting points sit together: a throwaway quick
                 price (ADR 0022) or a named customer. Quick Price is the primary
@@ -3181,6 +3187,23 @@ export default function App({ user, onSignOut }) {
         const a = sel?.categories.find((c) => c.id === sfMenu.aid);
         const p = a?.products.find((x) => x.id === sfMenu.pid);
         return p ? <SfPartsMenu x={sfMenu.x} y={sfMenu.y} product={p} showers={showers} onPatch={(patch) => updProduct(a.id, p.id, patch)} onClose={() => setSfMenu(null)} /> : null;
+      })()}
+
+      {custMenu && (() => {
+        const c = data.people.find((x) => x.id === custMenu.cid);
+        if (!c) return null;
+        const close = () => setCustMenu(null);
+        const item = "w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[12.5px] text-left hover:bg-slate-100";
+        return (
+          <div className="ft-noprint fixed inset-0 z-50" onClick={close} onContextMenu={(e) => { e.preventDefault(); close(); }}>
+            <div className="absolute bg-white rounded-lg border border-slate-200 shadow-xl p-1" style={{ left: Math.min(custMenu.x, window.innerWidth - 212), top: Math.min(custMenu.y, window.innerHeight - 136), width: 200 }} onClick={(e) => e.stopPropagation()}>
+              <button className={item} onClick={() => { close(); setCustModal(c.id); }}><UserRound size={13} className="text-slate-400" /> Customer details…</button>
+              <button className={item} onClick={() => { close(); addProject(c.id); }}><Plus size={13} className="text-slate-400" /> New project</button>
+              <div className="border-t border-slate-100 my-1" />
+              <button className={`${item} text-red-600 hover:bg-red-50`} onClick={() => { close(); setConfirm({ kind: "person", id: c.id }); }}><Trash2 size={13} /> Delete customer…</button>
+            </div>
+          </div>
+        );
       })()}
 
       {areaMenu && sel && (() => {
