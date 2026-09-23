@@ -1,6 +1,8 @@
 // Tile sq ft for each piece of a placed shower, read off its saved cfg
 // (spec 2026-09-23). LAZY-CHUNK-ONLY — imports both configurator engines;
 // only usejobshowers.js may load it, via import().
+// Known limitation: wedi sizes come from whichever catalog is installed — the
+// transcribed fallback until a wedi popup installs the live book this session.
 import { item, normBench, curbRuns, curbWidth, curbInsets, expandWallFaces, panRoomDims } from "./wedi.js";
 import { classify, cfgBenches, wallArea } from "./schluter.js";
 import { schluterCurb } from "./schluterdraw.js";
@@ -96,8 +98,10 @@ export function jobShowers(categories) {
     for (const k of placedKits(categories, vendor)) {
       let r = null;
       try { r = PIECES_FOR[vendor](k.marker.cfg); } catch { r = null; }   // a junk saved cfg must not break the grid
-      if (!r) continue;
-      out.push({ key: k.kitId || "row:" + k.rowId, vendor, areaName: k.areaName, size: `${r.w}×${r.d}`, curbed: r.curbed, pieces: r.pieces });
+      const key = k.kitId || "row:" + k.rowId;
+      // Still listed, so rows linked to it don't read "shower was removed".
+      if (!r) { out.push({ key, vendor, areaName: k.areaName, size: "", curbed: false, pieces: [], unmeasured: true }); continue; }
+      out.push({ key, vendor, areaName: k.areaName, size: `${r.w}×${r.d}`, curbed: r.curbed, pieces: r.pieces });
     }
   }
   return out;

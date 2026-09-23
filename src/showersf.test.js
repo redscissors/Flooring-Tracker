@@ -65,3 +65,8 @@ test("jobShowers lists every placed kit with its area name and pieces", () => {
   const list = jobShowers(cats);
   assert.deepEqual(list.map((s) => [s.key, s.vendor, s.areaName, s.size]), [["k1", "wedi", "Master Bath", "60×36"], ["row:r2", "schluter", "Guest", "60×36"]]);
 });
+
+test("jobShowers keeps an unmeasurable kit on the list, marked unmeasured", () => {
+  const cats = [{ id: "a1", name: "Master Bath", products: [{ id: "r1", kitId: "k1", wedi: { mode: "custom", cfg: { ...base, panKey: "NOPE" } } }] }];
+  assert.deepEqual(jobShowers(cats), [{ key: "k1", vendor: "wedi", areaName: "Master Bath", size: "", curbed: false, pieces: [], unmeasured: true }]);
+});
