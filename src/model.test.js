@@ -490,3 +490,10 @@ test("normC: erpOrders and erpKeyed normalize, stamps on unknown orders dropped"
   assert.deepEqual(old.erpOrders, []);
   assert.deepEqual(old.erpKeyed, {});
 });
+
+test("normP keeps a valid sfParts list and omits the key on rows without one", () => {
+  assert.equal("sfParts" in normP({ id: "x" }), false);
+  assert.equal("sfParts" in normP({ id: "x", sfParts: [] }), false);
+  const p = normP({ id: "x", sfParts: [{ kind: "extra", label: "Hall", sf: "45" }] });
+  assert.deepEqual(p.sfParts, [{ kind: "extra", label: "Hall", sf: 45 }]);
+});
