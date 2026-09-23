@@ -124,7 +124,7 @@ curb 60 × (4.5 + 2 × 5.125) / 144 = 6.1 · niche 1.0.
 
 ## Testing
 
-- Unit tests for `showerPieces` per vendor using the worked example, each
+- Unit tests for `wediPieces` / `schluterPieces` using the worked example, each
   curb profile, benches, multiple niches, curbless, and the "enter
   manually" fallback.
 - Unit tests for the breakdown total, the typed-override drift, reconfigure
