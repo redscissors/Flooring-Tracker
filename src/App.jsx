@@ -1423,10 +1423,7 @@ export default function App({ user, onSignOut }) {
                   ERP-style directory grid (issue 040). Quick prices AND the
                   unassigned estimates/drafts live behind its Estimates & drafts
                   toggle, so this is the everyday door to all of them. */}
-              <button onClick={() => { setShowBrowser(true); setSidebarOpen(false); refreshSampleRequests(); }} title="Browse all customers" className={railItem}>
-                <Folder size={15} className="w-4 shrink-0 text-indigo-500" /> Customers
-                <span className="ml-auto text-[10px] font-semibold text-slate-400 bg-slate-100 rounded-full px-1.5 leading-5">{data.people.length}</span>
-              </button>
+              <button onClick={() => { setShowBrowser(true); setSidebarOpen(false); refreshSampleRequests(); }} title="Browse all customers" className={railItem}><Folder size={15} className="w-4 shrink-0 text-indigo-500" /> Customers</button>
               {/* Configurator shortcuts: the same wedi/Sheoga apps the hub lists,
                   one press from the customer column. */}
               <button onClick={() => openAppsTo("wedi")} title="wedi shower configurator" className={railItem}><ShowerHead size={15} className="w-4 shrink-0" /> wedi</button>

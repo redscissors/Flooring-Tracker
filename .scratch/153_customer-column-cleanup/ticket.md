@@ -48,6 +48,12 @@ builder name included (it stays in Customer details and the Customers chart).
 - Top block bottom padding pb-5 → pb-8 (≈22px more than the original gap).
 - The phone `…` centers on the now single-line row.
 
+## Round 4 (owner, same day)
+
+"In the customer folder, we don't need to see how many customers are in
+there … hundreds now, thousands later." The Customers row drops its count
+bubble. The search-results header "Customers (n)" stays — it counts matches.
+
 ## Proof
 
 Real app over a stubbed Supabase with Manrope served locally (`shot.mjs`):
