@@ -62,3 +62,12 @@ misread as a thickness, leaving `2- Sheoga…` litter.
 - **Amended 2026-09-18 (ADR 0043):** "a membrane is no floor" now types the
   row as `underlayment` rather than leaving it untyped — the same gate
   (bundled unit + coverage), a different landing.
+- **Amended 2026-09-23 (owner):** a **sheet**-sold row (SH/SHT/SHEET) with
+  coverage that no word or size types is **tile**, not untyped. A sheet with
+  sf coverage is a mosaic sheet; the stocked VT mosaics 1518128 ("VT Quartz
+  Essence Nest 1.06sf") and 1505632 ("VT Luce Oro Esagona 1.07sf") fell to
+  misc count lines with no coverage. Membrane sheets still land as
+  underlayment (checked first), and the other bundling units keep the word
+  ladder's untyped fallback. On the VIRTI export this retypes exactly those
+  two rows; saved misc rows offer the existing switch-to-sqft chip after the
+  re-drop.

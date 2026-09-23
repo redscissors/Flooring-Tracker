@@ -808,7 +808,9 @@ function mappedItem(mapping, raw, sku, sem) {
     if (a != null) sfPerUnit = a;
   }
   if (!type && mapping.typeFromDescription && sfPerUnit > 0 && COVERAGE_SOLD_RE.test(str(raw.unit))) {
-    type = floorTypeFromDescription(descText, size);
+    // A sheet with sf coverage is a mosaic sheet even when no word names it
+    // ("VT Quartz Essence Nest 1.06sf", 1518128) — ADR 0029 amendment 2026-09-23.
+    type = floorTypeFromDescription(descText, size) || (/^(sh|sht|sheet)s?$/i.test(str(raw.unit)) ? "tile" : null);
   }
   // The Schluter EFT never types its rows (ADR 0041) — except a coverage-
   // bearing membrane sold by the sheet or roll, which is underlayment

@@ -1008,6 +1008,34 @@ test("Vendor SKU Analysis: a sheet-sold mosaic with .Nsf/sh coverage", () => {
   assert.deepEqual(mosaic.vendorSkus, ["600110000217", "AUSRIBEMOS22"]);
 });
 
+// SKUs 1518128 / 1505632 (VIRTI export): stocked VT mosaics sold by the sheet
+// with real coverage, but no tile word ("Quartz Essence Nest", Italian
+// "Esagona") and no size — they fell to untyped and picked as misc count lines
+// with no coverage. A sheet with sf coverage is a mosaic sheet; the membrane
+// sheet still lands as underlayment, and sheet-less units keep the word gate.
+test("Vendor SKU Analysis: a sheet-sold row with coverage and no type word is tile", () => {
+  const wb = [sheet("Vendor SKU Analysis", [
+    VSA_WORKBOOK[0].rows[0],
+    ["1518128", "VT Quartz Essence Nest 1.06sf - QE. Nest Comp. P", 22.5, 29.99, "SH", "CAEQENSCOMPP", "CAEQENSCOMPP", "C29AOBA", 1, 1],
+    ["1505632", "VT Luce Oro Esagona 1.07sf - CV6001279 Oro", 30, 44.99, "SH", "CV6001279", "CV6001279", "C29AOBA", 1, 1],
+    ["23031", "Schluter Ditra Heat - Membrane Sheet 3'3\"x2'7\" 8.4sf", 20, 30, "SH", "DHEMA", "DHEMA", "", 1, 1],
+    ["99001", "Mystery Line Carton 12 sf/ct", 20, 30, "CT", "X1", "X1", "", 1, 1],
+  ])];
+  const { items } = parseMapped(wb[0].rows, detectVendorSkuAnalysis(wb));
+  const nest = items.find((i) => i.sku === "1518128");
+  assert.equal(nest.type, "tile");
+  assert.equal(nest.sfPerUnit, 1.06);
+  assert.equal(items.find((i) => i.sku === "1505632").type, "tile");
+  assert.equal(items.find((i) => i.sku === "23031").type, "underlayment");
+  assert.equal(items.find((i) => i.sku === "99001").type, null);
+  const patch = stockPatch(nest, {});
+  assert.equal(patch.type, "tile");
+  assert.equal(patch.qtyType, "sqft");
+  assert.equal(patch.cartonSf, "1.06");
+  assert.equal(patch.cartonUnit, "SH");
+  assert.equal(patch.priceSqft, "28.29");        // 29.99/SH ÷ 1.06 SF/SH
+});
+
 // The export leads flooring descriptions with the bare plank width — it lands
 // in the size field (not the name), and consuming the whole mixed fraction
 // keeps THICK_FRAC_RE from reading the 1/4" of a 2-1/4" width as a thickness.
