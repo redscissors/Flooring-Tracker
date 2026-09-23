@@ -23,8 +23,9 @@ carton count at all.
    Underlayment rows still never take waste (ADR 0043), line rate or not;
    misc lines are untouched.
 3. **Shown as a second line under the carton count** in the grid's Order
-   cell — grey `+10%` when following the job, moss `+15% line` when the line
-   has its own rate, nothing at all when the line orders no waste. An inline
+   cell — grey `+10%` when following the job, moss `+15%` when the line has
+   its own rate (the color alone tells them apart — the owner dropped a
+   "line" suffix the same day), nothing at all when the line orders no waste. An inline
    tag beside the count was rejected: at laptop widths it clipped a 3-digit
    count to its last digits (the mockup's stress test). The tag, and the
    line menu's **Waste…**, open a Job rate / None / Custom popover; the phone
@@ -32,6 +33,14 @@ carton count at all.
 4. **The estimate says when lines differ** — "10% material waste on tile
    (some lines differ)", or "material waste on some lines" when the job has
    none — rather than print a rate per line.
+
+5. **Taking a line to 0% drops a hand-set carton count** (owner, same day):
+   None, a Custom 0, or a job rate that is off clears `cartonManual` in the
+   same patch (`wastePatch`) so the cartons fall back to the measured
+   footage. Adding waste leaves a hand-set count standing behind its
+   `qtyDrift` "Use N" chip — the override rule in the root CLAUDE.md is
+   otherwise unchanged, and the job header's Tile/Flr toggles never touch
+   hand-set counts.
 
 ## Consequences
 

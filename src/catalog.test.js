@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULTS, GROUTS, MORTARS, mergeSettings, seedCatalog, resolveCatalog, normalizeSettings, normalizeCatalog, normWaste, wasteFor, lineWastePct, ownWaste, wasteVaries, projWaste, withProjWaste, serializeSettings, groutExact, mortarExact, getGrout, getGroutBase, groutBaseList, getMortar, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredUnderlayments, catalogHasSeedUnderlayments, materialWarnings, addCategory, updateCategory, isDuplicateCategoryName, removeCategory, isDuplicateAttachedName, offeredAttached, offeredCategories, getAttached, attachedList, normShop, underlaymentForSku } from "./catalog.js";
+import { DEFAULTS, GROUTS, MORTARS, mergeSettings, seedCatalog, resolveCatalog, normalizeSettings, normalizeCatalog, normWaste, wasteFor, lineWastePct, ownWaste, wasteVaries, wastePatch, projWaste, withProjWaste, serializeSettings, groutExact, mortarExact, getGrout, getGroutBase, groutBaseList, getMortar, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredUnderlayments, catalogHasSeedUnderlayments, materialWarnings, addCategory, updateCategory, isDuplicateCategoryName, removeCategory, isDuplicateAttachedName, offeredAttached, offeredCategories, getAttached, attachedList, normShop, underlaymentForSku } from "./catalog.js";
 import { BUILTIN_IDS } from "./labels.js";
 
 // A fully-checked tile selection used by the math tests.
@@ -150,6 +150,18 @@ test("cartonExact orders a line's own waste rate", () => {
   const s = normalizeSettings({ waste: { tile: 10, floor: 20 } });
   assert.equal(cartonExact(tile({ qty: "200", cartonSf: "20", cartonManual: "", waste: "15" }), s), 200 * 1.15 / 20);
   assert.equal(getCarton(tile({ qty: "200", cartonSf: "20", cartonManual: "", waste: "0" }), s).order, 10);
+});
+
+test("wastePatch: taking a line's waste to 0% drops a hand-set carton count", () => {
+  const s = { waste: { tile: 10, floor: 0 } };
+  const row = (o) => ({ type: "tile", qtyType: "sqft", cartonManual: "2", waste: "50", ...o });
+  assert.deepEqual(wastePatch(row(), s, "0"), { waste: "0", cartonManual: "" });
+  // back to a job rate that is switched off is also "no waste"
+  assert.deepEqual(wastePatch(row({ type: "vinyl" }), s, ""), { waste: "", cartonManual: "" });
+  // adding or keeping some waste leaves the hand count (and its Use N chip) alone
+  assert.deepEqual(wastePatch(row(), s, "15"), { waste: "15" });
+  assert.deepEqual(wastePatch(row(), s, ""), { waste: "" });
+  assert.deepEqual(wastePatch(row({ cartonManual: "" }), s, "0"), { waste: "0" });
 });
 
 test("wasteVaries: true only when a sq ft line's own rate differs from its family rate", () => {

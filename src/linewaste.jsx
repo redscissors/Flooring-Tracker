@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { num, lineWastePct, ownWaste, getCarton } from "./catalog.js";
+import { num, lineWastePct, ownWaste, wastePatch, getCarton } from "./catalog.js";
 import { sf1 } from "./model.js";
 import { useEscClose } from "./widgets.jsx";
 
@@ -10,14 +10,15 @@ export const takesWaste = (p) => p.type !== "misc" && p.type !== "underlayment" 
 const famLabel = (p) => (p.type === "tile" ? "tile" : "flooring");
 
 // The small second line under a carton count (owner, option B 2026-09-23):
-// grey when the line follows the job, moss when it carries its own rate. Null
+// grey when the line follows the job, moss when it carries its own rate — the
+// color alone tells them apart (owner dropped the "line" suffix). Null
 // when the line orders no waste and has no rate of its own, so the cell stays
 // a plain count.
 export function wasteTag(p, s) {
   if (!takesWaste(p)) return null;
   const pct = lineWastePct(p, s), own = ownWaste(p);
   if (!own && !pct) return null;
-  return { pct, own, text: `${pct ? "+" : ""}${pct}%${own ? " line" : ""}` };
+  return { pct, own, text: `${pct ? "+" : ""}${pct}%` };
 }
 
 export function wasteTagTitle(p, s, C) {
@@ -36,10 +37,10 @@ export function LineWasteControl({ p, s, dflt, onPatch, onDone }) {
   const pick = (m) => {
     if (m === mode) return;
     setMode(m);
-    if (m === "job") onPatch({ waste: "" });
-    else if (m === "none") onPatch({ waste: "0" });
+    if (m === "job") onPatch(wastePatch(p, s, ""));
+    else if (m === "none") onPatch(wastePatch(p, s, "0"));
     else {
-      onPatch({ waste: String(jobPct || num(dflt) || 10) });
+      onPatch(wastePatch(p, s, String(jobPct || num(dflt) || 10)));
       setTimeout(() => inRef.current?.select(), 0);
     }
   };
@@ -63,9 +64,9 @@ export function LineWasteControl({ p, s, dflt, onPatch, onDone }) {
       <div role="button" tabIndex={-1} className={row("custom") + " cursor-pointer"} style={on("custom")} onClick={() => pick("custom")}>
         {dot("custom")} Custom
         <span className="ml-auto flex items-baseline gap-0.5">
-          <input ref={inRef} value={mode === "custom" ? p.waste : ""} inputMode="decimal" disabled={mode !== "custom"}
-            onChange={(e) => onPatch({ waste: e.target.value.replace(/[^\d.]/g, "") })}
-            className="w-9 bg-transparent text-right font-semibold focus:outline-none disabled:opacity-40"
+          <input ref={inRef} value={mode === "custom" ? p.waste : ""} inputMode="decimal" readOnly={mode !== "custom"} tabIndex={mode === "custom" ? 0 : -1}
+            onChange={(e) => onPatch(wastePatch(p, s, e.target.value.replace(/[^\d.]/g, "")))}
+            className={"w-9 bg-transparent text-right font-semibold focus:outline-none" + (mode === "custom" ? "" : " opacity-40 pointer-events-none")}
             style={{ borderBottom: "1px solid var(--ft-brand)", color: "var(--ft-text)" }} aria-label="Waste percent for this line" />
           <span className="text-[10.5px]" style={{ color: "var(--ft-faint)" }}>%</span>
         </span>
