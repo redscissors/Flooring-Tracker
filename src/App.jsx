@@ -1,5 +1,5 @@
 import { Fragment, lazy, Suspense, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
-import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, MoreHorizontal, AlignJustify, AlertTriangle, Zap, Folder, LayoutGrid, ShowerHead, TreePine, Layers } from "lucide-react";
+import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, MoreHorizontal, AlignJustify, AlertTriangle, Zap, Folder, LayoutGrid, ShowerHead, TreePine, Layers, Bath } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { listSelect, lightRow, loadProjects, loadPeople, loadBuilders, loadTodos, loadClaudeIssues, loadBooks, loadSettingsRow, resolveSharedSettings, loadSampleRequests } from "./bootload.js";
 import { bootTrace, traceRows } from "./boottrace.js";
@@ -54,6 +54,8 @@ import { LineMenu } from "./linemenu.jsx";
 import { useLabels } from "./uselabels.js";
 import { useVersions } from "./useversions.js";
 import { useJobShowers } from "./usejobshowers.js";
+import { SfPartsMenu, SfPartsChips } from "./SfPartsMenu.jsx";
+import { sfPartsState } from "./sfparts.js";
 import { addErpOrder, removeErpOrder, stampErpLines, clearErpStamps } from "./erporders.js";
 // Heavy secondary surfaces ship as their own chunks (ADR 0026 rule 5) so
 // feature work on them stops growing the boot download. Both are conditional
@@ -1779,6 +1781,7 @@ export default function App({ user, onSignOut }) {
                           ? (C ? getCarton({ ...p, cartonManual: "" }, wSet)?.order : PC ? getPieceCarton({ ...p, cartonManual: "" })?.cartons : null)
                           : null;
                         const cDrift = qtyDrift(overridden(p.cartonManual) ? p.cartonManual : "", cAuto);
+                        const sfState = showers ? sfPartsState(p, showers) : null;
                         const cUnit = (C ? C.unit : PC ? PC.unit : "ct").toUpperCase();
                         const countUnit = unitCode(p.sellUnit || "EA");
                         const line = lineTotal(p, C, PC, num(p.priceSqft));
@@ -1929,7 +1932,7 @@ export default function App({ user, onSignOut }) {
                         const wediCfg = p.wedi?.cfg?.panKey && !p.wedi.part ? p.wedi : null;
                         // Schluter's anchor test is the room (cfg.w) — its cfg has no panKey.
                         const schluterCfg = p.schluter?.cfg?.w && !p.schluter.part ? p.schluter : null;
-                        const driftBlock = (drift || oDrift || cDrift || switchPatch || p.freightFlag || stockRetired || baseAlt || p.sheoga?.cfg || wediCfg || schluterCfg) ? (
+                        const driftBlock = (drift || oDrift || cDrift || switchPatch || p.freightFlag || stockRetired || baseAlt || p.sheoga?.cfg || wediCfg || schluterCfg || sfState?.drift || sfState?.gone.length) ? (
                           <div className="ft-noprint flex items-center gap-2 text-xs flex-wrap" style={{ padding: "2px 12px 4px 26px" }}>
                             {p.sheoga?.cfg && (
                               <button tabIndex={-1} onClick={() => setSheogaPop({ aid: a.id, pid: p.id, seed: p.sheoga })} data-sheoga-reconfig
@@ -1975,6 +1978,7 @@ export default function App({ user, onSignOut }) {
                               <button tabIndex={-1} onClick={() => { const priced = pricedItem(oItem, oBook?.data?.markups); const csf = rowCostSqft(oItem); updProduct(a.id, p.id, { priceSqft: String(oDrift.to), cost: oItem.cost != null ? String(oItem.cost) : "", costSqft: csf != null ? String(Math.round(csf * 100) / 100) : "", markupPct: priced.markupPct != null ? String(priced.markupPct) : "" }); }} className="rounded-full border border-amber-300 text-amber-700 px-2 py-0.5 hover:bg-amber-50 font-medium">Use new price</button>
                             </>))}
                             {cDrift && <QtyDriftChip d={cDrift} unit={cUnit} what="row" onUse={() => updProduct(a.id, p.id, { cartonManual: "" })} />}
+                            <SfPartsChips state={sfState} onPatch={(patch) => updProduct(a.id, p.id, patch)} />
                             {p.freightFlag && <span className="shrink-0 rounded px-1.5 py-0.5 bg-amber-50 text-amber-700 font-medium">+ freight</span>}
                             {baseAlt && (
                               <button tabIndex={-1} onClick={() => updProduct(a.id, p.id, stockPatch(baseAlt, p))} className="rounded-full border border-slate-300 text-slate-600 px-2 py-0.5 hover:bg-slate-50 font-medium">Use {baseAlt.style || baseAlt.description}</button>
@@ -2094,9 +2098,14 @@ export default function App({ user, onSignOut }) {
                                 </>) : <span className="px-2" style={{ color: "var(--ft-faint)" }}>—</span>}
                               </div>
                               <div style={gridCell}>
-                                {p.type !== "misc" && p.qtyType === "sqft" ? (
-                                  <input ref={(el) => { if (el) qtyRefs.current[p.id] = el; }} type="number" value={p.qty} onChange={(e) => updProduct(a.id, p.id, { qty: e.target.value })} data-c="sf" className={`ft-cell text-right ${qtyMissing ? "ring-2 ring-inset ring-amber-400 bg-amber-50 rounded" : ""}`} placeholder="0" title={qtyMissing ? "Enter square footage" : "Square feet"} />
-                                ) : (<>
+                                {p.type !== "misc" && p.qtyType === "sqft" ? (<>
+                                  <input ref={(el) => { if (el) qtyRefs.current[p.id] = el; }} type="number" value={p.qty} onChange={(e) => updProduct(a.id, p.id, { qty: e.target.value })}
+                                    onContextMenu={showers?.length || p.sfParts?.length ? (e) => { e.preventDefault(); setSfMenu({ aid: a.id, pid: p.id, x: e.clientX, y: e.clientY }); } : undefined}
+                                    data-c="sf" className={`ft-cell text-right ${qtyMissing ? "ring-2 ring-inset ring-amber-400 bg-amber-50 rounded" : ""}`} placeholder="0" title={qtyMissing ? "Enter square footage" : p.sfParts?.length ? "Square feet — from the shower breakdown (right-click to change)" : showers?.length ? "Square feet — right-click to take it from a shower" : "Square feet"} />
+                                  {p.sfParts?.length > 0 && (
+                                    <button tabIndex={-1} onClick={(e) => setSfMenu({ aid: a.id, pid: p.id, x: e.clientX, y: e.clientY })} title="Sq ft from the shower breakdown — click to change" className="shrink-0 pr-1 text-slate-400 hover:text-slate-700"><Bath size={11} /></button>
+                                  )}
+                                </>) : (<>
                                   <input ref={(el) => { if (el) qtyRefs.current[p.id] = el; }} type="number" value={p.qtyType === "count" ? p.qty : ""} onChange={(e) => updProduct(a.id, p.id, { qty: e.target.value, qtyType: "count" })} data-c="sf" className={`ft-cell text-right ${qtyMissing ? "ring-2 ring-inset ring-amber-400 bg-amber-50 rounded" : ""}`} placeholder={p.type === "misc" ? "1" : "0"} title={PC ? `Pieces needed — the order rounds up to whole ${PC.unit.toUpperCase()}s of ${PC.per}` : `Quantity — counted by the ${unitNoun(1, countUnit)}`} />
                                   <UnitPick value={countUnit} options={COUNT_UNITS} onChange={(v) => updProduct(a.id, p.id, { sellUnit: v === "EA" ? "" : v })} title="What one of this line is — each, piece, sheet, roll, box…" />
                                 </>)}
@@ -3153,6 +3162,12 @@ export default function App({ user, onSignOut }) {
             </div>
           </Modal>
         );
+      })()}
+
+      {sfMenu && (() => {
+        const a = sel?.categories.find((c) => c.id === sfMenu.aid);
+        const p = a?.products.find((x) => x.id === sfMenu.pid);
+        return p ? <SfPartsMenu x={sfMenu.x} y={sfMenu.y} product={p} showers={showers} onPatch={(patch) => updProduct(a.id, p.id, patch)} onClose={() => setSfMenu(null)} /> : null;
       })()}
 
       {areaMenu && sel && (() => {
