@@ -15,7 +15,9 @@
     <script>
       (function () {
         try {
-          var t = localStorage.getItem("ft-theme") || "system";
+          // Dark mode is parked (DARK_MODE in src/widgets.jsx): force light and
+          // leave the saved choice alone. Restore the next line to bring it back.
+          var t = "light"; // localStorage.getItem("ft-theme") || "system";
           var el = document.documentElement;
           el.classList.remove("ned-dark", "ned-light");
           if (t === "dark") el.classList.add("ned-dark");
