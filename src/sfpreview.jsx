@@ -103,7 +103,7 @@ function Row({ label, row, showers, onPatch, onOpenMenu }) {
           )}
         </div>
       </div>
-      {sfState && (sfState.drift || sfState.gone.length > 0) && (
+      {sfState && (sfState.drift || sfState.gone.length > 0 || sfState.dropped.length > 0) && (
         <div className="flex flex-wrap items-center gap-2 py-1 text-[11px]">
           <SfPartsChips state={sfState} onPatch={onPatch} />
         </div>
@@ -140,6 +140,10 @@ function Harness() {
       },
     })),
   })));
+  const dropMasterNiche = () => setCats((c) => c.map((a) => (a.name !== "Master Bath" ? a : {
+    ...a,
+    products: a.products.map((p) => (p.id !== "r1" ? p : { ...p, wedi: { ...p.wedi, cfg: { ...p.wedi.cfg, addons: [] } } })),
+  })));
   const removeGuestShower = () => setCats((c) => c.filter((a) => a.name !== "Guest Bath"));
 
   const menuTarget = menu?.who === "phone" ? phoneRow : row;
@@ -154,6 +158,7 @@ function Harness() {
         </div>
         <div className="mt-4 flex gap-2">
           <button onClick={simulateReconfigure} className="rounded border border-slate-300 px-2 py-1 text-xs font-medium hover:bg-slate-50">Simulate reconfigure</button>
+          <button onClick={dropMasterNiche} className="rounded border border-slate-300 px-2 py-1 text-xs font-medium hover:bg-slate-50">Drop Master Bath niche</button>
           <button onClick={removeGuestShower} className="rounded border border-slate-300 px-2 py-1 text-xs font-medium hover:bg-slate-50">Remove Guest shower</button>
         </div>
         <div className="mt-4 text-[11px] text-slate-500">

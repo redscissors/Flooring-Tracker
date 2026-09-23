@@ -46,22 +46,34 @@ export const sfPatch = (next) => (next.length
   ? { sfParts: next, qty: String(sfPartsTotal(next)) }
   : { sfParts: undefined, qty: "" });
 
-// A piece whose shower is gone, or can no longer be measured, keeps its last
-// saved sf: the row's number must never quietly drop.
+// A piece whose shower is gone, no longer has that piece (`dropped`), or can
+// no longer be measured keeps its last saved sf: the row's number must never
+// quietly drop.
 export function sfPartsState(p, showers) {
   const parts = p && p.sfParts;
   if (!parts || !parts.length) return null;
   const byKey = new Map((showers || []).map((s) => [s.key, s]));
-  const gone = [];
+  const gone = [], dropped = [];
   const fresh = parts.map((e) => {
     if (e.kind !== "shower") return e;
     const s = byKey.get(e.kitId);
     if (!s) { gone.push(e); return e; }
+    if (s.unmeasured) return e;
     const pc = s.pieces.find((x) => x.piece === e.piece);
-    return pc && pc.sf != null ? { ...e, sf: pc.sf } : e;
+    if (!pc) { dropped.push(e); return e; }
+    return pc.sf != null ? { ...e, sf: pc.sf } : e;
   });
   const live = sfPartsTotal(fresh), have = r1(num(p.qty));
-  return { fresh, gone, live, have, changed: live !== sfPartsTotal(parts), drift: live !== have ? { auto: live, have } : null };
+  return { fresh, gone, dropped, live, have, changed: live !== sfPartsTotal(parts), drift: live !== have ? { auto: live, have } : null };
+}
+
+export function droppedText(dropped) {
+  const byKit = new Map();
+  for (const e of dropped || []) {
+    if (!byKit.has(e.kitId)) byKit.set(e.kitId, { where: e.where || "Shower", pieces: [] });
+    byKit.get(e.kitId).pieces.push(SHORT[e.piece]);
+  }
+  return [...byKit.values()].map((g) => `${g.where} ${g.pieces.join(", ")}`).join("; ");
 }
 
 export function sfPartsText(parts) {

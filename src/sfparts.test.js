@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { PIECES, normSfParts, sfPartsTotal, fmtSf, togglePiece, addExtra, removeAt, sfPatch, sfPartsState, sfPartsText } from "./sfparts.js";
+import { PIECES, normSfParts, sfPartsTotal, fmtSf, togglePiece, addExtra, removeAt, sfPatch, sfPartsState, sfPartsText, droppedText } from "./sfparts.js";
 
 const SH = { key: "k1", vendor: "wedi", areaName: "Master Bath", size: "60×36", curbed: true,
   pieces: [{ piece: "walls", label: "Walls (incl. bench faces)", sf: 88 }, { piece: "floor", label: "Floor", sf: 15 }, { piece: "niche", label: "Niche back", sf: 1 }] };
@@ -81,6 +81,45 @@ test("sfPartsState: a piece that can no longer be measured keeps its saved sf", 
   const sh = { ...SH, pieces: [{ piece: "walls", label: "Walls", sf: null }] };
   const parts = [{ kind: "shower", kitId: "k1", piece: "walls", where: "Master Bath", sf: 88 }];
   assert.equal(sfPartsState({ qty: "88", sfParts: parts }, [sh]).drift, null);
+});
+
+test("sfPartsState: a ticked piece the shower no longer has is dropped, its sf still counted", () => {
+  const parts = [
+    { kind: "shower", kitId: "k1", piece: "walls", where: "Master Bath", sf: 88 },
+    { kind: "shower", kitId: "k1", piece: "curb", where: "Master Bath", sf: 6.1 },
+    { kind: "extra", label: "Hall", sf: 45 },
+  ];
+  const s = sfPartsState({ qty: "139.1", sfParts: parts }, [SH]);
+  assert.deepEqual(s.dropped, [parts[1]]);
+  assert.deepEqual(s.gone, []);
+  assert.equal(s.fresh[1].sf, 6.1);
+  assert.equal(s.live, 139.1);
+  assert.equal(s.drift, null);
+});
+
+test("sfPartsState: a piece present with sf null is neither dropped nor drift", () => {
+  const sh = { ...SH, pieces: [{ piece: "walls", label: "Walls", sf: null }] };
+  const parts = [{ kind: "shower", kitId: "k1", piece: "walls", where: "Master Bath", sf: 88 }];
+  const s = sfPartsState({ qty: "88", sfParts: parts }, [sh]);
+  assert.deepEqual(s.dropped, []);
+  assert.equal(s.drift, null);
+});
+
+test("sfPartsState: an unmeasured shower keeps every linked piece as saved", () => {
+  const sh = { key: "k1", vendor: "wedi", areaName: "Master Bath", size: "", curbed: false, pieces: [], unmeasured: true };
+  const parts = [{ kind: "shower", kitId: "k1", piece: "walls", where: "Master Bath", sf: 88 }];
+  const s = sfPartsState({ qty: "88", sfParts: parts }, [sh]);
+  assert.deepEqual(s.dropped, []);
+  assert.deepEqual(s.gone, []);
+  assert.equal(s.drift, null);
+});
+
+test("droppedText names each shower once with its dropped pieces", () => {
+  assert.equal(droppedText([
+    { kind: "shower", kitId: "k1", piece: "curb", where: "Master Bath", sf: 6.1 },
+    { kind: "shower", kitId: "k1", piece: "benchTop", where: "Master Bath", sf: 1 },
+    { kind: "shower", kitId: "k2", piece: "niche", where: "", sf: 1 },
+  ]), "Master Bath curb, bench top; Shower niche");
 });
 
 test("sfPartsText groups a shower's pieces under its area name", () => {

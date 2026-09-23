@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
-import { sfPartsTotal, togglePiece, addExtra, removeAt, sfPatch, fmtSf } from "./sfparts.js";
+import { sfPartsTotal, sfPartsState, droppedText, togglePiece, addExtra, removeAt, sfPatch, fmtSf } from "./sfparts.js";
 
 export function SfPartsMenu({ x, y, product, showers, onPatch, onClose }) {
   const parts = product.sfParts || [];
@@ -10,6 +10,7 @@ export function SfPartsMenu({ x, y, product, showers, onPatch, onClose }) {
   const commit = (next) => onPatch(sfPatch(next));
   const on = (s, piece) => parts.some((e) => e.kind === "shower" && e.kitId === s.key && e.piece === piece);
   const extras = parts.map((e, i) => [e, i]).filter(([e]) => e.kind === "extra");
+  const total = sfPartsState(product, showers)?.live ?? sfPartsTotal(parts);
   const add = () => { if (+sf > 0) { commit(addExtra(parts, label, +sf)); setLabel(""); setSf(""); } };
   const anchored = x != null;
   const box = anchored
@@ -21,10 +22,15 @@ export function SfPartsMenu({ x, y, product, showers, onPatch, onClose }) {
         {(showers || []).length === 0 && <div className="text-slate-400 mb-2">No wedi or Schluter shower on this job.</div>}
         {(showers || []).map((s) => (
           <div key={s.key} className="mb-2">
-            <div className="font-semibold text-slate-700 mb-0.5">{s.areaName} — {s.size}{s.curbed ? "" : ", curbless"}</div>
+            {s.unmeasured ? (<>
+              <div className="font-semibold text-slate-700 mb-0.5">{s.areaName}</div>
+              <div className="text-slate-400">can't measure this shower — add its sq ft under Extra space</div>
+            </>) : (
+              <div className="font-semibold text-slate-700 mb-0.5">{s.areaName} — {s.size}{s.curbed ? "" : ", curbless"}</div>
+            )}
             {s.pieces.map((pc) => (
-              <label key={pc.piece} className={`flex items-center gap-2 py-0.5 ${pc.sf == null ? "text-slate-400" : "cursor-pointer"}`}>
-                <input type="checkbox" disabled={pc.sf == null} checked={on(s, pc.piece)} onChange={() => commit(togglePiece(parts, s, pc))} />
+              <label key={pc.piece} className={`flex items-center gap-2 py-0.5 ${pc.sf == null && !on(s, pc.piece) ? "text-slate-400" : "cursor-pointer"}`}>
+                <input type="checkbox" disabled={pc.sf == null && !on(s, pc.piece)} checked={on(s, pc.piece)} onChange={() => commit(togglePiece(parts, s, pc))} />
                 <span className="flex-1">{pc.label}</span>
                 <span className="ft-mono">{pc.sf == null ? "size unknown — add below" : fmtSf(pc.sf)}</span>
               </label>
@@ -47,7 +53,7 @@ export function SfPartsMenu({ x, y, product, showers, onPatch, onClose }) {
           </div>
         </div>
         <div className="border-t border-slate-200 pt-2 mt-2 flex justify-between font-semibold">
-          <span>Total on this row</span><span className="ft-mono">{fmtSf(sfPartsTotal(parts))} sf</span>
+          <span>Total on this row</span><span className="ft-mono">{fmtSf(total)} sf</span>
         </div>
       </div>
     </div>,
@@ -60,6 +66,7 @@ export function SfPartsChips({ state, onPatch }) {
   const gone = state.gone;
   const goneSf = sfPartsTotal(gone);
   const keep = state.fresh.filter((e) => !gone.includes(e));
+  const dropped = state.dropped || [];
   return (<>
     {state.drift && (<>
       <span className="text-amber-600">{state.changed ? "Shower now calculates to" : "Pieces add to"} {fmtSf(state.drift.auto)} sf — this row is set to {fmtSf(state.drift.have)}</span>
@@ -68,6 +75,10 @@ export function SfPartsChips({ state, onPatch }) {
     {gone.length > 0 && (<>
       <span className="text-amber-600">{[...new Set(gone.map((e) => e.where || "A"))].join(", ")} shower was removed — {fmtSf(goneSf)} sf still counted</span>
       <button tabIndex={-1} onClick={() => onPatch(sfPatch(keep))} className="rounded-full border border-amber-300 text-amber-700 px-2 py-0.5 hover:bg-amber-50 font-medium">Remove</button>
+    </>)}
+    {dropped.length > 0 && (<>
+      <span className="text-amber-600">{droppedText(dropped)} {dropped.length > 1 ? "are" : "is"} no longer on the shower — {fmtSf(sfPartsTotal(dropped))} sf still counted</span>
+      <button tabIndex={-1} onClick={() => onPatch(sfPatch(state.fresh.filter((e) => !dropped.includes(e))))} className="rounded-full border border-amber-300 text-amber-700 px-2 py-0.5 hover:bg-amber-50 font-medium">Remove</button>
     </>)}
   </>);
 }
