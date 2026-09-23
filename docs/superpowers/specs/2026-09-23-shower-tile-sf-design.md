@@ -1,6 +1,6 @@
 # Shower tile sq ft from placed showers — design
 
-**Date:** 2026-09-23 · **Status:** approved by owner in chat
+**Date:** 2026-09-23 · **Status:** implemented
 
 ## Problem
 

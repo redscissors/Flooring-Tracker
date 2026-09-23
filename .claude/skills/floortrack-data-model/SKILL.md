@@ -161,6 +161,14 @@ Product  { id, type:"tile|hardwood|vinyl|laminate|carpet|underlayment|misc",
            attached:{ [categoryId]: {checked,product,manual} },
            freight: "" | "off",
            kitId: "" | string,
+           sfParts?: [ { kind:"shower", kitId, piece:"walls"|"floor"|"curb"|"niche"|"benchTop", where, sf }
+                     | { kind:"extra", label, sf } ]
+           // spec 2026-09-23: a sq ft row built from placed-shower pieces +
+           // named extra spaces; qty = the sum when set, a typed qty is an
+           // override (drift chip). kitId is the kit's kitId, or "row:<rowId>"
+           // for a legacy anchor with none. sf is the last known value — a
+           // removed shower's pieces keep counting until the user clicks
+           // Remove. Absent on every row without a breakdown (normSfParts).
            sheoga: { mode, cfg } | null,
            wedi: { mode, cfg, key } | { part: <catalog key> } | null }
            // `key` / a string `part` since 2026-09-02 (ADR 0035 amendment):
