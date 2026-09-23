@@ -1,5 +1,5 @@
 import { Fragment, lazy, Suspense, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
-import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, ListTodo, Phone, Mail, MapPin, Building2, StickyNote, MoreHorizontal, AlignJustify, AlertTriangle, Zap, Folder, LayoutGrid, ShowerHead, TreePine, Layers, Bath } from "lucide-react";
+import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Phone, Mail, MapPin, Building2, StickyNote, MoreHorizontal, AlignJustify, AlertTriangle, Zap, Folder, LayoutGrid, ShowerHead, TreePine, Layers, Bath } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { listSelect, lightRow, loadProjects, loadPeople, loadBuilders, loadTodos, loadClaudeIssues, loadBooks, loadSettingsRow, resolveSharedSettings, loadSampleRequests } from "./bootload.js";
 import { bootTrace, traceRows } from "./boottrace.js";
@@ -49,7 +49,7 @@ import { unitCode, unitNoun, bundleUnit, BUNDLE_UNITS, COUNT_UNITS } from "./uni
 import { useTodos } from "./usetodos.js";
 import { useClaudeIssues } from "./useclaudeissues.js";
 import { jobSource } from "./claudeissues.js";
-import { FlagForClaude, ClaudeMark, CLAUDE_CLAY } from "./claudeflag.jsx";
+import { FlagForClaude, ClaudeMark, IssuesMark, CLAUDE_CLAY } from "./claudeflag.jsx";
 import { LineMenu } from "./linemenu.jsx";
 import { LineWastePop, wasteTag, wasteTagTitle, takesWaste, POP_W } from "./linewaste.jsx";
 import { useLabels } from "./uselabels.js";
@@ -1457,13 +1457,11 @@ export default function App({ user, onSignOut }) {
               {unassigned.map((p) => renderProjRow(p))}
             </>)}
           </div>
-          <div className="px-2.5 py-2 border-t border-slate-100 flex items-center gap-1">
-            <button onClick={handleSignOut} aria-label="Sign out" title={`Sign out — ${user.email}`} className="shrink-0 flex items-center justify-center rounded-md hover:bg-slate-50 p-1.5 text-slate-500"><LogOut size={16} /></button>
-            <button onClick={() => openAppsTo(null)} aria-label="Apps" title="Apps — shop tools" className="shrink-0 flex items-center justify-center rounded-md hover:bg-slate-50 p-1.5 text-slate-500"><LayoutGrid size={16} /></button>
-            <button onClick={() => openIssues()} aria-label="Issues" title="Team issues & to-do list — the clay count is the Claude issue bucket" className="min-w-0 flex items-center gap-1.5 rounded-md hover:bg-slate-50 text-sm px-1.5 py-1.5 text-slate-600">
-              <ListTodo size={16} className="shrink-0" />{openTodoCount + openClaudeCount === 0 && " Issues"}
-              {openTodoCount > 0 && <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-indigo-600 text-white text-[10px] font-semibold flex items-center justify-center">{openTodoCount}</span>}
-              {openClaudeCount > 0 && <span className="min-w-[18px] h-[18px] px-1 rounded-full text-white text-[10px] font-semibold flex items-center justify-center gap-0.5" style={{ background: CLAUDE_CLAY }}><ClaudeMark size={8} />{openClaudeCount}</span>}
+          <div className="px-4 py-2 border-t border-slate-100 flex items-center justify-between">
+            <button onClick={handleSignOut} aria-label="Sign out" title={`Sign out — ${user.email}`} className="flex items-center justify-center rounded-md hover:bg-slate-50 p-1.5 text-slate-500"><LogOut size={16} /></button>
+            <button onClick={() => openAppsTo(null)} aria-label="Apps" title="Apps — shop tools" className="flex items-center justify-center rounded-md hover:bg-slate-50 p-1.5 text-slate-500"><LayoutGrid size={16} /></button>
+            <button onClick={() => openIssues()} aria-label="Issues" title={`Issues & to-do — ${openTodoCount} team, ${openClaudeCount} Claude open`} className="flex items-center justify-center rounded-md hover:bg-slate-50 p-1.5 text-slate-500">
+              <IssuesMark size={16} team={openTodoCount > 0} claude={openClaudeCount > 0} />
             </button>
           </div>
         </aside>
