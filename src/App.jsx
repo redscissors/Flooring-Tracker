@@ -29,7 +29,7 @@ import { uid, money, sf1, miscQty, blobToDataURL, dataURLToBlob, wasteNote, newP
 import { lineTotal, printProduct, printAreaFloor, KSHORT, u1, orderEntryRow, matOrderRow } from "./print.js";
 import { jobTotals } from "./jobtotals.js";
 import { OPTION_SLOTS, OPTION_COLOR, optionsUsed, bucketCats, scopedCats, optionTitle, optionShort, duplicateInto, compareOptionsPatch } from "./options.js";
-import { LazyBoundary, FitSelect, GroutColorOptions, BuilderCombo, MetaChip, SalespersonPop, SegBar, WasteBar, ThemeSwitch, MarginLine, Modal, useEscClose, HelpTip, AddressField } from "./widgets.jsx";
+import { LazyBoundary, FitSelect, GroutColorOptions, BuilderCombo, MetaChip, SalespersonPop, SegBar, WasteBar, DARK_MODE, MarginLine, Modal, useEscClose, HelpTip, AddressField } from "./widgets.jsx";
 import { escPush } from "./escstack.js";
 import { TypeSelect, GRID_COLS, GridPriceCell, GridSizeInput, GridProductBox, GridOmniSearch, UnitPick } from "./grid.jsx";
 import { MobileSheet, MobileProductRow, MobileRowSheet, MobileProjectBand } from "./mobile.jsx";
@@ -279,8 +279,9 @@ export default function App({ user, onSignOut }) {
     try { localStorage.setItem("ft-theme", theme); } catch {}
     const el = document.documentElement;
     el.classList.remove("ned-dark", "ned-light");
-    if (theme === "dark") el.classList.add("ned-dark");
-    else if (theme === "light") el.classList.add("ned-light");
+    const applied = DARK_MODE ? theme : "light";
+    if (applied === "dark") el.classList.add("ned-dark");
+    else if (applied === "light") el.classList.add("ned-light");
     // Crossfade the whole palette on a user toggle (but not the first paint):
     // .ft-theming briefly enables a color transition on everything, removed
     // once the fade is done so it never slows ordinary interaction.
@@ -1349,7 +1350,6 @@ export default function App({ user, onSignOut }) {
       <div key={c.id} className="mb-0.5">
         <div className={`w-full rounded-md flex items-center gap-0.5 border ${on ? "bg-white border-slate-200 shadow-[0_1px_4px_var(--ft-shadow)]" : "border-transparent hover:bg-slate-50"}`}>
           <button onClick={clickName} title={projs.length === 1 ? "Open project" : isOpen ? "Collapse" : "Expand"} className="flex items-center gap-1.5 min-w-0 flex-1 py-1.5 pl-1.5 pr-1 text-left">
-            {projs.length !== 1 && <ChevronRight size={13} className={`text-slate-300 shrink-0 transition-transform ${isOpen ? "rotate-90" : ""}`} />}
             <div className="min-w-0 flex-1">
               <div className="ft-item-name text-[13.5px] font-semibold truncate">{c.name || "Unnamed customer"}</div>
               <div className="text-[11px] text-slate-400 truncate mt-px">{[bn, `${projs.length} project${projs.length === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}</div>
@@ -1397,9 +1397,12 @@ export default function App({ user, onSignOut }) {
         {/* Sidebar */}
         <aside style={{ width: RAIL_W, ...zoomStyle }}
           className={isWide ? "ft-rail border-r border-slate-200 flex flex-col shrink-0" : `ft-rail border-r border-slate-200 flex flex-col fixed inset-y-0 left-0 z-40 transform transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
-          <div className="px-4 py-3.5 border-b border-slate-100 flex items-center gap-2.5">
-            <div className="flex-1 min-w-0"><button onClick={goHome} title="Home" className="block text-left hover:opacity-70 transition"><NedLogo height={27} /></button><div className="ft-eyebrow text-[9.5px] mt-1">Selection Manager</div></div>
-            {!isWide && <button onClick={() => setSidebarOpen(false)} className="text-slate-400"><X size={18} /></button>}
+          <div className="relative px-4 py-3.5 border-b border-slate-100">
+            <div className="min-w-0"><button onClick={goHome} title="Home" className="block text-left hover:opacity-70 transition"><NedLogo height={27} /></button><div className="ft-eyebrow text-[9.5px] mt-1">Selection Manager</div></div>
+            <div className="absolute top-3 right-3 flex items-center">
+              <button onClick={() => { setSettingsSection("materials"); setShowSettings(true); setSidebarOpen(false); }} aria-label="Settings" title="Settings" className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-50"><Settings size={16} /></button>
+              {!isWide && <button onClick={() => setSidebarOpen(false)} className="p-1 text-slate-400"><X size={18} /></button>}
+            </div>
           </div>
           <div className="p-2.5 space-y-2">
             <div className="relative"><Search size={16} className="absolute left-2.5 top-2.5 text-slate-400" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search" className={inp + " pl-8"} /></div>
@@ -1454,28 +1457,14 @@ export default function App({ user, onSignOut }) {
               {unassigned.map((p) => renderProjRow(p))}
             </>)}
           </div>
-          <div className="p-2.5 border-t border-slate-100">
-            <div className="flex mb-2">
-              <ThemeSwitch theme={theme} setTheme={setTheme} />
-            </div>
-            {/* Two rows of two: three labelled buttons plus sign-out no longer
-                fit across the narrowed rail on one line. */}
-            <div className="flex gap-2 mb-2">
-              <button onClick={() => openAppsTo(null)} title="Apps — shop tools" className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm py-1.5 text-slate-600"><LayoutGrid size={15} /> Apps</button>
-              <button onClick={handleSignOut} title={`Sign out — ${user.email}`} className="shrink-0 flex items-center justify-center rounded-md border border-slate-200 hover:bg-slate-50 px-2.5 py-1.5 text-slate-500"><LogOut size={15} /></button>
-            </div>
-            <div className="flex gap-2">
-              <button onClick={() => { setSettingsSection("materials"); setShowSettings(true); setSidebarOpen(false); }} className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm py-1.5 text-slate-600"><Settings size={15} /> Settings</button>
-              <button onClick={() => openIssues()} aria-label="Issues" title="Team issues & to-do list — the clay count is the Claude issue bucket" className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm py-1.5 text-slate-600">
-                {/* Icon + label + both counts is wider than half the 205px rail,
-                    and nothing inside a button shrinks — it used to spill past
-                    the rail's edge. The counts say "issues" well enough on
-                    their own, so the word steps aside while either is up. */}
-                <ListTodo size={15} />{openTodoCount + openClaudeCount === 0 && " Issues"}
-                {openTodoCount > 0 && <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-indigo-600 text-white text-[10px] font-semibold flex items-center justify-center">{openTodoCount}</span>}
-                {openClaudeCount > 0 && <span className="min-w-[18px] h-[18px] px-1 rounded-full text-white text-[10px] font-semibold flex items-center justify-center gap-0.5" style={{ background: CLAUDE_CLAY }}><ClaudeMark size={8} />{openClaudeCount}</span>}
-              </button>
-            </div>
+          <div className="px-2.5 py-2 border-t border-slate-100 flex items-center gap-1">
+            <button onClick={handleSignOut} aria-label="Sign out" title={`Sign out — ${user.email}`} className="shrink-0 flex items-center justify-center rounded-md hover:bg-slate-50 p-1.5 text-slate-500"><LogOut size={16} /></button>
+            <button onClick={() => openAppsTo(null)} aria-label="Apps" title="Apps — shop tools" className="shrink-0 flex items-center justify-center rounded-md hover:bg-slate-50 p-1.5 text-slate-500"><LayoutGrid size={16} /></button>
+            <button onClick={() => openIssues()} aria-label="Issues" title="Team issues & to-do list — the clay count is the Claude issue bucket" className="min-w-0 flex items-center gap-1.5 rounded-md hover:bg-slate-50 text-sm px-1.5 py-1.5 text-slate-600">
+              <ListTodo size={16} className="shrink-0" />{openTodoCount + openClaudeCount === 0 && " Issues"}
+              {openTodoCount > 0 && <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-indigo-600 text-white text-[10px] font-semibold flex items-center justify-center">{openTodoCount}</span>}
+              {openClaudeCount > 0 && <span className="min-w-[18px] h-[18px] px-1 rounded-full text-white text-[10px] font-semibold flex items-center justify-center gap-0.5" style={{ background: CLAUDE_CLAY }}><ClaudeMark size={8} />{openClaudeCount}</span>}
+            </button>
           </div>
         </aside>
 

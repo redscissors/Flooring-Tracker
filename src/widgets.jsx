@@ -364,6 +364,12 @@ export function FilesPop({ attachments, onOpen, onDelete, onAdd, mini, tip }) {
   );
 }
 
+// Dark mode is parked (owner, 2026-09-23) until its palette is reworked: every
+// device renders light, and the rail switch and Settings picker are hidden. The
+// saved "ft-theme" choice and both controls stay, so flipping this (and the
+// pre-paint script in index.html) brings it all back.
+export const DARK_MODE = false;
+
 // Animated light/dark switch (RiccardoRapelli sun/moon toggle, Uiverse.io) —
 // a quick binary shortcut for the three-way theme control in Settings. Checked
 // = dark; toggling writes an explicit "light"/"dark" (leaving "System").

@@ -4,7 +4,7 @@ import { offeredGrouts, offeredMortars, isOffered, setCatalogDefault, isDuplicat
 import { stockBaseCompanion } from "./stock.js";
 import { deriveSeriesRule, matchRule, parseColorToken, normBookFamily, resolveFamily, familyWarnings, linkedItemState, proposeLinks, applyProposals, looksLikeBase } from "./booklink.js";
 import { uid } from "./model.js";
-import { DotMenu, Modal, HelpTip, AddressField, lookupErrText } from "./widgets.jsx";
+import { DotMenu, Modal, HelpTip, AddressField, lookupErrText, DARK_MODE } from "./widgets.jsx";
 import { StockSearch, FamilySearch, SeriesSearch } from "./search.jsx";
 import { PriceBookLibrary } from "./pricebooklib.jsx";
 import { probeMaps } from "./usemapslookup.js";
@@ -974,14 +974,14 @@ export default function SettingsWorkspace({ onClose, settings, setSettings, gFam
                   : <span className="text-[11px] text-amber-600">{probeText(probe, lookupErrText)}</span>)}
               </div>
             </div>
-            <div className="mt-8 pt-6 border-t border-slate-100">
+            {DARK_MODE && <div className="mt-8 pt-6 border-t border-slate-100">
               <label className={lbl + " mb-2"}>Appearance <HelpTip className="align-middle" tip="Applies on this device only. The printed estimate stays on white paper." /></label>
               <div className="inline-flex rounded-md border border-slate-200 overflow-hidden text-sm">
                 {[{ v: "system", label: "System", icon: Laptop }, { v: "light", label: "Light", icon: Sun }, { v: "dark", label: "Dark", icon: Moon }].map(({ v, label, icon: Icon }) => (
                   <button key={v} onClick={() => setTheme(v)} className={`flex items-center gap-1.5 px-3.5 py-2 font-medium ${theme === v ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}><Icon size={14} /> {label}</button>
                 ))}
               </div>
-            </div>
+            </div>}
             <div className="mt-8 pt-6 border-t border-slate-100">
               <label className={lbl + " mb-2"}>Project header <HelpTip className="align-middle" tip="Applies on this device only. One-bar is the 2026-07 redesign; Classic is the original two-row header." /></label>
               <div className="inline-flex rounded-md border border-slate-200 overflow-hidden text-sm">
