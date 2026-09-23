@@ -54,6 +54,13 @@ builder name included (it stays in Customer details and the Customers chart).
 there … hundreds now, thousands later." The Customers row drops its count
 bubble. The search-results header "Customers (n)" stays — it counts matches.
 
+## Round 5 (owner, same day)
+
+"Move the customers folder up and the new customer down … make the folder
+moss green so it stands out — something you go to pretty often." Customers
+now leads the list with a solid moss-filled folder; New Customer's + goes
+the same grey as wedi/Sheoga so Customers is the one green item.
+
 ## Proof
 
 Real app over a stubbed Supabase with Manrope served locally (`shot.mjs`):

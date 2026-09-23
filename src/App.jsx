@@ -1418,12 +1418,13 @@ export default function App({ user, onSignOut }) {
             {/* Borderless menu list: icons sit on the Search icon's line and
                 labels on the Search text's line, as do the Recent names. */}
             <div>
-              <button onClick={() => setNewCust("")} className={railItem}><Plus size={15} className="w-4 shrink-0 text-indigo-500" /> New Customer</button>
               {/* The Customers button opens the browser overlay — the compact
                   ERP-style directory grid (issue 040). Quick prices AND the
                   unassigned estimates/drafts live behind its Estimates & drafts
-                  toggle, so this is the everyday door to all of them. */}
-              <button onClick={() => { setShowBrowser(true); setSidebarOpen(false); refreshSampleRequests(); }} title="Browse all customers" className={railItem}><Folder size={15} className="w-4 shrink-0 text-indigo-500" /> Customers</button>
+                  toggle, so this is the everyday door to all of them — the one
+                  moss-filled icon in the list, so the eye lands on it. */}
+              <button onClick={() => { setShowBrowser(true); setSidebarOpen(false); refreshSampleRequests(); }} title="Browse all customers" className={railItem}><Folder size={15} fill="currentColor" className="w-4 shrink-0 text-indigo-500" /> Customers</button>
+              <button onClick={() => setNewCust("")} className={railItem}><Plus size={15} className="w-4 shrink-0" /> New Customer</button>
               {/* Configurator shortcuts: the same wedi/Sheoga apps the hub lists,
                   one press from the customer column. */}
               <button onClick={() => openAppsTo("wedi")} title="wedi shower configurator" className={railItem}><ShowerHead size={15} className="w-4 shrink-0" /> wedi</button>
