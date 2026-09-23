@@ -1,5 +1,5 @@
 import { Fragment, lazy, Suspense, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
-import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Phone, Mail, MapPin, Building2, StickyNote, MoreHorizontal, AlignJustify, AlertTriangle, Zap, Folder, LayoutGrid, ShowerHead, TreePine, Layers, Bath } from "lucide-react";
+import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Phone, Mail, MapPin, Building2, StickyNote, MoreHorizontal, AlignJustify, AlertTriangle, Zap, Folder, LayoutGrid, ShowerHead, TreePine, Layers, Bath, UserRound } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { listSelect, lightRow, loadProjects, loadPeople, loadBuilders, loadTodos, loadClaudeIssues, loadBooks, loadSettingsRow, resolveSharedSettings, loadSampleRequests } from "./bootload.js";
 import { bootTrace, traceRows } from "./boottrace.js";
@@ -81,6 +81,9 @@ import NedLogo from "./NedLogo.jsx";
 // the cards. UI_ZOOM_FLOOR stops the shrink where the type stops being readable;
 // it lands just about where the mobile shell takes over (768px) anyway.
 const RAIL_W = 205;
+// Any mouse or trackpad attached (an iPad with a keyboard case counts): the
+// customer rows' "…" gives way to right-click. Touch-only screens keep it.
+const CAN_RIGHT_CLICK = typeof window !== "undefined" && !!window.matchMedia?.("(any-pointer: fine)").matches;
 const UI_DESIGN_W = RAIL_W + 896;
 const UI_ZOOM_FLOOR = 0.7;
 
@@ -325,6 +328,7 @@ export default function App({ user, onSignOut }) {
   const [confirmProd, setConfirmProd] = useState(null); // { aid, pid }
   const [confirmArea, setConfirmArea] = useState(null); // area id
   const [areaMenu, setAreaMenu] = useState(null); // { aid, x, y } — the area band's option menu
+  const [custMenu, setCustMenu] = useState(null); // { cid, x, y } — a customer row's right-click menu
   const showers = useJobShowers(sel?.categories);
   const [sfMenu, setSfMenu] = useState(null); // { aid, pid, x?, y? } — a row's sq ft breakdown menu
   const [renamingOpt, setRenamingOpt] = useState(null); // option slot ("A"/"B"/"C") whose rename modal is open
@@ -1146,6 +1150,7 @@ export default function App({ user, onSignOut }) {
   });
   useEscClose(!!custChip, () => setCustChip(null));
   useEscClose(!!areaMenu, () => setAreaMenu(null));
+  useEscClose(!!custMenu, () => setCustMenu(null));
   useEscClose(viewTab === "preview", () => setViewTab("edit"));
   useEscClose(!!confirmArea, () => setConfirmArea(null));
   useEscClose(!!confirmProd, () => setConfirmProd(null));
@@ -1324,13 +1329,14 @@ export default function App({ user, onSignOut }) {
   if (loading) return <div className="h-screen flex items-center justify-center text-slate-400">Loading…</div>;
   const inp = "ft-field w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent";
   const lbl = "ft-eyebrow text-[10px] mb-1 block";
+  const railItem = "w-full flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-left text-[13px] font-semibold text-slate-600 hover:bg-slate-50";
 
   const renderProjRow = (p) => {
     const on = selId === p.id;
     return (
       <button key={p.id} onClick={() => pickProject(p.id)} className={`w-full text-left rounded-md px-2 py-1.5 flex items-center gap-2 border ${on ? "bg-white border-slate-200 shadow-[0_1px_3px_var(--ft-shadow)]" : "border-transparent hover:bg-slate-50"}`}>
         <FileText size={13} className="text-slate-300 shrink-0" />
-        <span className="ft-item-name text-[12.5px] truncate flex-1">{p.name || "Untitled project"}</span>
+        <span className="ft-item-name text-[12px] truncate flex-1">{p.name || "Untitled project"}</span>
       </button>
     );
   };
@@ -1341,28 +1347,25 @@ export default function App({ user, onSignOut }) {
     // Highlight the person row when their open project is hidden behind a
     // collapsed group (or the legacy customer pane is showing).
     const on = (selCustId === c.id && !selId) || (!isOpen && projs.some((p) => p.id === selId));
-    const bn = builderNameOf(c.builderId);
     const clickName = () => {
       if (projs.length === 1) pickProject(projs[0].id);
       else setOpenCust((s) => ({ ...s, [c.id]: !isOpen }));
     };
     return (
       <div key={c.id} className="mb-0.5">
-        <div className={`w-full rounded-md flex items-center gap-0.5 border ${on ? "bg-white border-slate-200 shadow-[0_1px_4px_var(--ft-shadow)]" : "border-transparent hover:bg-slate-50"}`}>
-          <button onClick={clickName} title={projs.length === 1 ? "Open project" : isOpen ? "Collapse" : "Expand"} className="flex items-center gap-1.5 min-w-0 flex-1 py-1.5 pl-1.5 pr-1 text-left">
-            <div className="min-w-0 flex-1">
-              <div className="ft-item-name text-[13.5px] font-semibold truncate">{c.name || "Unnamed customer"}</div>
-              <div className="text-[11px] text-slate-400 truncate mt-px">{[bn, `${projs.length} project${projs.length === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}</div>
-            </div>
+        <div onContextMenu={(e) => { e.preventDefault(); setCustMenu({ cid: c.id, x: e.clientX, y: e.clientY }); }}
+          className={`w-full rounded-md flex items-center gap-0.5 border ${on ? "bg-white border-slate-200 shadow-[0_1px_4px_var(--ft-shadow)]" : custMenu?.cid === c.id ? "border-transparent bg-[var(--ft-hover)]" : "border-transparent hover:bg-slate-50"}`}>
+          <button onClick={clickName} title={`${projs.length === 1 ? "Open project" : isOpen ? "Collapse" : "Expand"}${CAN_RIGHT_CLICK ? " · right-click for more" : ""}`} className="min-w-0 flex-1 py-2 pl-[13px] pr-1 text-left">
+            <div className="ft-item-name text-[12.5px] font-semibold truncate">{c.name || "Unnamed customer"}</div>
           </button>
-          <button onClick={() => setCustModal(c.id)} title="Customer details" className="shrink-0 mr-1.5 rounded border border-slate-200 p-1 text-slate-400 hover:text-slate-600 hover:bg-white">
+          {!CAN_RIGHT_CLICK && <button onClick={() => setCustModal(c.id)} title="Customer details" className="shrink-0 mr-1 rounded-md p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100">
             <MoreHorizontal size={13} />
-          </button>
+          </button>}
         </div>
         {acc(isOpen, (
           <div className="ml-6 mt-0.5 mb-1 space-y-0.5 border-l border-slate-200 pl-1.5">
             {shown.map((p) => renderProjRow(p))}
-            <button onClick={() => addProject(c.id)} className="w-full flex items-center gap-1 px-2 py-1 text-[11.5px] text-slate-400 hover:text-indigo-600"><Plus size={12} /> New project</button>
+            <button onClick={() => addProject(c.id)} className="w-full flex items-center gap-1 px-2 py-1 text-[11px] text-slate-400 hover:text-indigo-600"><Plus size={12} /> New project</button>
           </div>
         ))}
       </div>
@@ -1404,7 +1407,7 @@ export default function App({ user, onSignOut }) {
               {!isWide && <button onClick={() => setSidebarOpen(false)} className="p-1 text-slate-400"><X size={18} /></button>}
             </div>
           </div>
-          <div className="p-2.5 space-y-2">
+          <div className="p-2.5 pb-8 space-y-2">
             <div className="relative"><Search size={16} className="absolute left-2.5 top-2.5 text-slate-400" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search" className={inp + " pl-8"} /></div>
             {/* The rail's two starting points sit together: a throwaway quick
                 price (ADR 0022) or a named customer. Quick Price is the primary
@@ -1412,22 +1415,20 @@ export default function App({ user, onSignOut }) {
                 wears the spark fill and New Customer is the quiet secondary. */}
             <button onClick={() => { startQuickPrice(); setSidebarOpen(false); }} title="Quick price — an unnamed draft you can file under a customer later"
               className="ft-spark-btn w-full flex items-center justify-center gap-1.5 text-sm font-semibold py-2"><Zap size={16} className="-ml-1" /> Quick Price</button>
-            <button onClick={() => setNewCust("")}
-              className="w-full flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm font-semibold py-1.5 text-slate-600"><Plus size={15} className="text-indigo-500" /> New Customer</button>
-            {/* The Customers button opens the browser overlay — the compact
-                ERP-style directory grid (issue 040). Quick prices AND the
-                unassigned estimates/drafts live behind its Estimates & drafts
-                toggle, so this is the everyday door to all of them. */}
-            <button onClick={() => { setShowBrowser(true); setSidebarOpen(false); refreshSampleRequests(); }} title="Browse all customers"
-              className="w-full flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm font-semibold py-1.5 text-slate-600">
-              <Folder size={15} className="text-indigo-500" /> Customers
-              <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 rounded-full px-1.5 leading-5">{data.people.length}</span>
-            </button>
-            {/* Configurator shortcuts: the same wedi/Sheoga apps the hub lists,
-                one press from the customer column. */}
-            <div className="flex gap-2">
-              <button onClick={() => openAppsTo("wedi")} title="wedi shower configurator" className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm font-semibold py-1.5 text-slate-600"><ShowerHead size={15} /> wedi</button>
-              <button onClick={() => openAppsTo("sheoga")} title="Sheoga hardwood configurator" className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm font-semibold py-1.5 text-slate-600"><TreePine size={15} /> Sheoga</button>
+            {/* Borderless menu list: icons sit on the Search icon's line and
+                labels on the Search text's line, as do the Recent names. */}
+            <div>
+              {/* The Customers button opens the browser overlay — the compact
+                  ERP-style directory grid (issue 040). Quick prices AND the
+                  unassigned estimates/drafts live behind its Estimates & drafts
+                  toggle, so this is the everyday door to all of them — the one
+                  moss-filled icon in the list, so the eye lands on it. */}
+              <button onClick={() => { setShowBrowser(true); setSidebarOpen(false); refreshSampleRequests(); }} title="Browse all customers" className={railItem}><Folder size={15} fill="currentColor" className="w-4 shrink-0 text-indigo-500" /> Customers</button>
+              <button onClick={() => setNewCust("")} className={railItem}><Plus size={15} className="w-4 shrink-0" /> New Customer</button>
+              {/* Configurator shortcuts: the same wedi/Sheoga apps the hub lists,
+                  one press from the customer column. */}
+              <button onClick={() => openAppsTo("wedi")} title="wedi shower configurator" className={railItem}><ShowerHead size={15} className="w-4 shrink-0" /> wedi</button>
+              <button onClick={() => openAppsTo("sheoga")} title="Sheoga hardwood configurator" className={railItem}><TreePine size={15} className="w-4 shrink-0" /> Sheoga</button>
             </div>
           </div>
           <div className="flex-1 overflow-y-auto px-1.5 pb-2">
@@ -1436,12 +1437,12 @@ export default function App({ user, onSignOut }) {
 
             {/* Long list: pinned recents; the full list lives in the browser */}
             {showFolders && (<>
-              <div className="mt-1 mb-1 px-2.5 ft-eyebrow text-[9px]">Recent</div>
+              <div className="mt-1 mb-1 px-3.5 ft-eyebrow text-[9px]">Recent</div>
               {recents.map((c) => renderPersonRow(c))}
             </>)}
 
             {/* Small list or active search: flat, fully-visible customer list */}
-            {!showFolders && peopleList.length > 0 && <div className="mt-1 mb-1 px-2.5 ft-eyebrow text-[9px]">Customers ({peopleList.length})</div>}
+            {!showFolders && peopleList.length > 0 && <div className="mt-1 mb-1 px-3.5 ft-eyebrow text-[9px]">Customers ({peopleList.length})</div>}
             {!showFolders && peopleList.map((c) => renderPersonRow(c))}
 
             {/* Quick prices and unassigned estimates/drafts live in the
@@ -1449,11 +1450,11 @@ export default function App({ user, onSignOut }) {
                 here only while a search is active, so the sidebar search can
                 still land on one. */}
             {q && quickPrices.length > 0 && (<>
-              <div className="mt-2 mb-1 px-2.5 ft-eyebrow text-[9px]">Quick Prices ({quickPrices.length})</div>
+              <div className="mt-2 mb-1 px-3.5 ft-eyebrow text-[9px]">Quick Prices ({quickPrices.length})</div>
               {quickPrices.map((p) => renderProjRow(p))}
             </>)}
             {q && unassigned.length > 0 && (<>
-              <div className="mt-2 mb-1 px-2.5 ft-eyebrow text-[9px]">Unassigned jobs ({unassigned.length})</div>
+              <div className="mt-2 mb-1 px-3.5 ft-eyebrow text-[9px]">Unassigned jobs ({unassigned.length})</div>
               {unassigned.map((p) => renderProjRow(p))}
             </>)}
           </div>
@@ -3180,6 +3181,23 @@ export default function App({ user, onSignOut }) {
         const a = sel?.categories.find((c) => c.id === sfMenu.aid);
         const p = a?.products.find((x) => x.id === sfMenu.pid);
         return p ? <SfPartsMenu x={sfMenu.x} y={sfMenu.y} product={p} showers={showers} onPatch={(patch) => updProduct(a.id, p.id, patch)} onClose={() => setSfMenu(null)} /> : null;
+      })()}
+
+      {custMenu && (() => {
+        const c = data.people.find((x) => x.id === custMenu.cid);
+        if (!c) return null;
+        const close = () => setCustMenu(null);
+        const item = "w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[12.5px] text-left hover:bg-slate-100";
+        return (
+          <div className="ft-noprint fixed inset-0 z-50" onClick={close} onContextMenu={(e) => { e.preventDefault(); close(); }}>
+            <div className="absolute bg-white rounded-lg border border-slate-200 shadow-xl p-1" style={{ left: Math.min(custMenu.x, window.innerWidth - 212), top: Math.min(custMenu.y, window.innerHeight - 136), width: 200 }} onClick={(e) => e.stopPropagation()}>
+              <button className={item} onClick={() => { close(); setCustModal(c.id); }}><UserRound size={13} className="text-slate-400" /> Customer details…</button>
+              <button className={item} onClick={() => { close(); addProject(c.id); }}><Plus size={13} className="text-slate-400" /> New project</button>
+              <div className="border-t border-slate-100 my-1" />
+              <button className={`${item} text-red-600 hover:bg-red-50`} onClick={() => { close(); setConfirm({ kind: "person", id: c.id }); }}><Trash2 size={13} /> Delete customer…</button>
+            </div>
+          </div>
+        );
       })()}
 
       {areaMenu && sel && (() => {
