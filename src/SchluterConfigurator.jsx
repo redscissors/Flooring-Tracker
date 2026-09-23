@@ -377,6 +377,9 @@ function seedState(seed) {
     // Stock only by default (owner 2026-09-02); a saved marker reopens under
     // the catalog it was built from (below).
     manual: [], q: "", source: "stock", kitPick: false, pick: null, swaps: {},
+    // Nothing builds until a kit, an option card or a room edit asks for
+    // one (the wedi Kits-tab behavior, owner 2026-09-23).
+    started: false,
   };
   if (!seed) return s;
   const cfg = seed.cfg;
@@ -433,6 +436,7 @@ function seedState(seed) {
     s.source = cfg.source === "stock" ? "stock" : "all";
     s.pick = typeof cfg.pick === "string" ? cfg.pick : null;
     s.kitPick = seed.mode === "kit";
+    s.started = true;
     return s;
   }
   if (seed.tab) s.tab = ["custom", "browse", "compare"].includes(seed.tab) ? seed.tab : "kits";
@@ -444,6 +448,7 @@ function seedState(seed) {
     if (seed.input.wallSys === "board" || seed.input.wallSys === "membrane") s.wallSys = seed.input.wallSys;
   }
   if (seed.search) s.q = seed.search;
+  if (s.tab === "custom" && seed.input && (seed.input.w || seed.input.d)) s.started = true;
   return s;
 }
 
@@ -490,6 +495,7 @@ export default function SchluterConfigurator({
   const [qtyOv, setQtyOv] = useState({}); // hand-stepped line quantities (the wedi idiom) — session only, never in the marker
   const [pick, setPick] = useState(s0.pick);    // chosen tray candidate's sku
   const [kitPick, setKitPick] = useState(s0.kitPick);
+  const [started, setStarted] = useState(s0.started);
   // Fit | One size (round 7, the wedi panelFit): session-only, never in the
   // marker — the Fit plan is the default presentation, not a customization
   const [panelFit, setPanelFit] = useState(true);
@@ -546,7 +552,7 @@ export default function SchluterConfigurator({
     }
   };
   // any edit to the room makes the build a custom shower, not the kit
-  const custom = (fn) => (...a) => { leaveKit(); setKitPick(false); setPick(null); fn(...a); };
+  const custom = (fn) => (...a) => { leaveKit(); setKitPick(false); setPick(null); setStarted(true); fn(...a); };
   // wall/corner edits are geometry too, but they never change which tray
   // fits — the picked option card stays picked
   const geom = (fn) => (...a) => { leaveKit(); setKitPick(false); fn(...a); };
@@ -687,7 +693,7 @@ export default function SchluterConfigurator({
   // build, no drawings (topGeom would divide by the room dims)
   const roomOk = cfg.w > 0 && cfg.d > 0;
   const cands = useMemo(() => (catReady && cat.length && roomOk ? trayCandidates(cfg, cat, { source }) : []), [catReady, cat, cfg, source, roomOk]);
-  const pickCand = (pick && cands.find((c) => c.tray && c.tray.sku === pick)) || cands[0] || null;
+  const pickCand = !started ? null : (pick && cands.find((c) => c.tray && c.tray.sku === pick)) || cands[0] || null;
 
   // The board Fit plan (round 7): the engine's boardPlan over the same
   // wall order the drawings use. One helper both the build column and
@@ -871,9 +877,9 @@ export default function SchluterConfigurator({
 
   // refresh restore (the wedi ft-open-layer contract)
   useEffect(() => {
-    onConfigChange?.({ mode, cfg: markCfg, tab, search: q });
+    onConfigChange?.({ mode, cfg: started ? markCfg : {}, tab, search: q });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, markCfg, tab, q]);
+  }, [mode, markCfg, tab, q, started]);
 
   const qtyIn = (sku) => (manual.find((m) => m.sku === sku) || { qty: 0 }).qty;
   const setQty = (sku, n) => setManual((mm) => {
@@ -1101,7 +1107,7 @@ export default function SchluterConfigurator({
     setDrainX(""); setDrainY(""); setDrainRef("left");
     setBenches([]); setBenchMenu(null); setWallMenu(null); setPicker(null);
     setMortarName(""); setRamp(false); setSwaps({}); setSwap(null); setManual([]); setQtyOv({});
-    setPick(null); setKitPick(false);
+    setPick(null); setKitPick(false); setStarted(false);
   };
 
   // A kit click fills the build column and STAYS here (the wedi Kits-tab
@@ -1113,7 +1119,7 @@ export default function SchluterConfigurator({
     clearDesign();
     setWallSys(sys);
     setW(String(t.w)); setD(String(t.d)); setDrain(t.drain); setCurbed(!t.thin);
-    setPick(t.sku); setKitPick(true);
+    setPick(t.sku); setKitPick(true); setStarted(true);
   };
   // "Keep what I added" (owner 2026-09-02): the kit takes the room's work —
   // walls, extra walls, corners, wall height, drain position, benches,
@@ -1127,7 +1133,7 @@ export default function SchluterConfigurator({
     setPlacing(false); setWallMenu(null); setBenchMenu(null); setPicker(null); setSwap(null);
     setSwaps({}); setQtyOv({}); setMaxIn(false);
     setW(String(t.w)); setD(String(t.d)); setDrain(t.drain); setCurbed(!t.thin);
-    setPick(t.sku); setKitPick(true);
+    setPick(t.sku); setKitPick(true); setStarted(true);
   };
   const newShower = (t) => {
     const parked = stageBuild({ open: false });
@@ -1180,7 +1186,7 @@ export default function SchluterConfigurator({
 
   const optCards = cands.map((c, i) => {
     if (c.kind === "mortar") return (
-      <div className="optcard on" key="mortar">
+      <div className={"optcard" + (pickCand === c ? " on" : "")} key="mortar">
         <div className="rank warn">Fallback</div>
         <div className="big">Mortar bed + KERDI</div>
         <div className="sub">No tray covers this room{source === "stock" ? " from stock" : ""} — site-built pitch, membrane floor.</div>
@@ -1188,7 +1194,7 @@ export default function SchluterConfigurator({
     );
     return (
       <button key={c.tray.sku + i} className={"optcard" + (pickCand === c ? " on" : "")}
-        onClick={() => { setKitPick(false); setPick(c.tray.sku); }} data-schluter-opt={c.tray.sku}>
+        onClick={() => { setKitPick(false); setPick(c.tray.sku); setStarted(true); }} data-schluter-opt={c.tray.sku}>
         <div className={"rank" + (c.deep ? " warn" : "")}>{c.kind === "exact" ? "Exact tray" : c.deep ? "Deep cut" : "Cut down"}</div>
         <div className="big">{szLbl(c.tray)}</div>
         <div className="sub">{(c.kind === "exact" ? `Drops in as-is${c.rot ? ", laid rotated" : ""}, drain on layout.`
@@ -1294,10 +1300,10 @@ export default function SchluterConfigurator({
                 <label>Drain — from {drainRef} × back</label>
                 <div className="dims">
                   <NumIn className="rinp" placeholder="auto" disabled={drain === "linear"} value={drainX}
-                    onCommit={(v) => { setKitPick(false); setDrainX(v); }} data-schluter-dx />
+                    onCommit={(v) => { setKitPick(false); setStarted(true); setDrainX(v); }} data-schluter-dx />
                   <span>×</span>
                   <NumIn className="rinp" placeholder="auto" disabled={drain === "linear"} value={drainY}
-                    onCommit={(v) => { setKitPick(false); setDrainY(v); }} data-schluter-dy />
+                    onCommit={(v) => { setKitPick(false); setStarted(true); setDrainY(v); }} data-schluter-dy />
                   <span>in</span>
                   {/* the measurement DATUM — a builder calling the drain off
                       the right wall types the number as given, no subtraction */}
