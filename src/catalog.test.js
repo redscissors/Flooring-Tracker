@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULTS, GROUTS, MORTARS, mergeSettings, seedCatalog, resolveCatalog, normalizeSettings, normalizeCatalog, normWaste, wasteFor, projWaste, withProjWaste, serializeSettings, groutExact, mortarExact, getGrout, getGroutBase, groutBaseList, getMortar, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredUnderlayments, catalogHasSeedUnderlayments, materialWarnings, addCategory, updateCategory, isDuplicateCategoryName, removeCategory, isDuplicateAttachedName, offeredAttached, offeredCategories, getAttached, attachedList, normShop, underlaymentForSku } from "./catalog.js";
+import { DEFAULTS, GROUTS, MORTARS, mergeSettings, seedCatalog, resolveCatalog, normalizeSettings, normalizeCatalog, normWaste, wasteFor, lineWastePct, ownWaste, wasteVaries, projWaste, withProjWaste, serializeSettings, groutExact, mortarExact, getGrout, getGroutBase, groutBaseList, getMortar, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredUnderlayments, catalogHasSeedUnderlayments, materialWarnings, addCategory, updateCategory, isDuplicateCategoryName, removeCategory, isDuplicateAttachedName, offeredAttached, offeredCategories, getAttached, attachedList, normShop, underlaymentForSku } from "./catalog.js";
 import { BUILTIN_IDS } from "./labels.js";
 
 // A fully-checked tile selection used by the math tests.
@@ -119,6 +119,48 @@ test("wasteFor picks tile rate for tile, floor rate for every other type", () =>
   const s = { waste: { tile: 10, floor: 20 } };
   assert.equal(wasteFor({ type: "tile" }, s), 1.1);
   for (const t of ["hardwood", "vinyl", "laminate", "carpet"]) assert.equal(wasteFor({ type: t }, s), 1.2);
+});
+
+// --- Per-line waste (2026-09-23) --------------------------------------------
+// A line can carry its own rate; "" follows the job.
+
+test("lineWastePct: a blank line rate follows the job's family rate", () => {
+  const s = { waste: { tile: 10, floor: 5 } };
+  assert.equal(lineWastePct({ type: "tile", waste: "" }, s), 10);
+  assert.equal(lineWastePct({ type: "vinyl" }, s), 5);
+  assert.equal(ownWaste({ type: "tile", waste: "" }), false);
+});
+
+test("lineWastePct: a line's own rate wins, even with the job's family switched off", () => {
+  const off = { waste: { tile: 0, floor: 0 } };
+  assert.equal(lineWastePct({ type: "tile", waste: "15" }, off), 15);
+  assert.equal(wasteFor({ type: "tile", waste: "15" }, off), 1.15);
+  // "0" is a deliberate "no waste on this line", not "follow the job".
+  assert.equal(wasteFor({ type: "tile", waste: "0" }, { waste: { tile: 10, floor: 5 } }), 1);
+  assert.equal(ownWaste({ type: "tile", waste: "0" }), true);
+});
+
+test("lineWastePct: underlayment never takes waste, even with a line rate", () => {
+  const s = { waste: { tile: 10, floor: 5 } };
+  assert.equal(wasteFor({ type: "underlayment", waste: "12" }, s), 1);
+  assert.equal(ownWaste({ type: "underlayment", waste: "12" }), false);
+});
+
+test("cartonExact orders a line's own waste rate", () => {
+  const s = normalizeSettings({ waste: { tile: 10, floor: 20 } });
+  assert.equal(cartonExact(tile({ qty: "200", cartonSf: "20", cartonManual: "", waste: "15" }), s), 200 * 1.15 / 20);
+  assert.equal(getCarton(tile({ qty: "200", cartonSf: "20", cartonManual: "", waste: "0" }), s).order, 10);
+});
+
+test("wasteVaries: true only when a sq ft line's own rate differs from its family rate", () => {
+  const s = { waste: { tile: 10, floor: 5 } };
+  const areas = (...products) => [{ products }];
+  assert.equal(wasteVaries(areas({ type: "tile", qtyType: "sqft", waste: "" }), s), false);
+  assert.equal(wasteVaries(areas({ type: "tile", qtyType: "sqft", waste: "10" }), s), false, "same as the job");
+  assert.equal(wasteVaries(areas({ type: "tile", qtyType: "sqft", waste: "12" }), s), true);
+  assert.equal(wasteVaries(areas({ type: "vinyl", qtyType: "sqft", waste: "0" }), s), true);
+  assert.equal(wasteVaries(areas({ type: "tile", qtyType: "count", waste: "12" }), s), false, "count lines take no waste");
+  assert.equal(wasteVaries([], s), false);
 });
 
 test("carton/underlay math applies the family-specific waste rate", () => {

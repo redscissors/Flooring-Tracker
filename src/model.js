@@ -13,18 +13,21 @@ export const sf1 = (n) => (n || 0).toLocaleString(undefined, { maximumFractionDi
 // paperwork names only what was actually applied — a family left off added no
 // overage and gets no mention, and with both off the line disappears entirely
 // (callers render nothing on null).
-export const wasteNote = (w) => {
+// `varies` = some line carries its own rate (catalog.js wasteVaries).
+export const wasteNote = (w, varies = false) => {
   const t = num(w?.tile), f = num(w?.floor);
-  if (!t && !f) return null;
-  if (t && f) return t === f ? `${t}% material waste` : `material waste (tile ${t}%, other flooring ${f}%)`;
-  return t ? `${t}% material waste on tile` : `${f}% material waste on flooring`;
+  if (!t && !f) return varies ? "material waste on some lines" : null;
+  const base = t && f ? (t === f ? `${t}% material waste` : `material waste (tile ${t}%, other flooring ${f}%)`)
+    : t ? `${t}% material waste on tile` : `${f}% material waste on flooring`;
+  return varies ? `${base} (some lines differ)` : base;
 };
 // The same fact compressed for the estimate's header meta line.
-export const wasteMeta = (w, one = "waste") => {
+export const wasteMeta = (w, one = "waste", varies = false) => {
   const t = num(w?.tile), f = num(w?.floor);
-  if (!t && !f) return "";
-  if (t && f) return t === f ? `${one} ${t}%` : `waste tile ${t}% · other ${f}%`;
-  return t ? `waste tile ${t}%` : `waste other ${f}%`;
+  if (!t && !f) return varies ? "waste by line" : "";
+  const base = t && f ? (t === f ? `${one} ${t}%` : `waste tile ${t}% · other ${f}%`)
+    : t ? `waste tile ${t}%` : `waste other ${f}%`;
+  return varies ? `${base} · some lines differ` : base;
 };
 // Misc lines are flat-priced; a typed quantity multiplies the price. Only
 // count-mode qty is honored so a stale sqft value left over from a type
@@ -33,7 +36,7 @@ export const miscQty = (p) => (p.qtyType === "count" && String(p.qty ?? "").trim
 export const blobToDataURL = (blob) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(blob); });
 export const dataURLToBlob = (dataURL) => { const [meta, b64] = String(dataURL).split(","); const mime = (meta.match(/:(.*?);/) || [])[1] || "application/octet-stream"; const bin = atob(b64 || ""); const arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i); return new Blob([arr], { type: mime }); };
 
-export const newProduct = () => ({ id: uid(), type: "tile", sku: "", L: "", W: "", thickness: "0.375", sizeText: "", brandColor: "", priceSqft: "", qtyType: "sqft", qty: "", cartonSf: "", cartonPc: "", cartonUnit: "CT", sellUnit: "", cartonManual: "", note: "", freight: "", grout: { checked: false, product: "", color: "", sku: "", joint: 0.125, manual: "", caulk: "", caulkSku: "", caulkPrice: "", caulkCost: "", bookId: "" }, mortar: { checked: false, product: "", manual: "" }, underlay: { checked: false, product: "", manual: "", install: false, installMortars: {}, installSkip: {} }, attached: {} });
+export const newProduct = () => ({ id: uid(), type: "tile", sku: "", L: "", W: "", thickness: "0.375", sizeText: "", brandColor: "", priceSqft: "", qtyType: "sqft", qty: "", cartonSf: "", cartonPc: "", cartonUnit: "CT", sellUnit: "", cartonManual: "", waste: "", note: "", freight: "", grout: { checked: false, product: "", color: "", sku: "", joint: 0.125, manual: "", caulk: "", caulkSku: "", caulkPrice: "", caulkCost: "", bookId: "" }, mortar: { checked: false, product: "", manual: "" }, underlay: { checked: false, product: "", manual: "", install: false, installMortars: {}, installSkip: {} }, attached: {} });
 export const newArea = () => ({ id: uid(), name: "", option: "", products: [newProduct()] });
 export const areaLabel = (a, i) => (a.name || "").trim() || `Area ${i + 1}`;
 // A row with no identity yet — the empty state renders as a price-book search
@@ -100,7 +103,7 @@ export const newBuilder = (name = "") => ({ id: uid(), name });
 // `freight` stores only the opt-OUT ("off"): a row whose book charges freight
 // rides the shipment by default, including rows saved before the program
 // existed (ADR 0030).
-export const normP = (p) => ({ id: p.id || uid(), type: TYPES.includes(p.type) ? p.type : "tile", sku: p.sku ?? "", L: p.L ?? "", W: p.W ?? "", thickness: p.thickness || "0.375", sizeText: p.sizeText ?? (p.size || ""), brandColor: p.brandColor ?? [p.brand, p.color].filter(Boolean).join(" / "), priceSqft: p.priceSqft ?? "", qtyType: p.qtyType === "count" ? "count" : "sqft", qty: p.qty ?? "", cartonSf: p.cartonSf ?? "", cartonPc: p.cartonPc ?? "", cartonUnit: p.cartonUnit || "CT", sellUnit: p.sellUnit ?? "", cartonManual: p.cartonManual ?? "", note: p.note ?? "", freight: p.freight === "off" ? "off" : "", bookId: p.bookId ?? "", cost: p.cost ?? "", costSqft: p.costSqft ?? "", markupPct: p.markupPct ?? "", freightFlag: !!p.freightFlag, tierPrice: p.tierPrice ?? "", kitId: p.kitId ?? "", sheoga: p.sheoga ?? null, wedi: p.wedi ?? null, schluter: p.schluter ?? null, grout: { checked: !!p.grout?.checked, product: p.grout?.product || "", color: p.grout?.color || "", sku: p.grout?.sku ?? "", joint: num(p.grout?.joint) > 0 ? p.grout.joint : 0.125, manual: p.grout?.manual ?? "", caulk: p.grout?.caulk ?? "", caulkSku: p.grout?.caulkSku ?? "", caulkPrice: p.grout?.caulkPrice ?? "", caulkCost: p.grout?.caulkCost ?? "", bookId: p.grout?.bookId ?? "" }, mortar: { checked: !!p.mortar?.checked, product: p.mortar?.product || "", manual: p.mortar?.manual ?? "" }, underlay: { checked: !!p.underlay?.checked, product: p.underlay?.product || "", manual: p.underlay?.manual ?? "", install: !!p.underlay?.install, installMortars: p.underlay?.installMortars || {}, installSkip: p.underlay?.installSkip || {} }, attached: normAttachedJob(p.attached), ...sfPartsField(p.sfParts) });
+export const normP = (p) => ({ id: p.id || uid(), type: TYPES.includes(p.type) ? p.type : "tile", sku: p.sku ?? "", L: p.L ?? "", W: p.W ?? "", thickness: p.thickness || "0.375", sizeText: p.sizeText ?? (p.size || ""), brandColor: p.brandColor ?? [p.brand, p.color].filter(Boolean).join(" / "), priceSqft: p.priceSqft ?? "", qtyType: p.qtyType === "count" ? "count" : "sqft", qty: p.qty ?? "", cartonSf: p.cartonSf ?? "", cartonPc: p.cartonPc ?? "", cartonUnit: p.cartonUnit || "CT", sellUnit: p.sellUnit ?? "", cartonManual: p.cartonManual ?? "", waste: p.waste ?? "", note: p.note ?? "", freight: p.freight === "off" ? "off" : "", bookId: p.bookId ?? "", cost: p.cost ?? "", costSqft: p.costSqft ?? "", markupPct: p.markupPct ?? "", freightFlag: !!p.freightFlag, tierPrice: p.tierPrice ?? "", kitId: p.kitId ?? "", sheoga: p.sheoga ?? null, wedi: p.wedi ?? null, schluter: p.schluter ?? null, grout: { checked: !!p.grout?.checked, product: p.grout?.product || "", color: p.grout?.color || "", sku: p.grout?.sku ?? "", joint: num(p.grout?.joint) > 0 ? p.grout.joint : 0.125, manual: p.grout?.manual ?? "", caulk: p.grout?.caulk ?? "", caulkSku: p.grout?.caulkSku ?? "", caulkPrice: p.grout?.caulkPrice ?? "", caulkCost: p.grout?.caulkCost ?? "", bookId: p.grout?.bookId ?? "" }, mortar: { checked: !!p.mortar?.checked, product: p.mortar?.product || "", manual: p.mortar?.manual ?? "" }, underlay: { checked: !!p.underlay?.checked, product: p.underlay?.product || "", manual: p.underlay?.manual ?? "", install: !!p.underlay?.install, installMortars: p.underlay?.installMortars || {}, installSkip: p.underlay?.installSkip || {} }, attached: normAttachedJob(p.attached), ...sfPartsField(p.sfParts) });
 const sfPartsField = (v) => { const s = normSfParts(v); return s ? { sfParts: s } : {}; };
 // Add-on material selections, keyed by category id (ADR 0016). Old records have
 // no `attached` — they normalize to {} and stay valid.

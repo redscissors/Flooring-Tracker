@@ -22,6 +22,7 @@ import { SfPartsMenu } from "./SfPartsMenu.jsx";
 import { Hit, hitKey, matchSummary, useMergedResults, NearMatchNote, SearchingBar } from "./search.jsx";
 import { GridSizeInput, UnitPick } from "./grid.jsx";
 import { ErpChip } from "./projectheader.jsx";
+import { LineWasteControl, wasteTag, takesWaste } from "./linewaste.jsx";
 
 // Mobile bottom sheet (mobile shell 2026-07-16): the phone's pop-open editing
 // surface — scrim + slide-up panel with an optional pinned footer. Portaled so
@@ -217,6 +218,7 @@ export function MobileProductRow({ p, settings, tv, onOpen, onPointerDown }) {
   const sub = blank ? ["tap to fill in"] : [
     p.sku, c.size,
     c.qtyText && c.C ? `${c.qtyText} × ${sf1(c.C.sf)} SF` : c.qtyText,
+    c.C && wasteTag(p, settings) ? `${wasteTag(p, settings).text} waste` : "",
     c.priceText ? `@ ${c.priceText}` : "",
   ].filter(Boolean);
   return (
@@ -465,6 +467,14 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutS
           )}
         </div>
       </div>
+      {takesWaste(p) && (
+        <div className="mt-2.5">
+          <label className={fl}>Waste</label>
+          <div className="rounded-md border border-slate-200 bg-white p-1">
+            <LineWasteControl key={p.id} p={p} s={settings} onPatch={onPatch} />
+          </div>
+        </div>
+      )}
       {/* Cost & markup — the desktop grid opens this as a popup off the price
           cell; the sheet has the room to keep it in line. */}
       <div className="mt-2.5 rounded-md border border-slate-200 px-2.5 py-2" style={{ background: "var(--ft-band)" }}>

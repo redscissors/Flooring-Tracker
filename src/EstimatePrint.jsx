@@ -1,6 +1,6 @@
 import { Fragment } from "react";
 import { normPrintPricing, tierTag } from "./pricing.js";
-import { num } from "./catalog.js";
+import { num, wasteVaries } from "./catalog.js";
 import { money, sf1, wasteNote, wasteMeta, miscQty, rowBlank, quickPrintName } from "./model.js";
 import { TLBL, THICK } from "./uiconst.js";
 import { printProduct, printAreaFloor, areaPrintLabel, PRINT_COLS, PRINT_COLS_UNIT, PRINT_COLS_NONE, KSHORT, ESTIMATE_PRINT_LAYOUT, u1 } from "./print.js";
@@ -12,6 +12,7 @@ import keimLogo from "./assets/keim-logo-ink.png";
 export const PRINT_DASH = <span style={{ color: "var(--ft-faint)" }}>—</span>;
 
 export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet, materialsCost, freightCost = 0, flooringPrice, miscCost, totalSqft, orderedSqft, grandTotal, optionPrint = null, scopeNote = "" }) {
+  const wVar = wasteVaries(tv.proj.categories, tSet);
   // pMats already carries the job's freight as its own trailing "Freight" group
   // (App.jsx appends freightPrintRows), so the breakdown band renders it with
   // everything else — but the band's subtotal has to count it, and the meta line
@@ -49,7 +50,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
               // signed-in profile, which is exactly what they printed before.
               const sp = sel.salesperson || profile;
               const pname = sp.name || sp.email;
-              const wMeta = wasteMeta(jobWaste, "waste factor");
+              const wMeta = wasteMeta(jobWaste, "waste factor", wVar);
               const printName = sel.quick ? quickPrintName(sel) : sel.name;
               const col = (label, name, details) => (
                 <div className="flex flex-col" style={{ gap: 2 }}>
@@ -155,7 +156,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
                 </div>
                 {showTotals && grandTotal > 0 && <div className="flex items-baseline gap-2 shrink-0"><span className="uppercase" style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".2em", color: "var(--ft-brand-deep)" }}>Estimated total</span><span className="ft-serif" style={{ fontSize: 22 }}>{money(grandTotal)}</span></div>}
               </div>
-              <div className="mt-2" style={{ fontSize: 10.5, color: "var(--ft-muted)" }}>Quantities{showUnit ? " and prices" : ""} are estimates{wasteNote(jobWaste) ? `, incl. ${wasteNote(jobWaste)}` : ""}. Confirm against product specs and final measurements before ordering.</div>
+              <div className="mt-2" style={{ fontSize: 10.5, color: "var(--ft-muted)" }}>Quantities{showUnit ? " and prices" : ""} are estimates{wasteNote(jobWaste, wVar) ? `, incl. ${wasteNote(jobWaste, wVar)}` : ""}. Confirm against product specs and final measurements before ordering.</div>
             </div>
             <div className="break-inside-avoid flex mt-6" style={{ gap: 40 }}>
               <div className="flex-1 flex flex-col" style={{ gap: 4 }}>
@@ -409,7 +410,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
         )}
         {/* The waste factor's one appearance since it left the header (issue
             090) — so it prints in every pricing mode, not just "full". */}
-        {wasteNote(jobWaste) && <div className="break-inside-avoid" style={{ fontSize: 9.5, color: "var(--ft-faint)", marginTop: 5, textAlign: "right" }}>Includes {wasteNote(jobWaste)}</div>}
+        {wasteNote(jobWaste, wVar) && <div className="break-inside-avoid" style={{ fontSize: 9.5, color: "var(--ft-faint)", marginTop: 5, textAlign: "right" }}>Includes {wasteNote(jobWaste, wVar)}</div>}
 
       </div>
     );

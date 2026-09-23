@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normP, normA, normC, rowBlank, newProduct, newArea, newProject, newPerson, areaLabel, money, catSig, quickAutoName, isQuickAutoName, isRealProjectName, QUICK_DEFAULT_NAME, stampKit, landKitLines, removeKitLines, kitRows, placedKits, normKitBasketEntry, appendKitLines, moveKitEntries } from "./model.js";
+import { wasteNote, wasteMeta, normP, normA, normC, rowBlank, newProduct, newArea, newProject, newPerson, areaLabel, money, catSig, quickAutoName, isQuickAutoName, isRealProjectName, QUICK_DEFAULT_NAME, stampKit, landKitLines, removeKitLines, kitRows, placedKits, normKitBasketEntry, appendKitLines, moveKitEntries } from "./model.js";
 
 test("normP fills every field a grid row reads from a bare object", () => {
   const p = normP({ id: "x" });
@@ -531,4 +531,19 @@ test("normP keeps a valid sfParts list and omits the key on rows without one", (
   assert.equal("sfParts" in normP({ id: "x", sfParts: [] }), false);
   const p = normP({ id: "x", sfParts: [{ kind: "extra", label: "Hall", sf: "45" }] });
   assert.deepEqual(p.sfParts, [{ kind: "extra", label: "Hall", sf: 45 }]);
+});
+
+test("normP: a row's waste rate defaults to blank (follow the job) and survives as saved", () => {
+  assert.equal(normP({ id: "x" }).waste, "");
+  assert.equal(normP({ id: "x", waste: "12" }).waste, "12");
+  assert.equal(normP({ id: "x", waste: "0" }).waste, "0");
+});
+
+test("wasteNote/wasteMeta: flag lines that carry their own rate", () => {
+  assert.equal(wasteNote({ tile: 10, floor: 10 }, true), "10% material waste (some lines differ)");
+  assert.equal(wasteNote({ tile: 0, floor: 0 }, true), "material waste on some lines");
+  assert.equal(wasteNote({ tile: 0, floor: 0 }, false), null);
+  assert.equal(wasteMeta({ tile: 10, floor: 10 }, "waste factor", true), "waste factor 10% · some lines differ");
+  assert.equal(wasteMeta({ tile: 0, floor: 0 }, "waste factor", true), "waste by line");
+  assert.equal(wasteMeta({ tile: 0, floor: 0 }), "");
 });
