@@ -38,15 +38,15 @@ on top as for every tile row.
 
 | Piece id | Label | Math |
 |---|---|---|
-| `walls` | Walls (incl. bench faces) | Σ over walls that are on: `len × h`; plus Σ over benches: `len × face height`. Niche openings are **not** deducted. |
-| `floor` | Floor | pan `w × d`. Curbless room floor beyond the pan is not included. |
-| `curb` | Curb top + faces | curb run (the shower's open side, not the bought part's length) × (top width + inside face + outside face). Width and height come from the curb part's size (e.g. wedi cap `5" H × 4 5/8" W`). |
-| `niche` | Niche back | Σ over niches: interior `W × H` from the niche part's size (e.g. `12 × 12`). |
-| `benchTop` | Bench top | Σ over benches: `len × depth`. |
+| `walls` | Walls (incl. bench faces) | Σ over walls that are on: `len × h` (both faces / exposed end when the wall is set that way); plus Σ over benches: `len × h` (corner bench: diagonal × h; suspended: slab thickness). Niche openings are **not** deducted. |
+| `floor` | Floor | the shower's floor as configured — the room `w × d` (the pan in kit mode), less the curb when "max — curb inside" is on. |
+| `curb` | Curb top + faces | curb run (every open edge the curb runs, as the configurator figures it — not the bought part's length) × (top width + 2 × height). wedi: the engine's `curbWidth` / `curbHeight` (4½" × 5⅛" standard, 2" × 3½" lean). Schluter: 4½" × 6" (schluterdraw). |
+| `niche` | Niche back | Σ over niches: interior `W × H` — wedi from the part's "interior" size (4" flange rule fallback), Schluter from the KERDI-BOARD-SN code's mm figures. |
+| `benchTop` | Bench top | Σ over benches: `len × depth` (corner: `size² / 2`). |
 
-Worked example — 48×60 curbed, 96" walls, back + one side tiled, one 12×12
-niche, wedi cap curb: walls (60 + 48) × 96 / 144 = 72.0 · floor 20.0 ·
-curb 60 × (4.625 + 5 + 5) / 144 = 6.1 · niche 1.0.
+Worked example — 60×36 curbed, 96" walls on back + both sides, one 12×12
+niche, wedi curb cap: walls (60 + 36 + 36) × 96 / 144 = 88.0 · floor 15.0 ·
+curb 60 × (4.5 + 2 × 5.125) / 144 = 6.1 · niche 1.0.
 
 - A piece a shower doesn't have (no niche, no bench, curbless) is omitted
   from the menu.
@@ -54,22 +54,25 @@ curb 60 × (4.625 + 5 + 5) / 144 = 6.1 · niche 1.0.
   bench form reads its real dimensions from its part or config. Where a
   dimension can't be derived reliably the piece shows **"enter manually"**
   instead of a number — never a guess.
-- One pure module (`src/showersf.js`) owns the math for both vendors:
-  `showerPieces(anchorProduct) → [{ piece, label, sf | null }]`. It reads
-  the stored cfg only; it does not import the configurator engines' UI and
-  must stay cheap enough to run on job load.
+- One module (`src/showersf.js`) owns the math for both vendors
+  (`wediPieces(cfg)`, `schluterPieces(cfg)`, `jobShowers(categories)`),
+  reusing the engines' own geometry (curb runs, bench normalizing) so the
+  numbers agree with the configurator drawings. It imports the engines, so
+  it is lazy-loaded (ADR 0026) — only when a job has a placed shower or a
+  row with a breakdown.
 
 ## Stored shape
 
 `p.sfParts` — optional array on a product row, absent on every existing row:
 
 ```
-{ kind: "shower", kitId, piece, label, sf }   // sf = last known value
+{ kind: "shower", kitId, piece, where, sf }   // sf = last known value
 { kind: "extra",  label, sf }                  // "Hall", 45
 ```
 
-- `label` on a shower entry snapshots "Master Bath — walls" (area name +
-  piece) so print and the removed-shower chip read without the kit.
+- `where` on a shower entry snapshots the area name ("Master Bath") so print
+  and the removed-shower chip read without the kit. `kitId` is the kit's
+  `kitId`, or `"row:<rowId>"` for a legacy anchor saved without one.
 - `normP` normalizes it (drop malformed entries, coerce `sf` to a number,
   empty list → field removed). Load `floortrack-data-model` before
   implementing; document the field there.
@@ -106,11 +109,12 @@ curb 60 × (4.625 + 5 + 5) / 144 = 6.1 · niche 1.0.
 - The link is by `kitId`, so moving a kit between areas keeps it. Duplicating
   a row copies `sfParts` as-is.
 
-## Print and CSV
+## Print
 
 - Estimate print: under the tile line, one muted line listing the entries —
   *Master Bath: walls 72 · niche 1 · Hall 45 · Mudroom 60*.
-- CSV: a new "Sq ft breakdown" column with the same text.
+- CSV was approved too, but the app no longer has a CSV export (only the JSON
+  backup, which carries `sfParts` as-is), so there is no CSV column to add.
 
 ## Out of scope
 
