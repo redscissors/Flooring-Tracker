@@ -39,7 +39,7 @@ on top as for every tile row.
 | Piece id | Label | Math |
 |---|---|---|
 | `walls` | Walls (incl. bench faces) | Σ over walls that are on: `len × h` (both faces / exposed end when the wall is set that way); plus Σ over benches: `len × h` (corner bench: diagonal × h; suspended: slab thickness). Niche openings are **not** deducted. |
-| `floor` | Floor | the shower's floor as configured — the room `w × d` (the pan in kit mode), less the curb when "max — curb inside" is on. |
+| `floor` | Floor | the shower's floor as configured — the room `w × d` (the pan in kit mode), less the curb when "max — curb inside" is on, less the benches: a framed bench takes its whole strip (the clear space the configurator's cut or smaller pan/tray fills), a build-up or premade bench on the pan takes its footprint (corner: `size² / 2`), and a suspended bench takes nothing (amended 2026-09-23). |
 | `curb` | Curb top + faces | curb run (every open edge the curb runs, as the configurator figures it — not the bought part's length) × (top width + 2 × height). wedi: the engine's `curbWidth` / `curbHeight` (4½" × 5⅛" standard, 2" × 3½" lean). Schluter: 4½" × 6" (schluterdraw). |
 | `niche` | Niche back | Σ over niches: interior `W × H` — wedi from the part's "interior" size (4" flange rule fallback), Schluter from the KERDI-BOARD-SN code's mm figures. |
 | `benchTop` | Bench top | Σ over benches: `len × depth` (corner: `size² / 2`). |
