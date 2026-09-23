@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { sfPartsTotal, togglePiece, addExtra, removeAt, sfPatch, fmtSf } from "./sfparts.js";
 
@@ -14,7 +15,7 @@ export function SfPartsMenu({ x, y, product, showers, onPatch, onClose }) {
   const box = anchored
     ? { left: Math.max(8, Math.min(x, window.innerWidth - 296)), top: Math.max(8, Math.min(y, window.innerHeight - 428)), width: 288 }
     : { left: 12, right: 12, bottom: 12 };
-  return (
+  return createPortal(
     <div className="ft-noprint fixed inset-0 z-50" onClick={onClose} onContextMenu={(e) => { e.preventDefault(); onClose(); }}>
       <div className="fixed rounded-lg border border-slate-200 bg-white shadow-lg text-xs overflow-y-auto" style={{ ...box, maxHeight: 420, padding: 10 }} onClick={(e) => e.stopPropagation()}>
         {(showers || []).length === 0 && <div className="text-slate-400 mb-2">No wedi or Schluter shower on this job.</div>}
@@ -49,7 +50,8 @@ export function SfPartsMenu({ x, y, product, showers, onPatch, onClose }) {
           <span>Total on this row</span><span className="ft-mono">{fmtSf(sfPartsTotal(parts))} sf</span>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
