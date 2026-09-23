@@ -234,6 +234,41 @@ test("landKitLines: missing anchor or empty lines returns null", () => {
   assert.equal(landKitLines(cats, cats[0].id, cats[0].products[0].id, []), null);
 });
 
+test("landKitLines: reconfigure carries linked tile rows' sfParts onto the fresh kitId", () => {
+  const anchor = wediAnchor({ kitId: "K" });
+  const part = wediPart({ kitId: "K" });
+  const tile = { ...newProduct(), brandColor: "Tile", qty: "88", sfParts: [
+    { kind: "shower", kitId: "K", piece: "walls", where: "Bath", sf: 80 },
+    { kind: "shower", kitId: "OTHER", piece: "floor", where: "Guest", sf: 8 },
+    { kind: "extra", label: "Hall", sf: 45 },
+  ] };
+  const cats = [{ ...newArea(), products: [anchor, part] }, { ...newArea(), products: [tile] }];
+  const next = landKitLines(cats, cats[0].id, anchor.id, wediLines());
+  const kid = next[0].products[0].kitId;
+  assert.notEqual(kid, "K");
+  const t = next[1].products[0];
+  assert.deepEqual(t.sfParts.map((e) => e.kitId), [kid, "OTHER", undefined]);
+  assert.equal(t.sfParts[0].sf, 80, "sf is left for the drift chip to report");
+  assert.equal(t.qty, "88");
+});
+
+test("landKitLines: a legacy anchor's row:<id> links follow it to the stamped kitId", () => {
+  const anchor = wediAnchor();
+  const tile = { ...newProduct(), brandColor: "Tile", qty: "80", sfParts: [{ kind: "shower", kitId: "row:" + anchor.id, piece: "walls", where: "Bath", sf: 80 }] };
+  const cats = [{ ...newArea(), products: [anchor, tile] }];
+  const next = landKitLines(cats, cats[0].id, anchor.id, wediLines());
+  const ps = next[0].products;
+  assert.equal(ps[2].sfParts[0].kitId, ps[0].kitId);
+});
+
+test("landKitLines: a fresh add rewrites no links", () => {
+  const anchor = newProduct();
+  const tile = { ...newProduct(), sfParts: [{ kind: "shower", kitId: "row:" + anchor.id, piece: "walls", where: "Bath", sf: 80 }] };
+  const cats = [{ ...newArea(), products: [anchor, tile] }];
+  const next = landKitLines(cats, cats[0].id, anchor.id, wediLines());
+  assert.equal(next[0].products[2].sfParts[0].kitId, "row:" + anchor.id);
+});
+
 const bundleMarker = () => ({ mode: "floor", cfg: { w: 3.25 }, multiWidth: true, bundle: { base: { mode: "floor", cfg: { sp: "Hickory" } }, widths: [{ w: 3.25, share: 50 }, { w: 4.25, share: 50 }], sf: 200, markupPct: 40 } });
 
 test("landKitLines: a bundle's own anchor replaces the whole group, siblings included", () => {

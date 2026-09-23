@@ -224,10 +224,17 @@ export const landKitLines = (categories, aid, pid, lines) => {
   const anchor = a?.products.find((p) => p.id === pid);
   if (!anchor) return null;
   const stamped = stampKit(lines);
-  const remove = kitCompanionIds(categories, a, anchor, vendorOf(stamped[0]));
+  const v = vendorOf(stamped[0]);
+  const remove = kitCompanionIds(categories, a, anchor, v);
+  // Tile rows link to a shower by its kit key (spec 2026-09-23); the re-landed
+  // kit's fresh kitId would otherwise read as "shower was removed".
+  const oldKey = v && anchor[v]?.cfg ? anchor.kitId || "row:" + anchor.id : null;
+  const relink = (p) => (oldKey && p.sfParts?.some((e) => e.kind === "shower" && e.kitId === oldKey)
+    ? { ...p, sfParts: p.sfParts.map((e) => (e.kind === "shower" && e.kitId === oldKey ? { ...e, kitId: stamped[0].kitId } : e)) }
+    : p);
   return categories.map((c) => ({ ...c, products: c.products.flatMap((p) => {
-    if (p.id === pid) return [{ ...p, ...stamped[0] }, ...stamped.slice(1).map((patch) => ({ ...newProduct(), ...patch }))];
-    return remove.has(p.id) ? [] : [p];
+    if (p.id === pid) return [relink({ ...p, ...stamped[0] }), ...stamped.slice(1).map((patch) => ({ ...newProduct(), ...patch }))];
+    return remove.has(p.id) ? [] : [relink(p)];
   }) }));
 };
 // Append a kit's lines as fresh rows at the end of an area — the landing for
