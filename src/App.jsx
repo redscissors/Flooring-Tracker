@@ -1988,7 +1988,7 @@ export default function App({ user, onSignOut }) {
                         ) : null;
                         const rowEditor = !isWide && rowSheet?.pid === p.id ? (
                           <MobileRowSheet p={p} stockBookIds={stockBookIds} areaName={areaLabel(a, ai)} canDelete={a.products.length > 1 && !(rowBlank(p) && isAdder)} initialSearch={!!rowSheet.search}
-                            settings={wSet} stock={stockItems} groutStock={groutStock} stockReady={bookStockReady} bookStockReady={bookStockReady} isBookFam={isBookFam} gFamilies={gFamilies} searchOrder={searchOrder} bookName={bookName} tv={tv} notify={ping} strictness={searchStrictness} fallback={searchFallback} markups={quickMarkups}
+                            settings={wSet} stock={stockItems} groutStock={groutStock} stockReady={bookStockReady} bookStockReady={bookStockReady} isBookFam={isBookFam} gFamilies={gFamilies} searchOrder={searchOrder} bookName={bookName} tv={tv} notify={ping} strictness={searchStrictness} fallback={searchFallback} markups={quickMarkups} showers={showers}
                             onPatch={(patch) => updProduct(a.id, p.id, patch)}
                             sample={sampleByProduct.get(p.id) || null}
                             onSample={() => toggleSample(a, ai, p)}

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Search, Plus, X, Check, ChevronRight, ChevronDown, Trash2, StickyNote, Settings, Layers, Building2, Lock, Truck } from "lucide-react";
+import { Search, Plus, X, Check, ChevronRight, ChevronDown, Trash2, StickyNote, Settings, Layers, Building2, Lock, Truck, Bath } from "lucide-react";
 import { SAMPLE_LABEL, SAMPLE_CHIP } from "./samples.js";
 import { num, wasteFor, groutExact, mortarExact, getGrout, getMortar, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, offeredAttached, offeredCategories, getAttached } from "./catalog.js";
 import { groutSnapshotPatch, groutColorOptions } from "./stock.js";
@@ -18,6 +18,7 @@ import { unitCode, bundleUnit, BUNDLE_UNITS, COUNT_UNITS } from "./units.js";
 import { MARKUP_PRESETS, unitMargin, editCost, editMarkup, editPrice } from "./costentry.js";
 import { FitSelect, GroutColorOptions, useEscClose, DotMenu, SalespersonPop } from "./widgets.jsx";
 import { ClaudeMark } from "./claudeflag.jsx";
+import { SfPartsMenu } from "./SfPartsMenu.jsx";
 import { Hit, hitKey, matchSummary, useMergedResults, NearMatchNote, SearchingBar } from "./search.jsx";
 import { GridSizeInput, UnitPick } from "./grid.jsx";
 import { ErpChip } from "./projectheader.jsx";
@@ -252,10 +253,11 @@ export function MobileProductRow({ p, settings, tv, onOpen, onPointerDown }) {
 // editors can't drift on write paths. The SKU field opens MobileSearchSheet
 // (full-screen, per the keyboard plan); picks flow through onPickStock, the
 // caller's addStockProducts, exactly like a grid SKU pick.
-export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutStock, stockReady, bookStockReady, isBookFam, gFamilies, stockBookIds, searchOrder, bookName, tv, markups = MARKUP_PRESETS, onPatch, onPickStock, onOpenVendor, onDelete, sample, onSample, onFlag, onClose, qtyRef, notify, strictness, fallback, initialSearch = false }) {
+export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutStock, stockReady, bookStockReady, isBookFam, gFamilies, stockBookIds, searchOrder, bookName, tv, markups = MARKUP_PRESETS, showers, onPatch, onPickStock, onOpenVendor, onDelete, sample, onSample, onFlag, onClose, qtyRef, notify, strictness, fallback, initialSearch = false }) {
   const [searching, setSearching] = useState(initialSearch);
   const [confirmDel, setConfirmDel] = useState(false);
   const [insExpanded, setInsExpanded] = useState(false);
+  const [sfOpen, setSfOpen] = useState(false);
   if (!p) return null;
   const blank = rowBlank(p);
   const accent = TYPE_ACCENT[p.type];
@@ -440,10 +442,13 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutS
         <div>
           <label className={fl + " flex items-center gap-1"}>{p.type === "misc" || p.qtyType === "count" ? <>Quantity <UnitPick size={9} value={countUnit} options={COUNT_UNITS} onChange={(v) => onPatch({ sellUnit: v === "EA" ? "" : v })} title="What one of this line is — each, piece, sheet, roll, box…" /></> : "Square feet"}</label>
           <div className="relative">
-            <input ref={qtyRef} type="number" inputMode="decimal" value={p.qty} onChange={(e) => onPatch(p.type === "misc" || p.qtyType === "count" ? { qty: e.target.value, qtyType: "count" } : { qty: e.target.value })} placeholder={p.type === "misc" ? "1" : "0"} className={fi + " text-right ft-mono" + (p.type !== "misc" ? " pr-10" : "")} />
+            <input ref={qtyRef} type="number" inputMode="decimal" value={p.qty} onChange={(e) => onPatch(p.type === "misc" || p.qtyType === "count" ? { qty: e.target.value, qtyType: "count" } : { qty: e.target.value })} placeholder={p.type === "misc" ? "1" : "0"} className={fi + " text-right ft-mono" + (p.type !== "misc" ? (p.qtyType !== "count" && (showers?.length > 0 || p.sfParts?.length > 0) ? " pr-16" : " pr-10") : "")} />
             {p.type !== "misc" && (
               <button onClick={() => onPatch({ qtyType: p.qtyType === "count" ? "sqft" : "count" })} title={p.qtyType === "count" ? "Counted each — tap to switch to square feet" : "Square feet — tap to switch to counted each"}
                 className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded border border-slate-200 px-1 py-px text-[9px] font-extrabold text-slate-500" style={{ background: "var(--ft-band)" }}>{p.qtyType === "count" ? countUnit : "SF"}</button>
+            )}
+            {p.type !== "misc" && p.qtyType !== "count" && (showers?.length > 0 || p.sfParts?.length > 0) && (
+              <button onClick={() => setSfOpen(true)} title="Take the sq ft from a shower" className="absolute right-10 top-1/2 -translate-y-1/2 px-1 text-slate-500"><Bath size={14} /></button>
             )}
           </div>
         </div>
@@ -661,6 +666,7 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutS
           onVendor={onOpenVendor ? (query, which) => { setSearching(false); onOpenVendor(query, which); } : undefined}
           onClose={() => setSearching(false)} />
       )}
+      {sfOpen && <SfPartsMenu product={p} showers={showers} onPatch={onPatch} onClose={() => setSfOpen(false)} />}
     </MobileSheet>
   );
 }
