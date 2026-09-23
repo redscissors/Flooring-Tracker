@@ -38,6 +38,16 @@ the area-header right-click) over opening the details box directly.
   fires contextmenu), lined up with the name instead of the row's middle.
   Row tooltip adds "· right-click for more" where right-click exists.
 
+## Round 3 (owner, same day)
+
+"Eliminate the number of projects underneath each name … move the recents
+down just a little bit more." Owner chose to drop the whole meta line, the
+builder name included (it stays in Customer details and the Customers chart).
+
+- Customer rows are the name alone, one line, py-2 so they stay easy to hit.
+- Top block bottom padding pb-5 → pb-8 (≈22px more than the original gap).
+- The phone `…` centers on the now single-line row.
+
 ## Proof
 
 Real app over a stubbed Supabase with Manrope served locally (`shot.mjs`):

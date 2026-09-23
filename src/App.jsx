@@ -1347,7 +1347,6 @@ export default function App({ user, onSignOut }) {
     // Highlight the person row when their open project is hidden behind a
     // collapsed group (or the legacy customer pane is showing).
     const on = (selCustId === c.id && !selId) || (!isOpen && projs.some((p) => p.id === selId));
-    const bn = builderNameOf(c.builderId);
     const clickName = () => {
       if (projs.length === 1) pickProject(projs[0].id);
       else setOpenCust((s) => ({ ...s, [c.id]: !isOpen }));
@@ -1356,13 +1355,10 @@ export default function App({ user, onSignOut }) {
       <div key={c.id} className="mb-0.5">
         <div onContextMenu={(e) => { e.preventDefault(); setCustMenu({ cid: c.id, x: e.clientX, y: e.clientY }); }}
           className={`w-full rounded-md flex items-center gap-0.5 border ${on ? "bg-white border-slate-200 shadow-[0_1px_4px_var(--ft-shadow)]" : custMenu?.cid === c.id ? "border-transparent bg-[var(--ft-hover)]" : "border-transparent hover:bg-slate-50"}`}>
-          <button onClick={clickName} title={`${projs.length === 1 ? "Open project" : isOpen ? "Collapse" : "Expand"}${CAN_RIGHT_CLICK ? " · right-click for more" : ""}`} className="flex items-center gap-1.5 min-w-0 flex-1 py-1 pl-[13px] pr-1 text-left">
-            <div className="min-w-0 flex-1">
-              <div className="ft-item-name text-[12.5px] font-semibold truncate">{c.name || "Unnamed customer"}</div>
-              <div className="text-[10.5px] text-slate-400 truncate">{[bn, `${projs.length} project${projs.length === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}</div>
-            </div>
+          <button onClick={clickName} title={`${projs.length === 1 ? "Open project" : isOpen ? "Collapse" : "Expand"}${CAN_RIGHT_CLICK ? " · right-click for more" : ""}`} className="min-w-0 flex-1 py-2 pl-[13px] pr-1 text-left">
+            <div className="ft-item-name text-[12.5px] font-semibold truncate">{c.name || "Unnamed customer"}</div>
           </button>
-          {!CAN_RIGHT_CLICK && <button onClick={() => setCustModal(c.id)} title="Customer details" className="shrink-0 self-start mt-1 mr-1 rounded-md p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100">
+          {!CAN_RIGHT_CLICK && <button onClick={() => setCustModal(c.id)} title="Customer details" className="shrink-0 mr-1 rounded-md p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100">
             <MoreHorizontal size={13} />
           </button>}
         </div>
@@ -1411,7 +1407,7 @@ export default function App({ user, onSignOut }) {
               {!isWide && <button onClick={() => setSidebarOpen(false)} className="p-1 text-slate-400"><X size={18} /></button>}
             </div>
           </div>
-          <div className="p-2.5 pb-5 space-y-2">
+          <div className="p-2.5 pb-8 space-y-2">
             <div className="relative"><Search size={16} className="absolute left-2.5 top-2.5 text-slate-400" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search" className={inp + " pl-8"} /></div>
             {/* The rail's two starting points sit together: a throwaway quick
                 price (ADR 0022) or a named customer. Quick Price is the primary
