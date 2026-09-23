@@ -102,6 +102,14 @@ export const ownWaste = (p) => p?.waste != null && p.waste !== "" && p.type !== 
 export const lineWastePct = (p, s) => p?.type === "underlayment" ? 0 : ownWaste(p) ? num(p.waste) : familyWaste(p, s);
 export const wasteFor = (p, s) => 1 + lineWastePct(p, s) / 100;
 
+// A line's waste edit. Taking the line to 0% also drops a hand-set carton
+// count so the cartons fall back to the measured footage (owner 2026-09-23);
+// adding waste leaves the count standing behind its qtyDrift "Use N" chip.
+export const wastePatch = (p, s, waste) => {
+  const hand = p.cartonManual !== "" && p.cartonManual != null;
+  return hand && lineWastePct({ ...p, waste }, s) === 0 ? { waste, cartonManual: "" } : { waste };
+};
+
 // Whether any sq ft line orders a rate other than the job's — the estimate's
 // waste note says so rather than claim one rate for the whole job.
 export const wasteVaries = (areas, s) => (areas || []).some((a) => (a.products || []).some((p) => p.qtyType === "sqft" && ownWaste(p) && num(p.waste) !== familyWaste(p, s)));

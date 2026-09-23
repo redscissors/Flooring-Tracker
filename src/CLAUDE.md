@@ -248,8 +248,9 @@ src/
                     # product rows; the empty search-row adder wears the same ⋯
                     # dots (drag-only grip — no menu) and keeps its trash
   linewaste.jsx     # per-line waste (ADR 0046): `wasteTag` (the Order cell's
-                    # second line — grey job rate, moss "line" rate, null when
-                    # no waste), `LineWasteControl` (Job rate / None / Custom,
+                    # second line — grey job rate, moss own rate, null when
+                    # no waste; taking a line to 0% drops its hand-set carton
+                    # count through catalog.js `wastePatch`), `LineWasteControl` (Job rate / None / Custom,
                     # mounted inline in the phone row sheet) and `LineWastePop`
                     # (the same control anchored off the tag or the line
                     # menu's Waste…). Writes only through the caller's
