@@ -1324,13 +1324,14 @@ export default function App({ user, onSignOut }) {
   if (loading) return <div className="h-screen flex items-center justify-center text-slate-400">Loading…</div>;
   const inp = "ft-field w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent";
   const lbl = "ft-eyebrow text-[10px] mb-1 block";
+  const railItem = "w-full flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-left text-[13px] font-semibold text-slate-600 hover:bg-slate-50";
 
   const renderProjRow = (p) => {
     const on = selId === p.id;
     return (
       <button key={p.id} onClick={() => pickProject(p.id)} className={`w-full text-left rounded-md px-2 py-1.5 flex items-center gap-2 border ${on ? "bg-white border-slate-200 shadow-[0_1px_3px_var(--ft-shadow)]" : "border-transparent hover:bg-slate-50"}`}>
         <FileText size={13} className="text-slate-300 shrink-0" />
-        <span className="ft-item-name text-[12.5px] truncate flex-1">{p.name || "Untitled project"}</span>
+        <span className="ft-item-name text-[12px] truncate flex-1">{p.name || "Untitled project"}</span>
       </button>
     );
   };
@@ -1349,20 +1350,20 @@ export default function App({ user, onSignOut }) {
     return (
       <div key={c.id} className="mb-0.5">
         <div className={`w-full rounded-md flex items-center gap-0.5 border ${on ? "bg-white border-slate-200 shadow-[0_1px_4px_var(--ft-shadow)]" : "border-transparent hover:bg-slate-50"}`}>
-          <button onClick={clickName} title={projs.length === 1 ? "Open project" : isOpen ? "Collapse" : "Expand"} className="flex items-center gap-1.5 min-w-0 flex-1 py-1.5 pl-1.5 pr-1 text-left">
+          <button onClick={clickName} title={projs.length === 1 ? "Open project" : isOpen ? "Collapse" : "Expand"} className="flex items-center gap-1.5 min-w-0 flex-1 py-1 pl-[13px] pr-1 text-left">
             <div className="min-w-0 flex-1">
-              <div className="ft-item-name text-[13.5px] font-semibold truncate">{c.name || "Unnamed customer"}</div>
-              <div className="text-[11px] text-slate-400 truncate mt-px">{[bn, `${projs.length} project${projs.length === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}</div>
+              <div className="ft-item-name text-[12.5px] font-semibold truncate">{c.name || "Unnamed customer"}</div>
+              <div className="text-[10.5px] text-slate-400 truncate">{[bn, `${projs.length} project${projs.length === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}</div>
             </div>
           </button>
-          <button onClick={() => setCustModal(c.id)} title="Customer details" className="shrink-0 mr-1.5 rounded border border-slate-200 p-1 text-slate-400 hover:text-slate-600 hover:bg-white">
+          <button onClick={() => setCustModal(c.id)} title="Customer details" className="shrink-0 mr-1 rounded-md p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100">
             <MoreHorizontal size={13} />
           </button>
         </div>
         {acc(isOpen, (
           <div className="ml-6 mt-0.5 mb-1 space-y-0.5 border-l border-slate-200 pl-1.5">
             {shown.map((p) => renderProjRow(p))}
-            <button onClick={() => addProject(c.id)} className="w-full flex items-center gap-1 px-2 py-1 text-[11.5px] text-slate-400 hover:text-indigo-600"><Plus size={12} /> New project</button>
+            <button onClick={() => addProject(c.id)} className="w-full flex items-center gap-1 px-2 py-1 text-[11px] text-slate-400 hover:text-indigo-600"><Plus size={12} /> New project</button>
           </div>
         ))}
       </div>
@@ -1412,22 +1413,22 @@ export default function App({ user, onSignOut }) {
                 wears the spark fill and New Customer is the quiet secondary. */}
             <button onClick={() => { startQuickPrice(); setSidebarOpen(false); }} title="Quick price — an unnamed draft you can file under a customer later"
               className="ft-spark-btn w-full flex items-center justify-center gap-1.5 text-sm font-semibold py-2"><Zap size={16} className="-ml-1" /> Quick Price</button>
-            <button onClick={() => setNewCust("")}
-              className="w-full flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm font-semibold py-1.5 text-slate-600"><Plus size={15} className="text-indigo-500" /> New Customer</button>
-            {/* The Customers button opens the browser overlay — the compact
-                ERP-style directory grid (issue 040). Quick prices AND the
-                unassigned estimates/drafts live behind its Estimates & drafts
-                toggle, so this is the everyday door to all of them. */}
-            <button onClick={() => { setShowBrowser(true); setSidebarOpen(false); refreshSampleRequests(); }} title="Browse all customers"
-              className="w-full flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm font-semibold py-1.5 text-slate-600">
-              <Folder size={15} className="text-indigo-500" /> Customers
-              <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 rounded-full px-1.5 leading-5">{data.people.length}</span>
-            </button>
-            {/* Configurator shortcuts: the same wedi/Sheoga apps the hub lists,
-                one press from the customer column. */}
-            <div className="flex gap-2">
-              <button onClick={() => openAppsTo("wedi")} title="wedi shower configurator" className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm font-semibold py-1.5 text-slate-600"><ShowerHead size={15} /> wedi</button>
-              <button onClick={() => openAppsTo("sheoga")} title="Sheoga hardwood configurator" className="flex-1 flex items-center justify-center gap-1.5 rounded-md border border-slate-200 hover:bg-slate-50 text-sm font-semibold py-1.5 text-slate-600"><TreePine size={15} /> Sheoga</button>
+            {/* Borderless menu list: icons sit on the Search icon's line and
+                labels on the Search text's line, as do the Recent names. */}
+            <div>
+              <button onClick={() => setNewCust("")} className={railItem}><Plus size={15} className="w-4 shrink-0 text-indigo-500" /> New Customer</button>
+              {/* The Customers button opens the browser overlay — the compact
+                  ERP-style directory grid (issue 040). Quick prices AND the
+                  unassigned estimates/drafts live behind its Estimates & drafts
+                  toggle, so this is the everyday door to all of them. */}
+              <button onClick={() => { setShowBrowser(true); setSidebarOpen(false); refreshSampleRequests(); }} title="Browse all customers" className={railItem}>
+                <Folder size={15} className="w-4 shrink-0 text-indigo-500" /> Customers
+                <span className="ml-auto text-[10px] font-semibold text-slate-400 bg-slate-100 rounded-full px-1.5 leading-5">{data.people.length}</span>
+              </button>
+              {/* Configurator shortcuts: the same wedi/Sheoga apps the hub lists,
+                  one press from the customer column. */}
+              <button onClick={() => openAppsTo("wedi")} title="wedi shower configurator" className={railItem}><ShowerHead size={15} className="w-4 shrink-0" /> wedi</button>
+              <button onClick={() => openAppsTo("sheoga")} title="Sheoga hardwood configurator" className={railItem}><TreePine size={15} className="w-4 shrink-0" /> Sheoga</button>
             </div>
           </div>
           <div className="flex-1 overflow-y-auto px-1.5 pb-2">
@@ -1436,12 +1437,12 @@ export default function App({ user, onSignOut }) {
 
             {/* Long list: pinned recents; the full list lives in the browser */}
             {showFolders && (<>
-              <div className="mt-1 mb-1 px-2.5 ft-eyebrow text-[9px]">Recent</div>
+              <div className="mt-1 mb-1 px-3.5 ft-eyebrow text-[9px]">Recent</div>
               {recents.map((c) => renderPersonRow(c))}
             </>)}
 
             {/* Small list or active search: flat, fully-visible customer list */}
-            {!showFolders && peopleList.length > 0 && <div className="mt-1 mb-1 px-2.5 ft-eyebrow text-[9px]">Customers ({peopleList.length})</div>}
+            {!showFolders && peopleList.length > 0 && <div className="mt-1 mb-1 px-3.5 ft-eyebrow text-[9px]">Customers ({peopleList.length})</div>}
             {!showFolders && peopleList.map((c) => renderPersonRow(c))}
 
             {/* Quick prices and unassigned estimates/drafts live in the
@@ -1449,11 +1450,11 @@ export default function App({ user, onSignOut }) {
                 here only while a search is active, so the sidebar search can
                 still land on one. */}
             {q && quickPrices.length > 0 && (<>
-              <div className="mt-2 mb-1 px-2.5 ft-eyebrow text-[9px]">Quick Prices ({quickPrices.length})</div>
+              <div className="mt-2 mb-1 px-3.5 ft-eyebrow text-[9px]">Quick Prices ({quickPrices.length})</div>
               {quickPrices.map((p) => renderProjRow(p))}
             </>)}
             {q && unassigned.length > 0 && (<>
-              <div className="mt-2 mb-1 px-2.5 ft-eyebrow text-[9px]">Unassigned jobs ({unassigned.length})</div>
+              <div className="mt-2 mb-1 px-3.5 ft-eyebrow text-[9px]">Unassigned jobs ({unassigned.length})</div>
               {unassigned.map((p) => renderProjRow(p))}
             </>)}
           </div>

@@ -31,7 +31,7 @@ const restData = (url, wantsObject) => {
 };
 
 const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome", args: ["--no-sandbox"] });
-const shoot = async (file, { width = 1440, height = 900, open } = {}) => {
+const shoot = async (file, { width = 1440, height = 900, open, drawer, hover } = {}) => {
   const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 2 });
   await page.addInitScript(([k, s]) => localStorage.setItem(k, s), ["sb-stub-auth-token", JSON.stringify(session)]);
   await page.route("https://stub.supabase.co/**", (route) => {
@@ -59,8 +59,10 @@ const shoot = async (file, { width = 1440, height = 900, open } = {}) => {
   }
   page.on("pageerror", (e) => console.log("[pageerror]", e.message));
   await page.goto("http://localhost:5199/");
+  if (drawer) { await page.locator("button:has(svg.lucide-menu)").first().click(); }
   await page.getByText("Tom Marsh").first().waitFor({ timeout: 15000 });
   if (open) { await page.getByText(open).first().click(); }
+  if (hover) { await page.locator(hover).first().hover(); }
   await page.waitForTimeout(700);
   await page.evaluate(() => document.fonts.ready);
   const rail = await page.locator("aside").boundingBox();
@@ -69,4 +71,6 @@ const shoot = async (file, { width = 1440, height = 900, open } = {}) => {
 };
 await shoot(`rail${suffix}.png`);
 await shoot(`rail-open${suffix}.png`, { open: "Kelly Anderson-Whitfield" });
+await shoot(`rail-hover${suffix}.png`, { hover: 'button[title="Browse all customers"]', height: 520 });
+await shoot(`phone-drawer${suffix}.png`, { width: 390, height: 844, drawer: true });
 await browser.close();
