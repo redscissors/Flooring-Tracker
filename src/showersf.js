@@ -6,7 +6,7 @@
 import { item, normBench, curbRuns, curbWidth, curbInsets, expandWallFaces, panRoomDims } from "./wedi.js";
 import { classify, cfgBenches, wallArea } from "./schluter.js";
 import { schluterCurb } from "./schluterdraw.js";
-import { curbHeight } from "./showerdraw.js";
+import { curbHeight, benchFootprint } from "./showerdraw.js";
 import { PIECES } from "./sfparts.js";
 import { placedKits } from "./model.js";
 
@@ -30,6 +30,50 @@ function benchSq(benches) {
   return { face, top };
 }
 
+function clipArea(pts, r) {
+  const edges = [
+    [(p) => p[0] >= r.x0, (a, b) => [r.x0, a[1] + (b[1] - a[1]) * (r.x0 - a[0]) / (b[0] - a[0])]],
+    [(p) => p[0] <= r.x1, (a, b) => [r.x1, a[1] + (b[1] - a[1]) * (r.x1 - a[0]) / (b[0] - a[0])]],
+    [(p) => p[1] >= r.y0, (a, b) => [a[0] + (b[0] - a[0]) * (r.y0 - a[1]) / (b[1] - a[1]), r.y0]],
+    [(p) => p[1] <= r.y1, (a, b) => [a[0] + (b[0] - a[0]) * (r.y1 - a[1]) / (b[1] - a[1]), r.y1]],
+  ];
+  for (const [inside, cut] of edges) {
+    const out = [];
+    pts.forEach((b, i) => {
+      const a = pts[(i + pts.length - 1) % pts.length];
+      if (inside(b)) { if (!inside(a)) out.push(cut(a, b)); out.push(b); }
+      else if (inside(a)) out.push(cut(a, b));
+    });
+    pts = out;
+    if (!pts.length) return 0;
+  }
+  return Math.abs(pts.reduce((s, p, i) => { const q = pts[(i + 1) % pts.length]; return s + p[0] * q[1] - q[0] * p[1]; }, 0)) / 2;
+}
+
+function footprintPts(b, room) {
+  const f = benchFootprint(b, room);
+  if (f.kind === "rect") return [[f.x, f.y], [f.x + f.w, f.y], [f.x + f.w, f.y + f.d], [f.x, f.y + f.d]];
+  const x = f.corner === "bl" || f.corner === "fl" ? 0 : room.w, sx = x ? -1 : 1;
+  const y = f.corner === "bl" || f.corner === "br" ? 0 : room.d, sy = y ? -1 : 1;
+  return [[x, y], [x + sx * f.a, y], [x, y + sy * f.a]];
+}
+
+// Only a suspended bench leaves floor tile under it (owner, 2026-09-23). A
+// framed bench gives up its whole strip, as the configurator's cut or smaller
+// pan does (benchPanRoom / benchTrayRoom); the rest sit on the pan, so only
+// their footprint comes off. `r` is the tiled floor in room coords.
+function floorSq(room, r, benches) {
+  r = { ...r };
+  benches.forEach((b) => {
+    if (b.kind !== "wall" || b.build !== "framed") return;
+    if (b.side === "back") r.y0 += b.depth; else if (b.side === "left") r.x0 += b.depth; else r.x1 -= b.depth;
+  });
+  if (!(r.x1 > r.x0 && r.y1 > r.y0)) return 0;
+  const covered = benches.filter((b) => !b.suspended && b.build !== "framed")
+    .reduce((s, b) => s + clipArea(footprintPts(b, room), r), 0);
+  return Math.max(0, (r.x1 - r.x0) * (r.y1 - r.y0) - covered);
+}
+
 // The pricelist sizes a niche by its exterior; the tiled back is the
 // interior (4" flange rule when the name doesn't spell it out).
 function wediNicheSq(key) {
@@ -48,7 +92,9 @@ export function wediPieces(cfg) {
   const benches = (cfg.benches || []).map((b) => normBench(b, room));
   const bs = benchSq(benches);
   const inset = cfg.maxIn && cfg.curbKey ? curbInsets(room, walls, cfg.curbKey, cfg.tileT) : null;
-  const floor = (room.w - (inset ? inset.left + inset.right : 0)) * (room.d - (inset ? inset.back + inset.entry : 0));
+  const floor = floorSq(room, inset
+    ? { x0: inset.left, y0: inset.back, x1: room.w - inset.right, y1: room.d - inset.entry }
+    : { x0: 0, y0: 0, x1: room.w, y1: room.d }, benches);
   const c = cfg.curbKey ? item(cfg.curbKey) : null;
   const curb = !cfg.curbKey ? 0
     : c ? curbRuns(room, walls, cfg.corners, benches).openLen * (curbWidth(c) + 2 * curbHeight(c)) : null;
@@ -83,7 +129,7 @@ export function schluterPieces(cfg) {
     w: +cfg.w, d: +cfg.d, curbed: cfg.curbed !== false,
     pieces: assemble({
       walls: wallArea(cfg) * 144 + bs.face,
-      floor: cfg.w * cfg.d,
+      floor: floorSq({ w: +cfg.w, d: +cfg.d }, { x0: 0, y0: 0, x1: +cfg.w, y1: +cfg.d }, benches),
       curb: c.h > 0 ? run * (c.w + 2 * c.h) : 0,
       niche, benchTop: bs.top,
     }),
