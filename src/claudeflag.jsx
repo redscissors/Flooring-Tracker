@@ -22,6 +22,22 @@ export function ClaudeMark({ size = 13 }) {
   );
 }
 
+// The rail's Issues icon (lucide ListTodo's shape) doubles as its own
+// notification: the square turns into the clay burst while a Claude issue is
+// open, the check into a clay ✕ while a team issue is open. No counts.
+const MINI_RAYS = CLAUDE_RAYS.map(([x1, y1, x2, y2]) => [x1, y1, x2, y2].map((n, i) => Math.round((((n - 12) * 0.34) + (i % 2 ? 8 : 6)) * 100) / 100));
+export function IssuesMark({ size = 16, claude, team }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {claude
+        ? <g stroke={CLAUDE_CLAY} strokeWidth={1.5}>{MINI_RAYS.map(([x1, y1, x2, y2], i) => <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} />)}</g>
+        : <rect x="3" y="5" width="6" height="6" rx="1" />}
+      {team ? <path d="M3.5 14.5l5 5M8.5 14.5l-5 5" stroke={CLAUDE_CLAY} strokeWidth={2.2} /> : <path d="m3 17 2 2 4-4" />}
+      <path d="M13 6h8M13 12h8M13 18h8" />
+    </svg>
+  );
+}
+
 // The shared "Flag for Claude" popover (issue 087): every flag point opens it
 // with a prebuilt source (claudeissues.js jobSource/bookSource/general) and Add
 // lands ONE central issue — the note is optional, the context is captured.
