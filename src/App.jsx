@@ -53,6 +53,7 @@ import { FlagForClaude, ClaudeMark, CLAUDE_CLAY } from "./claudeflag.jsx";
 import { LineMenu } from "./linemenu.jsx";
 import { useLabels } from "./uselabels.js";
 import { useVersions } from "./useversions.js";
+import { useJobShowers } from "./usejobshowers.js";
 import { addErpOrder, removeErpOrder, stampErpLines, clearErpStamps } from "./erporders.js";
 // Heavy secondary surfaces ship as their own chunks (ADR 0026 rule 5) so
 // feature work on them stops growing the boot download. Both are conditional
@@ -320,6 +321,8 @@ export default function App({ user, onSignOut }) {
   const [confirmProd, setConfirmProd] = useState(null); // { aid, pid }
   const [confirmArea, setConfirmArea] = useState(null); // area id
   const [areaMenu, setAreaMenu] = useState(null); // { aid, x, y } — the area band's option menu
+  const showers = useJobShowers(sel?.categories);
+  const [sfMenu, setSfMenu] = useState(null); // { aid, pid, x?, y? } — a row's sq ft breakdown menu
   const [renamingOpt, setRenamingOpt] = useState(null); // option slot ("A"/"B"/"C") whose rename modal is open
   // Preview tab scope: "all" (compare/banded) or a slot letter (that option's
   // single-total sheet). The area menu's "Print this option…" writes it too.
