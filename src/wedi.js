@@ -5058,6 +5058,10 @@ function push(lines, key, qty, grp, note, auto) {
   lines.push({ item: it, qty: qty, group: grp, auto: auto !== false, note: note || "" });
 }
 
+export const panRoomDims = (pan) => (pan.group === "module"
+  ? { w: pan.len, d: MODULE_DEPTH + MODEXT_DEPTH }
+  : { w: Math.max(pan.w, pan.d), d: Math.min(pan.w, pan.d) });
+
 export function kitFor(panKey, opts) {
   opts = opts || {};
   const pan = typeof panKey === "string" ? item(panKey) : panKey;
@@ -5069,9 +5073,7 @@ export function kitFor(panKey, opts) {
   const form = opts.sealantForm === "tube" ? "tube" : "sausage";
   const panel = item(opts.panelKey || SKU.panelDefault) || item(SKU.panelDefault);
   const lines = [], hints = [];
-  const roomDims = room
-    || (pan.group === "module" ? { w: pan.len, d: MODULE_DEPTH + MODEXT_DEPTH }
-      : { w: Math.max(pan.w, pan.d), d: Math.min(pan.w, pan.d) });
+  const roomDims = room || panRoomDims(pan);
   const benches = (opts.benches || []).map((x) => normBench(x, roomDims));
   // A framed bench's framing shadow leaves the wall figure — no wedi runs
   // behind it (its wrap files under the bench group instead).

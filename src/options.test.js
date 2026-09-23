@@ -72,6 +72,23 @@ test("duplicateInto remaps kitIds so a copied kit is its own group (ADR 0035)", 
   assert.equal(next[1].products.length, 0);
 });
 
+test("duplicateInto relinks copied tile rows to the copied shower", () => {
+  const tile = { ...newProduct(), brandColor: "Tile", sfParts: [
+    { kind: "shower", kitId: "K", piece: "walls", where: "Bath", sf: 80 },
+    { kind: "extra", label: "Hall", sf: 45 },
+    { kind: "shower", kitId: "ELSEWHERE", piece: "floor", where: "Guest", sf: 8 },
+  ] };
+  const legacyTile = { ...newProduct(), brandColor: "Tile 2", sfParts: [{ kind: "shower", kitId: "row:LEG", piece: "floor", where: "Bath", sf: 15 }] };
+  const kit = { ...newProduct(), brandColor: "wedi", kitId: "K", wedi: { mode: "kit", cfg: { panKey: "X" } } };
+  const legacy = { ...newProduct(), id: "LEG", brandColor: "wedi legacy", kitId: "", wedi: { mode: "kit", cfg: { panKey: "Y" } } };
+  const src = { ...newArea(), name: "Bath", products: [tile, legacyTile, kit, legacy] };
+  const copy = duplicateInto(src, "B");
+  const [t, lt, k, lg] = copy.products;
+  assert.deepEqual(t.sfParts.map((e) => e.kitId), [k.kitId, undefined, "ELSEWHERE"], "a tile row above its anchor still follows it; foreign links stand");
+  assert.equal(lt.sfParts[0].kitId, "row:" + lg.id);
+  assert.equal(src.products[0].sfParts[0].kitId, "K", "source untouched");
+});
+
 // --- compareOptionsPatch (phase 5 task 2) -----------------------------------
 
 const wediLine = { sku: "US2000032", brandColor: "wedi pan", priceSqft: "120", wedi: { mode: "kit", cfg: { pan: "US2000032" } } };

@@ -327,6 +327,9 @@ src/
   usedirectory.js   # `useDirectory` — the project/people/builder directory: state, selection,
                     # and their write paths (`updateProject`/`addProject`/`setSettings`/`saveProfile`…);
                     # `migrateLegacyCustomers` (ADR 0004)
+  usejobshowers.js  # `useJobShowers(categories)`: dynamic-imports showersf.js only
+                    # when the job has a placed shower or a row with `sfParts`
+                    # (ADR 0026).
   usebooks.js       # `useBooks` — price book registry state + write paths (ADR 0009): addBook/
                     # updateBook/confirmBook (the "still good" stamp — restarts the §8.3 stale
                     # clock via data.confirmed, never lastImport)/delBook/
@@ -1121,6 +1124,9 @@ src/
                     # preview reads normBenchFn(zone, room); only the mini
                     # thumbnail (WediConfigurator.jsx's kit-card preview) omits
                     # all three props, since it never renders benches
+  showersf.js       # tile sq ft per piece of a placed wedi/Schluter shower
+                    # from its saved cfg. LAZY-CHUNK-ONLY (imports both
+                    # engines); loaded only by usejobshowers.js.
   schluter.js       # Schluter shower-system engine (issue 097 prototype ->
                     # production, tasks 1-6) — wedi's sibling, deliberately
                     # built the opposite way: TABLE-FREE. `classify()` is a
@@ -1999,6 +2005,13 @@ src/
                     # projects so the default-open strip has three quick prices
                     # to show with the next peeking, and stateful `panels` so a
                     # drag round-trips the real initialPanels/onPanels contract
+  sfparts.js        # the stored sq ft breakdown (`p.sfParts`): normalize
+                    # (normSfParts), totals, toggles, drift state, print text.
+                    # Boot-safe.
+  SfPartsMenu.jsx   # the sq ft breakdown menu (right-click the desktop sq ft
+                    # field / Bath icon on the phone) and its drift/removed chips.
+                    # The menu renders through a portal to document.body so it
+                    # stays viewport-fixed inside the phone row sheet.
   vendorfetch.js    # vendor sheet fetch (ADR 0019): portal-link parse/validate,
                     # bookmarklet source + clipboard hand-off (copies a marked
                     # base64 payload — HANDOFF_MARK/stripHandoffMark — that the

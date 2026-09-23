@@ -3,6 +3,7 @@ import { normTier, normPrintPricing } from "./pricing.js";
 import { normBasketEntry } from "./sheoga.js";
 import { normDistance } from "./mapslookup.js";
 import { normErpOrders, normErpKeyed } from "./erporders.js";
+import { normSfParts } from "./sfparts.js";
 import { TYPES, TLBL } from "./uiconst.js";
 
 export const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
@@ -99,7 +100,8 @@ export const newBuilder = (name = "") => ({ id: uid(), name });
 // `freight` stores only the opt-OUT ("off"): a row whose book charges freight
 // rides the shipment by default, including rows saved before the program
 // existed (ADR 0030).
-export const normP = (p) => ({ id: p.id || uid(), type: TYPES.includes(p.type) ? p.type : "tile", sku: p.sku ?? "", L: p.L ?? "", W: p.W ?? "", thickness: p.thickness || "0.375", sizeText: p.sizeText ?? (p.size || ""), brandColor: p.brandColor ?? [p.brand, p.color].filter(Boolean).join(" / "), priceSqft: p.priceSqft ?? "", qtyType: p.qtyType === "count" ? "count" : "sqft", qty: p.qty ?? "", cartonSf: p.cartonSf ?? "", cartonPc: p.cartonPc ?? "", cartonUnit: p.cartonUnit || "CT", sellUnit: p.sellUnit ?? "", cartonManual: p.cartonManual ?? "", note: p.note ?? "", freight: p.freight === "off" ? "off" : "", bookId: p.bookId ?? "", cost: p.cost ?? "", costSqft: p.costSqft ?? "", markupPct: p.markupPct ?? "", freightFlag: !!p.freightFlag, tierPrice: p.tierPrice ?? "", kitId: p.kitId ?? "", sheoga: p.sheoga ?? null, wedi: p.wedi ?? null, schluter: p.schluter ?? null, grout: { checked: !!p.grout?.checked, product: p.grout?.product || "", color: p.grout?.color || "", sku: p.grout?.sku ?? "", joint: num(p.grout?.joint) > 0 ? p.grout.joint : 0.125, manual: p.grout?.manual ?? "", caulk: p.grout?.caulk ?? "", caulkSku: p.grout?.caulkSku ?? "", caulkPrice: p.grout?.caulkPrice ?? "", caulkCost: p.grout?.caulkCost ?? "", bookId: p.grout?.bookId ?? "" }, mortar: { checked: !!p.mortar?.checked, product: p.mortar?.product || "", manual: p.mortar?.manual ?? "" }, underlay: { checked: !!p.underlay?.checked, product: p.underlay?.product || "", manual: p.underlay?.manual ?? "", install: !!p.underlay?.install, installMortars: p.underlay?.installMortars || {}, installSkip: p.underlay?.installSkip || {} }, attached: normAttachedJob(p.attached) });
+export const normP = (p) => ({ id: p.id || uid(), type: TYPES.includes(p.type) ? p.type : "tile", sku: p.sku ?? "", L: p.L ?? "", W: p.W ?? "", thickness: p.thickness || "0.375", sizeText: p.sizeText ?? (p.size || ""), brandColor: p.brandColor ?? [p.brand, p.color].filter(Boolean).join(" / "), priceSqft: p.priceSqft ?? "", qtyType: p.qtyType === "count" ? "count" : "sqft", qty: p.qty ?? "", cartonSf: p.cartonSf ?? "", cartonPc: p.cartonPc ?? "", cartonUnit: p.cartonUnit || "CT", sellUnit: p.sellUnit ?? "", cartonManual: p.cartonManual ?? "", note: p.note ?? "", freight: p.freight === "off" ? "off" : "", bookId: p.bookId ?? "", cost: p.cost ?? "", costSqft: p.costSqft ?? "", markupPct: p.markupPct ?? "", freightFlag: !!p.freightFlag, tierPrice: p.tierPrice ?? "", kitId: p.kitId ?? "", sheoga: p.sheoga ?? null, wedi: p.wedi ?? null, schluter: p.schluter ?? null, grout: { checked: !!p.grout?.checked, product: p.grout?.product || "", color: p.grout?.color || "", sku: p.grout?.sku ?? "", joint: num(p.grout?.joint) > 0 ? p.grout.joint : 0.125, manual: p.grout?.manual ?? "", caulk: p.grout?.caulk ?? "", caulkSku: p.grout?.caulkSku ?? "", caulkPrice: p.grout?.caulkPrice ?? "", caulkCost: p.grout?.caulkCost ?? "", bookId: p.grout?.bookId ?? "" }, mortar: { checked: !!p.mortar?.checked, product: p.mortar?.product || "", manual: p.mortar?.manual ?? "" }, underlay: { checked: !!p.underlay?.checked, product: p.underlay?.product || "", manual: p.underlay?.manual ?? "", install: !!p.underlay?.install, installMortars: p.underlay?.installMortars || {}, installSkip: p.underlay?.installSkip || {} }, attached: normAttachedJob(p.attached), ...sfPartsField(p.sfParts) });
+const sfPartsField = (v) => { const s = normSfParts(v); return s ? { sfParts: s } : {}; };
 // Add-on material selections, keyed by category id (ADR 0016). Old records have
 // no `attached` — they normalize to {} and stay valid.
 export const normAttachedJob = (a) => { const out = {}; if (a && typeof a === "object") for (const k of Object.keys(a)) { const v = a[k] || {}; out[k] = { checked: !!v.checked, product: v.product || "", manual: v.manual ?? "" }; } return out; };
@@ -222,10 +224,17 @@ export const landKitLines = (categories, aid, pid, lines) => {
   const anchor = a?.products.find((p) => p.id === pid);
   if (!anchor) return null;
   const stamped = stampKit(lines);
-  const remove = kitCompanionIds(categories, a, anchor, vendorOf(stamped[0]));
+  const v = vendorOf(stamped[0]);
+  const remove = kitCompanionIds(categories, a, anchor, v);
+  // Tile rows link to a shower by its kit key (spec 2026-09-23); the re-landed
+  // kit's fresh kitId would otherwise read as "shower was removed".
+  const oldKey = v && anchor[v]?.cfg ? anchor.kitId || "row:" + anchor.id : null;
+  const relink = (p) => (oldKey && p.sfParts?.some((e) => e.kind === "shower" && e.kitId === oldKey)
+    ? { ...p, sfParts: p.sfParts.map((e) => (e.kind === "shower" && e.kitId === oldKey ? { ...e, kitId: stamped[0].kitId } : e)) }
+    : p);
   return categories.map((c) => ({ ...c, products: c.products.flatMap((p) => {
-    if (p.id === pid) return [{ ...p, ...stamped[0] }, ...stamped.slice(1).map((patch) => ({ ...newProduct(), ...patch }))];
-    return remove.has(p.id) ? [] : [p];
+    if (p.id === pid) return [relink({ ...p, ...stamped[0] }), ...stamped.slice(1).map((patch) => ({ ...newProduct(), ...patch }))];
+    return remove.has(p.id) ? [] : [relink(p)];
   }) }));
 };
 // Append a kit's lines as fresh rows at the end of an area — the landing for

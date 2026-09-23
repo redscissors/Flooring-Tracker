@@ -33,14 +33,24 @@ export const optionShort = (proj, slot) => (proj?.optionNames?.[slot] ? `${slot}
 
 // A copied kit is its OWN kit: remap kitIds per copy, or the ownsGroup rule
 // (ADR 0035) would let either copy's Remove/Reconfigure take the other option's rows.
+// Copied tile rows' sfParts follow the copy's shower too (spec 2026-09-23).
+// Both maps are built first: a tile row can sit above its shower's anchor.
 export const duplicateInto = (area, slot) => {
-  const kitMap = new Map();
-  const remapKit = (p) => {
-    if (!p.kitId) return p;
-    if (!kitMap.has(p.kitId)) kitMap.set(p.kitId, uid());
-    return { ...p, kitId: kitMap.get(p.kitId) };
-  };
-  return { ...area, id: uid(), option: slot, products: (area.products || []).map((p) => remapKit({ ...p, id: uid() })) };
+  const src = area.products || [];
+  const kitMap = new Map(), idMap = new Map();
+  for (const p of src) {
+    idMap.set(p.id, uid());
+    if (p.kitId && !kitMap.has(p.kitId)) kitMap.set(p.kitId, uid());
+  }
+  const newKey = (key) => (kitMap.has(key) ? kitMap.get(key)
+    : key.startsWith("row:") && idMap.has(key.slice(4)) ? "row:" + idMap.get(key.slice(4)) : key);
+  const products = src.map((p) => {
+    const next = { ...p, id: idMap.get(p.id) };
+    if (p.kitId) next.kitId = kitMap.get(p.kitId);
+    if (Array.isArray(p.sfParts)) next.sfParts = p.sfParts.map((e) => (e.kind === "shower" ? { ...e, kitId: newKey(e.kitId) } : e));
+    return next;
+  });
+  return { ...area, id: uid(), option: slot, products };
 };
 
 // The Compare tab (phase 5) prices one shower in both wedi and Schluter, then

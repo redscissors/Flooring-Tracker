@@ -5,6 +5,7 @@ import { money, sf1, wasteNote, wasteMeta, miscQty, rowBlank, quickPrintName } f
 import { TLBL, THICK } from "./uiconst.js";
 import { printProduct, printAreaFloor, areaPrintLabel, PRINT_COLS, PRINT_COLS_UNIT, PRINT_COLS_NONE, KSHORT, ESTIMATE_PRINT_LAYOUT, u1 } from "./print.js";
 import { unitNoun } from "./units.js";
+import { sfPartsText } from "./sfparts.js";
 import NedLogo from "./NedLogo.jsx";
 import keimLogo from "./assets/keim-logo-ink.png";
 
@@ -96,6 +97,9 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
                           </span>
                         ))}
                       </div>
+                    )}
+                    {p.sfParts?.length > 0 && p.type !== "misc" && p.qtyType !== "count" && (
+                      <div style={{ padding: "0 12px 4px 24px", fontSize: 9.5, color: "var(--ft-muted)" }}>{sfPartsText(p.sfParts)}</div>
                     )}
                     {p.note && <div className="italic" style={{ padding: "0 12px 6px 24px", fontSize: 10.5, color: "var(--ft-muted)" }}>{p.note}</div>}
                   </Fragment>
