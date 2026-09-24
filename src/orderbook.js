@@ -793,7 +793,8 @@ export function rowAdvisories(item) {
   const name = str(it.description);
   const out = [];
   const clean = name.replace(/[^a-z0-9]/gi, "");
-  if (NAME_LITTER_RE.test(name)) out.push({ code: "name-litter", msg: "with leftover punctuation in the name after size parsing — the size may be mis-split" });
+  // The trim parsers' "· fits …" search note (manningtonbook.js) isn't residue.
+  if (NAME_LITTER_RE.test(name.replace(/\s*·\s*fits\b.*$/i, ""))) out.push({ code: "name-litter", msg: "with leftover punctuation in the name after size parsing — the size may be mis-split" });
   else if (RESIDUAL_SIZE_RE.test(name)) out.push({ code: "name-size", msg: "still showing a size in the product name — the size column may be unmapped or an unrecognized spelling" });
   else if (clean.length <= 1) out.push({ code: "name-empty", msg: "parsing to an empty or one-character name — check the description column" });
   if (fillsFlooring(it) && TRIM_WORD_RE.test(`${name} ${str(it.size)}`)) out.push({ code: "trim-as-area", msg: "a trim/molding line priced by the square foot — confirm it should cover area, not sell per piece" });

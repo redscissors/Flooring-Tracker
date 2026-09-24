@@ -1016,6 +1016,9 @@ test("rowAdvisories: leftover-punctuation litter (the original .43X12 mis-split 
   assert.deepEqual(codes({ sku: "D", description: "Foo ()" }), ["name-litter"]);
   // A legitimate " - " separator is NOT litter.
   assert.deepEqual(codes({ sku: "E", type: "tile", description: "Black - White Mix", size: "12x12", priceUnit: "SF", cost: 4, sfPerUnit: 10 }), []);
+  // A trim parser's "· fits …" search note is not a mis-split — but litter before it still is.
+  assert.deepEqual(codes({ sku: "MSN3484LG", description: "Character Hickory Driftwood Stair Nose Solid · fits CP314DWBLG CP41DWBLG", priceUnit: "EA", cost: 57.8, trim: true, fits: "CP314DWBLG CP41DWBLG" }), []);
+  assert.deepEqual(codes({ sku: "H", description: "Crafted White . Quarter Round · fits APX020", priceUnit: "EA", cost: 9, trim: true }), ["name-litter"]);
 });
 
 test("rowAdvisories: a size still sitting in the product name", () => {

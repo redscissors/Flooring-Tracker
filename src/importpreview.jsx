@@ -10,6 +10,7 @@ import { BookImportWizard } from "./pricebooklib.jsx";
 import { parseMapped } from "./pricebook.js";
 import { TYPES, TLBL } from "./uiconst.js";
 import { issueRef } from "./claudeissues.js";
+import { SOMERSET_PAGES } from "./somersetfixture.js";
 
 const inp = "ft-field w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent";
 const lbl = "ft-eyebrow text-[10px] mb-1 block";
@@ -56,6 +57,11 @@ const MAPPING = {
 
 const BOOK = { id: "vt", kind: "order", name: "Virginia Tile — Anatolia", active: true, data: { mapping: MAPPING, markups: { default: 45 } } };
 
+// ?somerset feeds the real Somerset R35 sheet's pages through the wizard's PDF
+// path as a brand-new book — the dedicated parser, its warnings, the new bucket.
+const SOMERSET = new URLSearchParams(location.search).has("somerset");
+const SOMERSET_BOOK = { id: "somerset", kind: "order", name: "Somerset", active: true, data: { markups: { default: 45 } } };
+
 const { items: prevItems } = parseMapped(PREV_ROWS, MAPPING);
 const EXISTING = prevItems.map((it) =>
   it.sku === "VT1006" ? { ...it, active: false }
@@ -73,8 +79,8 @@ function App() {
         {applied && <span className="block mt-1 text-emerald-700">Applied · claudeSkus: [{applied.opts.claudeSkus.join(", ")}]</span>}
       </div>
       <BookImportWizard
-        book={BOOK} existingItems={EXISTING}
-        preParsed={{ sheets: [{ name: "Price list", rows: NEXT_ROWS }] }}
+        book={SOMERSET ? SOMERSET_BOOK : BOOK} existingItems={SOMERSET ? [] : EXISTING}
+        preParsed={SOMERSET ? { pages: SOMERSET_PAGES, isPdf: true } : { sheets: [{ name: "Price list", rows: NEXT_ROWS }] }}
         onClose={() => {}}
         onApply={(diff, opts) => setApplied({ diff, opts })}
         saveMapping={() => {}}
