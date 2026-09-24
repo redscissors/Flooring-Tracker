@@ -1,4 +1,4 @@
-import { Component, useState, useEffect, useLayoutEffect, useRef } from "react";
+import { Component, useState, useEffect, useLayoutEffect, useRef, useId } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, User, Paperclip, X, Lock, LockOpen, Eye, EyeOff, MapPin, ClipboardPaste, Check, ShoppingBasket } from "lucide-react";
 import { num } from "./catalog.js";
@@ -8,6 +8,7 @@ import { normName, matchName } from "./names.js";
 import { phoneChange } from "./phone.js";
 import { mapsUrl, cleanAddress } from "./address.js";
 import { escPush } from "./escstack.js";
+import { flatten, moveIndex, edgeIndex, typeahead, placeMorph } from "./dropdown.js";
 import { useAddressSuggest, fetchDistance, fetchPlaceDetails } from "./usemapslookup.js";
 import { MIN_SUGGEST, formatDist, distStale } from "./mapslookup.js";
 
@@ -472,6 +473,161 @@ export function BasketButton({ count = 0, onClick, ...rest }) {
       <ShoppingBasket size={20} strokeWidth={2} />
       {count > 0 && <span className="absolute -top-1.5 -right-1.5 rounded-full ring-2 ring-[color:var(--ft-cream)] bg-[color:var(--ft-brand)] text-white text-[10px] font-extrabold min-w-[16px] h-[16px] px-1 flex items-center justify-center">{count}</span>}
     </button>
+  );
+}
+
+const MORPH_EASE = "cubic-bezier(.2,.8,.2,1)";
+const touchRows = () => window.matchMedia?.("(pointer: coarse)").matches || window.innerWidth < 768;
+
+// The one pick-one dropdown (ADR 0048), the price-level menu's look: the open
+// box is the trigger grown — portalled onto <body> at the trigger's spot so a
+// scroll container can't clip it, wearing the trigger's zoom inside the
+// shrink-to-fit workspaces. Focus stays on the trigger (rows preventDefault on
+// mousedown) so it keeps a <select>'s keyboard contract.
+export function MorphSelect({ value, onChange, options, groups, placeholder = "Pick…", display, bg = "var(--ft-card)", size = "md", flat = false, tinted = false, bold = false, full = false, align = "left", minOpenW = 0, title, className = "", triggerClass, triggerStyle, renderRow }) {
+  const { items, heads } = flatten({ options, groups });
+  const [open, setOpen] = useState(false);
+  const [shown, setShown] = useState(false);
+  const [active, setActive] = useState(-1);
+  const [box, setBox] = useState(null);
+  const anchorRef = useRef(null);
+  const panelRef = useRef(null);
+  const listRef = useRef(null);
+  const timer = useRef(0);
+  const lid = useId();
+  const sel = items.findIndex((it) => it.v === value);
+  const cur = items[sel];
+  const text = display ?? (cur ? cur.label : placeholder);
+  const ink = tinted && cur?.dot ? cur.dot : undefined;
+  const closedBorder = flat ? "transparent" : "var(--ft-border-strong)";
+  const sz = size === "sm" ? "px-1.5 text-xs" : "px-2.5 text-[12.5px]";
+  const rowSz = touchRows() ? "py-2.5 text-[14px]" : size === "sm" ? "py-1 text-xs" : "py-1.5 text-[12.5px]";
+
+  const openMenu = () => {
+    clearTimeout(timer.current);
+    setActive(sel >= 0 ? sel : edgeIndex(items, "first"));
+    if (open) setShown(true); else setOpen(true);
+  };
+  const closeMenu = () => {
+    setShown(false);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setOpen(false), 240);
+  };
+  const pick = (i) => { onChange(items[i].v); closeMenu(); };
+  useEffect(() => () => clearTimeout(timer.current), []);
+  useEscClose(open && shown, closeMenu);
+  useDismissOutside(open, anchorRef, panelRef, closeMenu);
+
+  useLayoutEffect(() => {
+    if (!open) { setBox(null); setShown(false); return; }
+    const place = () => {
+      const el = anchorRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const scale = el.offsetWidth ? r.width / el.offsetWidth : 1;
+      const want = Math.min(PANEL_MAX, 12 + items.length * (touchRows() ? 40 : 30) + heads.length * 24);
+      const pos = placeMorph({ rect: r, vw: window.innerWidth, vh: window.innerHeight, scale, align, want });
+      setBox((b) => ({ ...pos, scale, w: el.offsetWidth, h: el.offsetHeight, target: b?.target ?? el.offsetWidth }));
+    };
+    place();
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return () => { window.removeEventListener("scroll", place, true); window.removeEventListener("resize", place); };
+  }, [open]);
+
+  useLayoutEffect(() => {
+    if (!open || !box) return;
+    const natural = listRef.current?.offsetWidth || 0;
+    const target = Math.min(box.maxW, Math.max(box.w, natural, minOpenW));
+    setBox((b) => ({ ...b, target }));
+    const id = requestAnimationFrame(() => setShown(true));
+    return () => cancelAnimationFrame(id);
+  }, [open, !!box]);
+
+  useEffect(() => {
+    if (shown && active >= 0) listRef.current?.querySelector(`[data-i="${active}"]`)?.scrollIntoView({ block: "nearest" });
+  }, [shown, active]);
+
+  const onKey = (e) => {
+    const k = e.key;
+    const stop = () => { e.preventDefault(); e.stopPropagation(); };
+    const letter = k.length === 1 && /\S/.test(k) && !e.ctrlKey && !e.metaKey && !e.altKey;
+    if (!(open && shown)) {
+      if (k === "Enter" || k === " " || k === "ArrowDown" || k === "ArrowUp") { stop(); openMenu(); }
+      else if (letter) { const i = typeahead(items, sel, k); if (i >= 0) { stop(); onChange(items[i].v); } }
+      return;
+    }
+    if (k === "Escape") { stop(); closeMenu(); }
+    else if (k === "Tab") closeMenu();
+    else if (k === "Enter" || k === " ") { stop(); if (active >= 0 && !items[active]?.disabled) pick(active); }
+    else if (k === "ArrowDown" || k === "ArrowUp") { stop(); setActive(moveIndex(items, active, k === "ArrowDown" ? 1 : -1)); }
+    else if (k === "Home" || k === "End") { stop(); setActive(edgeIndex(items, k === "Home" ? "first" : "last")); }
+    else if (letter) { stop(); const i = typeahead(items, active, k); if (i >= 0) setActive(i); }
+  };
+
+  const headAt = new Map(heads.map((h) => [h.at, h.label]));
+  const chevron = (turned) => <ChevronDown size={size === "sm" ? 12 : 14} className="ml-auto shrink-0 text-slate-400" style={{ transform: turned ? "rotate(180deg)" : "none", transition: "transform 220ms ease" }} />;
+  const rows = items.map((it, i) => {
+    const on = i === sel;
+    const custom = renderRow?.(it, { selected: on, close: closeMenu });
+    return (
+      <div key={i}>
+        {headAt.has(i) && <div className="ft-eyebrow text-[9px] px-3 pt-2 pb-0.5">{headAt.get(i)}</div>}
+        <div data-i={i} id={`${lid}-${i}`} role="option" aria-selected={on} aria-disabled={it.disabled || undefined} title={it.title}
+          onMouseEnter={() => { if (!it.disabled) setActive(i); }}
+          onMouseDown={(e) => { if (e.target.tagName !== "INPUT") e.preventDefault(); }}
+          onClick={() => { if (!it.disabled) pick(i); }}
+          className={"w-full flex items-center gap-2 px-3 whitespace-nowrap " + rowSz
+            + (it.disabled ? " text-slate-300 cursor-default" : " cursor-pointer")
+            + (i === active && !it.disabled ? " bg-[color:var(--ft-hover)]" : "")
+            + (on ? " font-extrabold" : " font-semibold" + (it.disabled ? "" : " text-slate-600"))}>
+          {it.dot && <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ background: it.dot }} />}
+          {custom ?? <span className="flex-1" style={on && tinted && it.dot ? { color: it.dot } : undefined}>{it.label}</span>}
+          {it.note && <span className="text-[10.5px] font-semibold text-slate-400">{it.note}</span>}
+          <span className="w-3.5 shrink-0">{on && <Check size={13} />}</span>
+        </div>
+      </div>
+    );
+  });
+
+  const header = box && (
+    <div onMouseDown={(e) => e.preventDefault()} onClick={closeMenu}
+      className={"flex items-center gap-1.5 whitespace-nowrap cursor-pointer " + sz + (bold ? " font-extrabold" : " font-semibold")}
+      style={{ height: box.h - 3, color: ink || "var(--ft-text)" }}>
+      <span className="truncate">{text}</span>{chevron(shown)}
+    </div>
+  );
+  const divider = <div className="border-t border-slate-300 mx-2" />;
+  const list = (
+    <div style={{ display: "grid", gridTemplateRows: shown ? "1fr" : "0fr", transition: `grid-template-rows 240ms ${MORPH_EASE}` }}>
+      <div className="min-h-0 overflow-hidden">
+        <div ref={listRef} id={lid} role="listbox" className="py-1 overflow-y-auto" style={{ maxHeight: box?.maxList, minWidth: "100%", width: "max-content" }}>{rows}</div>
+      </div>
+    </div>
+  );
+  const panel = box && (
+    <div ref={panelRef} className="fixed rounded-lg overflow-hidden"
+      style={{ zIndex: 90, top: box.top, bottom: box.bottom, left: box.left, right: box.right, zoom: box.scale !== 1 ? box.scale : undefined,
+        width: shown ? box.target : box.w, background: bg,
+        border: "1.5px solid " + (shown ? "var(--ft-text)" : closedBorder),
+        boxShadow: shown ? "0 12px 28px -12px rgba(28,26,23,.45)" : "none",
+        transition: `width 220ms ${MORPH_EASE}, border-color 220ms ease, box-shadow 220ms ease` }}>
+      {box.up ? <>{list}{divider}{header}</> : <>{header}{divider}{list}</>}
+    </div>
+  );
+
+  return (
+    <span ref={anchorRef} className={(full ? "flex w-full" : "inline-flex max-w-full") + " relative align-middle " + className}
+      style={triggerClass ? undefined : { background: bg, border: "1.5px solid " + closedBorder, borderRadius: 8 }}>
+      <button type="button" onClick={() => (open && shown ? closeMenu() : openMenu())} onKeyDown={onKey} title={title}
+        aria-haspopup="listbox" aria-expanded={open && shown} aria-controls={open ? lid : undefined}
+        aria-activedescendant={open && shown && active >= 0 ? `${lid}-${active}` : undefined}
+        className={triggerClass ?? ("min-w-0 w-full flex items-center gap-1.5 rounded-[6.5px] whitespace-nowrap focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 hover:bg-[color:var(--ft-hover)] " + sz + (size === "sm" ? " h-[22px]" : " h-[27px]") + (bold ? " font-extrabold" : " font-semibold"))}
+        style={triggerStyle ?? { color: ink || (cur || display ? "var(--ft-text)" : "var(--ft-muted)") }}>
+        <span className="truncate">{text}</span>{chevron(false)}
+      </button>
+      {open && box && createPortal(panel, document.body)}
+    </span>
   );
 }
 
