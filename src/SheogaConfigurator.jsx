@@ -5,7 +5,7 @@
 // row keeps the raw configuration (product.sheoga) so Reconfigure reopens here.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { X, Grid3X3, Plus, ChevronUp } from "lucide-react";
-import { useEscClose, HelpTip, PriceLevelMenu, BasketButton } from "./widgets.jsx";
+import { useEscClose, HelpTip, PriceLevelMenu, BasketButton, MorphSelect } from "./widgets.jsx";
 import { PaneBack, PaneClose } from "./raildrawer.jsx";
 import {
   MODES, HB_RETIRED, defaultConfig, calcConfig, calcFloor, calcStocked, calcHerringbone, calcVent,
@@ -217,7 +217,6 @@ const QtyInput = ({ value, onChange }) => (
     className="w-24 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500" />
 );
 
-const selectCls = "w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500";
 const textCls = "w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500";
 
 // Labeled dropdown for the compact floor rail (texture / edge / lengths /
@@ -226,9 +225,8 @@ function Dropdown({ label, hint, value, options, onChange }) {
   return (
     <div>
       <div className="flex items-baseline gap-1.5 mb-1"><span className="ft-eyebrow text-[10px]">{label}</span>{hint && <span className="text-[9.5px] text-slate-400 font-medium">{hint}</span>}</div>
-      <select value={value} onChange={(e) => onChange(e.target.value)} className={selectCls}>
-        {options.map((o) => <option key={String(o.id)} value={o.id} disabled={o.dis}>{o.label}</option>)}
-      </select>
+      <MorphSelect full bold value={String(value)} onChange={onChange}
+        options={options.map((o) => ({ v: String(o.id), label: o.label, disabled: o.dis }))} />
     </div>
   );
 }
@@ -291,10 +289,8 @@ function StainPicker({ cfg, set, custom }) {
       {custom ? (
         <input value={cfg.stain} onChange={(e) => set({ ...cfg, stain: e.target.value })} placeholder="Custom color name (optional)" className={textCls} />
       ) : (
-        <select value={STAIN_COLORS.includes(cfg.stain) ? cfg.stain : ""} onChange={(e) => set({ ...cfg, stain: e.target.value })} className={selectCls}>
-          <option value="">Pick color…</option>
-          {STAIN_COLORS.map((c) => <option key={c} value={c}>{c}</option>)}
-        </select>
+        <MorphSelect full bold placeholder="Pick color…" value={STAIN_COLORS.includes(cfg.stain) ? cfg.stain : ""}
+          onChange={(v) => set({ ...cfg, stain: v })} options={STAIN_COLORS.map((c) => ({ v: c, label: c }))} />
       )}
     </div>
   );
@@ -318,10 +314,9 @@ function SheenPicker({ cfg, set, note, warn }) {
   return (
     <div>
       <div className="flex items-baseline gap-1.5 mb-1"><span className="ft-eyebrow text-[10px]">Sheen</span>{note && <span className="text-[9.5px] text-slate-400 font-medium">{note}</span>}</div>
-      <select value={cfg.sheenCustom ? "__c" : cfg.sheen} onChange={(e) => { const v = e.target.value; if (v === "__c") set({ ...cfg, sheenCustom: true }); else set({ ...cfg, sheenCustom: false, sheen: v }); }} className={selectCls}>
-        {SHEENS.map((s) => <option key={s} value={s}>{s}-sheen</option>)}
-        <option value="__c">Custom…</option>
-      </select>
+      <MorphSelect full bold value={cfg.sheenCustom ? "__c" : String(cfg.sheen)}
+        onChange={(v) => { if (v === "__c") set({ ...cfg, sheenCustom: true }); else set({ ...cfg, sheenCustom: false, sheen: v }); }}
+        options={[...SHEENS.map((x) => ({ v: x, label: `${x}-sheen` })), { v: "__c", label: "Custom…" }]} />
       {cfg.sheenCustom && (
         <input type="number" min="0" value={cfg.sheen} onChange={(e) => set({ ...cfg, sheen: e.target.value })} placeholder="e.g. 25" className={textCls + " mt-1.5"} />
       )}
@@ -633,12 +628,9 @@ function VentRail({ v, set, tsell, onGrid, onCopyFloor, copySrc }) {
       {v.prefin && (
         <div className="mt-1.5 mb-1.5 ml-[26px]">
           <div className="flex items-baseline gap-1.5 mb-1"><span className="ft-eyebrow text-[10px]">Stain color</span><span className="text-[9.5px] text-slate-400 font-medium">included in the prefinish charge</span></div>
-          <select value={v.stainCustom ? "__c" : (STAIN_COLORS.includes(v.stain) ? v.stain : "")}
-            onChange={(e) => { const val = e.target.value; if (val === "__c") set({ ...v, stainCustom: true }); else set({ ...v, stainCustom: false, stain: val }); }} className={selectCls}>
-            <option value="">Pick color…</option>
-            {STAIN_COLORS.map((c) => <option key={c} value={c}>{c}</option>)}
-            <option value="__c">Custom…</option>
-          </select>
+          <MorphSelect full bold placeholder="Pick color…" value={v.stainCustom ? "__c" : (STAIN_COLORS.includes(v.stain) ? v.stain : "")}
+            onChange={(val) => { if (val === "__c") set({ ...v, stainCustom: true }); else set({ ...v, stainCustom: false, stain: val }); }}
+            options={[...STAIN_COLORS.map((c) => ({ v: c, label: c })), { v: "__c", label: "Custom…" }]} />
           {v.stainCustom && <input value={v.stain} onChange={(e) => set({ ...v, stain: e.target.value })} placeholder="Custom color name" className={textCls + " mt-1.5"} />}
         </div>
       )}
@@ -646,10 +638,8 @@ function VentRail({ v, set, tsell, onGrid, onCopyFloor, copySrc }) {
       {v.tex && (
         <div className="mt-1.5 mb-1.5 ml-[26px]">
           <div className="flex items-baseline gap-1.5 mb-1"><span className="ft-eyebrow text-[10px]">Scrape / texture</span><span className="text-[9.5px] text-slate-400 font-medium">any scrape, same flat charge</span></div>
-          <select value={ventScrape(v) ? v.scrape : ""} onChange={(e) => set({ ...v, scrape: e.target.value })} className={selectCls}>
-            <option value="">Textured (unspecified)</option>
-            {TEXTURES.filter((t) => t.id !== "smooth").map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
+          <MorphSelect full bold value={ventScrape(v) ? v.scrape : ""} onChange={(scrape) => set({ ...v, scrape })}
+            options={[{ v: "", label: "Textured (unspecified)" }, ...TEXTURES.filter((t) => t.id !== "smooth").map((t) => ({ v: t.id, label: t.name }))]} />
         </div>
       )}
       {DAMPERS[v.size] && <Toggle label="Attach damper" on={v.damper} onClick={() => set({ ...v, damper: !v.damper })} add={`+${fm(tsell(DAMPERS[v.size] + DAMPER_ATTACH))}`} />}
