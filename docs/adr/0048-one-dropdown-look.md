@@ -39,6 +39,38 @@ phone's own full-screen chooser.
    box widens past the field only where the results need the room. Full-
    screen search sheets and in-place list filters are not dropdowns and
    keep their own look.
+   *Amendment (owner 2026-09-24):* a search field focuses in that same thin
+   ink line instead of the moss focus ring (`.ft-search`), and the box
+   morphs out of it the way `MorphSelect` does: it mounts exactly over the
+   field, then widens and grows its results (240ms), and folds back into
+   the field on close (200ms) instead of vanishing. The moss ring stays the
+   focus mark everywhere else.
+   *Amendment (owner 2026-09-24):* the price cell's cost & markup popup
+   grows out of the cell the same way: the price cell stays the one price
+   field inside the box's top row, cost sits to its left, and the markup
+   presets sit two by two below, so the box is the cell plus ~78px, not a
+   268px card. No margin line, close button or key hints; Tab goes cost →
+   price → out, Enter closes. Mockup: `.scratch/mockups/price-pop-grow-2026-09-24.html`.
+   *Amendment (owner 2026-09-24):* the grid's type picker, waste popup and
+   ⋯ line menu grow out of what opened them the same way: the type chip
+   (its name beside it), the order cell (a "Waste" label beside it) and the
+   row-end ⋯ cell (the line's name beside it). Panels with nothing to grow
+   from, such as the right-click line menu or waste opened from that menu,
+   stay at the pointer and fold away on close (`PointPop`). The sidebar
+   customer menu grows out of the right-clicked customer row, and the area
+   menu out of its option chip ("This area is in" beside it); a right-click
+   on the area band opens it at the pointer (`PopMenu`). Neither keeps the
+   old full-screen click-catcher: an outside press closes it like any other
+   dropdown. The header popovers follow: Save a version is one row beside
+   the Save button (name field + ✓), Files grows from the paperclip with its
+   label beside it, and Salesperson grows from the whole salesperson card
+   (its Done button and heading dropped; Enter, Esc or a click away close).
+   `growBox` picks the side with room; a mini button's hover card hides
+   while its box is open. In the wedi and Schluter configurators the ⇄
+   swap list grows out of its whole part line (the line names the part, so
+   the list's heading goes) and the add-on / bench / niche pickers grow out
+   of their chip (Schluter's pickers keep their ? heading); the right-click
+   wall and bench menus stay at the pointer and fold away on close.
 
 ## Consequences
 

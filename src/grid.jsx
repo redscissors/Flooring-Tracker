@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useLayoutEffect } from "react";
-import { createPortal } from "react-dom";
-import { Plus, ChevronDown, Check, Settings, X } from "lucide-react";
+import { Plus, ChevronDown, Check, Settings } from "lucide-react";
 import { TYPES, TLBL, TYPE_ACCENT, THICK, TIER_COLOR, TIER_LONG } from "./uiconst.js";
 import { money } from "./model.js";
 import { queryHit as sheogaQueryHit, parseQuery as sheogaParseQuery, querySummary as sheogaQuerySummary } from "./sheoga.js";
@@ -9,13 +8,14 @@ import { queryHit as sheogaQueryHit, parseQuery as sheogaParseQuery, querySummar
 import { queryHit as wediQueryHit, parseQuery as wediParseQuery, querySummary as wediQuerySummary } from "./wediquery.js";
 // schluterquery.js, never schluter.js — same boot contract (ADR 0026).
 import { queryHit as schluterQueryHit, parseQuery as schluterParseQuery, querySummary as schluterQuerySummary } from "./schluterquery.js";
-import { useAnchoredPanel, vPos, useEscClose, MorphSelect, SearchPop } from "./widgets.jsx";
+import { useAnchoredPanel, useEscClose, MorphSelect, SearchPop } from "./widgets.jsx";
 import { Hit, searchPanelBox, hitKey, matchSummary, useMergedResults, NearMatchNote, SearchingBar } from "./search.jsx";
-import { MARKUP_PRESETS, unitMargin, editCost, editMarkup, editPrice } from "./costentry.js";
+import { MARKUP_PRESETS, editCost, editMarkup, editPrice } from "./costentry.js";
 
 // Product flooring-type picker: a colour-coded pill that opens a swatch menu of
 // all types. Each type keeps its editorial accent (TYPE_ACCENT) here and on the
 // card's left border.
+const TYPE_W = 148;
 export function TypeSelect({ type, onChange, triggerRef, compact, blank }) {
   const [open, setOpen] = useState(false);
   const accent = TYPE_ACCENT[type];
@@ -56,9 +56,9 @@ export function TypeSelect({ type, onChange, triggerRef, compact, blank }) {
         <ChevronDown size={12} className={`transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       )}
-      {open && pos && createPortal(
-        <div ref={panelRef} style={{ position: "fixed", ...vPos(pos), left: Math.max(8, Math.min(pos.left, window.innerWidth - 176 - 8)), width: 176, maxHeight: pos.maxH, overflowY: "auto" }}
-          data-up={pos.bottom != null ? "true" : undefined} className="ft-pop z-50 py-1 overflow-hidden">
+      {open && pos && (
+        <SearchPop pos={pos} box={{ left: Math.max(8, Math.min(pos.left, window.innerWidth - TYPE_W - 8)), width: TYPE_W }} fieldRef={btnRef} panelRef={panelRef} className="py-1 overflow-y-auto"
+          trail={compact && <span className="pl-2 text-xs font-bold" style={{ color: blank ? "var(--ft-muted)" : accent }}>{blank ? "Pick a type" : TLBL[type]}</span>}>
           {TYPES.map((t) => {
             const on = !blank && t === type;
             return (
@@ -71,7 +71,7 @@ export function TypeSelect({ type, onChange, triggerRef, compact, blank }) {
               </button>
             );
           })}
-        </div>, document.body)}
+        </SearchPop>)}
     </div>
   );
 }
@@ -100,87 +100,63 @@ export const GRID_COLS = "0.85fr 2.75fr 1fr 0.55fr 0.5fr 0.55fr 0.7fr 0.8fr 44px
 
 const fnum = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
 
-// Cost + markup + price, anchored under the price cell (2026-07-26). A row
-// filled from a price book arrives with the vendor cost snapshotted beside its
-// sell price; a hand-typed line had nowhere to put one, so the grid's single
-// price box was retail-only and the Employee tier, the internal margin and the
-// order sheet all read the line as costless. Opening on focus makes the price
-// column the one place a line is priced, however it was entered — type the
-// cost, hit a common markup, move on.
-const POP_W = 268;
-const POP_LBL = { fontSize: 9, letterSpacing: ".07em", textTransform: "uppercase", color: "var(--ft-faint)" };
-const POP_FIELD = "ft-field ft-num w-full rounded border border-slate-200 text-right ft-mono";
-function PriceCostPop({ p, unit, markups, onPatch, onClose, anchorRef }) {
+// Cost + markup, grown out of the price cell (2026-07-26; reshaped 2026-09-24).
+// A row filled from a price book arrives with the vendor cost snapshotted
+// beside its sell price; a hand-typed line had nowhere to put one, so the
+// grid's single price box was retail-only and the Employee tier, the internal
+// margin and the order sheet all read the line as costless. Opening on focus
+// makes the price column the one place a line is priced, however it was
+// entered. The box is the price cell grown (SearchPop): cost sits left of the
+// live price cell, markup presets below; the cell stays the only price field.
+const COST_LEAD = 78;
+const chip = "rounded-full border font-bold";
+function PriceCostPop({ p, unit, markups, onPatch, onClose, boxRef, priceRef, costRef }) {
   const panelRef = useRef(null);
-  const costRef = useRef(null);
-  const pos = useAnchoredPanel(true, anchorRef, panelRef, onClose);
+  const pos = useAnchoredPanel(true, boxRef, panelRef, onClose);
   useEscClose(true, () => onClose(true));
-  // The popup IS the editor once it opens, so the cost — the field the grid
-  // has no room for — takes the caret. Tabbing on walks cost → markup → price.
-  // Keyed on the anchor measurement: the panel renders nothing until it has
-  // one, so a mount-only effect would fire before the input exists.
+  // The cost takes the caret on open; Tab walks on to the price cell, and Tab
+  // again closes (GridPriceCell). Keyed on the anchor measurement: the panel
+  // renders nothing until it has one.
   useEffect(() => { if (pos) { costRef.current?.focus(); costRef.current?.select(); } }, [!!pos]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!pos) return null;
   const pct = String(p.markupPct ?? "").trim();
-  const m = unitMargin(p.costSqft, p.priceSqft);
-  const keys = (e) => { if (e.key === "Enter") { e.preventDefault(); onClose(true); } };
-  const fieldStyle = { fontSize: 13, padding: "4px 6px", background: "var(--ft-field)" };
-  return createPortal(
-    <div ref={panelRef} onKeyDown={keys}
-      style={{ position: "fixed", ...vPos(pos), left: Math.max(8, Math.min(pos.left + pos.width - POP_W, window.innerWidth - POP_W - 8)), width: POP_W }}
-      data-up={pos.bottom != null ? "true" : undefined} className="ft-pop z-50">
-      <div className="flex items-center justify-between px-2.5 pt-2">
-        <span style={POP_LBL}>Cost &amp; price per {unit}</span>
-        <button tabIndex={-1} onClick={() => onClose(true)} title="Close (Enter or Esc)" className="text-slate-300 hover:text-slate-600" style={{ lineHeight: 0 }}><X size={12} /></button>
+  const toPrice = () => { priceRef.current?.focus(); priceRef.current?.select(); };
+  const keys = (e) => {
+    if (e.key === "Tab" && !e.shiftKey) { e.preventDefault(); toPrice(); }
+    else if (e.key === "Enter" || (e.key === "Tab" && e.shiftKey)) { e.preventDefault(); onClose(true); }
+  };
+  const W = pos.width + COST_LEAD;
+  const box = { left: Math.max(8, Math.min(pos.left + pos.width - W, window.innerWidth - W - 8)), width: W };
+  const lead = (
+    <label className="flex items-center w-full min-w-0" style={{ gap: 4, padding: "0 4px 0 7px" }}>
+      <span style={{ fontSize: 8, letterSpacing: ".07em", textTransform: "uppercase", color: "var(--ft-faint)" }}>Cost</span>
+      <input ref={costRef} type="number" inputMode="decimal" value={p.costSqft} placeholder="0.00" onKeyDown={keys}
+        onChange={(e) => onPatch(editCost(p, e.target.value))} title={`What the material costs us per ${unit}`}
+        className="ft-field ft-num ft-search ft-mono flex-1 min-w-0 rounded border border-slate-200 text-right" style={{ fontSize: 11.5, padding: "2px 4px" }} />
+    </label>
+  );
+  return (
+    <SearchPop pos={pos} box={box} fieldRef={boxRef} panelRef={panelRef} lead={lead}>
+      {/* Two columns so the box stays narrow: the preset list is team-tunable
+          in Settings, and more presets add rows, never width. */}
+      <div className="grid grid-cols-2" style={{ gap: 4, padding: "6px 7px 7px" }}>
+        {markups.map((v) => {
+          const on = fnum(pct) === v && pct !== "";
+          return (
+            <button key={v} tabIndex={-1} onMouseDown={(e) => e.preventDefault()} onClick={() => { onPatch(editMarkup(p, v)); toPrice(); }} title={`Price at cost + ${v}%`}
+              className={`${chip} ${on ? "border-transparent" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+              style={{ fontSize: 10.5, padding: "2px 0", ...(on ? { background: "var(--ft-brand)", color: "#fff" } : null) }}>+{v}%</button>
+          );
+        })}
+        <span className="flex items-center rounded-full border border-slate-200" style={{ background: "var(--ft-field)", paddingRight: 7 }}>
+          <input type="number" inputMode="decimal" value={pct} placeholder="—" onKeyDown={keys} onChange={(e) => onPatch(editMarkup(p, e.target.value))}
+            className="ft-mono ft-num text-right flex-1 min-w-0" title="Any other markup"
+            style={{ background: "transparent", border: 0, outline: "none", fontSize: 10.5, padding: "2px 1px" }} />
+          <span style={{ fontSize: 10, color: "var(--ft-faint)" }}>%</span>
+        </span>
       </div>
-      <div className="px-2.5 pt-1.5 pb-2 flex flex-col" style={{ gap: 7 }}>
-        <div className="flex items-end" style={{ gap: 6 }}>
-          <label className="flex-1 min-w-0">
-            <span className="block pb-0.5" style={POP_LBL}>Cost</span>
-            <input ref={costRef} type="number" inputMode="decimal" value={p.costSqft} placeholder="0.00" style={fieldStyle}
-              onChange={(e) => onPatch(editCost(p, e.target.value))} className={POP_FIELD} title={`What the material costs us per ${unit}`} />
-          </label>
-          <span className="shrink-0 pb-1.5" style={{ fontSize: 11, color: "var(--ft-faint)" }}>→</span>
-          <label className="flex-1 min-w-0">
-            <span className="block pb-0.5" style={POP_LBL}>Price</span>
-            <input type="number" inputMode="decimal" value={p.priceSqft} placeholder="0.00" style={{ ...fieldStyle, fontWeight: 700 }}
-              onChange={(e) => onPatch(editPrice(p, e.target.value))} className={POP_FIELD} title={`What the customer pays per ${unit} — the estimate's price`} />
-          </label>
-        </div>
-        {/* The label sits above rather than inline, and the row wraps: the
-            preset list is team-tunable in Settings, so a fourth or fifth button
-            takes a second line instead of shrinking the others to nothing. */}
-        <div>
-          <span className="block pb-1" style={POP_LBL}>Markup</span>
-          <div className="flex items-center flex-wrap" style={{ gap: 4 }}>
-          {markups.map((v) => {
-            const on = fnum(pct) === v && pct !== "";
-            return (
-              <button key={v} onClick={() => onPatch(editMarkup(p, v))} title={`Price at cost + ${v}%`}
-                className={`shrink-0 rounded-full border font-semibold ${on ? "border-transparent" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}
-                style={{ fontSize: 11, padding: "3px 8px", ...(on ? { background: "var(--ft-brand)", color: "#fff" } : null) }}>+{v}%</button>
-            );
-          })}
-          <span className="shrink-0 flex items-center rounded border border-slate-200" style={{ background: "var(--ft-field)" }}>
-            <input type="number" inputMode="decimal" value={pct} placeholder="—" onChange={(e) => onPatch(editMarkup(p, e.target.value))}
-              className="ft-mono ft-num text-right" title="Any other markup"
-              style={{ width: 34, background: "transparent", border: 0, outline: "none", fontSize: 11, padding: "3px 1px" }} />
-            <span className="pr-1" style={{ fontSize: 10, color: "var(--ft-faint)" }}>%</span>
-          </span>
-          </div>
-        </div>
-        <div className="flex items-center justify-between border-t border-slate-100" style={{ fontSize: 10.5, paddingTop: 5 }}>
-          {m ? (
-            <span style={{ color: m.amount < 0 ? "#dc2626" : "var(--ft-muted)" }}>
-              {m.amount < 0 ? "Below cost — " : "Margin "}<b>{money(m.amount)}</b>/{unit} · {m.pct}%
-            </span>
-          ) : (
-            <span style={{ color: "var(--ft-faint)" }}>Enter a cost for the margin</span>
-          )}
-          <span style={{ color: "var(--ft-faint)" }}>Enter ↵</span>
-        </div>
-      </div>
-    </div>, document.body);
+    </SearchPop>
+  );
 }
 
 // Price cell under a non-retail tier: the tier-adjusted price takes the
@@ -190,6 +166,8 @@ function PriceCostPop({ p, unit, markups, onPatch, onClose, anchorRef }) {
 export function GridPriceCell({ p, tier, tierPrice, noCost, onPatch, title, tabIndex, unit = "sf", markups = MARKUP_PRESETS }) {
   const [pop, setPop] = useState(false);
   const anchorRef = useRef(null);
+  const stackRef = useRef(null);
+  const costRef = useRef(null);
   // Closing hands the caret back to the price cell so Tab carries on down the
   // row; the guard stops that refocus from re-opening the popup it just closed.
   const skip = useRef(false);
@@ -201,18 +179,28 @@ export function GridPriceCell({ p, tier, tierPrice, noCost, onPatch, title, tabI
     anchorRef.current.focus();
     requestAnimationFrame(() => { skip.current = false; });
   };
+  // While the popup is up: Tab leaves (closing it), Shift+Tab goes back to the
+  // cost, Enter closes in place.
+  const keys = (e) => {
+    if (!pop) return;
+    if (e.key === "Tab" && e.shiftKey) { e.preventDefault(); costRef.current?.focus(); costRef.current?.select(); }
+    else if (e.key === "Tab") close(false);
+    else if (e.key === "Enter") { e.preventDefault(); close(true); }
+  };
   const costed = fnum(p.costSqft) > 0;
   const hint = costed ? `${title} — cost ${money(fnum(p.costSqft))}/${unit}, click for cost & markup` : `${title} — click for cost & markup`;
-  const popup = pop && <PriceCostPop p={p} unit={unit} markups={markups} onPatch={onPatch} onClose={close} anchorRef={anchorRef} />;
-  if (tierPrice == null && !noCost) return (<>
+  const tiered = tierPrice != null || noCost;
+  const popup = pop && <PriceCostPop p={p} unit={unit} markups={markups} onPatch={onPatch} onClose={close} boxRef={tiered ? stackRef : anchorRef} priceRef={anchorRef} costRef={costRef} />;
+  if (!tiered) return (<>
     <input ref={anchorRef} type="number" tabIndex={tabIndex} value={p.priceSqft} onChange={(e) => onPatch(editPrice(p, e.target.value))}
-      onFocus={open} onClick={open} data-c="price" className="ft-cell text-right" placeholder="0.00" title={hint}
-      style={costed ? { boxShadow: "inset 2px 0 0 var(--ft-brand)" } : undefined} />
+      onFocus={open} onClick={open} onKeyDown={keys} data-c="price" className="ft-cell ft-search text-right" placeholder="0.00" title={hint}
+      style={{ alignSelf: "stretch", ...(costed ? { boxShadow: "inset 2px 0 0 var(--ft-brand)" } : null) }} />
     {popup}
   </>);
   const color = TIER_COLOR[tier]?.main || "var(--ft-brand-deep)";
   return (
-    <div className="flex flex-col min-w-0 flex-1 self-stretch justify-center" style={{ gap: 1, padding: "2px 0" }}>
+    <div ref={stackRef} className="flex flex-col min-w-0 flex-1 self-stretch justify-center cursor-pointer" style={{ gap: 1, padding: "2px 0" }}
+      onMouseDown={(e) => { if (e.target === anchorRef.current) return; e.preventDefault(); anchorRef.current?.focus(); open(); }}>
       {noCost ? (
         <div className="text-right font-bold" style={{ fontSize: 10.5, padding: "3px 4px 0", color: "#dc2626" }} title="No vendor cost on this line — Employee can't compute cost + 6%, so it stays at the retail price below. Click the retail field to enter one.">Retail</div>
       ) : (
@@ -220,7 +208,7 @@ export function GridPriceCell({ p, tier, tierPrice, noCost, onPatch, title, tabI
       )}
       <div className="flex items-center justify-end" style={{ gap: 2, padding: "0 4px 2px" }}>
         <span style={{ fontSize: 8.5, color: "var(--ft-faint)" }}>retail</span>
-        <input ref={anchorRef} type="number" tabIndex={tabIndex} value={p.priceSqft} onChange={(e) => onPatch(editPrice(p, e.target.value))} onFocus={open} onClick={open} data-c="price" className="ft-cell text-right" style={{ width: 40, flex: "none", fontSize: 9, padding: "1px 2px", color: "var(--ft-muted)" }} placeholder="0.00" title={noCost ? `${hint} — the estimate uses this retail price (no cost on the line)` : `${hint} — stored retail; the ${TIER_LONG[tier]?.toLowerCase()} price above derives from it`} />
+        <input ref={anchorRef} type="number" tabIndex={tabIndex} value={p.priceSqft} onChange={(e) => onPatch(editPrice(p, e.target.value))} onFocus={open} onClick={open} onKeyDown={keys} data-c="price" className="ft-cell ft-search text-right" style={{ width: 40, flex: "none", fontSize: 9, padding: "1px 2px", color: "var(--ft-muted)" }} placeholder="0.00" title={noCost ? `${hint} — the estimate uses this retail price (no cost on the line)` : `${hint} — stored retail; the ${TIER_LONG[tier]?.toLowerCase()} price above derives from it`} />
       </div>
       {popup}
     </div>
@@ -303,11 +291,11 @@ const OVER_RED = "#dc2626";
 export function GridProductBox({ value, stock, onChange, onPick, searchOrder, bookName, placeholder = "Product…", inputRef, budget = Infinity, descLimit = 0, strictness, fallback }) {
   const [open, setOpen] = useState(false);
   const [twoLine, setTwoLine] = useState(false);
-  const wrapRef = useRef(null);
+  const fieldRef = useRef(null);
   const panelRef = useRef(null);
   const mirrorRef = useRef(null);
   const { results: matches, near, pending } = useMergedResults(open, stock, value, searchOrder, strictness, fallback);
-  const pos = useAnchoredPanel(open, wrapRef, panelRef, () => setOpen(false));
+  const pos = useAnchoredPanel(open, fieldRef, panelRef, () => setOpen(false));
   // Measured, not guessed, so the single/two-line toggle survives any column
   // width — single-line text keeps today's centered look. scrollHeight includes
   // the mode's own padding, so subtract it or a shrink could never toggle back.
@@ -321,8 +309,8 @@ export function GridProductBox({ value, stock, onChange, onPick, searchOrder, bo
     whiteSpace: "pre-wrap", wordBreak: "break-word", overflow: "hidden",
   };
   return (
-    <div ref={wrapRef} className="relative flex-1 min-w-0 self-stretch flex items-center">
-      <div className="relative w-full" style={{ minHeight: CELL_LINE + 12, maxHeight: 2 * CELL_LINE + 6 }}>
+    <div className="relative flex-1 min-w-0 self-stretch flex items-center">
+      <div ref={fieldRef} className="relative w-full" style={{ minHeight: CELL_LINE + 12, maxHeight: 2 * CELL_LINE + 6 }}>
         {/* zIndex 1: the mirror paints ABOVE the textarea — the focused cell's
             opaque .ft-cell:focus background would otherwise hide the glyphs.
             Caret, selection and focus ring show through its transparent body.
@@ -340,7 +328,7 @@ export function GridProductBox({ value, stock, onChange, onPick, searchOrder, bo
           onChange={(e) => { onChange(e.target.value.replace(/\r?\n/g, " ")); setOpen(true); }}
           onKeyDown={(e) => { if (e.key === "Escape" && open && matches.length) { e.preventDefault(); setOpen(false); } if (e.key === "Enter" && open && matches.length && e.altKey) { e.preventDefault(); onPick(matches[0]); setOpen(false); } }}
           onScroll={(e) => { if (mirrorRef.current) mirrorRef.current.scrollTop = e.target.scrollTop; }}
-          data-c="product" className={`ft-cell font-bold ${value ? "" : "ft-field"}`} placeholder={placeholder}
+          data-c="product" className={`ft-cell ft-search font-bold ${value ? "" : "ft-field"}`} placeholder={placeholder}
           style={{ ...text, position: "absolute", inset: 0, height: "100%", resize: "none", color: "transparent", caretColor: "var(--ft-text)" }}
           title="Brand / color — or search the price book and pick a match to fill the row" />
         {over && descLimit > 0 && (
@@ -351,7 +339,7 @@ export function GridProductBox({ value, stock, onChange, onPick, searchOrder, bo
         )}
       </div>
       {open && pos && (matches.length > 0 || pending) && (
-        <SearchPop pos={pos} box={searchPanelBox(pos)} fieldRef={wrapRef} panelRef={panelRef} className="flex flex-col overflow-hidden">
+        <SearchPop pos={pos} box={searchPanelBox(pos)} fieldRef={fieldRef} panelRef={panelRef} className="flex flex-col overflow-hidden">
           {pending && <SearchingBar />}
           {near && <NearMatchNote />}
           {pending && matches.length === 0 && <div className="px-2.5 py-1.5 text-[11px] text-slate-400">Searching the order books…</div>}
@@ -454,7 +442,7 @@ export function GridOmniSearch({ stock, stockReady, query, onQuery, onPick, onPi
   return (
     <div ref={wrapRef} className="relative flex-1 min-w-0 self-stretch flex" onDoubleClick={goManual}>
       <input ref={inputRef} value={query} onChange={(e) => { onQuery(e.target.value); setOpen(true); setHi(0); }} onFocus={() => { committedRef.current = false; setOpen(true); }} onBlur={onBlur}
-        onKeyDown={onKey} data-c="product" className="ft-cell ft-field font-bold" placeholder="Search SKU or product…  (double-click to type by hand)"
+        onKeyDown={onKey} data-c="product" className="ft-cell ft-field ft-search font-bold" placeholder="Search SKU or product…  (double-click to type by hand)"
         title="Search the price book by SKU or product name, then pick a match to fill the whole row. Shift-click to add several. Double-click to enter a product by hand." />
       {panelShowing && pos && (
         <SearchPop pos={pos} box={searchPanelBox(pos)} fieldRef={wrapRef} panelRef={panelRef} className="flex flex-col overflow-hidden">

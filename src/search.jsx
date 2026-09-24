@@ -195,7 +195,7 @@ export function StockSearch({ stock, onPick, inp, placeholder = "Search the pric
     <div ref={wrapRef} className="relative mb-1.5">
       <input value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
         onKeyDown={(e) => { if (e.key === "Enter" && results.length) { e.preventDefault(); pick(results[0]); } if (e.key === "Escape" && open && results.length) { e.preventDefault(); setOpen(false); } }}
-        className={inp} placeholder={placeholder} />
+        className={inp + " ft-search"} placeholder={placeholder} />
       {open && pos && results.length > 0 && (
         <SearchPop pos={pos} fieldRef={wrapRef} panelRef={panelRef} className="flex flex-col">
           <div className="max-h-60 min-h-0 overflow-y-auto">
@@ -240,7 +240,7 @@ export function SeriesSearch({ stock, itemsByBook, bookName = () => "book", onPi
           if (e.key === "Enter" && (series.length || results.length)) { e.preventDefault(); series.length ? pickSeries(series[0]) : pickRow(results[0]); }
           if (e.key === "Escape" && open && (series.length || results.length || q.trim().length >= 2)) { e.preventDefault(); setOpen(false); }
         }}
-        className={inp} placeholder={placeholder} />
+        className={inp + " ft-search"} placeholder={placeholder} />
       {open && pos && (series.length > 0 || results.length > 0 || q.trim().length >= 2) && (
         <SearchPop pos={pos} fieldRef={wrapRef} panelRef={panelRef} className="flex flex-col">
           <div className="max-h-72 min-h-0 overflow-y-auto">
@@ -294,7 +294,7 @@ export function FamilySearch({ families, onPick, inp }) {
     <div ref={wrapRef} className="relative flex-1 min-w-0">
       <input value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
         onKeyDown={(e) => { if (e.key === "Enter" && matches.length) { e.preventDefault(); pick(matches[0]); } if (e.key === "Escape" && open && matches.length) { e.preventDefault(); setOpen(false); } }}
-        className={inp} placeholder="Link colors — search the book's grout & caulk families…" />
+        className={inp + " ft-search"} placeholder="Link colors — search the book's grout & caulk families…" />
       {open && pos && matches.length > 0 && (
         <SearchPop pos={pos} fieldRef={wrapRef} panelRef={panelRef} className="overflow-y-auto" style={{ maxHeight: Math.min(240, pos.maxH) }}>
           {matches.map((f) => (

@@ -174,7 +174,17 @@ src/
                     # builder/address/label-SKU lookups): one outline around
                     # field + results, the top row see-through so typing stays
                     # in the real field; useAnchoredPanel's pos carries the
-                    # field rect (ft/fb/h) it needs.
+                    # field rect (ft/fb/h) it needs. Its field wears
+                    # `.ft-search` (ink focus line, not the moss ring); the box
+                    # mounts field-sized and grows like MorphSelect, and on
+                    # unmount an inert DOM clone plays the fold (foldAway).
+                    # Speeds: --ft-spop-in / --ft-spop-out (index.css).
+                    # The anchor may be a plain button or cell (type chip,
+                    # order cell, ⋯ cell): `lead`/`trail` fill its row, the
+                    # outline fades in. `PointPop` — `.ft-pop` at a point
+                    # (right-click menus) that folds away on unmount.
+                    # `PopMenu` — an option menu that grows from `at.anchor`
+                    # or opens at `at.x/y` (customer + area menus).
                     # Row order: Stock only · Clear design | price · basket · X.
                     # `KitOverwriteConfirm` (2026-09-02, ADR 0035 amendment) —
                     # the kit-card confirm both popups raise over customized
@@ -198,7 +208,10 @@ src/
                     # `FamilySearch`, hit rows, merged-results hooks
                     # (useMergedResults hands rankMerged the WHOLE stock
                     # cache as its twin index, not just the matches)
-  grid.jsx          # selection-grid cells: `TypeSelect`, `GridPriceCell`,
+  grid.jsx          # selection-grid cells: `TypeSelect`, `GridPriceCell`
+                    # (its cost & markup popup is the price cell grown on
+                    # SearchPop's `lead` slot: cost left of the live price
+                    # cell, presets 2×2 below; Tab cost → price → out),
                     # `GridSizeInput`, `GridProductBox`, `GridOmniSearch`,
                     # `UnitPick` (issue 138) — the SF/CT · PC/CT · EA tag as a
                     # select writing the row's cartonUnit / sellUnit, shared

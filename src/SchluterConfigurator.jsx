@@ -11,7 +11,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Plus, Eye, Printer, Copy } from "lucide-react";
-import { useEscClose, SourceSwitch, NumIn, KitBasketPanel, KitOverwriteConfirm, HelpTip, PriceLevelMenu, BasketButton, FLAT_BTN, MorphSelect } from "./widgets.jsx";
+import { useEscClose, SourceSwitch, NumIn, KitBasketPanel, KitOverwriteConfirm, HelpTip, PriceLevelMenu, BasketButton, FLAT_BTN, MorphSelect, PopMenu, PointPop } from "./widgets.jsx";
 import { PaneBack, PaneClose } from "./raildrawer.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
@@ -271,6 +271,7 @@ const CSS = `
 .sch-pop .ptable .mark{font-size:9.5px;font-weight:700;color:var(--ft-brand-deep);background:var(--ft-brand-soft);border-radius:4px;padding:1px 6px;white-space:nowrap}
 .sch-pop .ptable .mark.part{color:var(--ft-faint);background:var(--ft-sand)}
 .sch-swap{position:fixed;z-index:90;background:var(--ft-card);color:var(--ft-text);border:1.5px solid var(--ft-text);border-radius:.5rem;box-shadow:0 12px 28px -12px rgba(28,26,23,.45);animation:ft-pop-down 240ms cubic-bezier(.2,.8,.2,1);width:300px;max-height:340px;overflow-y:auto;padding:6px;font-family:var(--ft-ui)}
+.sch-swap.sch-grown{position:static;z-index:auto;border:0;border-radius:0;box-shadow:none;animation:none;width:auto}
 .sch-swap .ph{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.11em;color:var(--ft-muted);padding:6px 8px 4px}
 .sch-swap .srow{display:flex;align-items:center;gap:8px;width:100%;border:none;background:none;padding:6px 8px;border-radius:6px;cursor:pointer;text-align:left}
 .sch-swap .srow:hover{background:var(--ft-tint)}
@@ -1530,7 +1531,7 @@ export default function SchluterConfigurator({
                       </div>
                       {swapChoices(l) && (
                         <button className="swapb" title="swap" data-schluter-swapb={e.sku}
-                          onClick={(ev) => setSwap({ key: e.sku || e.name, rect: ev.currentTarget.getBoundingClientRect() })}>⇄</button>
+                          onClick={(ev) => setSwap({ key: e.sku || e.name, rect: ev.currentTarget.getBoundingClientRect(), anchor: ev.currentTarget.closest(".bline") })}>⇄</button>
                       )}
                       {!l.noteOnly && (
                         <div className="stepper">
@@ -1567,12 +1568,12 @@ export default function SchluterConfigurator({
                 return (<>
                   <button className={"addchip" + (benches.length ? " on" : "")} data-schluter-benchchip
                     title="benches — 2″ build-up, installer-framed, or the premade SB pieces; a pick lands on the next open wall or corner"
-                    onClick={(e) => setPicker((p) => (p ? null : { key: "bench", x: e.clientX, y: e.clientY }))}>
+                    onClick={(e) => { const anchor = e.currentTarget; setPicker((p) => (p ? null : { key: "bench", x: e.clientX, y: e.clientY, anchor })); }}>
                     {(benches.length ? "✓ " : "+ ") + "Bench" + (benches.length > 1 ? " ×" + benches.length : "")}</button>
                   {niches.length > 0 && (
                     <button className={"addchip" + (nicheOn ? " on" : "")} data-schluter-nichechip
                       title="wall niches — the chip opens the size picker"
-                      onClick={(e) => setPicker((p) => (p ? null : { key: "niche", x: e.clientX, y: e.clientY }))}>
+                      onClick={(e) => { const anchor = e.currentTarget; setPicker((p) => (p ? null : { key: "niche", x: e.clientX, y: e.clientY, anchor })); }}>
                       {(nicheOn ? "✓ " : "+ ") + "Niche" + (nicheOn > 1 ? " ×" + nicheOn : "")}</button>
                   )}
                   {rest.map((x) => {
@@ -1765,8 +1766,8 @@ export default function SchluterConfigurator({
       top: Math.min(window.innerHeight - 180, wallMenu.y + 4),
       left: Math.min(window.innerWidth - 292, Math.max(12, wallMenu.x - 120)),
     };
-    return createPortal(
-      <div className="sch-swap sch-wallmenu" style={style} data-schluter-wallmenu
+    return (
+      <PointPop plain className="sch-swap sch-wallmenu" style={style} data-schluter-wallmenu
         onClick={(e) => e.stopPropagation()} onContextMenu={(e) => e.preventDefault()}>
         <div className="ph">{label} — {sfOfWall(len, hh, faces).toFixed(1)} sf{facesTag(faces)}</div>
         <div className="wm-row">
@@ -1835,7 +1836,8 @@ export default function SchluterConfigurator({
             <button className="wm-del" onClick={geom(() => { setXwalls((xs) => xs.filter((x) => x.id !== xid)); setWallMenu(null); })}>Remove</button>
           )}
         </div>
-      </div>, document.body);
+      </PointPop>
+    );
   })();
 
   // The bench menu (the wedi issue-069 idiom): everything about the zone's
@@ -1876,8 +1878,8 @@ export default function SchluterConfigurator({
         ? `the options re-rank for the clear ${inches(t.w)}×${inches(t.d)} — the drain chases its centre unless pinned`
         : `the tray stays as picked and cuts to ${inches(t.w)}×${inches(t.d)} at the bench face — "Smaller tray" re-ranks for the clear space`;
     })();
-    return createPortal(
-      <div className="sch-swap sch-wallmenu sch-benchmenu" style={style} data-schluter-benchmenu
+    return (
+      <PointPop plain className="sch-swap sch-wallmenu sch-benchmenu" style={style} data-schluter-benchmenu
         onClick={(e) => e.stopPropagation()} onContextMenu={(e) => e.preventDefault()}>
         <div className="ph">{title}</div>
         {!row ? (<>
@@ -1962,7 +1964,8 @@ export default function SchluterConfigurator({
             <button className="wm-del" onClick={del} data-schluter-bench-del>Remove bench</button>
           </div>
         </>)}
-      </div>, document.body);
+      </PointPop>
+    );
   })();
 
   // The Niche and Bench chips' pickers: every choice in one list — the wedi
@@ -1990,8 +1993,9 @@ export default function SchluterConfigurator({
         // worked (owner rule 2026-08-24)
         setTab("custom");
       });
-      return createPortal(
-        <div className="sch-swap sch-picker sch-benchmenu" style={style} data-schluter-picker onClick={(e) => e.stopPropagation()}>
+      return (
+        <PopMenu at={{ anchor: picker.anchor, x: style.left, y: style.top }} width={300} z={90} onClose={() => setPicker(null)}>
+          <div className="sch-swap sch-picker sch-benchmenu sch-grown" data-schluter-picker onClick={(e) => e.stopPropagation()}>
           <div className="ph">Benches <HelpTip className="align-middle ml-1" w={260} tip={BENCH_PICK_TIP} /></div>
           {benches.map((b2) => {
             const nb = normBench(b2, cfg, cat);
@@ -2053,11 +2057,14 @@ export default function SchluterConfigurator({
               })}
             </>);
           })()}
-        </div>, document.body);
+        </div>
+      </PopMenu>
+    );
     }
     const list = pool(cat.filter((i) => i.g === "extra" && i.extra === "niche")).sort(byShelf);
-    return createPortal(
-      <div className="sch-swap sch-picker" style={style} data-schluter-picker onClick={(e) => e.stopPropagation()}>
+    return (
+      <PopMenu at={{ anchor: picker.anchor, x: style.left, y: style.top }} width={300} z={90} onClose={() => setPicker(null)}>
+        <div className="sch-swap sch-picker sch-grown" data-schluter-picker onClick={(e) => e.stopPropagation()}>
         <div className="ph">Niches <HelpTip className="align-middle ml-1" w={220} tip={NICHE_PICK_TIP} /></div>
         {list.map((e) => {
           const n = qtyIn(e.sku);
@@ -2070,7 +2077,9 @@ export default function SchluterConfigurator({
             </button>
           );
         })}
-      </div>, document.body);
+      </div>
+      </PopMenu>
+    );
   })();
 
   // The ⇄ swap popover — the wedi anchored panel: the line's alternatives,
@@ -2082,10 +2091,9 @@ export default function SchluterConfigurator({
     const ch = swapChoices(line);
     if (!ch) return null;
     const r = swap.rect;
-    const style = { top: Math.min(window.innerHeight - 356, r.bottom + 6), left: Math.max(12, r.right - 300) };
-    return createPortal(
-      <div className="sch-swap sch-swappanel" style={style} onClick={(e) => e.stopPropagation()}>
-        <div className="ph">{ch.title}</div>
+    return (
+      <PopMenu at={{ anchor: swap.anchor, x: r.right - 300, y: r.bottom + 6 }} width={280} pad={8} z={90} onClose={() => setSwap(null)}>
+        <div className="sch-swap sch-swappanel sch-grown" onClick={(e) => e.stopPropagation()}>
         {ch.list.map((e) => (
           <button key={e.sku} className={"srow" + (e.sku === line.item.sku ? " on" : "") + (e.stock ? " stk" : "")}
             onClick={() => { ch.set(e.sku); setSwap(null); }} data-schluter-swaprow={e.sku}>
@@ -2094,7 +2102,9 @@ export default function SchluterConfigurator({
             <span className="p">{fm(tierOf(e))}</span>
           </button>
         ))}
-      </div>, document.body);
+      </div>
+      </PopMenu>
+    );
   })();
 
   // Kit row over customized work: confirm before wiping it (the wedi

@@ -88,7 +88,7 @@ function SkuLookup({ stock, onPick, onBulk, placeholder = "Search SKU or name to
     <div ref={wrapRef} className="relative mb-1">
       <Search size={15} className="absolute left-2.5 top-2.5 text-slate-400" />
       <input value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)}
-        className={inp + " pl-8"} placeholder={placeholder} />
+        className={inp + " pl-8 ft-search"} placeholder={placeholder} />
       {open && pos && results.length > 0 && (
         <SearchPop pos={pos} fieldRef={wrapRef} panelRef={panelRef} className="overflow-y-auto" style={{ maxHeight: Math.min(256, pos.maxH) }}>
           {results.map((it) => (

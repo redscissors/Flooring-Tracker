@@ -1,0 +1,160 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Price popup grows from the cell</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--card:#fff;--ink:#1C1A17;--muted:#57534C;--faint:#8A8378;--brand:#57703A;--border:rgba(28,26,23,.10);--strong:rgba(28,26,23,.25);--row-line:#ECE8DC;--grid-line:rgba(28,26,23,.34);--area-head:#E7E3D6;--area-row:#F6F3EC;--cream:#F6F3EC;--ease:cubic-bezier(.2,.8,.2,1);--in:240ms;--out:200ms}
+*{box-sizing:border-box}
+body{margin:0;padding:24px;background:var(--cream);font-family:Manrope,system-ui,sans-serif;color:var(--ink)}
+h1{font-size:20px;margin:0 0 4px}h2{font-size:14px;margin:34px 0 4px}p.d{font-size:12.5px;color:var(--muted);margin:0 0 12px;max-width:820px;line-height:1.45}
+.wrap{max-width:900px;position:relative}
+.g{display:grid;grid-template-columns:24px 2.75fr .6fr .5fr .75fr .7fr 34px;font-size:12px;font-weight:600;background:var(--area-row);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.h{background:var(--area-head);font-size:8px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);border-radius:8px 8px 0 0;border-bottom:0}
+.h>div{padding:5px 8px}
+.c{border-right:1px solid var(--row-line);display:flex;align-items:center;padding:0 8px;height:34px;white-space:nowrap;overflow:hidden}
+.r{justify-content:flex-end;text-align:right}
+.chip{width:16px;height:16px;border-radius:4px;background:#2E3B20;color:#fff;font-size:9px;display:flex;align-items:center;justify-content:center}
+.pc{padding:0;position:relative}
+.pc input{width:100%;height:100%;border:0;background:transparent;font:inherit;font-weight:700;text-align:right;padding:6px 8px;outline:none;border-radius:4px;box-shadow:inset 2px 0 0 var(--brand);cursor:pointer}
+.pc input:focus{outline:1.5px solid var(--ink);outline-offset:-1.5px;background:#fff;box-shadow:none}
+.pc input.hidden-ring:focus{outline-color:transparent}
+.stack{display:flex;flex-direction:column;align-items:flex-end;justify-content:center;width:100%;height:100%;padding:2px 4px;gap:1px;cursor:pointer}
+.stack .tp{font-size:11px;font-weight:800;color:#8a5a14}
+.stack .rt{font-size:8.5px;color:var(--faint);display:flex;gap:3px;align-items:center}
+.stack .rt input{width:40px;font-size:9px;padding:1px 2px;height:auto;box-shadow:none;color:var(--muted)}
+.tot{justify-content:flex-end;font-weight:800;background:color-mix(in oklab,#E7E3D6 55%,transparent)}
+/* the grown box */
+.box{position:fixed;z-index:50;border:1.5px solid var(--ink);border-radius:4px;overflow:hidden;pointer-events:none;display:flex;flex-direction:column;background:transparent;
+  transition:left var(--in) var(--ease),width var(--in) var(--ease),box-shadow var(--in) var(--ease)}
+.box.on{box-shadow:0 12px 28px -12px rgba(28,26,23,.45)}
+.head{display:flex;flex-shrink:0}
+.head .fill{flex:1;background:var(--card);display:flex;align-items:center;padding-left:9px;overflow:hidden;white-space:nowrap}
+.lbl{font-size:9px;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}
+.grow{display:grid;grid-template-rows:0fr;transition:grid-template-rows var(--in) var(--ease)}
+.box.on .grow{grid-template-rows:1fr}
+.grow>div{min-height:0;overflow:hidden;background:var(--card)}
+.rule{border-top:1px solid #d7d2c6;margin:0 8px}
+.body{pointer-events:auto;padding:8px 10px 9px;display:flex;flex-direction:column;gap:8px}
+.f{width:100%;font:inherit;font-size:13px;padding:4px 6px;border:1px solid #e6e1d6;border-radius:4px;text-align:right;font-family:ui-monospace,monospace}
+.f:focus{outline:1.5px solid var(--ink);outline-offset:-1.5px}
+.row{display:flex;align-items:flex-end;gap:6px}
+.row label{flex:1;min-width:0}.row .ar{font-size:11px;color:var(--faint);padding-bottom:6px}
+.chips{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+.chips button{font:inherit;font-size:11px;font-weight:700;padding:3px 8px;border-radius:99px;border:1px solid #e3ded2;background:#fff;color:var(--muted);cursor:pointer}
+.chips button.on{background:var(--brand);color:#fff;border-color:transparent}
+.chips .pct{display:flex;align-items:center;border:1px solid #e3ded2;border-radius:4px;font-size:11px}
+.chips .pct input{width:34px;border:0;outline:0;text-align:right;font:inherit;padding:3px 1px;background:transparent}
+.foot{display:flex;justify-content:space-between;border-top:1px solid #eee9de;padding-top:5px;font-size:10.5px;color:var(--muted)}
+.note{font-size:11px;color:var(--faint);margin-top:8px}
+.mk2{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.mk2 button{font:inherit;font-size:10.5px;font-weight:700;padding:2px 0;border-radius:99px;border:1px solid #e3ded2;background:#fff;color:var(--muted);cursor:pointer}
+.mk2 button.on{background:var(--brand);color:#fff;border-color:transparent}
+.mk2 .pct{display:flex;align-items:center;justify-content:flex-end;border:1px solid #e3ded2;border-radius:99px;font-size:10.5px;padding-right:7px}
+.mk2 .pct input{width:100%;min-width:0;border:0;outline:0;text-align:right;font:inherit;padding:2px 1px;background:transparent}
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:18px;max-width:900px}
+.cmp img{width:100%}
+.today{display:inline-block;margin-top:6px;border:1.5px solid var(--ink);border-radius:8px;background:#fff;box-shadow:0 12px 28px -12px rgba(28,26,23,.45);padding:8px 10px;width:268px;font-size:11px}
+.badge{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;background:var(--ink);color:#fff;border-radius:4px;padding:2px 6px;margin-right:6px;vertical-align:1px}
+.speed{font-size:12px;margin:10px 0 0}.speed button{font:inherit;font-weight:700;border:1px solid #d9d4c8;background:#fff;border-radius:6px;padding:3px 9px;margin-right:4px;cursor:pointer}.speed button.on{border-color:var(--ink)}
+</style></head><body>
+<div class="wrap">
+<h1>Price popup: grow out of the price cell</h1>
+<p class="d">Revised after the owner's notes: click (or tab into) a <b>price</b> cell, and the box grows out of it with Cost beside the price and the markups below.</p>
+<div class="speed">Speed: <button data-s="180,150">Quicker</button><button data-s="240,200" class="on">Current</button><button data-s="320,260">Softer</button></div>
+
+<h2><span class="badge">A2</span>Cost beside the price, markups below</h2>
+<p class="d">The price cell is the price box. <b>Cost</b> sits just left of it in the top row, and the caret starts there. <b>Tab</b> goes to the price and <b>Tab</b> again closes it and moves on down the row. A markup button sets the price and puts the caret on it, so Tab or Enter closes it. <b>Enter</b> closes from anywhere, and <b>Esc</b> or a click away closes it too. No margin line, no ✕, no hints.</p>
+<div class="g h"><div></div><div>Product</div><div>Size</div><div>Qty</div><div>Coverage</div><div style="text-align:right">Price /sf</div><div></div></div>
+<div class="g" style="border-radius:0 0 8px 8px">
+  <div class="c"><span class="chip">T</span></div><div class="c">Daltile Volume 1.0 Bone 12×24 Matte</div><div class="c">12×24</div><div class="c r">220</div><div class="c r">15.5 SF/CT</div>
+  <div class="c pc"><input value="4.29" data-price></div><div class="c"><input class="next" placeholder="next" style="width:100%;border:0;background:transparent;font:inherit;outline:none"></div>
+</div>
+
+<h2><span class="badge">A2</span>Under a non-retail tier (Builder)</h2>
+<p class="d">The whole two-line cell is the top row; Cost sits to its left the same way.</p>
+<div class="g h"><div></div><div>Product</div><div>Size</div><div>Qty</div><div>Coverage</div><div style="text-align:right">Price /sf</div><div></div></div>
+<div class="g" style="border-radius:0 0 8px 8px">
+  <div class="c"><span class="chip">T</span></div><div class="c">Arvora Glacier Matte 12×24</div><div class="c">12×24</div><div class="c r">140</div><div class="c r">15.5 SF/CT</div>
+  <div class="c pc" data-tier><div class="stack"><span class="tp">$4.64</span><span class="rt">retail <input value="5.10" data-price></span></div></div><div class="c">⋯</div>
+</div>
+
+<h2>Today, for comparison</h2>
+<p class="d">The box drops in below the cell and a little to the side, with its own Price field, and closes instantly.</p>
+<div class="today"><div class="lbl" style="margin-bottom:6px">Cost &amp; price per sf</div><div class="row"><label><div class="lbl">Cost</div><input class="f" value="2.35"></label><span class="ar">→</span><label><div class="lbl">Price</div><input class="f" value="4.29" style="font-weight:800"></label></div><div class="note">Markup · +30% +50% +100% · Margin $1.94/sf · 45.2%</div></div>
+<div style="height:320px"></div>
+</div>
+
+<script>
+const LEAD = 78, root = document.documentElement;
+document.querySelectorAll(".speed button").forEach((b) => b.onclick = () => {
+  const [i, o] = b.dataset.s.split(",");
+  root.style.setProperty("--in", i + "ms"); root.style.setProperty("--out", o + "ms");
+  document.querySelectorAll(".speed button").forEach((x) => x.classList.toggle("on", x === b));
+});
+let cur = null;
+const MK = [30, 50, 100];
+function open(cell) {
+  if (cur?.cell === cell) return;
+  close();
+  const input = cell.querySelector("[data-price]");
+  const r = cell.getBoundingClientRect();
+  const st = { cost: 2.35 };
+  const box = document.createElement("div");
+  box.className = "box";
+  const W = r.width + LEAD, left = Math.max(8, r.right - W), lead = r.left - left;
+  Object.assign(box.style, { left: r.left + "px", top: r.top + "px", width: r.width + "px" });
+  box.innerHTML = `<div class="head" style="height:${r.height - 3}px">
+      <div class="fill" data-fill style="flex:none;width:0;justify-content:flex-end;padding:0;transition:width var(--in) var(--ease)">
+        <label style="flex:none;width:${lead - 1.5}px;display:flex;align-items:center;gap:4px;padding:0 4px 0 7px;pointer-events:auto"><span class="lbl" style="font-size:8px">Cost</span><input class="f" data-cost value="2.35" style="flex:1;min-width:0;padding:2px 4px;font-size:11.5px"></label>
+      </div><div style="width:${r.width - 3}px;flex:none"></div><div style="flex:1;background:var(--card)"></div></div>
+    <div class="grow"><div><div class="rule"></div><div class="body" style="padding:6px 7px 7px"><div class="mk2">${MK.map((p) => `<button data-mk="${p}">+${p}%</button>`).join("")}<span class="pct"><input data-pct placeholder="—">%</span></div></div></div></div>`;
+  document.body.appendChild(box);
+  box.getBoundingClientRect();
+  input.classList.add("hidden-ring");
+  requestAnimationFrame(() => { box.classList.add("on"); Object.assign(box.style, { left: left + "px", width: W + "px" }); box.querySelector("[data-fill]").style.width = lead + "px"; });
+  const cost = box.querySelector("[data-cost]");
+  const mark = () => { const price = parseFloat(input.value) || 0; box.querySelectorAll("[data-mk]").forEach((b) => b.classList.toggle("on", Math.abs(st.cost * (1 + b.dataset.mk / 100) - price) < .005)); };
+  const setPct = (pct) => { input.value = (Math.round(st.cost * (1 + pct / 100) * 100) / 100).toFixed(2); mark(); };
+  box.querySelectorAll("[data-mk]").forEach((b) => b.onmousedown = (e) => { e.preventDefault(); setPct(+b.dataset.mk); box.querySelector("[data-pct]").value = ""; input.focus(); input.select(); });
+  const pct = box.querySelector("[data-pct]");
+  pct.oninput = () => { if (pct.value !== "") setPct(parseFloat(pct.value) || 0); };
+  cost.oninput = () => { st.cost = parseFloat(cost.value) || 0; mark(); };
+  const toPrice = (e) => { if (e.key === "Tab" && !e.shiftKey) { e.preventDefault(); input.focus(); input.select(); } else if (e.key === "Enter") { e.preventDefault(); close(true); input.focus(); } else if (e.key === "Escape") { e.preventDefault(); close(true); input.focus(); } };
+  cost.onkeydown = toPrice; pct.onkeydown = toPrice;
+  input.oninput = mark;
+  mark();
+  cur = { cell, box, input, cost };
+  cost.focus(); cost.select();
+}
+function close(keep) {
+  if (!cur) return;
+  const { box, input, cell } = cur; cur = null;
+  const r = cell.getBoundingClientRect();
+  const out = getComputedStyle(root).getPropertyValue("--out").trim();
+  const ease = "cubic-bezier(.4,0,.2,1)";
+  box.style.transition = `left ${out} ${ease},width ${out} ${ease},box-shadow ${out} ${ease},border-color ${out} ${ease}`;
+  box.querySelector(".grow").style.transition = `grid-template-rows ${out} ${ease}`;
+  box.querySelector("[data-fill]").style.transition = `width ${out} ${ease}`;
+  box.querySelector("[data-fill]").style.width = "0px";
+  box.querySelectorAll("*").forEach((n) => n.style.pointerEvents = "none");
+  box.classList.remove("on");
+  Object.assign(box.style, { left: r.left + "px", width: r.width + "px" });
+  if (!keep) box.style.borderColor = "transparent";
+  input.classList.remove("hidden-ring");
+  setTimeout(() => box.remove(), parseFloat(out) + 60);
+}
+document.querySelectorAll(".pc").forEach((cell) => {
+  const input = cell.querySelector("[data-price]");
+  const target = "tier" in cell.dataset ? cell : input;
+  target.addEventListener("mousedown", (e) => { if (cur?.cell === cell) return; e.preventDefault(); input.focus(); open(cell); });
+  input.addEventListener("keydown", (e) => {
+    if (cur?.cell !== cell) return;
+    if (e.key === "Tab" && e.shiftKey) { e.preventDefault(); cur.cost.focus(); cur.cost.select(); }
+    else if (e.key === "Tab") close(false);
+    else if (e.key === "Enter" || e.key === "Escape") { e.preventDefault(); close(true); }
+  });
+  input.addEventListener("focus", () => open(cell));
+});
+document.addEventListener("mousedown", (e) => { if (cur && !cur.box.contains(e.target) && !cur.cell.contains(e.target)) close(false); });
+addEventListener("scroll", () => close(false));
+</script>
+</body></html>

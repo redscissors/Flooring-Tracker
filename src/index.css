@@ -219,6 +219,13 @@ input::placeholder,textarea::placeholder{color:color-mix(in oklab, var(--ft-text
 @keyframes ft-pop-up{from{clip-path:inset(100% 0 0 0 round .5rem)}to{clip-path:inset(0 0 0 0 round .5rem)}}
 @media (prefers-reduced-motion: reduce){.ft-pop{animation:none;}}
 
+/* Search fields (SearchPop) focus in the dropdown's ink line, not the moss
+   ring, so the results box grows out of the same outline. An inset outline
+   covers a bordered input's own border and fits a borderless grid cell. */
+:root{--ft-spop-in:240ms;--ft-spop-out:200ms;}
+@media (prefers-reduced-motion: reduce){:root{--ft-spop-in:0ms;}}
+:root .ft-search:focus{outline:1.5px solid var(--ft-text);outline-offset:-1.5px;box-shadow:none;}
+
 /* App-shell height. 100vh on phones is the LARGE viewport (URL bar hidden), and
    the shell only scrolls inside <main>, so the browser chrome never collapses —
    a 100vh root keeps the bottom Area/Product/Print bar permanently cut off
@@ -491,5 +498,8 @@ input.ft-cell[type="number"],input.ft-num[type="number"]{-moz-appearance:textfie
 .ft-hbar .ft-hopt{font-size:10.5px;padding:1px 9px;min-height:16px;}
 .ft-tip{position:relative;}
 .ft-tip:hover::after{content:attr(data-tip);position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);background:var(--ft-text);color:var(--ft-cream);font-size:10.5px;font-weight:600;line-height:1.45;padding:8px 10px;border-radius:6px;width:132px;white-space:normal;text-align:left;z-index:60;pointer-events:none;box-shadow:0 6px 18px rgba(0,0,0,.18);}
+/* A mini button whose popover is open drops its hover card: the box grows
+   out of the button, and the card would sit on top of it. */
+.ft-tip[aria-expanded="true"]:hover::after{display:none;}
 .ft-nospin::-webkit-outer-spin-button,.ft-nospin::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
 .ft-nospin{-moz-appearance:textfield;appearance:textfield;}
