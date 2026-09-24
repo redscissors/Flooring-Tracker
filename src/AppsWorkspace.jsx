@@ -1,11 +1,10 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { X, Search, Plus, Trash2, Printer, Eye, EyeOff, GripVertical, ChevronLeft } from "lucide-react";
+import { Search, Plus, Trash2, Printer, Eye, EyeOff, GripVertical } from "lucide-react";
 import { LABEL_FIELDS, KIND_OF, VARIANT_KEYS, newDraftFromPreset, normPreset, stockToLabelFields, perLetterSheet, sheetsForLabels, labelCardHTML, clampSize, isKeimHeader, isSpacer, clampSpace, newSpacerLine } from "./labels.js";
 import { searchStock } from "./stock.js";
 import { stampKit } from "./model.js";
 import { HelpTip } from "./widgets.jsx";
 import SheogaConfigurator from "./SheogaConfigurator.jsx";
-import { DOCK_FRAME_W } from "./sheoga.js";
 import keimLogo from "./assets/keim-logo-ink.png";
 
 // Lazy so the wedi tables stay in their own chunk (ADR 0026) — opening the hub
@@ -16,7 +15,7 @@ const SchluterConfigurator = lazy(() => import("./SchluterConfigurator.jsx"));
 const uid = () => "l" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 const surfaceColor = (s) => (s === "Wall" ? "#B5654A" : s === "Floor & Wall" ? "#7d6a8a" : "#5C6B73");
 const LABEL_OF = Object.fromEntries(LABEL_FIELDS.map((f) => [f.key, f.label]));
-const APP_NAME = { labels: "Label Generator", sheoga: "Sheoga configurator", wedi: "wedi configurator", schluter: "Schluter configurator" };
+const CONFIG_NAME = { sheoga: "Sheoga", wedi: "wedi", schluter: "Schluter" };
 const inp = "w-full border border-slate-200 rounded-md px-2.5 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400";
 
 // ── The dark label card, data-driven over `lines` (screen render) ──────────────
@@ -104,28 +103,7 @@ function SkuLookup({ stock, onPick, onBulk, placeholder = "Search SKU or name to
   );
 }
 
-export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onAddLabelsBulk, onUpdateLabel, onDeleteLabel, onSavePreset, sheoga, wedi, schluter, initialApp }) {
-  const [app, setApp] = useState(() => (initialApp && APP_NAME[initialApp] ? initialApp : "labels"));
-  // Below the breakpoint the 224px rail is width the open app needs more than
-  // the nav does — the configurators are three columns wide and pay for it in
-  // shrink. So the rail folds away into a "‹ Apps" button and comes back as an
-  // overlay drawer (the App.jsx mobile-sidebar pattern), which is also why
-  // picking an app closes it again.
-  // Sheoga's docked price grid outranks the rail (owner, 2026-09-04): on that
-  // app the rail also folds whenever the window can't hold grid + rail + build
-  // card beside a 224px nav, so the grid docks from ~1626px instead of ~1850.
-  const hubQuery = (a) => `(min-width: ${a === "sheoga" ? DOCK_FRAME_W + 224 + 40 : 1100}px)`;
-  const [wideHub, setWideHub] = useState(() => (typeof window !== "undefined" && window.matchMedia
-    ? window.matchMedia(hubQuery(app)).matches : true));
-  useEffect(() => {
-    const mq = window.matchMedia(hubQuery(app));
-    const on = () => setWideHub(mq.matches);
-    on();
-    mq.addEventListener("change", on);
-    return () => mq.removeEventListener("change", on);
-  }, [app]);
-  const [railOpen, setRailOpen] = useState(false);
-  const pickApp = (k) => { setApp(k); setRailOpen(false); };
+export function AppsWorkspace({ app, visible = true, onClose, resume = false, onResume, progressRef, stock, labels, presets, onAddLabel, onAddLabelsBulk, onUpdateLabel, onDeleteLabel, onSavePreset, sheoga, wedi, schluter }) {
   // Configurators (Apps hub): builds stage locally — nothing touches a real
   // project until the salesperson picks a destination. A commit request parks
   // its lines in `pending` (with the configurator's own commit handlers as
@@ -145,6 +123,37 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
   // literals every render, so an identity test misses after a re-render and a
   // moved entry stays staged.
   const setBasketFor = { sheoga: setSheogaBasket, wedi: setWediBasket, schluter: setSchluterBasket };
+  // In progress = staged basket entries, or any option changed since the
+  // configurator mounted (spec 2026-09-24). The first report is its opening
+  // state; StrictMode's repeat of it compares equal.
+  const firstCfg = useRef({});
+  const lastCfg = useRef({});
+  const [touched, setTouched] = useState({});
+  const cfgSeen = (k) => (cfg) => {
+    const j = JSON.stringify(cfg);
+    lastCfg.current[k] = j;
+    if (firstCfg.current[k] === undefined) firstCfg.current[k] = j;
+    else if (j !== firstCfg.current[k]) setTouched((t) => (t[k] ? t : { ...t, [k]: true }));
+  };
+  const basketOf = { sheoga: sheogaBasket, wedi: wediBasket, schluter: schluterBasket };
+  const inProgress = (k) => !!touched[k] || (basketOf[k]?.length || 0) > 0;
+  useEffect(() => { if (progressRef) progressRef.current = inProgress; });
+  // Configurators stay mounted once opened so a build survives a trip away;
+  // Start new remounts just that one by bumping its generation key.
+  const [visited, setVisited] = useState(() => new Set([app]));
+  const mounted = visited.has(app) ? visited : new Set(visited).add(app);
+  useEffect(() => { if (mounted !== visited) setVisited(mounted); });
+  const [gen, setGen] = useState({});
+  const startNew = (k) => {
+    setBasketFor[k]([]);
+    firstCfg.current[k] = undefined;
+    lastCfg.current[k] = undefined;
+    setTouched((t) => ({ ...t, [k]: false }));
+    setGen((g) => ({ ...g, [k]: (g[k] || 0) + 1 }));
+    onResume?.();
+  };
+  const shown = (k) => app === k && !resume;
+  const slot = (k) => (shown(k) ? "flex-1 min-h-0 flex flex-col" : "hidden");
   const requestCommit = (destKey, dest, lines, nextBasket) => {
     if (!lines || !lines.length) return;
     if (dest?.currentName) setPending({ destKey, dest, lines, nextBasket });
@@ -152,6 +161,8 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
   };
   const commitTo = (where, p) => {
     if (where === "current") p.dest.addToCurrent(p.lines); else p.dest.addToNew(p.lines);
+    firstCfg.current[p.destKey] = lastCfg.current[p.destKey];
+    setTouched((t) => (t[p.destKey] ? { ...t, [p.destKey]: false } : t));
     // Only a MOVE hands over a next basket (`[]` when it emptied it). A plain
     // Add passes nothing and must leave every staged entry standing.
     if (p.nextBasket && setBasketFor[p.destKey]) setBasketFor[p.destKey](p.nextBasket);
@@ -227,7 +238,7 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
     setDraft(newDraftFromPreset(presets.find((p) => p.id === draft.presetId) || first));
     setEditingId(null);
   };
-  const startNew = () => { setDraft(newDraftFromPreset(presets.find((p) => p.id === draft.presetId) || first)); setEditingId(null); };
+  const startNewLabel = () => { setDraft(newDraftFromPreset(presets.find((p) => p.id === draft.presetId) || first)); setEditingId(null); };
   const editLabel = (l) => { setDraft({ presetId: l.presetId, w: l.w, h: l.h, header: l.header, lines: l.lines.map((x) => ({ ...x })), fields: { ...l.fields }, twoVariant: !!l.twoVariant, fields2: { ...l.fields2 }, sku: l.sku }); setEditingId(l.id); };
   const saveAsPreset = () => {
     const name = window.prompt("Name this size preset:", "");
@@ -268,35 +279,23 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
   const previewLabel = { ...draft, id: "preview" };
 
   return (
-    <div className="print:hidden fixed inset-0 z-50 p-2 md:p-5" style={{ background: "rgba(20,15,10,.4)" }} onClick={onClose}>
-      <div className="relative bg-white rounded-2xl border border-slate-200 w-full h-full flex overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        {/* nav rail — a fixed column when there's room, a drawer when there isn't */}
-        {!wideHub && railOpen && <div className="absolute inset-0 z-30 bg-black/25" onClick={() => setRailOpen(false)} />}
-        <aside className={`w-56 shrink-0 border-r border-slate-200 bg-slate-50/50 flex flex-col ${wideHub
-          ? ""
-          : `absolute inset-y-0 left-0 z-40 shadow-xl transition-transform duration-200 ${railOpen ? "translate-x-0" : "-translate-x-full"}`}`}>
-          <div className="px-4 pt-4 pb-3 flex items-center justify-between">
-            <h3 className="ft-serif text-2xl">Apps</h3>
-            <button onClick={wideHub ? onClose : () => setRailOpen(false)} className="text-slate-400 hover:text-slate-600" title={wideHub ? "Close" : "Hide the app list"}><X size={18} /></button>
-          </div>
-          <nav className="px-2 space-y-0.5">
-            <button onClick={() => pickApp("labels")} className={`w-full flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-left ${app === "labels" ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>Label Generator</button>
-            {sheoga && <button onClick={() => pickApp("sheoga")} className={`w-full flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-left ${app === "sheoga" ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>Sheoga configurator</button>}
-            {wedi && <button onClick={() => pickApp("wedi")} className={`w-full flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-left ${app === "wedi" ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>wedi configurator</button>}
-            {schluter && <button onClick={() => pickApp("schluter")} className={`w-full flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-left ${app === "schluter" ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>Schluter configurator</button>}
-            <div className="w-full flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-slate-400">More coming soon</div>
-          </nav>
-        </aside>
-
-        {/* main */}
-        <div className="flex-1 flex flex-col min-w-0">
-          {!wideHub && (
-            <div className="flex items-center gap-2 px-2.5 py-1.5 border-b border-slate-200 bg-slate-50/50 shrink-0">
-              <button onClick={() => setRailOpen(true)} className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100" title="Back to the app list">
-                <ChevronLeft size={14} />Apps
-              </button>
-              <span className="text-xs font-semibold text-slate-500 truncate">{APP_NAME[app]}</span>
-              <button onClick={onClose} className="ml-auto text-slate-400 hover:text-slate-600" title="Close"><X size={17} /></button>
+    <div className="print:hidden relative h-full flex flex-col min-w-0 bg-white">
+      <div className="flex-1 min-h-0 flex flex-col">
+          {resume && CONFIG_NAME[app] && (
+            <div className="flex-1 overflow-y-auto p-6">
+              <div data-resume-prompt className="max-w-md mx-auto mt-10 rounded-xl border border-slate-200 bg-white p-5 shadow-[0_16px_36px_-20px_var(--ft-shadow)]">
+                <h3 className="ft-serif text-xl">Pick up your {CONFIG_NAME[app]} build?</h3>
+                <p className="text-sm text-slate-500 mt-1">You left one in progress when you clicked away.</p>
+                <div className="mt-3 rounded-md px-3 py-2 text-sm font-semibold" style={{ background: "var(--ft-brand-soft)" }}>
+                  {basketOf[app]?.length
+                    ? `${basketOf[app].length} build${basketOf[app].length === 1 ? "" : "s"} staged`
+                    : "Options changed, nothing staged yet"}
+                </div>
+                <div className="flex gap-2 mt-4">
+                  <button onClick={() => onResume?.()} className="text-sm font-semibold rounded-md bg-indigo-600 text-white px-3.5 py-1.5">Continue build</button>
+                  <button onClick={() => startNew(app)} className="text-sm font-semibold rounded-md border border-slate-200 px-3.5 py-1.5 hover:bg-slate-50">Start new</button>
+                </div>
+              </div>
             </div>
           )}
           {app === "labels" && (<>
@@ -416,7 +415,7 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
 
               <div className="flex gap-2 mt-2.5">
                 <button onClick={save} className="flex-1 bg-indigo-600 text-white rounded-md py-1.5 text-sm font-semibold hover:bg-indigo-700">{editingId ? "Save Changes" : "Save Label"}</button>
-                <button onClick={startNew} className="border border-slate-200 rounded-md px-4 text-sm font-semibold hover:bg-slate-50">New</button>
+                <button onClick={startNewLabel} className="border border-slate-200 rounded-md px-4 text-sm font-semibold hover:bg-slate-50">New</button>
               </div>
             </div>
 
@@ -463,7 +462,7 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
                         <LabelCard label={l} scale={Math.min(0.6, 120 / (l.w * 96))} />
                       </button>
                       {selected.has(l.id) && <div className="absolute -top-2 -left-2 w-5 h-5 rounded-full bg-indigo-600 text-white text-[11px] font-bold flex items-center justify-center">✓</div>}
-                      <button onClick={() => { if (editingId === l.id) startNew(); onDeleteLabel(l.id); }} className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-white border border-slate-200 text-red-500 opacity-0 group-hover:opacity-100 flex items-center justify-center" title="Delete"><Trash2 size={12} /></button>
+                      <button onClick={() => { if (editingId === l.id) startNewLabel(); onDeleteLabel(l.id); }} className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-white border border-slate-200 text-red-500 opacity-0 group-hover:opacity-100 flex items-center justify-center" title="Delete"><Trash2 size={12} /></button>
                     </div>
                   ))}
                 </div>
@@ -471,59 +470,70 @@ export function AppsWorkspace({ onClose, stock, labels, presets, onAddLabel, onA
             </div>
           </div>
           </>)}
-          {app === "sheoga" && sheoga && (
-            <SheogaConfigurator
-              embedded
-              markupDefault={sheoga.markupDefault}
-              ventMarkupDefault={sheoga.ventMarkupDefault}
-              basket={sheogaBasket}
-              onBasketChange={setSheogaBasket}
-              areaName={sheoga.currentName || "a new quick price"}
-              onAdd={(lines) => requestCommit("sheoga", sheoga, lines, null)}
-              onMove={(lines) => requestCommit("sheoga", sheoga, lines, null)}
-              onMoveEntries={(lines, nextBasket) => requestCommit("sheoga", sheoga, lines, nextBasket)}
-              onClose={() => { if (!pendingRef.current) setApp("labels"); }}
-            />
-          )}
-          {app === "wedi" && wedi && (
-            <Suspense fallback={null}>
-              <WediConfigurator
+          {mounted.has("sheoga") && sheoga && (
+            <div key={`sheoga-${gen.sheoga || 0}`} className={slot("sheoga")}>
+              <SheogaConfigurator
                 embedded
-                wediBuilderPct={wedi.builderPct}
-                schluterBuilderPct={wedi.schluterBuilderPct}
-                areaName={wedi.currentName || "a new quick price"}
-                projectName={wedi.currentName || ""}
-                stockRows={wedi.stockRows} bookStockReady={wedi.bookStockReady}
-                books={wedi.books} loadBookItems={wedi.loadBookItems}
-                mortars={wedi.mortars} mortarDefault={wedi.mortarDefault}
-                basket={wediBasket}
-                onBasketChange={setWediBasket}
-                onMoveEntries={(groups, nextBasket) => requestCommit("wedi", wedi, groups.flatMap((g) => stampKit(g.lines)), nextBasket)}
-                onAdd={(lines) => requestCommit("wedi", wedi, lines, null)}
-                onClose={() => { if (!pendingRef.current) setApp("labels"); }}
+                markupDefault={sheoga.markupDefault}
+                ventMarkupDefault={sheoga.ventMarkupDefault}
+                basket={sheogaBasket}
+                onBasketChange={setSheogaBasket}
+                areaName={sheoga.currentName || "a new quick price"}
+                onAdd={(lines) => requestCommit("sheoga", sheoga, lines, null)}
+                onMove={(lines) => requestCommit("sheoga", sheoga, lines, null)}
+                onMoveEntries={(lines, nextBasket) => requestCommit("sheoga", sheoga, lines, nextBasket)}
+                onConfigChange={cfgSeen("sheoga")}
+                escActive={visible && shown("sheoga")}
+                onClose={() => { if (!pendingRef.current) onClose?.(); }}
               />
-            </Suspense>
+            </div>
           )}
-          {app === "schluter" && schluter && (
-            <Suspense fallback={null}>
-              <SchluterConfigurator
-                embedded
-                schluterBuilderPct={schluter.builderPct}
-                wediBuilderPct={schluter.wediBuilderPct}
-                areaName={schluter.currentName || "a new quick price"}
-                projectName={schluter.currentName || ""}
-                stockRows={schluter.stockRows} bookStockReady={schluter.bookStockReady}
-                books={schluter.books} loadBookItems={schluter.loadBookItems}
-                mortars={schluter.mortars} mortarDefault={schluter.mortarDefault}
-                basket={schluterBasket}
-                onBasketChange={setSchluterBasket}
-                onMoveEntries={(groups, nextBasket) => requestCommit("schluter", schluter, groups.flatMap((g) => stampKit(g.lines)), nextBasket)}
-                onAdd={(lines) => requestCommit("schluter", schluter, lines, null)}
-                onClose={() => { if (!pendingRef.current) setApp("labels"); }}
-              />
-            </Suspense>
+          {mounted.has("wedi") && wedi && (
+            <div key={`wedi-${gen.wedi || 0}`} className={slot("wedi")}>
+              <Suspense fallback={null}>
+                <WediConfigurator
+                  embedded
+                  wediBuilderPct={wedi.builderPct}
+                  schluterBuilderPct={wedi.schluterBuilderPct}
+                  areaName={wedi.currentName || "a new quick price"}
+                  projectName={wedi.currentName || ""}
+                  stockRows={wedi.stockRows} bookStockReady={wedi.bookStockReady}
+                  books={wedi.books} loadBookItems={wedi.loadBookItems}
+                  mortars={wedi.mortars} mortarDefault={wedi.mortarDefault}
+                  basket={wediBasket}
+                  onBasketChange={setWediBasket}
+                  onMoveEntries={(groups, nextBasket) => requestCommit("wedi", wedi, groups.flatMap((g) => stampKit(g.lines)), nextBasket)}
+                  onAdd={(lines) => requestCommit("wedi", wedi, lines, null)}
+                  onConfigChange={cfgSeen("wedi")}
+                  escActive={visible && shown("wedi")}
+                  onClose={() => { if (!pendingRef.current) onClose?.(); }}
+                />
+              </Suspense>
+            </div>
           )}
-        </div>
+          {mounted.has("schluter") && schluter && (
+            <div key={`schluter-${gen.schluter || 0}`} className={slot("schluter")}>
+              <Suspense fallback={null}>
+                <SchluterConfigurator
+                  embedded
+                  schluterBuilderPct={schluter.builderPct}
+                  wediBuilderPct={schluter.wediBuilderPct}
+                  areaName={schluter.currentName || "a new quick price"}
+                  projectName={schluter.currentName || ""}
+                  stockRows={schluter.stockRows} bookStockReady={schluter.bookStockReady}
+                  books={schluter.books} loadBookItems={schluter.loadBookItems}
+                  mortars={schluter.mortars} mortarDefault={schluter.mortarDefault}
+                  basket={schluterBasket}
+                  onBasketChange={setSchluterBasket}
+                  onMoveEntries={(groups, nextBasket) => requestCommit("schluter", schluter, groups.flatMap((g) => stampKit(g.lines)), nextBasket)}
+                  onAdd={(lines) => requestCommit("schluter", schluter, lines, null)}
+                  onConfigChange={cfgSeen("schluter")}
+                  escActive={visible && shown("schluter")}
+                  onClose={() => { if (!pendingRef.current) onClose?.(); }}
+                />
+              </Suspense>
+            </div>
+          )}
       </div>
       {pending && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" style={{ background: "rgba(20,15,10,.5)" }} onClick={(e) => { e.stopPropagation(); setPending(null); }}>
