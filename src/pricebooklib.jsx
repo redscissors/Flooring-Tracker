@@ -24,7 +24,7 @@ import { readXlsxSheets, readPdfPages, looksPdf } from "./fileread.js";
 import { ClaudeMark, FlagForClaude, CLAUDE_CLAY } from "./claudeflag.jsx";
 import { bookSource } from "./claudeissues.js";
 import { Modal, HelpTip } from "./widgets.jsx";
-import { PaneBack, PaneClose } from "./raildrawer.jsx";
+import { PaneTitleBar } from "./raildrawer.jsx";
 import { InHouseColumn, PasteSignInPopover, FLAG_SEMANTICS, useVendorFetch, VendorFetchPage } from "./vendorpanel.jsx";
 import { VendorBookPage } from "./vendorbook.jsx";
 import { vendorBookFor, vendorBookSeed, sheogaMarkups } from "./vendorbook.js";
@@ -415,7 +415,7 @@ function ItemSearchCard({ pcts, setPct }) {
   );
 }
 
-export function PriceBookLibrary({ onClose, books, addBook, updateBook, confirmBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setBookItemIssue, addClaudeIssue, settings, setSettings, inp, lbl, types, typeLabels }) {
+export function PriceBookLibrary({ onClose, note, books, addBook, updateBook, confirmBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setBookItemIssue, addClaudeIssue, settings, setSettings, inp, lbl, types, typeLabels }) {
   const [vendorPending, setVendorPending] = useState(() => captureHandoff()); // bookmarklet hand-off (ADR 0019/0020)
   const [vendorSession, setVendorSession] = useState(() => captureHandoffSession()); // bare session grab (ADR 0019): unlock only
   const [sel, setSel] = useState("library"); // "library" | bookId
@@ -503,35 +503,26 @@ export function PriceBookLibrary({ onClose, books, addBook, updateBook, confirmB
   const inHouseCol = <InHouseColumn books={books} groups={vf.groups} bookStale={bookStale} onOpen={setSel} />;
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 md:p-6">
-      {/* Compact landing header (2026-08-14, .scratch/mockups/header-compact-
-          2026-08-14.html): the action row folded up into the title row, the
-          panels one control-height tall, and the standing-rule captions moved
-          behind HelpTips — the board starts a full panel row higher. */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2 min-w-0">
-          {onClose && <PaneBack onClick={onClose} />}
-          <h2 className="ft-serif text-xl">Price books</h2>
-          <HelpTip className="align-middle" tip={<>Every book in one place - grouped by portal sign-in.</>} />
-        </div>
-        <div className="flex items-center gap-2 shrink-0 flex-wrap">
-          {sel === "library" && (
-            <>
-              <PasteSignInPopover vf={vf} setupOpen={setupOpen} setSetupOpen={setSetupOpen} inp={inp} lbl={lbl} />
-              <button onClick={() => setAdding(true)} className="flex items-center gap-1.5 text-xs rounded-md border border-dashed border-slate-300 px-2.5 py-1 text-slate-500 hover:bg-slate-50"><Plus size={13} /> New book</button>
-            </>
-          )}
-          <label className="flex items-center gap-1.5 text-xs text-slate-500 whitespace-nowrap" title="Books not re-imported within this many days get an amber ‘stale’ flag. Vendors re-issue cost lists roughly quarterly.">
-            Stale after
-            <input type="number" min="1" value={settings.ops?.staleDays || ""} placeholder={String(DEFAULT_STALE_DAYS)} onChange={(e) => setStaleDays(e.target.value)} className="ft-field w-14 text-center rounded-md border border-slate-200 px-1.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
-            days
-          </label>
-          <button onClick={() => setHideCosts((v) => !v)} title="Mask cost & margin figures on screen" className={`flex items-center gap-1.5 text-xs rounded-md border px-2.5 py-1 ${hideCosts ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}>
-            {hideCosts ? <Lock size={13} /> : <Percent size={13} />} {hideCosts ? "Costs hidden" : "Hide costs"}
-          </button>
-          {onClose && <PaneClose onClick={onClose} />}
-        </div>
-      </div>
+    <div className="flex-1 min-h-0 flex flex-col">
+      <PaneTitleBar title="Price books" onClose={onClose}
+        tip={<HelpTip className="align-middle" tip={<>Every book in one place - grouped by portal sign-in.</>} />}>
+        {sel === "library" && (
+          <>
+            <PasteSignInPopover vf={vf} setupOpen={setupOpen} setSetupOpen={setSetupOpen} inp={inp} lbl={lbl} />
+            <button onClick={() => setAdding(true)} className="flex items-center gap-1.5 text-xs rounded-md border border-dashed border-slate-300 px-2.5 py-1 text-slate-500 hover:bg-slate-50"><Plus size={13} /> New book</button>
+          </>
+        )}
+        <label className="flex items-center gap-1.5 text-xs text-slate-500 whitespace-nowrap" title="Books not re-imported within this many days get an amber ‘stale’ flag. Vendors re-issue cost lists roughly quarterly.">
+          Stale after
+          <input type="number" min="1" value={settings.ops?.staleDays || ""} placeholder={String(DEFAULT_STALE_DAYS)} onChange={(e) => setStaleDays(e.target.value)} className="ft-field w-14 text-center rounded-md border border-slate-200 px-1.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+          days
+        </label>
+        <button onClick={() => setHideCosts((v) => !v)} title="Mask cost & margin figures on screen" className={`flex items-center gap-1.5 text-xs rounded-md border px-2.5 py-1 ${hideCosts ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}>
+          {hideCosts ? <Lock size={13} /> : <Percent size={13} />} {hideCosts ? "Costs hidden" : "Hide costs"}
+        </button>
+      </PaneTitleBar>
+    <div className="flex-1 overflow-y-auto p-4 md:p-6 md:pt-4">
+      {note}
 
       {/* Library landing header (price-books-header-redesign): the drop zone and
           the team-wide tier/markup settings (spec 2026-07-16) sit in three panels
@@ -664,6 +655,7 @@ export function PriceBookLibrary({ onClose, books, addBook, updateBook, confirmB
           </div>
         </Modal>
       )}
+    </div>
     </div>
   );
 }

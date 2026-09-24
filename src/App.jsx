@@ -54,7 +54,7 @@ import { LineMenu } from "./linemenu.jsx";
 import { LineWastePop, wasteTag, wasteTagTitle, takesWaste, POP_W } from "./linewaste.jsx";
 import { useLabels } from "./uselabels.js";
 import { railReducer, initialRail, layerOf, CONFIGURATOR_IDS } from "./railnav.js";
-import { RailSlide, DrawerList, APP_ITEMS, SETTINGS_ITEMS, PaneHeader } from "./raildrawer.jsx";
+import { RailSlide, DrawerList, APP_ITEMS, SETTINGS_ITEMS, PaneTitleBar } from "./raildrawer.jsx";
 import { useVersions } from "./useversions.js";
 import { useJobShowers } from "./usejobshowers.js";
 import { SfPartsMenu, SfPartsChips } from "./SfPartsMenu.jsx";
@@ -2613,16 +2613,10 @@ export default function App({ user, onSignOut }) {
         {/* Customers, Apps and Settings open here, over the still-mounted
             project (spec 2026-09-24). AppsWorkspace stays mounted after its
             first pick so a configurator build survives a trip away. Each page
-            carries its own back caret + X; only the Label Generator, pending
-            its redesign, keeps the breadcrumb bar. */}
+            carries its own title bar; the Label Generator's is drawn here. */}
         <div className={railNav.pane ? "absolute inset-0 z-20 flex flex-col bg-white" : "hidden"} style={zoomStyle}>
           {railNav.pane?.kind === "app" && railNav.pane.id === "labels" && (
-            <PaneHeader
-              backLabel={sel ? (sel.name || "Untitled project") : selCust ? (selCust.name || "Customer") : "Home"}
-              group="Apps"
-              title={APP_ITEMS.find((x) => x.id === "labels").label}
-              onBack={() => railDispatch({ type: "closePane" })}
-              onClose={() => railDispatch({ type: "closePane" })} />
+            <PaneTitleBar title={APP_ITEMS.find((x) => x.id === "labels").label} onClose={() => railDispatch({ type: "closePane" })} />
           )}
           {railNav.pane?.kind === "customers" && (
             <div className="flex-1 min-h-0">

@@ -13,13 +13,13 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Plus, Printer, Copy, Eye } from "lucide-react";
-import { useEscClose, SourceSwitch, NumIn, KitBasketPanel, KitOverwriteConfirm, HelpTip } from "./widgets.jsx";
+import { useEscClose, SourceSwitch, NumIn, KitBasketPanel, KitOverwriteConfirm, HelpTip, PriceLevelMenu, BasketButton, FLAT_BTN } from "./widgets.jsx";
 import { PaneBack, PaneClose } from "./raildrawer.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
   item, group, pans, curbs, kitFor, solve, figureConsumables, panelPlan,
   expandWallFaces, WALL_THICK, curbWidth, curbInsets, applyCurbInset, openCorners, curbRuns, BROWSE_SECTIONS, sectionHit,
-  tierPrice, lineItems, coverFrames, inch, round2, TIERS, SKU, MODULE_DEPTH, MODEXT_DEPTH,
+  tierPrice, lineItems, coverFrames, inch, round2, SKU, MODULE_DEPTH, MODEXT_DEPTH,
   FINISHES, GROUP_LABEL, BUILDER_MULT, SO_MIN_NET,
   normBench, benchPremades, benchPanRoom, benchPanPlan, smallerPanFor,
   BENCH_CORNER_LBL, buildFromMarker, sessionFromRows,
@@ -107,31 +107,10 @@ const CSS = `
   color:var(--ft-text);font-family:var(--ft-ui);line-height:normal}
 .wedi-pop button{font-family:inherit}
 .wedi-pop input{font-family:inherit}
-.wedi-pop .pop-head{display:flex;align-items:center;gap:14px;padding:12px 16px 0;background:var(--ft-cream)}
-.wedi-pop .eyebrow{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.15em;color:var(--ft-brand-deep)}
-.wedi-pop .name{font-size:18px;font-weight:800;letter-spacing:-.01em}
-.wedi-pop .name small{font-weight:600;color:var(--ft-muted);font-size:12px;margin-left:6px}
+.wedi-pop .pop-head{display:flex;align-items:center;gap:14px;padding:8px 14px 0;background:var(--ft-cream)}
 .wedi-pop .xbtn{width:30px;height:30px;border-radius:6px;border:1px solid var(--ft-border);background:var(--ft-card);color:var(--ft-muted);font-size:15px;font-weight:700;cursor:pointer;flex:none;display:flex;align-items:center;justify-content:center}
-.wedi-pop .pop-head .rclear{margin-left:auto;font-size:11px;padding:5px 10px}
-.wedi-pop .pop-head .rclear + .tierbar{margin-left:0}
 /* Basket leads the right-hand control group, as it does in the Schluter head. */
-.wedi-pop .pop-head [data-wedi-basket]{margin-left:auto}
-.wedi-pop .pop-head [data-wedi-basket] + .rclear{margin-left:0}
-.wedi-pop .pop-head .srcseg + .tierbar{margin-left:0}
-.wedi-pop .srcseg{display:inline-flex;border:1px solid var(--ft-border-strong);border-radius:7px;overflow:hidden;background:var(--ft-card)}
-.wedi-pop .srcseg button{border:none;background:var(--ft-card);color:var(--ft-muted);font-size:11.5px;font-weight:700;padding:6px 11px;cursor:pointer}
-.wedi-pop .srcseg button + button{border-left:1px solid var(--ft-border-strong)}
-.wedi-pop .srcseg button:hover:not(.on){background:var(--ft-hover)}
-.wedi-pop .srcseg button.on{background:var(--ft-seg-on-bg);color:var(--ft-brand-deep);font-weight:800;box-shadow:inset 0 0 0 1.5px var(--ft-brand)}
 .wedi-pop .pancard.dis{opacity:.38;cursor:not-allowed}
-.wedi-pop .tierbar{margin-left:auto;display:flex;align-items:stretch;border:1px solid var(--ft-border-strong);border-radius:7px;overflow:hidden;background:var(--ft-card)}
-.wedi-pop .tierbar button{border:none;background:none;color:var(--ft-muted);font-size:11.5px;font-weight:700;padding:6px 11px;cursor:pointer;line-height:1.1;display:flex;flex-direction:column;justify-content:center;align-items:flex-start}
-.wedi-pop .tierbar button:not(.on):hover{background:var(--ft-hover)}
-.wedi-pop .tierbar button.on{font-weight:800;box-shadow:inset 0 2px 4px rgba(0,0,0,.28)}
-.wedi-pop .tierbar button + button{border-left:1px solid var(--ft-border-strong)}
-.wedi-pop .tierbar small{display:block;font-size:8.5px;font-weight:600;opacity:.75}
-.wedi-pop .tierbar input{width:34px;border:none;background:transparent;font-size:11.5px;font-weight:700;text-align:center;color:inherit}
-.wedi-pop .tierbar input:focus{outline:none}
 .wedi-pop .modetabs{display:flex;gap:2px;padding:10px 16px 0;border-bottom:1px solid var(--ft-border-strong);background:var(--ft-cream)}
 .wedi-pop .modetab{border:1px solid var(--ft-border);border-bottom:none;background:var(--ft-sand);color:var(--ft-muted);font-size:12.5px;font-weight:700;padding:8px 16px;border-radius:7px 7px 0 0;cursor:pointer}
 .wedi-pop .modetab small{font-weight:600;color:var(--ft-faint);margin-left:5px;font-size:10.5px}
@@ -223,8 +202,6 @@ const CSS = `
 .wedi-pop .rfgrp .wallctl{margin-left:auto;display:flex;align-items:center;gap:4px;text-transform:none;letter-spacing:0}
 .wedi-pop .wdefh{display:flex;align-items:center;gap:5px;margin-left:auto;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--ft-muted)}
 .wedi-pop .wtgl:disabled,.wedi-pop .addchip:disabled{opacity:.4;cursor:not-allowed}
-.wedi-pop .rclear{margin-left:auto;border:1px solid var(--ft-border);border-radius:6px;background:transparent;color:var(--ft-muted);font-size:10px;font-weight:700;letter-spacing:normal;text-transform:none;padding:2px 7px;cursor:pointer;white-space:nowrap}
-.wedi-pop .rclear:hover{background:var(--ft-hover-red);color:var(--w-rust);border-color:#E3B9A8}
 .wedi-pop .inp{border:1px solid var(--ft-border-strong);border-radius:7px;background:var(--ft-card);color:var(--ft-text);font-size:13.5px;font-weight:700;padding:7px 9px;width:74px}
 .wedi-pop .inp:focus{outline:2px solid var(--ft-brand);outline-offset:1px;border-color:transparent}
 .wedi-pop .seg{display:inline-flex;border:1px solid var(--ft-border-strong);border-radius:7px;overflow:hidden;background:var(--ft-card)}
@@ -425,8 +402,6 @@ const PRINT_CSS = `
 }
 `;
 
-const TIER_SUB = { retail: "book price", employee: "cost × 1.06" };
-
 // Drain-cover finishes as swatches — the codes are too hard to tell apart as
 // text (owner feedback 6); the spelled-out name rides beside them (feedback 17).
 const FIN_SWATCH = {
@@ -580,11 +555,10 @@ function WediGate({ embedded, onClose, escActive = true, children }) {
           : "max-w-[540px] rounded-xl border shadow-2xl mt-[12vh]")}
         style={{ background: "var(--ft-cream)", borderColor: "var(--ft-border-strong)" }}
         onClick={embedded ? undefined : (e) => e.stopPropagation()} data-wedi-gate>
-        <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: "var(--ft-border-strong)" }}>
-          {embedded && <PaneBack onClick={onClose} className="-mr-1.5" />}
-          <div className="min-w-0">
-            <div className="text-[9.5px] font-extrabold uppercase tracking-[.14em]" style={{ color: "var(--ft-faint)" }}>Vendor configurator</div>
-            <div className="text-[14px] font-extrabold">wedi shower systems</div>
+        <div className="flex items-center gap-3 px-3.5 py-2 border-b" style={{ borderColor: "var(--ft-border-strong)" }}>
+          <div className="flex items-center gap-2 min-w-0">
+            {embedded && <PaneBack onClick={onClose} />}
+            <h2 className="ft-serif text-xl leading-none">wedi shower systems</h2>
           </div>
           {embedded && <PaneClose onClick={onClose} className="ml-auto" />}
           {!embedded && <button className="ml-auto w-[26px] h-[26px] rounded-md border flex items-center justify-center"
@@ -1522,30 +1496,8 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   // renders
   // ==========================================================================
   const tierBar = (
-    <div className="tierbar">
-      {TIERS.map((t) => {
-        const on = tierId === t;
-        const sub = t === "builder" ? "× " + bMult.toFixed(2) : t === "sale" ? "−" + salePct + "%"
-          : t === "custom" ? null : TIER_SUB[t];
-        // Retail is the kit's ink fill (which flips in dark mode); the coloured
-        // tiers are saturated enough to keep white text in both themes.
-        const fill = on
-          ? (TIER_COLOR[t] ? { background: TIER_COLOR[t].main, color: "#fff" } : { background: "var(--ft-accent)", color: "var(--ft-accent-ink)" })
-          : undefined;
-        if (t === "custom") return (
-          <button key={t} className={on ? "on" : ""} onClick={() => setTier({ priceTier: "custom" })} style={fill} title="Custom % off retail">
-            Custom
-            <small>−<input value={customPct ?? ""} onClick={(e) => e.stopPropagation()}
-              onChange={(e) => setTier({ priceTier: "custom", customPct: e.target.value })} />%</small>
-          </button>
-        );
-        return (
-          <button key={t} className={on ? "on" : ""} onClick={() => setTier({ priceTier: t })} style={fill}>
-            {t[0].toUpperCase() + t.slice(1)}{sub ? <small>{sub}</small> : null}
-          </button>
-        );
-      })}
-    </div>
+    <PriceLevelMenu value={tierId} customPct={customPct}
+      onPick={(t) => setTier({ priceTier: t })} onPct={(v) => setTier({ priceTier: "custom", customPct: v })} />
   );
 
   const kitsTab = (
@@ -2574,20 +2526,20 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
           : { background: "var(--ft-cream)", borderColor: "var(--ft-border-strong)", height: fit.h, minHeight: 560, zoom: uiZoom }}
         onClick={embedded ? undefined : (e) => e.stopPropagation()} data-wedi-pop>
         <div className="pop-head">
-          {embedded && <PaneBack onClick={onClose} className="-mr-2" />}
-          <div>
-            <div className="eyebrow">Vendor configurator</div>
-            <div className="name">wedi shower systems <small>sell = book retail · cost = distributor net</small></div>
+          <div className="flex items-center gap-2 min-w-0">
+            {embedded && <PaneBack onClick={onClose} />}
+            <h2 className="ft-serif text-xl leading-none">wedi shower systems</h2>
           </div>
-          {onBasketChange && <button className="relative inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold hover:bg-slate-50" onClick={() => setBasketOpen(true)} data-wedi-basket>
-            🧺 Basket{(basket || []).length > 0 && <span className="rounded-full bg-[color:var(--ft-brand)] text-white text-[11px] font-extrabold min-w-[18px] h-[18px] px-1 flex items-center justify-center">{basket.length}</span>}
-          </button>}
-          <button className="rclear" data-wedi-clear
-            title="wipe the build — walls, cuts, parts — and reset the custom shower form"
-            onClick={() => { hardReset(null); say("Design cleared"); }}>Clear design</button>
-          <SourceSwitch source={source} onChange={changeSource} />
-          {tierBar}
-          {embedded ? <PaneClose onClick={onClose} /> : <button className="xbtn" onClick={onClose} title="Close"><X size={15} /></button>}
+          <div className="ml-auto flex items-center gap-2">
+            <SourceSwitch source={source} onChange={changeSource} />
+            <button className={FLAT_BTN} data-wedi-clear
+              title="wipe the build — walls, cuts, parts — and reset the custom shower form"
+              onClick={() => { hardReset(null); say("Design cleared"); }}>Clear design</button>
+            <span className="w-px h-5 bg-slate-300 mx-1" />
+            {tierBar}
+            {onBasketChange && <BasketButton count={(basket || []).length} onClick={() => setBasketOpen(true)} data-wedi-basket />}
+            <PaneClose onClick={onClose} />
+          </div>
         </div>
         <div className="modetabs">
           {TAB_DEFS.map((d) => (

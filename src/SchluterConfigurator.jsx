@@ -11,7 +11,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Plus, Eye, Printer, Copy } from "lucide-react";
-import { useEscClose, SourceSwitch, NumIn, KitBasketPanel, KitOverwriteConfirm, HelpTip } from "./widgets.jsx";
+import { useEscClose, SourceSwitch, NumIn, KitBasketPanel, KitOverwriteConfirm, HelpTip, PriceLevelMenu, BasketButton, FLAT_BTN } from "./widgets.jsx";
 import { PaneBack, PaneClose } from "./raildrawer.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
@@ -41,9 +41,6 @@ const clampPct = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? M
 const SCH_DESIGN_W = 1420;
 const SCH_ZOOM_FLOOR = 0.66;
 const RAIL_PAD_X = 24, RAIL_PAD_Y = 24, RAIL_MIN_W = 240;
-
-const TIERS = ["retail", "builder", "employee", "sale", "custom"];
-const TIER_SUB = { retail: "1.5× cost", employee: "cost × 1.06" };
 
 // The Browse filter board — the wedi BROWSE_SECTIONS idiom over the Schluter
 // groups (ported from the prototype's SLT_SECTIONS).
@@ -98,27 +95,8 @@ const CSS = `
   color:var(--ft-text);font-family:var(--ft-ui);line-height:normal}
 .sch-pop button{font-family:inherit}
 .sch-pop input,.sch-pop select{font-family:inherit}
-.sch-pop .pop-head{display:flex;align-items:center;gap:14px;padding:12px 16px 0;background:var(--ft-cream)}
-.sch-pop .eyebrow{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.15em;color:var(--ft-brand-deep)}
-.sch-pop .name{font-size:18px;font-weight:800;letter-spacing:-.01em}
-.sch-pop .name small{font-weight:600;color:var(--ft-muted);font-size:12px;margin-left:6px}
+.sch-pop .pop-head{display:flex;align-items:center;gap:14px;padding:8px 14px 0;background:var(--ft-cream)}
 .sch-pop .xbtn{width:30px;height:30px;border-radius:6px;border:1px solid var(--ft-border);background:var(--ft-card);color:var(--ft-muted);font-size:15px;font-weight:700;cursor:pointer;flex:none;display:flex;align-items:center;justify-content:center}
-.sch-pop .headctl{margin-left:auto;display:flex;align-items:center;gap:10px}
-.sch-pop .rclear{border:1px solid var(--ft-border);border-radius:6px;background:transparent;color:var(--ft-muted);font-size:11px;font-weight:700;padding:5px 10px;cursor:pointer;white-space:nowrap}
-.sch-pop .rclear:hover{background:var(--ft-hover);color:var(--ft-text)}
-.sch-pop .srcseg{display:inline-flex;border:1px solid var(--ft-border-strong);border-radius:7px;overflow:hidden;background:var(--ft-card)}
-.sch-pop .srcseg button{border:none;background:var(--ft-card);color:var(--ft-muted);font-size:11.5px;font-weight:700;padding:6px 11px;cursor:pointer}
-.sch-pop .srcseg button + button{border-left:1px solid var(--ft-border-strong)}
-.sch-pop .srcseg button:hover:not(.on){background:var(--ft-hover)}
-.sch-pop .srcseg button.on{background:var(--ft-seg-on-bg);color:var(--ft-brand-deep);font-weight:800;box-shadow:inset 0 0 0 1.5px var(--ft-brand)}
-.sch-pop .tierbar{display:flex;align-items:stretch;border:1px solid var(--ft-border-strong);border-radius:7px;overflow:hidden;background:var(--ft-card)}
-.sch-pop .tierbar button{border:none;background:none;color:var(--ft-muted);font-size:11.5px;font-weight:700;padding:6px 11px;cursor:pointer;line-height:1.1;display:flex;flex-direction:column;justify-content:center;align-items:flex-start}
-.sch-pop .tierbar button:not(.on):hover{background:var(--ft-hover)}
-.sch-pop .tierbar button.on{font-weight:800;box-shadow:inset 0 2px 4px rgba(0,0,0,.28)}
-.sch-pop .tierbar button + button{border-left:1px solid var(--ft-border-strong)}
-.sch-pop .tierbar small{display:block;font-size:8.5px;font-weight:600;opacity:.75}
-.sch-pop .tierbar input{width:34px;border:none;background:transparent;font-size:11.5px;font-weight:700;text-align:center;color:inherit}
-.sch-pop .tierbar input:focus{outline:none}
 .sch-pop .modetabs{display:flex;gap:2px;padding:10px 16px 0;border-bottom:1px solid var(--ft-border-strong);background:var(--ft-cream)}
 .sch-pop .modetab{border:1px solid var(--ft-border);border-bottom:none;background:var(--ft-sand);color:var(--ft-muted);font-size:12.5px;font-weight:700;padding:8px 16px;border-radius:7px 7px 0 0;cursor:pointer}
 .sch-pop .modetab small{font-weight:600;color:var(--ft-faint);margin-left:5px;font-size:10.5px}
@@ -1023,27 +1001,8 @@ export default function SchluterConfigurator({
   // renders
   // ==========================================================================
   const tierBar = (
-    <div className="tierbar">
-      {TIERS.map((t) => {
-        const on = tierId === t;
-        const subLbl = t === "builder" ? "−" + bPct + "%" : t === "sale" ? "−" + salePct + "%" : t === "custom" ? null : TIER_SUB[t];
-        const fill = on
-          ? (TIER_COLOR[t] ? { background: TIER_COLOR[t].main, color: "#fff" } : { background: "var(--ft-accent)", color: "var(--ft-accent-ink)" })
-          : undefined;
-        if (t === "custom") return (
-          <button key={t} className={on ? "on" : ""} onClick={() => setTier({ priceTier: "custom" })} style={fill} title="Custom % off retail">
-            Custom
-            <small>−<input value={customPct ?? ""} onClick={(e) => e.stopPropagation()}
-              onChange={(e) => setTier({ priceTier: "custom", customPct: e.target.value })} />%</small>
-          </button>
-        );
-        return (
-          <button key={t} className={on ? "on" : ""} onClick={() => setTier({ priceTier: t })} style={fill}>
-            {t[0].toUpperCase() + t.slice(1)}{subLbl ? <small>{subLbl}</small> : null}
-          </button>
-        );
-      })}
-    </div>
+    <PriceLevelMenu value={tierId} customPct={customPct}
+      onPick={(t) => setTier({ priceTier: t })} onPct={(v) => setTier({ priceTier: "custom", customPct: v })} />
   );
 
   const loadingPane = (
@@ -2245,21 +2204,19 @@ export default function SchluterConfigurator({
           : { background: "var(--ft-cream)", borderColor: "var(--ft-border-strong)", height: fit.h, minHeight: 560, zoom: fit.zoom }}
         onClick={embedded ? undefined : (e) => e.stopPropagation()} data-schluter-pop>
         <div className="pop-head">
-          {embedded && <PaneBack onClick={onClose} className="-mr-2" />}
-          <div>
-            <div className="eyebrow">Vendor configurator</div>
-            <div className="name">Schluter <small>shower systems · registry-priced (retail = 1.5× cost)</small></div>
+          <div className="flex items-center gap-2 min-w-0">
+            {embedded && <PaneBack onClick={onClose} />}
+            <h2 className="ft-serif text-xl leading-none">Schluter</h2>
           </div>
-          <div className="headctl">
-            {onBasketChange && <button className="relative inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold hover:bg-slate-50" onClick={() => setBasketOpen(true)} data-schluter-basket>
-              🧺 Basket{(basket || []).length > 0 && <span className="rounded-full bg-[color:var(--ft-brand)] text-white text-[11px] font-extrabold min-w-[18px] h-[18px] px-1 flex items-center justify-center">{basket.length}</span>}
-            </button>}
-            <button className="rclear" data-schluter-clear
+          <div className="ml-auto flex items-center gap-2">
+            <SourceSwitch source={source} onChange={(s) => { setSource(s); setPick(null); }} />
+            <button className={FLAT_BTN} data-schluter-clear
               title="wipe the build — room, walls, benches, add-ons — and reset the form"
               onClick={clearDesign}>Clear design</button>
-            <SourceSwitch source={source} onChange={(s) => { setSource(s); setPick(null); }} />
+            <span className="w-px h-5 bg-slate-300 mx-1" />
             {tierBar}
-            {embedded ? <PaneClose onClick={onClose} /> : <button className="xbtn" onClick={onClose} title="Close"><X size={15} /></button>}
+            {onBasketChange && <BasketButton count={(basket || []).length} onClick={() => setBasketOpen(true)} data-schluter-basket />}
+            <PaneClose onClick={onClose} />
           </div>
         </div>
         <div className="modetabs">
