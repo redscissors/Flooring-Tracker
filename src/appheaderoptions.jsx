@@ -124,6 +124,10 @@ const OPTIONS = [
     render: (app, tier) => <Frame clip={false} app={app} right={<><FlatTier key={tier} tier={tier} /><FlatBasket /></>} tabsRight={app.tools ? <><FlatStock /><FlatClear /></> : null} />,
   },
   {
+    key: "onerow", title: "Everything on the title row", note: "The same flat controls, all on one line: Stock only and Clear design, a thin divider, then price and basket. The tab row goes back to just tabs. Price and basket sit in the same spot on all three apps; Sheoga simply has nothing left of the divider.",
+    render: (app, tier) => <Frame clip={false} app={app} right={<>{app.tools && <><FlatStock /><FlatClear /><span className="w-px h-5 bg-slate-300 mx-1" /></>}<FlatTier key={tier} tier={tier} /><FlatBasket /></>} />,
+  },
+  {
     key: "flatopen", title: "The price dropdown, open", note: "Click the price and it slides open into one bordered piece: a dark outline grows around the current level and the list together. The levels are names only; the last row is just the custom discount, in a box to type it. Pick one and it slides shut.",
     render: (app, tier) => app.id !== "sheoga" ? null : <div className="pb-44"><Frame clip={false} app={app} right={<><FlatTier key={tier} tier={tier} open /><FlatBasket /></>} /></div>,
   },
