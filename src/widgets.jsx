@@ -168,13 +168,13 @@ const foldingPops = new WeakMap();
 // the box's field row left / right of the field (the price popup's cost
 // input, the line menu's title). The anchor can also be a plain button (type
 // chip, ⋯): its box outline then fades in rather than taking over a focus line.
-export function SearchPop({ pos, box, fieldRef, panelRef, lead, trail, bg = "var(--ft-card)", className = "", style, children }) {
+export function SearchPop({ pos, box, fieldRef, panelRef, lead, trail, z = 50, bg = "var(--ft-card)", className = "", style, children }) {
   const rootRef = useRef(null);
   const [shown, setShown] = useState(false);
   const [B, setB] = useState(1.5);
   const [{ radius, inked }] = useState(() => {
     const f = anchorTarget(fieldRef?.current);
-    return { radius: Math.max(4, f ? parseFloat(getComputedStyle(f).borderTopLeftRadius) || 0 : 8), inked: !!f?.matches(".ft-search") };
+    return { radius: Math.min(8, Math.max(4, f ? parseFloat(getComputedStyle(f).borderTopLeftRadius) || 0 : 8)), inked: !!f?.matches(".ft-search") };
   });
   useLayoutEffect(() => {
     const field = anchorTarget(fieldRef?.current);
@@ -223,7 +223,7 @@ export function SearchPop({ pos, box, fieldRef, panelRef, lead, trail, bg = "var
   );
   return createPortal(
     <div ref={(el) => { rootRef.current = el; if (panelRef) panelRef.current = el; }} className="flex flex-col" data-up={up ? "true" : undefined} data-l0={pos.left} data-w0={pos.width}
-      style={{ position: "fixed", zIndex: 50, left: shown ? left : pos.left, width: shown ? width : pos.width,
+      style={{ position: "fixed", zIndex: z, left: shown ? left : pos.left, width: shown ? width : pos.width,
         ...(up ? { bottom: window.innerHeight - pos.fb } : { top: pos.ft }),
         border: `${B}px solid ${shown || inked ? "var(--ft-text)" : "transparent"}`, borderRadius: radius, overflow: "hidden", pointerEvents: "none",
         boxShadow: shown ? POP_SHADOW : "none", transition: [ease("left"), ease("width"), ease("box-shadow"), ease("border-color")].join(", ") }}>
@@ -265,15 +265,16 @@ function foldAway(root, field) {
 
 // A floating panel with no button to grow from (right-click menus): `.ft-pop`
 // at fixed coordinates, and on unmount an inert clone folds it up and fades
-// it rather than dropping it in one frame.
-export function PointPop({ popRef, className = "", style, children }) {
+// it rather than dropping it in one frame. `plain` skips the .ft-pop shell for
+// a panel that brings its own (the configurators' wall menus).
+export function PointPop({ popRef, plain, className = "", style, children, ...rest }) {
   const ref = useRef(null);
   useLayoutEffect(() => {
     const el = ref.current;
     return () => fadeAway(el);
   }, []);
   return createPortal(
-    <div ref={(el) => { ref.current = el; if (popRef) popRef.current = el; }} style={style} className={"ft-pop fixed z-50 " + className}>{children}</div>,
+    <div ref={(el) => { ref.current = el; if (popRef) popRef.current = el; }} style={style} className={(plain ? "" : "ft-pop fixed z-50 ") + className} {...rest}>{children}</div>,
     document.body);
 }
 
@@ -285,25 +286,25 @@ export function PopMenu({ at, ...props }) {
     : <PointMenu key={`${at.x},${at.y}`} at={at} {...props} />;
 }
 
-function GrownMenu({ at, width, align = "left", onClose, lead, trail, className = "", children }) {
+function GrownMenu({ at, width, align = "left", pad = 0, onClose, lead, trail, z, className = "", children }) {
   const anchorRef = useRef(at.anchor);
   const panelRef = useRef(null);
   const pos = useAnchoredPanel(true, anchorRef, panelRef, onClose);
   if (!pos) return null;
-  const W = Math.max(width, pos.width);
-  const x = align === "right" ? pos.left + pos.width - W : pos.left;
+  const W = Math.max(width, pos.width + 2 * pad);
+  const x = align === "right" ? pos.left + pos.width + pad - W : pos.left - pad;
   return (
     <SearchPop pos={pos} box={{ left: Math.max(8, Math.min(x, window.innerWidth - W - 8)), width: W }} fieldRef={anchorRef} panelRef={panelRef}
-      lead={lead} trail={trail} className={"overflow-y-auto " + className}>{children}</SearchPop>
+      lead={lead} trail={trail} z={z} className={"overflow-y-auto " + className}>{children}</SearchPop>
   );
 }
 
-function PointMenu({ at, width, onClose, className = "", children }) {
+function PointMenu({ at, width, onClose, z, className = "", children }) {
   const ref = useRef(null);
   useDismissOutside(true, ref, ref, onClose);
   const left = Math.max(8, Math.min(at.x, window.innerWidth - width - 8));
   const top = Math.max(8, Math.min(at.y, window.innerHeight - 140));
-  return <PointPop popRef={ref} className={"overflow-y-auto " + className} style={{ left, top, width, maxHeight: window.innerHeight - top - 8 }}>{children}</PointPop>;
+  return <PointPop popRef={ref} className={"overflow-y-auto " + className} style={{ left, top, width, maxHeight: window.innerHeight - top - 8, zIndex: z }}>{children}</PointPop>;
 }
 
 function fadeAway(el) {

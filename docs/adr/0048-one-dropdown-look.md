@@ -66,7 +66,11 @@ phone's own full-screen chooser.
    label beside it, and Salesperson grows from the whole salesperson card
    (its Done button and heading dropped; Enter, Esc or a click away close).
    `growBox` picks the side with room; a mini button's hover card hides
-   while its box is open.
+   while its box is open. In the wedi and Schluter configurators the ⇄
+   swap list grows out of its whole part line (the line names the part, so
+   the list's heading goes) and the add-on / bench / niche pickers grow out
+   of their chip (Schluter's pickers keep their ? heading); the right-click
+   wall and bench menus stay at the pointer and fold away on close.
 
 ## Consequences
 

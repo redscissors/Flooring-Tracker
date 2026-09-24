@@ -13,7 +13,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Plus, Printer, Copy, Eye } from "lucide-react";
-import { useEscClose, SourceSwitch, NumIn, KitBasketPanel, KitOverwriteConfirm, HelpTip, PriceLevelMenu, BasketButton, FLAT_BTN } from "./widgets.jsx";
+import { useEscClose, SourceSwitch, NumIn, KitBasketPanel, KitOverwriteConfirm, HelpTip, PriceLevelMenu, BasketButton, FLAT_BTN, PopMenu, PointPop } from "./widgets.jsx";
 import { PaneBack, PaneClose } from "./raildrawer.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
@@ -337,6 +337,7 @@ const CSS = `
 .wedi-pop .wbtn:disabled{opacity:.45;cursor:not-allowed}
 
 .wedi-swap{position:fixed;z-index:90;background:var(--ft-card);color:var(--ft-text);border:1.5px solid var(--ft-text);border-radius:.5rem;box-shadow:0 12px 28px -12px rgba(28,26,23,.45);animation:ft-pop-down 240ms cubic-bezier(.2,.8,.2,1);width:300px;max-height:340px;overflow-y:auto;padding:6px;font-family:var(--ft-ui)}
+.wedi-swap.wedi-grown{position:static;z-index:auto;border:0;border-radius:0;box-shadow:none;animation:none;width:auto}
 .wedi-swap .ph{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.11em;color:var(--ft-muted);padding:6px 8px 4px}
 .wedi-swap .srow{display:flex;align-items:center;gap:8px;width:100%;border:none;background:none;padding:6px 8px;border-radius:6px;cursor:pointer;text-align:left}
 .wedi-swap .srow:hover{background:var(--ft-tint)}
@@ -1966,7 +1967,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
                           );
                         })()}
                       </div>
-                      {can && <button className="swapb" title="swap" onClick={(ev) => setSwap({ key: e.key, rect: ev.currentTarget.getBoundingClientRect() })}>⇄</button>}
+                      {can && <button className="swapb" title="swap" onClick={(ev) => setSwap({ key: e.key, rect: ev.currentTarget.getBoundingClientRect(), anchor: ev.currentTarget.closest(".bline") })}>⇄</button>}
                       <div className="stepper">
                         <button onClick={() => step(e.key, -1)}>−</button>
                         <span className={"q" + (l.ov ? " ov" : "")} title={l.ov ? "hand-set — auto is " + l.autoQty : undefined}>{l.qty}</span>
@@ -1999,7 +2000,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
                             setQtyOv((o) => { const n = { ...o }; delete n[cur.item.key]; return n; });
                           } else {
                             const ch = chipChoices(ac[0]).filter(Boolean);
-                            if (ch.length > 1) setChipMenu({ group: ac[0], label: ac[1], rect: ev.currentTarget.getBoundingClientRect() });
+                            if (ch.length > 1) setChipMenu({ group: ac[0], label: ac[1], rect: ev.currentTarget.getBoundingClientRect(), anchor: ev.currentTarget });
                             else if (ch.length) chipPick(ac[0], ch[0].key);
                           }
                         }}>{(on ? "✓ " : "+ ") + ac[1]}</button>
@@ -2100,7 +2101,6 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     const ch = swapChoices(line);
     if (!ch) return null;
     const r = swap.rect;
-    const style = { top: Math.min(window.innerHeight - 356, r.bottom + 6), left: Math.max(12, r.right - 300) };
     const choose = (k) => {
       setQtyOv((o) => { const n = { ...o }; delete n[line.item.key]; return n; });
       ch.set(k);
@@ -2108,9 +2108,9 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     };
     // A portal still bubbles through the REACT tree, so without this a pick
     // would reach the popup's backdrop and read as "close the configurator".
-    return createPortal(
-      <div className="wedi-swap" style={style} onClick={(e) => e.stopPropagation()}>
-        <div className="ph">{ch.title}</div>
+    return (
+      <PopMenu at={{ anchor: swap.anchor, x: r.right - 300, y: r.bottom + 6 }} width={280} pad={8} z={90} onClose={() => setSwap(null)}>
+        <div className="wedi-swap wedi-grown" onClick={(e) => e.stopPropagation()}>
         {ch.none && (
           <button className="srow" onClick={() => choose(null)}>
             <span className="sdot so" /><span className="n">{ch.none}</span><span className="p" />
@@ -2124,7 +2124,9 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
             <span className="p">{fm(tierOf(e))}</span>
           </button>
         ))}
-      </div>, document.body);
+      </div>
+      </PopMenu>
+    );
   })();
 
   // The add-on chip picker: same anchored popover as a swap, listing the
@@ -2133,10 +2135,9 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     if (!chipMenu) return null;
     const listC = chipChoices(chipMenu.group).filter(Boolean);
     const r = chipMenu.rect;
-    const style = { top: Math.min(window.innerHeight - 356, r.bottom + 6), left: Math.max(12, Math.min(window.innerWidth - 312, r.left)) };
-    return createPortal(
-      <div className="wedi-swap wedi-chipmenu" style={style} onClick={(e) => e.stopPropagation()}>
-        <div className="ph">{chipMenu.group === "recess" ? "Curbless entry" : GROUP_LABEL[chipMenu.group] || chipMenu.label}</div>
+    return (
+      <PopMenu at={{ anchor: chipMenu.anchor, x: r.left, y: r.bottom + 6 }} width={280} z={90} onClose={() => setChipMenu(null)}>
+        <div className="wedi-swap wedi-chipmenu wedi-grown" onClick={(e) => e.stopPropagation()}>
         {listC.map((e) => (
           <button key={e.key} className={"srow" + (e.stock ? " stk" : "")} onClick={() => chipPick(chipMenu.group, e.key)}>
             <span className={"sdot" + (e.stock ? "" : " so")} />
@@ -2145,7 +2146,9 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
             <span className="p">{fm(tierOf(e))}</span>
           </button>
         ))}
-      </div>, document.body);
+      </div>
+      </PopMenu>
+    );
   })();
 
   // The right-click wall menu: size + which faces get wedi. Anchored at the
@@ -2166,8 +2169,8 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
       top: Math.min(window.innerHeight - 200, wallMenu.y + 4),
       left: Math.min(window.innerWidth - 292, Math.max(12, wallMenu.x - 120)),
     };
-    return createPortal(
-      <div className="wedi-swap wedi-wallmenu" style={style} data-wedi-wallmenu
+    return (
+      <PointPop plain className="wedi-swap wedi-wallmenu" style={style} data-wedi-wallmenu
         onClick={(e) => e.stopPropagation()} onContextMenu={(e) => e.preventDefault()}>
         <div className="ph">{label} — {sfOfWall(len, hh, faces)} sf of wedi</div>
         <div className="wm-row">
@@ -2232,7 +2235,8 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
               Remove</button>
           )}
         </div>
-      </div>, document.body);
+      </PointPop>
+    );
   })();
 
   // The bench menu (issue 069): everything about the zone's bench lives in
@@ -2280,8 +2284,8 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
       }
       return "the pan cuts to " + inch(pr.w) + "×" + inch(pr.d) + '" and the bench sits on the subfloor';
     })();
-    return createPortal(
-      <div className="wedi-swap wedi-wallmenu wedi-benchmenu" style={style} data-wedi-benchmenu
+    return (
+      <PointPop plain className="wedi-swap wedi-wallmenu wedi-benchmenu" style={style} data-wedi-benchmenu
         onClick={(e) => e.stopPropagation()} onContextMenu={(e) => e.preventDefault()}>
         <div className="ph">{title}</div>
         {!row ? (<>
@@ -2358,7 +2362,8 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
             <button className="wm-del" onClick={del}>Remove bench</button>
           </div>
         </>)}
-      </div>, document.body);
+      </PointPop>
+    );
   })();
 
   // Kit card over a custom shower: confirm before wiping it (owner rule
