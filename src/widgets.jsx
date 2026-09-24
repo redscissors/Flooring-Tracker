@@ -146,6 +146,17 @@ const POP_SHADOW = "0 12px 28px -12px rgba(28,26,23,.45)";
 const calmMotion = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 const searchInput = (el) => el && (el.matches("input, textarea") ? el : el.querySelector("input, textarea"));
 const anchorTarget = (el) => searchInput(el) || el;
+
+// The box a popover grows to from its anchor: `width` wide (never narrower
+// than the anchor), running right from it unless that would leave the
+// screen or `prefer` is "left". `right` says which side the extra room is on.
+export const growBox = (pos, width, prefer = "right") => {
+  const W = Math.max(width, pos.width);
+  const fitsRight = pos.left + W <= window.innerWidth - 8;
+  const fitsLeft = pos.left + pos.width - W >= 8;
+  const right = prefer === "left" ? !fitsLeft && fitsRight : fitsRight || !fitsLeft;
+  return { left: right ? pos.left : Math.max(8, pos.left + pos.width - W), width: W, right };
+};
 const foldingPops = new WeakMap();
 
 // A search field's results in the price menu's open look (ADR 0048). The field
@@ -203,7 +214,7 @@ export function SearchPop({ pos, box, fieldRef, panelRef, lead, trail, bg = "var
   );
   const rule = <div className="shrink-0 border-t border-slate-300 mx-2" />;
   const body = <div className={"min-h-0 " + className} style={{ pointerEvents: "auto", maxHeight: pos.maxH, ...style }}>{children}</div>;
-  const grow = (
+  const grow = children != null && children !== false && (
     <div data-spop-grow style={{ display: "grid", gridTemplateRows: shown ? "1fr" : "0fr", transition: ease("grid-template-rows") }}>
       <div className="min-h-0 overflow-hidden flex flex-col" style={{ background: bg }}>
         {up ? <>{body}{rule}</> : <>{rule}{body}</>}
@@ -393,28 +404,30 @@ export function MetaChip({ icon: Icon, label, value, active, onClick }) {
 export function SalespersonPop({ value, fallback, onChange, alignRight, small }) {
   const [open, setOpen] = useState(false);
   const anchorRef = useRef(null);
+  // The box grows out of the whole salesperson card (the name button's
+  // parent — label, name, phone), not the one-line name.
+  const cardRef = useRef(null);
   const panelRef = useRef(null);
-  const pos = useAnchoredPanel(open, anchorRef, panelRef, () => setOpen(false));
+  const pos = useAnchoredPanel(open, cardRef, panelRef, () => setOpen(false));
   useEscClose(open, () => setOpen(false));
   const sp = { name: "", phone: "", email: "", ...(value || fallback || {}) };
-  const fld = "ft-field w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500";
-  const W = 240;
+  const fld = "ft-field w-full h-[28px] rounded-md border border-slate-200 px-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-indigo-500";
+  const box = pos && growBox(pos, 220, alignRight ? "left" : "right");
   return (
     <>
-      <button ref={anchorRef} onClick={() => setOpen((o) => !o)} title="Salesperson — locked in when the project was created. Click to change." className={"min-w-0 max-w-full truncate hover:text-indigo-700 text-left" + (small ? " font-bold" : " ft-serif")} style={{ fontSize: small ? 11.5 : 17, lineHeight: 1.2, borderBottom: "1px dashed var(--ft-border-strong)", alignSelf: small ? "flex-start" : undefined }}>
+      <button ref={anchorRef} onClick={(e) => { cardRef.current = e.currentTarget.parentElement; setOpen((o) => !o); }} aria-expanded={open} title="Salesperson — locked in when the project was created. Click to change." className={"min-w-0 max-w-full truncate hover:text-indigo-700 text-left" + (small ? " font-bold" : " ft-serif")} style={{ fontSize: small ? 11.5 : 17, lineHeight: 1.2, borderBottom: "1px dashed var(--ft-border-strong)", alignSelf: small ? "flex-start" : undefined }}>
         {sp.name || sp.email || "Set salesperson"}
       </button>
-      {open && pos && createPortal(
-        <div ref={panelRef} data-up={pos.bottom != null ? "true" : undefined} style={{ ...vPos(pos), left: Math.max(8, Math.min(alignRight ? pos.left + pos.width - W : pos.left, window.innerWidth - W - 8)) }} className="fixed ft-pop z-50 p-3 space-y-1.5" onKeyDown={(e) => { if (e.key === "Escape") e.preventDefault(); if (e.key === "Escape" || e.key === "Enter") setOpen(false); }} >
-          <div className="ft-eyebrow text-[9px]">Salesperson</div>
-          <input autoFocus value={sp.name} onChange={(e) => onChange({ ...sp, name: e.target.value })} placeholder="Name" className={fld} style={{ width: W - 24 }} />
-          <input type="tel" inputMode="tel" value={sp.phone} onChange={(e) => onChange({ ...sp, phone: phoneChange(sp.phone, e.target.value) })} placeholder="Phone" className={fld} style={{ width: W - 24 }} />
-          <input value={sp.email} onChange={(e) => onChange({ ...sp, email: e.target.value })} placeholder="Email" className={fld} style={{ width: W - 24 }} />
-          <div className="flex items-center justify-between pt-1">
-            <button onClick={() => onChange({ name: fallback?.name || "", phone: fallback?.phone || "", email: fallback?.email || "" })} className="flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700"><User size={13} /> Use my details</button>
-            <button onClick={() => setOpen(false)} className="rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-2.5 py-1.5">Done</button>
+      {open && pos && (
+        <SearchPop pos={pos} box={box} fieldRef={cardRef} panelRef={panelRef} className="p-2 space-y-1.5">
+          <div className="space-y-1.5" onKeyDown={(e) => { if (e.key === "Enter") setOpen(false); }}>
+            <input autoFocus value={sp.name} onChange={(e) => onChange({ ...sp, name: e.target.value })} placeholder="Name" className={fld} />
+            <input type="tel" inputMode="tel" value={sp.phone} onChange={(e) => onChange({ ...sp, phone: phoneChange(sp.phone, e.target.value) })} placeholder="Phone" className={fld} />
+            <input value={sp.email} onChange={(e) => onChange({ ...sp, email: e.target.value })} placeholder="Email" className={fld} />
+            <button onClick={() => onChange({ name: fallback?.name || "", phone: fallback?.phone || "", email: fallback?.email || "" })} className="flex items-center gap-1 pt-0.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700"><User size={13} /> Use my details</button>
           </div>
-        </div>, document.body)}
+        </SearchPop>
+      )}
     </>
   );
 }
@@ -536,7 +549,7 @@ export function FilesPop({ attachments, onOpen, onDelete, onAdd, mini, tip }) {
     <>
       {/* mini = the one-bar header's 45×26 square with a count badge and the
           square hover-tip card in place of the native title */}
-      <button ref={anchorRef} onClick={() => setOpen((o) => !o)} data-tip={mini ? tip : undefined} title={mini ? undefined : `Files (not printed)${n ? ` — ${n}` : ""}`}
+      <button ref={anchorRef} onClick={() => setOpen((o) => !o)} aria-expanded={open} data-tip={mini ? tip : undefined} title={mini ? undefined : `Files (not printed)${n ? ` — ${n}` : ""}`}
         className={mini ? "ft-tip relative w-[45px] h-[26px] flex items-center justify-center rounded-md hover:bg-slate-50" : "h-[30px] flex-1 flex items-center justify-center gap-1 rounded-md border border-slate-200 text-[11px] text-slate-600 hover:bg-slate-50"}
         style={mini ? { border: "1px solid var(--ft-border-strong)" } : undefined}>
         <Paperclip size={mini ? 13 : 14} />
@@ -544,19 +557,23 @@ export function FilesPop({ attachments, onOpen, onDelete, onAdd, mini, tip }) {
           ? <span className="absolute rounded-full font-bold" style={{ top: -6, right: -6, fontSize: 10, padding: "1px 5px", background: "var(--ft-sand)", color: "var(--ft-muted)", border: "1px solid var(--ft-border)" }}>{n}</span>
           : <span className="font-semibold">{n}</span>)}
       </button>
-      {open && pos && createPortal(
-        <div ref={panelRef} data-up={pos.bottom != null ? "true" : undefined} style={{ ...vPos(pos), left: Math.max(8, Math.min(pos.left, window.innerWidth - W - 8)), width: W }} className="fixed ft-pop z-50 p-2">
-          <div className="ft-eyebrow text-[9px] mb-1.5">Files <span className="normal-case tracking-normal font-normal text-slate-400">— not printed</span></div>
-          <div className="flex flex-wrap gap-1">
-            {(attachments || []).map((m) => (
-              <span key={m.id} className="flex items-center gap-1 rounded-md bg-slate-100 pl-1.5 pr-1 py-0.5 text-[11px]">
-                <button onClick={() => onOpen(m)} className="hover:text-indigo-600 max-w-[9rem] truncate" title={`${m.name} · ${Math.max(1, Math.round(m.size / 1024))} KB`}>{m.name}</button>
-                <button onClick={() => onDelete(m)} className="text-slate-400 hover:text-red-500"><X size={11} /></button>
-              </span>
-            ))}
-            <button onClick={onAdd} className="flex items-center gap-1 rounded-md border border-slate-200 px-1.5 py-0.5 text-[11px] text-slate-500 hover:bg-slate-50"><Paperclip size={11} /> Add</button>
-          </div>
-        </div>, document.body)}
+      {open && pos && (() => {
+        const box = growBox(pos, W);
+        const label = <span className={"ft-eyebrow text-[9px] " + (box.right ? "pl-2" : "pr-2 ml-auto")}>Files <span className="normal-case tracking-normal font-normal text-slate-400">— not printed</span></span>;
+        return (
+          <SearchPop pos={pos} box={box} fieldRef={anchorRef} panelRef={panelRef} className="p-2" {...(box.right ? { trail: label } : { lead: label })}>
+            <div className="flex flex-wrap gap-1">
+              {(attachments || []).map((m) => (
+                <span key={m.id} className="flex items-center gap-1 rounded-md bg-slate-100 pl-1.5 pr-1 py-0.5 text-[11px]">
+                  <button onClick={() => onOpen(m)} className="hover:text-indigo-600 max-w-[9rem] truncate" title={`${m.name} · ${Math.max(1, Math.round(m.size / 1024))} KB`}>{m.name}</button>
+                  <button onClick={() => onDelete(m)} className="text-slate-400 hover:text-red-500"><X size={11} /></button>
+                </span>
+              ))}
+              <button onClick={onAdd} className="flex items-center gap-1 rounded-md border border-slate-200 px-1.5 py-0.5 text-[11px] text-slate-500 hover:bg-slate-50"><Paperclip size={11} /> Add</button>
+            </div>
+          </SearchPop>
+        );
+      })()}
     </>
   );
 }

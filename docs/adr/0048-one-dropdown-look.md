@@ -61,7 +61,12 @@ phone's own full-screen chooser.
    menu out of its option chip ("This area is in" beside it); a right-click
    on the area band opens it at the pointer (`PopMenu`). Neither keeps the
    old full-screen click-catcher: an outside press closes it like any other
-   dropdown.
+   dropdown. The header popovers follow: Save a version is one row beside
+   the Save button (name field + ✓), Files grows from the paperclip with its
+   label beside it, and Salesperson grows from the whole salesperson card
+   (its Done button and heading dropped; Enter, Esc or a click away close).
+   `growBox` picks the side with room; a mini button's hover card hides
+   while its box is open.
 
 ## Consequences
 

@@ -1,7 +1,6 @@
 import { useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { ChevronDown, Building2, Lock, LockOpen, Save, History, ClipboardList, Copy, Printer, Trash2, Check, Truck, X, Layers } from "lucide-react";
-import { SalespersonPop, SegBar, WasteBar, FilesPop, useAnchoredPanel, vPos, useEscClose } from "./widgets.jsx";
+import { SalespersonPop, SegBar, WasteBar, FilesPop, useAnchoredPanel, useEscClose, SearchPop, growBox } from "./widgets.jsx";
 import { FreightColumn } from "./freightui.jsx";
 import { normPricing } from "./pricing.js";
 import { TIER_COLOR, tierBadgeText, PROJECT_NAME_MAX } from "./uiconst.js";
@@ -128,18 +127,19 @@ function SaveVersionPop({ open, onOpen, onClose, name, setName, onConfirm, tip }
   const anchorRef = useRef(null);
   const panelRef = useRef(null);
   const pos = useAnchoredPanel(open, anchorRef, panelRef, onClose);
-  const W = 230;
+  // One row: the name field and ✓ sit beside the Save button inside the box.
+  const box = pos && growBox(pos, 236);
+  const row = box && (
+    <div className="flex items-center gap-1 w-full px-1.5">
+      <input autoFocus value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") onConfirm(); if (e.key === "Escape") { e.preventDefault(); onClose(); } }} placeholder="Name this version"
+        className="ft-field flex-1 min-w-0 h-[20px] text-[12px] rounded border border-slate-200 px-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+      <button onClick={onConfirm} title="Save version" className="h-[20px] w-[22px] shrink-0 flex items-center justify-center rounded bg-indigo-600 hover:bg-indigo-700 text-white"><Check size={12} /></button>
+    </div>
+  );
   return (
     <>
-      <button ref={anchorRef} onClick={() => (open ? onClose() : onOpen())} data-tip={tip} className={MINI} style={MINI_STYLE}><Save size={13} /></button>
-      {open && pos && createPortal(
-        <div ref={panelRef} data-up={pos.bottom != null ? "true" : undefined} style={{ ...vPos(pos), left: Math.max(8, Math.min(pos.left + pos.width / 2 - W / 2, window.innerWidth - W - 8)), width: W }} className="fixed ft-pop z-50 p-2">
-          <div className="ft-eyebrow text-[9px] mb-1.5">Save a version</div>
-          <div className="flex items-center gap-1.5">
-            <input autoFocus value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") onConfirm(); if (e.key === "Escape") { e.preventDefault(); onClose(); } }} placeholder="Version name" className="ft-field flex-1 min-w-0 h-[30px] text-sm rounded-md border border-slate-200 px-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-            <button onClick={onConfirm} className="h-[30px] w-[30px] shrink-0 flex items-center justify-center rounded-md bg-indigo-600 hover:bg-indigo-700 text-white"><Check size={15} /></button>
-          </div>
-        </div>, document.body)}
+      <button ref={anchorRef} onClick={() => (open ? onClose() : onOpen())} aria-expanded={open} data-tip={tip} className={MINI} style={MINI_STYLE}><Save size={13} /></button>
+      {open && pos && <SearchPop pos={pos} box={box} fieldRef={anchorRef} panelRef={panelRef} {...(box.right ? { trail: row } : { lead: row })} />}
     </>
   );
 }
