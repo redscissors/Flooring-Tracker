@@ -1,8 +1,9 @@
 import { Component, useState, useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, User, Paperclip, X, Lock, LockOpen, Eye, EyeOff, MapPin, ClipboardPaste } from "lucide-react";
+import { ChevronDown, User, Paperclip, X, Lock, LockOpen, Eye, EyeOff, MapPin, ClipboardPaste, Check, ShoppingBasket } from "lucide-react";
 import { num } from "./catalog.js";
 import { money } from "./model.js";
+import { TIER_COLOR } from "./uiconst.js";
 import { normName, matchName } from "./names.js";
 import { phoneChange } from "./phone.js";
 import { mapsUrl, cleanAddress } from "./address.js";
@@ -437,16 +438,104 @@ export function Modal({ title, children, onClose }) {
   );
 }
 
-// The shared Stock only / Full catalog switch (phase 4): both vendor
-// configurators mount this seg in their pop-head, so the two popups can't
-// drift on what the control looks like or says. Styling is each popup's own
-// `.srcseg` block; this carries no engine knowledge — the caller owns what
-// the source constrains.
+// The vendor configurators' header controls (owner 2026-09-24,
+// app-header-options.html): flat on the header's own background, no outline,
+// a hover tint only — one row of Stock only · Clear design | price · basket.
+export const FLAT_BTN = "h-[30px] inline-flex items-center gap-1.5 rounded-md px-2 text-[12px] font-bold text-slate-600 hover:bg-[color:var(--ft-hover)] shrink-0 whitespace-nowrap";
+
+// The shared Stock only switch (phase 4, a checkbox since 2026-09-24):
+// unchecked is Full catalog. Both vendor configurators mount it, so the two
+// popups can't drift on the control; it carries no engine knowledge — the
+// caller owns what the source constrains.
 export function SourceSwitch({ source, onChange, title }) {
+  const on = source === "stock";
   return (
-    <div className="srcseg" title={title || "Stock only removes non-stocked parts from the candidate pool; Full catalog ranks freely and tags special order"}>
-      <button className={source === "stock" ? "on" : ""} onClick={() => onChange("stock")} data-source-stock>Stock only</button>
-      <button className={source === "all" ? "on" : ""} onClick={() => onChange("all")} data-source-all>Full catalog</button>
+    <button className={FLAT_BTN} onClick={() => onChange(on ? "all" : "stock")} aria-pressed={on} data-source-toggle
+      title={title || "Stock only removes non-stocked parts from the candidate pool; unchecked, the full catalog ranks freely and tags special order"}>
+      <span className={"w-3.5 h-3.5 rounded-[3px] border flex items-center justify-center " + (on ? "bg-[color:var(--ft-brand)] border-[color:var(--ft-brand)] text-white" : "border-slate-400")}>
+        {on && <Check size={10} strokeWidth={3} />}
+      </span>
+      Stock only
+    </button>
+  );
+}
+
+export function BasketButton({ count = 0, onClick, ...rest }) {
+  return (
+    <button className={FLAT_BTN + " relative w-[34px] !px-1.5 justify-center"} onClick={onClick} title="Basket" aria-label={`Basket, ${count} staged`} {...rest}>
+      <ShoppingBasket size={20} strokeWidth={2} />
+      {count > 0 && <span className="absolute -top-1.5 -right-1.5 rounded-full ring-2 ring-[color:var(--ft-cream)] bg-[color:var(--ft-brand)] text-white text-[10px] font-extrabold min-w-[16px] h-[16px] px-1 flex items-center justify-center">{count}</span>}
+    </button>
+  );
+}
+
+const PRICE_LEVELS = ["retail", "builder", "employee", "sale", "custom"];
+const levelInk = (t) => TIER_COLOR[t]?.main || "var(--ft-text)";
+
+// The configurators' price level (owner 2026-09-24): closed it names the level
+// — Custom shows only its discount — and a click slides the list open while a
+// dark border grows around trigger and list as one piece. The wrapper holds
+// the closed width so nothing beside it moves. `bg` is the header's own fill,
+// which the open box takes on.
+export function PriceLevelMenu({ value = "retail", customPct, onPick, onPct, bg = "var(--ft-cream)" }) {
+  const [open, setOpen] = useState(false);
+  const [w, setW] = useState(0);
+  const label = useRef(null);
+  const box = useRef(null);
+  const text = value === "custom" ? `−${customPct || 0}%` : value[0].toUpperCase() + value.slice(1);
+  useLayoutEffect(() => { if (label.current) setW(label.current.offsetWidth + 16); }, [text]);
+  useEscClose(open, () => setOpen(false));
+  useEffect(() => {
+    if (!open) return;
+    const down = (e) => { if (box.current && !box.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", down);
+    return () => document.removeEventListener("mousedown", down);
+  }, [open]);
+  const ease = "cubic-bezier(.2,.8,.2,1)";
+  return (
+    <div className="relative h-[30px] shrink-0" style={{ width: w || undefined }}>
+      <div ref={box} className="absolute right-0 top-0 rounded-lg overflow-hidden" data-price-level
+        style={{ zIndex: open ? 30 : 10, width: open ? Math.max(w, 170) : w || "auto", background: bg,
+          border: "1.5px solid " + (open ? "var(--ft-text)" : "transparent"),
+          boxShadow: open ? "0 12px 28px -12px rgba(28,26,23,.45)" : "none",
+          transition: `width 220ms ${ease}, border-color 220ms ease, box-shadow 220ms ease` }}>
+        <button onClick={() => setOpen(!open)} aria-expanded={open} title="Price level"
+          className={"h-[27px] w-full flex items-center justify-end px-2 text-[12.5px] font-extrabold whitespace-nowrap " + (open ? "" : "hover:bg-[color:var(--ft-hover)]")}
+          style={{ color: levelInk(value) }}>
+          <span ref={label} className="inline-flex items-center gap-1.5">
+            {text}
+            <ChevronDown size={14} className="text-slate-400" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 220ms ease" }} />
+          </span>
+        </button>
+        <div style={{ display: "grid", gridTemplateRows: open ? "1fr" : "0fr", transition: `grid-template-rows 240ms ${ease}` }}>
+          <div className="min-h-0 overflow-hidden">
+            <div className="border-t border-slate-300 mx-2" />
+            <div className="py-1">
+              {PRICE_LEVELS.map((t) => {
+                const on = value === t;
+                const pick = () => { onPick(t); setOpen(false); };
+                return (
+                  <div key={t} role="button" tabIndex={open ? 0 : -1} data-level={t} onClick={pick} onKeyDown={(e) => { if (e.key === "Enter") pick(); }}
+                    className={"w-full flex items-center gap-2 px-3 py-1.5 text-[12.5px] cursor-pointer hover:bg-[color:var(--ft-hover)] " + (on ? "font-extrabold" : "font-semibold text-slate-600")}>
+                    <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ background: levelInk(t) }} />
+                    {t === "custom" ? (
+                      <span className="flex-1">
+                        <span className="inline-flex items-center gap-0.5 rounded border border-slate-300 bg-white px-1.5 text-[12px] font-bold" style={{ color: levelInk(t) }} onClick={(e) => e.stopPropagation()}>
+                          −<input value={customPct ?? ""} inputMode="decimal" tabIndex={open ? 0 : -1} title="Custom % off retail"
+                            onFocus={() => onPick("custom")} onChange={(e) => onPct(e.target.value.replace(/[^\d.]/g, ""))}
+                            onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); setOpen(false); } }}
+                            className="w-6 text-right bg-transparent focus:outline-none" />%
+                        </span>
+                      </span>
+                    ) : <span className="flex-1" style={on ? { color: levelInk(t) } : undefined}>{t[0].toUpperCase() + t.slice(1)}</span>}
+                    <span className="w-3.5 shrink-0">{on && <Check size={13} />}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

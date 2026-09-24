@@ -148,11 +148,16 @@ src/
                     # anchored-panel machinery, `ThemeSwitch`, popovers, bars,
                     # `HelpTip` (the hover/focus/tap ? for STANDING RULES only —
                     # state & warnings stay inline, hiding them hides the problem),
-                    # and `SourceSwitch` — the shared Stock only / Full catalog
-                    # seg both vendor configurators mount in their pop-head
-                    # (phase 4), so the two popups can't drift on the control;
-                    # it carries no engine knowledge, each popup owns what the
-                    # source constrains and styles `.srcseg` in its own CSS.
+                    # and the vendor configurators' one-row header set (owner
+                    # 2026-09-24, app-header-options.html): `FLAT_BTN` (flat on
+                    # the header's own fill, hover tint only), `SourceSwitch` —
+                    # the shared Stock only checkbox (unchecked = Full catalog;
+                    # phase 4, so the popups can't drift; no engine knowledge,
+                    # each popup owns what the source constrains) —
+                    # `PriceLevelMenu` (names the level, Custom its discount
+                    # alone; slides open inside a growing dark border, on the
+                    # Esc ladder) and `BasketButton` (icon + count badge).
+                    # Row order: Stock only · Clear design | price · basket · X.
                     # `KitOverwriteConfirm` (2026-09-02, ADR 0035 amendment) —
                     # the kit-card confirm both popups raise over customized
                     # work: Overwrite · Keep what I added · New shower ·
@@ -699,7 +704,8 @@ src/
                     # rail+BuildCard; on mobile the options fill the screen with a
                     # pinned price bar that pulls up a swipe-down MobileBuildSheet
                     # (BuildCard + Add). BuildCard is the shared cost->sell card.
-                    # A price-level bar (TierBar) mirrors the job's tier buttons
+                    # A price level (PriceLevelMenu in the desktop header,
+                    # the TierBar strip under it on a phone) mirrors the job's tier buttons
                     # two ways — seeded from project.priceTier, pressing one sets
                     # it — and every price on screen renders through that lens in
                     # the tier's color (sheoga.js tierSellOf/tierFeeOf). Display
@@ -1059,8 +1065,8 @@ src/
                     # search ("wed" is enough) or its "wedi — reconfigure" chip;
                     # the TierBar mirrors the job's tier both ways (ADR 0018) and
                     # Add previews then lands lineItems() via addWediLines.
-                    # "Clear design" sits in the popup head immediately LEFT of
-                    # that tier bar (owner 2026-08-04): it wipes the whole build,
+                    # "Clear design" sits in the popup head's one control row
+                    # (owner 2026-08-04; row 2026-09-24): it wipes the whole build,
                     # not just the walls, so it reads as a header action on every
                     # tab rather than a control of the Custom shower's Walls
                     # group, where it used to hide.

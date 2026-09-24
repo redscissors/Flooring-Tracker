@@ -5,7 +5,7 @@
 // row keeps the raw configuration (product.sheoga) so Reconfigure reopens here.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { X, Grid3X3, Plus, ChevronUp } from "lucide-react";
-import { useEscClose, HelpTip } from "./widgets.jsx";
+import { useEscClose, HelpTip, PriceLevelMenu, BasketButton } from "./widgets.jsx";
 import { PaneBack, PaneClose } from "./raildrawer.jsx";
 import {
   MODES, HB_RETIRED, defaultConfig, calcConfig, calcFloor, calcStocked, calcHerringbone, calcVent,
@@ -1527,12 +1527,11 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
         <h2 className="ft-serif text-xl leading-none">Sheoga Hardwood</h2>
         <HelpTip className="align-middle" w={300} tip={SHEOGA_TIP} />
       </div>
-      <div className="ml-auto flex items-center gap-3">
-        {isWide && tierBar}
-        <button onClick={() => setBasketOpen(true)} className="relative inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold hover:bg-slate-50">
-          🧺 Basket{(basket || []).length > 0 && <span className="rounded-full bg-[color:var(--ft-brand)] text-white text-[11px] font-extrabold min-w-[18px] h-[18px] px-1 flex items-center justify-center">{basket.length}</span>}
-        </button>
-        {embedded ? <PaneClose onClick={onClose} /> : <button onClick={onClose} className="w-7 h-7 rounded-md border border-slate-200 text-slate-500 hover:text-slate-700 flex items-center justify-center"><X size={15} /></button>}
+      <div className="ml-auto flex items-center gap-2">
+        {isWide && <PriceLevelMenu value={tierId} customPct={customPct} bg="var(--ft-card)"
+          onPick={(v) => setTier({ priceTier: v })} onPct={(v) => setTier({ priceTier: "custom", customPct: v })} />}
+        <BasketButton count={(basket || []).length} onClick={() => setBasketOpen(true)} data-sheoga-basket />
+        <PaneClose onClick={onClose} />
       </div>
     </div>
   );
