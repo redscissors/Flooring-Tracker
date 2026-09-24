@@ -270,6 +270,8 @@ src/
                     # BookImportWizard over local mock state, no Supabase —
                     # preview proof for the diff review's unfolding new/changed/
                     # retiring lists + per-line Flag for Claude (2026-08-17);
+                    # `?somerset` feeds the real Somerset sheet's pages through
+                    # the wizard's PDF path as a new book;
                     # not part of the app build
   orderentrypreview.jsx  # dev-only harness (order-entry-preview.html): the REAL
                     # OrderEntryPanel over rows built through the REAL
@@ -514,6 +516,24 @@ src/
                     # row, QuickShip beside i2 in the note; a style the color
                     # book doesn't know imports style-only under its name and
                     # the wizard says which (docs/pricebook/interface.md)
+  somersetbook.js   # Somerset Hardwood (Palmer Donavin "R35") price PDF ->
+                    # canonical rows (.scratch/154). Floor pages are a matrix:
+                    # carton table (SF/ctn by construction, species or width),
+                    # Solid/Engineered band, width header, SKU-only color rows,
+                    # and MERGED price cells printed at the middle of the rows
+                    # they cover — `priceRuns` splits each column's rows into
+                    # one run per printed price; no fit = no cost + a warning,
+                    # never a guess. Grey cells are simply SKU-less. Molding
+                    # pages -> EA trims fitted by collection + color (and
+                    # construction for stair nose/reducer/threshold); a trim
+                    # printed at two prices takes the higher (owner), a floor
+                    # code printed on two rows stays with the row whose sibling
+                    # codes share its letters (owner: as printed + warn).
+                    # Detector keys on the carton header + warranty line — the
+                    # brand names are logos. Format tag "somerset"
+  somersetfixture.js  # the R35 sheet's positioned text items — parser INPUT
+                    # for somersetbook.test.js; production never reads it.
+                    # GENERATED — .scratch/154's tools/dump-pages.mjs
   interfacecolors.js  # the Interface color book: every colorway of every
                     # price-list style (name + color number + QuickShip),
                     # transcribed from shop.interface.com's US product pages
