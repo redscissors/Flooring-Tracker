@@ -175,7 +175,7 @@ export default function App({ user, onSignOut }) {
   const {
     data, setData, loading, setLoading, hydrateDirectory,
     selId, setSelId, selCustId, setSelCustId, sel, selCust,
-    updateProject, addProject, startQuickPrice, pickProject, goHome, delProject, claimProjectNo, dropUnsavedDraft,
+    updateProject, addProject, startQuickPrice, pickProject, goHome, delProject, dropUnsavedDraft,
     promoteProject, promoteToNewCustomer,
     addPerson, updatePerson, delPerson, addBuilderFor,
     builderNameOf, projectsOf, migrateLegacyCustomers,
