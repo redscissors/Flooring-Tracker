@@ -165,6 +165,10 @@ src/
                     # wears `.ft-pop` (index.css), the shared panel shell;
                     # `useDismissOutside` is the outside-press/focus-out rule
                     # `useAnchoredPanel` and `MorphSelect` share.
+                    # `FitSelect` keeps the <select> call shape (<option>/
+                    # <optgroup> children, onChange(e) → e.target.value) over a
+                    # MorphSelect — the materials drawer's dropdowns read as
+                    # before; `GroutColorOptions` children are expanded inline.
                     # Row order: Stock only · Clear design | price · basket · X.
                     # `KitOverwriteConfirm` (2026-09-02, ADR 0035 amendment) —
                     # the kit-card confirm both popups raise over customized
@@ -2145,6 +2149,11 @@ src/
                     # drawer, Sheoga options, ⋯ menus, phone), plus a 75%-zoomed
                     # box and a near-the-bottom flip — ADR 0048's gallery; not
                     # part of the app build
+  gridpreview.jsx   # dev-only harness (grid-preview.html): the REAL
+                    # TypeSelect, UnitPick, drawer FitSelects, GridPriceCell's
+                    # popup, LineMenu and LineWastePop over local state — the
+                    # grid rows live inside App.jsx, so this is ADR 0048's
+                    # preview proof for them; not part of the app build
   railpreview.jsx   # dev-only harness (rail-preview.html): the REAL drawers,
                     # reducer, pane header and workspaces over mock state —
                     # preview proof for ADR 0047

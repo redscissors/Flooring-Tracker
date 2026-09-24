@@ -1,4 +1,4 @@
-import { Component, useState, useEffect, useLayoutEffect, useRef, useId } from "react";
+import { Children, Component, Fragment, isValidElement, useState, useEffect, useLayoutEffect, useRef, useId } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, User, Paperclip, X, Lock, LockOpen, Eye, EyeOff, MapPin, ClipboardPaste, Check, ShoppingBasket } from "lucide-react";
 import { num } from "./catalog.js";
@@ -45,17 +45,34 @@ export class LazyBoundary extends Component {
   }
 }
 
-// A native select sizes to its longest option (or its container), not the
-// selected one — an invisible twin of the selected label sets the width here.
-export const FitSelect = ({ display, className = "", sm, children, ...rest }) => {
-  const pad = sm ? "pl-1.5 pr-5 py-0.5 text-xs" : "pl-2 pr-6 py-1.5 text-sm";
-  return (
-    <span className={`relative inline-block max-w-full align-middle ${className}`}>
-      <span aria-hidden="true" className={`invisible block truncate whitespace-pre border border-transparent ${pad}`}>{display || " "}</span>
-      <select {...rest} className={`ft-field absolute inset-0 w-full h-full appearance-none rounded-md border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${pad}`}>{children}</select>
-      <ChevronDown size={sm ? 11 : 13} className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 text-slate-400" />
-    </span>
-  );
+// The drawer's dropdowns keep a <select>'s call shape — <option>/<optgroup>
+// children and onChange(e) reading e.target.value — so they read like the
+// markup they replaced; underneath each is a MorphSelect (ADR 0048).
+export const FitSelect = ({ display, className = "", sm, children, value, onChange, title, bg = "var(--ft-field)" }) => (
+  <MorphSelect size={sm ? "sm" : "md"} className={className} title={title} value={String(value ?? "")} display={display}
+    groups={selectGroups(children)} bg={bg} onChange={(v) => onChange?.({ target: { value: v } })} />
+);
+
+const selectGroups = (children) => {
+  const groups = [];
+  let loose = null;
+  const walk = (nodes, into) => Children.forEach(nodes, (c) => {
+    if (!isValidElement(c)) return;
+    if (c.type === Fragment) return walk(c.props.children, into);
+    if (c.type === GroutColorOptions) return walk(GroutColorOptions(c.props), into);
+    if (c.type === "optgroup") {
+      const g = { label: c.props.label, items: [] };
+      groups.push(g);
+      loose = null;
+      return walk(c.props.children, g.items);
+    }
+    if (c.type !== "option") return;
+    if (!into && !loose) { loose = { label: null, items: [] }; groups.push(loose); }
+    const label = Children.toArray(c.props.children).join("");
+    (into || loose.items).push({ v: String(c.props.value ?? label), label, disabled: c.props.disabled });
+  });
+  walk(children, null);
+  return groups;
 };
 
 // A grout color dropdown's options (stock.js groutColorOptions): flat while
@@ -484,7 +501,7 @@ const touchRows = () => window.matchMedia?.("(pointer: coarse)").matches || wind
 // scroll container can't clip it, wearing the trigger's zoom inside the
 // shrink-to-fit workspaces. Focus stays on the trigger (rows preventDefault on
 // mousedown) so it keeps a <select>'s keyboard contract.
-export function MorphSelect({ value, onChange, options, groups, placeholder = "Pick…", display, bg = "var(--ft-card)", size = "md", flat = false, tinted = false, bold = false, full = false, align = "left", minOpenW = 0, title, className = "", triggerClass, triggerStyle, renderRow }) {
+export function MorphSelect({ value, onChange, options, groups, placeholder = "Pick…", display, bg = "var(--ft-card)", size = "md", flat = false, tinted = false, bold = false, full = false, align = "left", minOpenW = 0, title, className = "", triggerClass, triggerStyle, renderRow, tabIndex, chevron = true }) {
   const { items, heads } = flatten({ options, groups });
   const [open, setOpen] = useState(false);
   const [shown, setShown] = useState(false);
@@ -565,8 +582,8 @@ export function MorphSelect({ value, onChange, options, groups, placeholder = "P
     else if (letter) { stop(); const i = typeahead(items, active, k); if (i >= 0) setActive(i); }
   };
 
-  const headAt = new Map(heads.map((h) => [h.at, h.label]));
-  const chevron = (turned) => <ChevronDown size={size === "sm" ? 12 : 14} className="ml-auto shrink-0 text-slate-400" style={{ transform: turned ? "rotate(180deg)" : "none", transition: "transform 220ms ease" }} />;
+  const headAt = new Map(heads.filter((h) => h.label).map((h) => [h.at, h.label]));
+  const chevronIcon = (turned) => <ChevronDown size={size === "sm" ? 12 : 14} className="ml-auto shrink-0 text-slate-400" style={{ transform: turned ? "rotate(180deg)" : "none", transition: "transform 220ms ease" }} />;
   const rows = items.map((it, i) => {
     const on = i === sel;
     const custom = renderRow?.(it, { selected: on, close: closeMenu });
@@ -593,8 +610,8 @@ export function MorphSelect({ value, onChange, options, groups, placeholder = "P
   const header = box && (
     <div onMouseDown={(e) => e.preventDefault()} onClick={closeMenu}
       className={"flex items-center gap-1.5 whitespace-nowrap cursor-pointer " + sz + (bold ? " font-extrabold" : " font-semibold")}
-      style={{ height: box.h - 3, color: ink || "var(--ft-text)" }}>
-      <span className="truncate">{text}</span>{chevron(shown)}
+      style={{ height: Math.max(box.h - 3, size === "sm" ? 20 : 24), color: ink || "var(--ft-text)" }}>
+      <span className="truncate">{text}</span>{chevronIcon(shown)}
     </div>
   );
   const divider = <div className="border-t border-slate-300 mx-2" />;
@@ -619,12 +636,12 @@ export function MorphSelect({ value, onChange, options, groups, placeholder = "P
   return (
     <span ref={anchorRef} className={(full ? "flex w-full" : "inline-flex max-w-full") + " relative align-middle " + className}
       style={triggerClass ? undefined : { background: bg, border: "1.5px solid " + closedBorder, borderRadius: 8 }}>
-      <button type="button" onClick={() => (open && shown ? closeMenu() : openMenu())} onKeyDown={onKey} title={title}
+      <button type="button" tabIndex={tabIndex} onClick={() => (open && shown ? closeMenu() : openMenu())} onKeyDown={onKey} title={title}
         aria-haspopup="listbox" aria-expanded={open && shown} aria-controls={open ? lid : undefined}
         aria-activedescendant={open && shown && active >= 0 ? `${lid}-${active}` : undefined}
         className={triggerClass ?? ("min-w-0 w-full flex items-center gap-1.5 rounded-[6.5px] whitespace-nowrap focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 hover:bg-[color:var(--ft-hover)] " + sz + (size === "sm" ? " h-[22px]" : " h-[27px]") + (bold ? " font-extrabold" : " font-semibold"))}
         style={triggerStyle ?? { color: ink || (cur || display ? "var(--ft-text)" : "var(--ft-muted)") }}>
-        <span className="truncate">{text}</span>{chevron(false)}
+        <span className="truncate">{text}</span>{chevron && chevronIcon(false)}
       </button>
       {open && box && createPortal(panel, document.body)}
     </span>

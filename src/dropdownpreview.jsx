@@ -5,7 +5,7 @@ import { useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { MoreHorizontal, Copy, Pencil, Printer, Trash2 } from "lucide-react";
 import "./index.css";
-import { FitSelect, MorphSelect, DotMenu } from "./widgets.jsx";
+import { MorphSelect, DotMenu } from "./widgets.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import { STAIN_COLORS } from "./sheoga.js";
 
@@ -22,6 +22,14 @@ const TIERS = [
   { v: "employee", label: "Employee", note: "cost +6%", dot: tierDot("employee") },
   { v: "sale", label: "Sale", note: "−15%", dot: tierDot("sale") },
 ];
+
+// Today's drawer dropdown (the retired FitSelect): a browser <select>.
+const FitSelect = ({ display, children, ...rest }) => (
+  <span className="relative inline-block max-w-full align-middle">
+    <span aria-hidden="true" className="invisible block truncate whitespace-pre border border-transparent pl-1.5 pr-5 py-0.5 text-xs">{display || " "}</span>
+    <select {...rest} className="ft-field absolute inset-0 w-full h-full rounded-md border border-slate-200 pl-1.5 pr-1 py-0.5 text-xs">{children}</select>
+  </span>
+);
 
 // Static stand-ins for what today's controls show when open — the browser
 // draws a native <select>'s list itself, so a screenshot can't catch it.
@@ -106,8 +114,8 @@ function Desktop() {
         note="The dropdown takes the drawer's own tint and grows into the list; the outline darkens around the whole piece. Long lists scroll inside it, with the In stock / Special order headings kept."
         today={<>
           <DrawerRow>
-            <FitSelect sm value={gp} display={gp} onChange={(e) => setGp(e.target.value)}>{GROUT.map((g) => <option key={g}>{g}</option>)}</FitSelect>
-            <FitSelect sm value={gc} display={gc} onChange={(e) => setGc(e.target.value)}>{GROUT_COLORS.stock.map((c) => <option key={c}>{c}</option>)}</FitSelect>
+            <FitSelect value={gp} display={gp} onChange={(e) => setGp(e.target.value)}>{GROUT.map((g) => <option key={g}>{g}</option>)}</FitSelect>
+            <FitSelect value={gc} display={gc} onChange={(e) => setGc(e.target.value)}>{GROUT_COLORS.stock.map((c) => <option key={c}>{c}</option>)}</FitSelect>
           </DrawerRow>
           <div className="pl-[88px] pt-0"><div className="pl-[70px]"><BrowserList sel={gc} groups={[{ label: "In stock", items: GROUT_COLORS.stock.slice(0, 7) }, { label: "Special order", items: GROUT_COLORS.special.slice(0, 3) }]} /></div></div>
           <p className="text-[11px] text-slate-400 mt-2">The open list is drawn by the browser (shown roughly) — it can't be styled.</p>
@@ -164,7 +172,7 @@ function Phone() {
           </div>
         </PhoneFrame>
         <PhoneFrame label="Today — phone's own chooser">
-          <DrawerRow><FitSelect sm value={gc} display={gc} onChange={() => {}}><option>{gc}</option></FitSelect></DrawerRow>
+          <DrawerRow><FitSelect value={gc} display={gc} onChange={() => {}}><option>{gc}</option></FitSelect></DrawerRow>
           <div className="absolute inset-0 flex items-center justify-center p-6" style={{ background: "rgba(0,0,0,.35)" }}>
             <div className="w-full"><PhonePicker title="Grout color" sel={gc} items={GROUT_COLORS.stock.slice(0, 7)} /></div>
           </div>

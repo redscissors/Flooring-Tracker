@@ -18,7 +18,7 @@ export function SfPartsMenu({ x, y, product, showers, onPatch, onClose }) {
     : { left: 12, right: 12, bottom: 12 };
   return createPortal(
     <div className="ft-noprint fixed inset-0 z-50" onClick={onClose} onContextMenu={(e) => { e.preventDefault(); onClose(); }}>
-      <div className="fixed rounded-lg border border-slate-200 bg-white shadow-lg text-xs overflow-y-auto" style={{ ...box, maxHeight: 420, padding: 10 }} onClick={(e) => e.stopPropagation()}>
+      <div className="ft-pop fixed text-xs overflow-y-auto" style={{ ...box, maxHeight: 420, padding: 10 }} onClick={(e) => e.stopPropagation()}>
         {(showers || []).length === 0 && <div className="text-slate-400 mb-2">No wedi or Schluter shower on this job.</div>}
         {(showers || []).map((s) => (
           <div key={s.key} className="mb-2">
