@@ -2116,6 +2116,10 @@ src/
                     # the one bar every Settings/Apps page opens with; the
                     # configurators and Customers draw the same row by hand),
                     # and PaneBack / PaneClose: its caret + X
+  appheaderoptions.jsx  # dev-only mockup (app-header-options.html): the
+                    # Apps configurator header top-right options the owner
+                    # reviewed 2026-09-24 (flat controls, price dropdown,
+                    # basket icon); not part of the app build
   railpreview.jsx   # dev-only harness (rail-preview.html): the REAL drawers,
                     # reducer, pane header and workspaces over mock state —
                     # preview proof for ADR 0047
