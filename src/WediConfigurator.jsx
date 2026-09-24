@@ -12,7 +12,7 @@
 // here pre-filled.
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, Plus, Printer, Copy, Eye, ShowerHead } from "lucide-react";
+import { X, Plus, Printer, Copy, Eye } from "lucide-react";
 import { useEscClose, SourceSwitch, NumIn, KitBasketPanel, KitOverwriteConfirm, HelpTip } from "./widgets.jsx";
 import { PaneBack, PaneClose } from "./raildrawer.jsx";
 import { TIER_COLOR } from "./uiconst.js";
@@ -580,7 +580,6 @@ function WediGate({ embedded, onClose, escActive = true, children }) {
         <div className="flex items-center gap-3 px-3.5 py-2 border-b" style={{ borderColor: "var(--ft-border-strong)" }}>
           <div className="flex items-center gap-2 min-w-0">
             {embedded && <PaneBack onClick={onClose} />}
-            <ShowerHead size={17} className="text-slate-400 shrink-0" />
             <h2 className="ft-serif text-xl leading-none">wedi shower systems</h2>
           </div>
           {embedded && <PaneClose onClick={onClose} className="ml-auto" />}
@@ -2573,7 +2572,6 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
         <div className="pop-head">
           <div className="flex items-center gap-2 min-w-0">
             {embedded && <PaneBack onClick={onClose} />}
-            <ShowerHead size={17} className="text-slate-400 shrink-0" />
             <h2 className="ft-serif text-xl leading-none">wedi shower systems</h2>
           </div>
           {onBasketChange && <button className="relative inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold hover:bg-slate-50" onClick={() => setBasketOpen(true)} data-wedi-basket>

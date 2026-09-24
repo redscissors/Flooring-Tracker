@@ -10,7 +10,7 @@
 // control for now; phase 4 lifts it into the shared shell so wedi inherits it.
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, Plus, Eye, Printer, Copy, Layers } from "lucide-react";
+import { X, Plus, Eye, Printer, Copy } from "lucide-react";
 import { useEscClose, SourceSwitch, NumIn, KitBasketPanel, KitOverwriteConfirm, HelpTip } from "./widgets.jsx";
 import { PaneBack, PaneClose } from "./raildrawer.jsx";
 import { TIER_COLOR } from "./uiconst.js";
@@ -2244,7 +2244,6 @@ export default function SchluterConfigurator({
         <div className="pop-head">
           <div className="flex items-center gap-2 min-w-0">
             {embedded && <PaneBack onClick={onClose} />}
-            <Layers size={17} className="text-slate-400 shrink-0" />
             <h2 className="ft-serif text-xl leading-none">Schluter</h2>
           </div>
           <div className="headctl">

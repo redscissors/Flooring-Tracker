@@ -2616,7 +2616,7 @@ export default function App({ user, onSignOut }) {
             carries its own title bar; the Label Generator's is drawn here. */}
         <div className={railNav.pane ? "absolute inset-0 z-20 flex flex-col bg-white" : "hidden"} style={zoomStyle}>
           {railNav.pane?.kind === "app" && railNav.pane.id === "labels" && (
-            <PaneTitleBar icon={APP_ITEMS.find((x) => x.id === "labels").icon} title={APP_ITEMS.find((x) => x.id === "labels").label} onClose={() => railDispatch({ type: "closePane" })} />
+            <PaneTitleBar title={APP_ITEMS.find((x) => x.id === "labels").label} onClose={() => railDispatch({ type: "closePane" })} />
           )}
           {railNav.pane?.kind === "customers" && (
             <div className="flex-1 min-h-0">

@@ -7,7 +7,7 @@ import { uid } from "./model.js";
 import { DotMenu, Modal, HelpTip, AddressField, lookupErrText, DARK_MODE } from "./widgets.jsx";
 import { StockSearch, FamilySearch, SeriesSearch } from "./search.jsx";
 import { PriceBookLibrary } from "./pricebooklib.jsx";
-import { PaneTitleBar, SETTINGS_ITEMS } from "./raildrawer.jsx";
+import { PaneTitleBar } from "./raildrawer.jsx";
 import { probeMaps } from "./usemapslookup.js";
 import { probeText } from "./probetext.js";
 import { phoneChange } from "./phone.js";
@@ -843,7 +843,7 @@ export default function SettingsWorkspace({ settings, setSettings, gFamilies, ex
     <div ref={shellRef} className="print:hidden h-full overflow-auto">
       <div className="bg-white w-full h-full flex flex-col overflow-hidden" style={{ zoom, minWidth: zoom <= SETTINGS_ZOOM_FLOOR ? SETTINGS_DESIGN_W : 0 }}>
         {section !== "book" && (
-          <PaneTitleBar icon={SETTINGS_ITEMS.find((x) => x.id === section)?.icon} onClose={onClose}
+          <PaneTitleBar onClose={onClose}
             title={section === "materials" ? <>Materials &amp; add-ons</> : section === "profile" ? "Your details" : section === "general" ? "General" : <>Backup &amp; restore</>}
             tip={section === "profile" ? <HelpTip className="align-middle" w={280} tip={<>Your contact info prints at the top of the estimate ("Your salesperson") so the customer knows who to reach. It's saved with your login - each person on the team sets their own. Leave a field blank to keep it off the estimate.</>} />
               : section === "general" ? <HelpTip className="align-middle" w={300} tip={<>Calibrate coverage to your real-world results and set unit prices. Grout scales automatically for tile size, joint, and thickness from a 12×12×3/8" / 1/8"-joint baseline. Waste is the rate a new project starts with. Each job carries its own waste from there - changing these never touches a project that already exists.</>} />

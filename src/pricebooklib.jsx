@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { AlertTriangle, BookOpen, Check, ChevronRight, Eye, EyeOff, FileText, Flag, History, Lock, Pencil, Percent, Pin, Plus, RotateCcw, Trash2, Truck, Unlock, Upload, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronRight, Eye, EyeOff, FileText, Flag, History, Lock, Pencil, Percent, Pin, Plus, RotateCcw, Trash2, Truck, Unlock, Upload, X } from "lucide-react";
 import { num } from "./catalog.js";
 import { normFreight, freightBasis, freightParts, freightSummary, freightIsBlank, freightIsSeed, freightSeedFor, isSeedBook } from "./freight.js";
 import { MAX_QUICK_MARKUPS } from "./costentry.js";
@@ -504,7 +504,7 @@ export function PriceBookLibrary({ onClose, note, books, addBook, updateBook, co
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
-      <PaneTitleBar icon={BookOpen} title="Price books" onClose={onClose}
+      <PaneTitleBar title="Price books" onClose={onClose}
         tip={<HelpTip className="align-middle" tip={<>Every book in one place - grouped by portal sign-in.</>} />}>
         {sel === "library" && (
           <>

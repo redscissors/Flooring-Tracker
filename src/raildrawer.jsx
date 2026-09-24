@@ -80,11 +80,10 @@ export function DrawerList({ title, items, activeId, onPick, baseClass, classNam
 // The one title bar every Settings and Apps page opens with (owner,
 // 2026-09-24: "the same size" as Materials & add-ons). Page controls ride in
 // children, right-aligned before the X.
-export function PaneTitleBar({ icon: Icon, title, tip, onClose, children }) {
+export function PaneTitleBar({ title, tip, onClose, children }) {
   return (
     <div className="shrink-0 flex items-center gap-2 px-3.5 py-2 border-b border-slate-200 bg-white">
       {onClose && <PaneBack onClick={onClose} />}
-      {Icon && <Icon size={17} className="text-slate-400 shrink-0" />}
       <h2 className="ft-serif text-xl leading-none">{title}</h2>
       {tip}
       {children && <div className="ml-auto flex items-center gap-2 flex-wrap justify-end">{children}</div>}

@@ -95,7 +95,7 @@ function Harness() {
           <div className="bg-white rounded-lg border border-slate-200 p-4"><div className="ft-eyebrow-accent text-[10px]">Customer</div><div className="ft-serif text-3xl">{cur.name}</div></div>
         </main>
         <div className={nav.pane ? "absolute inset-0 z-20 flex flex-col bg-white" : "hidden"}>
-          {nav.pane?.kind === "app" && nav.pane.id === "labels" && <PaneTitleBar icon={APP_ITEMS.find((x) => x.id === "labels").icon} title={APP_ITEMS.find((x) => x.id === "labels").label} onClose={() => dispatch({ type: "closePane" })} />}
+          {nav.pane?.kind === "app" && nav.pane.id === "labels" && <PaneTitleBar title={APP_ITEMS.find((x) => x.id === "labels").label} onClose={() => dispatch({ type: "closePane" })} />}
           {nav.pane?.kind === "customers" && (
             <div className="flex-1 min-h-0">
               <Suspense fallback={null}>

@@ -2112,7 +2112,7 @@ src/
                     # still stored as the { kind: "browser" } layer
   raildrawer.jsx    # RailSlide (the one ~1.3 s height slide, content pinned
                     # top or bottom), DrawerList, APP_ITEMS / SETTINGS_ITEMS,
-                    # PaneTitleBar (caret · icon · serif title · controls · X —
+                    # PaneTitleBar (caret · serif title · controls · X —
                     # the one bar every Settings/Apps page opens with; the
                     # configurators and Customers draw the same row by hand),
                     # and PaneBack / PaneClose: its caret + X

@@ -4,7 +4,7 @@
 // "Add to product line" hands the lineItems() payloads back to the caller; the
 // row keeps the raw configuration (product.sheoga) so Reconfigure reopens here.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { X, Grid3X3, Plus, ChevronUp, TreePine } from "lucide-react";
+import { X, Grid3X3, Plus, ChevronUp } from "lucide-react";
 import { useEscClose, HelpTip } from "./widgets.jsx";
 import { PaneBack, PaneClose } from "./raildrawer.jsx";
 import {
@@ -1524,7 +1524,6 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
     <div className="flex items-center gap-3 px-3.5 pt-2">
       <div className="flex items-center gap-2 min-w-0">
         {embedded && <PaneBack onClick={onClose} />}
-        <TreePine size={17} className="text-slate-400 shrink-0" />
         <h2 className="ft-serif text-xl leading-none">Sheoga Hardwood</h2>
         <HelpTip className="align-middle" w={300} tip={SHEOGA_TIP} />
       </div>
