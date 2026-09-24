@@ -41,6 +41,8 @@ export function railReducer(s, a) {
       if (same) return { ...s, drawer, broke };
       return { ...s, drawer, broke, pane: { kind: a.kind, id: a.id, resume }, lastApp: a.kind === "app" ? a.id : s.lastApp };
     }
+    case "openCustomers":
+      return s.pane?.kind === "customers" ? s : { ...s, pane: { kind: "customers" }, broke: leave(s, s.broke) };
     case "resolveResume":
       return s.pane?.resume ? { ...s, pane: { ...s.pane, resume: false } } : s;
     case "closePane":
@@ -57,7 +59,9 @@ export function railReducer(s, a) {
 // The `ft-open-layer` entry (ADR 0028) for the rail: the pane if one shows,
 // else the open drawer. Entries written before 2026-09-24 are
 // { kind: "apps" } and { kind: "settings", section } — both still read.
+// Customers keeps the { kind: "browser" } entry it had as an overlay.
 export function layerOf(s) {
+  if (s.pane?.kind === "customers") return { kind: "browser" };
   if (s.pane) return s.pane.kind === "app" ? { kind: "apps", app: s.pane.id } : { kind: "settings", section: s.pane.id };
   if (s.drawer) return { kind: s.drawer };
   return null;
@@ -65,6 +69,7 @@ export function layerOf(s) {
 
 export function stateFromLayer(L) {
   if (!L || typeof L !== "object") return null;
+  if (L.kind === "browser") return { ...initialRail, pane: { kind: "customers" } };
   if (L.kind === "apps") {
     const id = APP_IDS.includes(L.app) ? L.app : null;
     return { ...initialRail, drawer: "apps", pane: id ? { kind: "app", id, resume: false } : null, lastApp: id };

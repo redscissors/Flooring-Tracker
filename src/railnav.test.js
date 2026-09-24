@@ -143,10 +143,45 @@ test("stateFromLayer round-trips and reads old shapes", () => {
   assert.deepEqual(stateFromLayer({ kind: "settings", section: "gone" }), { ...initialRail, drawer: "settings" });
   assert.equal(stateFromLayer({ kind: "apps", app: "labels" }).lastApp, "labels");
   assert.deepEqual(stateFromLayer({ kind: "apps", app: "nope" }), { ...initialRail, drawer: "apps" });
-  for (const junk of [null, undefined, "apps", 3, {}, { kind: "browser" }, { kind: "sheoga", aid: "a" }]) assert.equal(stateFromLayer(junk), null);
+  for (const junk of [null, undefined, "apps", 3, {}, { kind: "sheoga", aid: "a" }]) assert.equal(stateFromLayer(junk), null);
 });
 
 test("restore action applies a stored layer, ignores other kinds", () => {
   assert.deepEqual(railReducer(initialRail, { type: "restore", layer: { kind: "apps", app: "wedi" } }).pane, { kind: "app", id: "wedi", resume: false });
-  assert.equal(railReducer(initialRail, { type: "restore", layer: { kind: "browser" } }), initialRail);
+  assert.equal(railReducer(initialRail, { type: "restore", layer: { kind: "todos" } }), initialRail);
+});
+
+const customers = { type: "openCustomers" };
+
+test("Customers fills the pane and leaves the drawers alone", () => {
+  assert.deepEqual(run(customers).pane, { kind: "customers" });
+  assert.equal(run(customers).drawer, null);
+  const s = run(toggle("apps"), pick("app", "labels"), customers);
+  assert.deepEqual(s.pane, { kind: "customers" });
+  assert.equal(s.drawer, "apps");
+  assert.equal(s.lastApp, "labels", "the Apps workspace stays mounted behind it");
+});
+
+test("an app or setting replaces Customers, and Customers replaces them", () => {
+  assert.deepEqual(run(customers, pick("app", "wedi")).pane, { kind: "app", id: "wedi", resume: false });
+  assert.deepEqual(run(customers, pick("settings", "book")).pane, { kind: "settings", id: "book", resume: false });
+  assert.deepEqual(run(pick("settings", "book"), customers).pane, { kind: "customers" });
+});
+
+test("Customers over a configurator is leaving it: with the tray shut it asks on return", () => {
+  const shut = run(pick("app", "wedi", true), toggle("apps"), customers, pick("app", "wedi", true));
+  assert.equal(shut.pane.resume, true);
+  const open = run(pick("app", "wedi", true), customers, pick("app", "wedi", true));
+  assert.equal(open.pane.resume, false, "the tray stayed open — no break");
+});
+
+test("closePane and projectChanged close Customers", () => {
+  assert.equal(run(customers, { type: "closePane" }).pane, null);
+  assert.equal(run(customers, { type: "projectChanged" }).pane, null);
+});
+
+test("Customers persists as the browser layer and restores", () => {
+  assert.deepEqual(layerOf(run(customers)), { kind: "browser" });
+  assert.deepEqual(stateFromLayer({ kind: "browser" }), { ...initialRail, pane: { kind: "customers" } });
+  assert.deepEqual(railReducer(initialRail, { type: "restore", layer: { kind: "browser" } }).pane, { kind: "customers" });
 });

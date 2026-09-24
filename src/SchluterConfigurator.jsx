@@ -12,6 +12,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Plus, Eye, Printer, Copy } from "lucide-react";
 import { useEscClose, SourceSwitch, NumIn, KitBasketPanel, KitOverwriteConfirm, HelpTip } from "./widgets.jsx";
+import { PaneBack, PaneClose } from "./raildrawer.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
   trayCandidates, pickRolls, buildKit, tierPrice, lineItems, orderCopyLines, normBench, benchTrayRoom,
@@ -2244,6 +2245,7 @@ export default function SchluterConfigurator({
           : { background: "var(--ft-cream)", borderColor: "var(--ft-border-strong)", height: fit.h, minHeight: 560, zoom: fit.zoom }}
         onClick={embedded ? undefined : (e) => e.stopPropagation()} data-schluter-pop>
         <div className="pop-head">
+          {embedded && <PaneBack onClick={onClose} className="-mr-2" />}
           <div>
             <div className="eyebrow">Vendor configurator</div>
             <div className="name">Schluter <small>shower systems · registry-priced (retail = 1.5× cost)</small></div>
@@ -2257,7 +2259,7 @@ export default function SchluterConfigurator({
               onClick={clearDesign}>Clear design</button>
             <SourceSwitch source={source} onChange={(s) => { setSource(s); setPick(null); }} />
             {tierBar}
-            {!embedded && <button className="xbtn" onClick={onClose} title="Close"><X size={15} /></button>}
+            {embedded ? <PaneClose onClick={onClose} /> : <button className="xbtn" onClick={onClose} title="Close"><X size={15} /></button>}
           </div>
         </div>
         <div className="modetabs">

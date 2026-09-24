@@ -7,6 +7,7 @@ import { uid } from "./model.js";
 import { DotMenu, Modal, HelpTip, AddressField, lookupErrText, DARK_MODE } from "./widgets.jsx";
 import { StockSearch, FamilySearch, SeriesSearch } from "./search.jsx";
 import { PriceBookLibrary } from "./pricebooklib.jsx";
+import { PaneBack, PaneClose } from "./raildrawer.jsx";
 import { probeMaps } from "./usemapslookup.js";
 import { probeText } from "./probetext.js";
 import { phoneChange } from "./phone.js";
@@ -230,7 +231,7 @@ function LinkMigration({ catalog, bookStock, books, onApply, onClose }) {
   );
 }
 
-export default function SettingsWorkspace({ settings, setSettings, gFamilies, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, headerLayout, setHeaderLayout, profile, saveProfile, user, books, addBook, updateBook, confirmBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setBookItemIssue, addClaudeIssue, bookStock = {}, orderBookStock = {}, loadFamilyBook = () => { }, bookStockReady, refreshBookStock, section, ping }) {
+export default function SettingsWorkspace({ settings, setSettings, gFamilies, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, headerLayout, setHeaderLayout, profile, saveProfile, user, books, addBook, updateBook, confirmBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setBookItemIssue, addClaudeIssue, bookStock = {}, orderBookStock = {}, loadFamilyBook = () => { }, bookStockReady, refreshBookStock, section, ping, onClose }) {
   const catalog = settings.catalog;
   const onChange = (c) => setSettings({ catalog: c });
   const [cat, setCat] = useState("grout"); // which Materials & add-ons category is open
@@ -840,7 +841,16 @@ export default function SettingsWorkspace({ settings, setSettings, gFamilies, ex
 
   return (
     <div ref={shellRef} className="print:hidden h-full overflow-auto">
-      <div className="bg-white w-full h-full flex overflow-hidden" style={{ zoom, minWidth: zoom <= SETTINGS_ZOOM_FLOOR ? SETTINGS_DESIGN_W : 0 }}>
+      <div className="bg-white w-full h-full flex flex-col overflow-hidden" style={{ zoom, minWidth: zoom <= SETTINGS_ZOOM_FLOOR ? SETTINGS_DESIGN_W : 0 }}>
+        {section === "materials" && onClose && (
+          <div className="shrink-0 flex items-center gap-2 px-3.5 py-2 border-b border-slate-200">
+            <PaneBack onClick={onClose} />
+            <Layers size={17} className="text-slate-400 shrink-0" />
+            <h2 className="ft-serif text-xl leading-none">Materials &amp; add-ons</h2>
+            <PaneClose onClick={onClose} className="ml-auto" />
+          </div>
+        )}
+        <div className="flex-1 min-h-0 flex overflow-hidden">
         {section === "materials" ? (
           <>
             <div className="w-44 shrink-0 border-r border-slate-200 overflow-y-auto py-3 px-2 space-y-0.5">
@@ -912,7 +922,11 @@ export default function SettingsWorkspace({ settings, setSettings, gFamilies, ex
           </>
         ) : section === "profile" ? (
           <div className="flex-1 overflow-y-auto p-6">
-            <h2 className="ft-serif text-3xl flex items-center gap-2">Your details <HelpTip className="align-middle" w={280} tip={<>Your contact info prints at the top of the estimate ("Your salesperson") so the customer knows who to reach. It's saved with your login - each person on the team sets their own. Leave a field blank to keep it off the estimate.</>} /></h2>
+            <div className="flex items-center gap-2">
+              {onClose && <PaneBack onClick={onClose} />}
+              <h2 className="ft-serif text-3xl flex items-center gap-2">Your details <HelpTip className="align-middle" w={280} tip={<>Your contact info prints at the top of the estimate ("Your salesperson") so the customer knows who to reach. It's saved with your login - each person on the team sets their own. Leave a field blank to keep it off the estimate.</>} /></h2>
+              {onClose && <PaneClose onClick={onClose} className="ml-auto" />}
+            </div>
             <div className="mt-5 space-y-3 max-w-md">
               <div><label className={lbl}>Name</label><input value={profile.name} onChange={(e) => saveProfile({ name: e.target.value })} placeholder="Your name" className={inp} /></div>
               <div><label className={lbl}>Phone</label><input type="tel" inputMode="tel" value={profile.phone} onChange={(e) => saveProfile({ phone: phoneChange(profile.phone, e.target.value) })} placeholder="Phone number" className={inp} /></div>
@@ -922,7 +936,11 @@ export default function SettingsWorkspace({ settings, setSettings, gFamilies, ex
           </div>
         ) : section === "general" ? (
           <div className="flex-1 overflow-y-auto p-6">
-            <h2 className="ft-serif text-3xl flex items-center gap-2">General <HelpTip className="align-middle" w={300} tip={<>Calibrate coverage to your real-world results and set unit prices. Grout scales automatically for tile size, joint, and thickness from a 12×12×3/8" / 1/8"-joint baseline. Waste is the rate a new project starts with. Each job carries its own waste from there - changing these never touches a project that already exists.</>} /></h2>
+            <div className="flex items-center gap-2">
+              {onClose && <PaneBack onClick={onClose} />}
+              <h2 className="ft-serif text-3xl flex items-center gap-2">General <HelpTip className="align-middle" w={300} tip={<>Calibrate coverage to your real-world results and set unit prices. Grout scales automatically for tile size, joint, and thickness from a 12×12×3/8" / 1/8"-joint baseline. Waste is the rate a new project starts with. Each job carries its own waste from there - changing these never touches a project that already exists.</>} /></h2>
+              {onClose && <PaneClose onClick={onClose} className="ml-auto" />}
+            </div>
             <div className="mt-5 flex gap-6">
               <div><label className={lbl}>Tile waste (%)</label><input type="number" value={settings.waste.tile} onChange={(e) => setSettings({ waste: { ...settings.waste, tile: e.target.value } })} className={inp + " w-28"} /></div>
               <div><label className={lbl}>Flooring waste (%)</label><input type="number" value={settings.waste.floor} onChange={(e) => setSettings({ waste: { ...settings.waste, floor: e.target.value } })} className={inp + " w-28"} /><div className="text-[11px] text-slate-400 mt-1">Hardwood, vinyl, laminate, carpet</div></div>
@@ -962,11 +980,15 @@ export default function SettingsWorkspace({ settings, setSettings, gFamilies, ex
         ) : section === "book" ? (
           <div className="flex-1 min-w-0 flex flex-col">
             {settings.ops?.lastImport && <div className="px-6 pt-3 text-[11px] text-slate-400">Book imported {new Date(settings.ops.lastImport.at).toLocaleDateString()}{settings.ops.lastImport.by ? ` by ${settings.ops.lastImport.by}` : ""}</div>}
-            <PriceBookLibrary books={books} addBook={addBook} updateBook={updateBook} confirmBook={confirmBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} setBookItemIssue={setBookItemIssue} addClaudeIssue={addClaudeIssue} settings={settings} setSettings={setSettings} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
+            <PriceBookLibrary onClose={onClose} books={books} addBook={addBook} updateBook={updateBook} confirmBook={confirmBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} setBookItemIssue={setBookItemIssue} addClaudeIssue={addClaudeIssue} settings={settings} setSettings={setSettings} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto p-6">
-            <h2 className="ft-serif text-3xl">Backup &amp; restore <HelpTip className="align-middle" w={280} tip="Download everything (customers, versions, settings, attachments) as one file. Restoring adds each customer from the file as a new entry — nothing existing is overwritten." /></h2>
+            <div className="flex items-center gap-2">
+              {onClose && <PaneBack onClick={onClose} />}
+              <h2 className="ft-serif text-3xl flex items-center gap-2">Backup &amp; restore <HelpTip className="align-middle" w={280} tip="Download everything (customers, versions, settings, attachments) as one file. Restoring adds each customer from the file as a new entry — nothing existing is overwritten." /></h2>
+              {onClose && <PaneClose onClick={onClose} className="ml-auto" />}
+            </div>
             {settings.ops?.lastBackup && <p className="text-xs text-slate-400 mt-1">Last backup downloaded {new Date(settings.ops.lastBackup.at).toLocaleDateString()}{settings.ops.lastBackup.by ? ` by ${settings.ops.lastBackup.by}` : ""}</p>}
             <div className="flex gap-2 mt-4">
               <button onClick={exportBackup} className="flex items-center gap-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 px-3 py-1.5 text-slate-600"><Download size={14} /> Download backup</button>
@@ -975,6 +997,7 @@ export default function SettingsWorkspace({ settings, setSettings, gFamilies, ex
             </div>
           </div>
         )}
+        </div>
         {addingCat && (
           <Modal title="New category" onClose={() => setAddingCat(false)}>
             <label className={lbl}>Name</label>

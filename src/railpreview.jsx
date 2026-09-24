@@ -1,5 +1,5 @@
 // Dev-only harness (rail-preview.html): the REAL rail drawers, railnav
-// reducer, pane header, AppsWorkspace and SettingsWorkspace over mock state,
+// reducer, pane header, AppsWorkspace, SettingsWorkspace and CustomerBrowser over mock state,
 // no Supabase — preview proof for the 2026-09-24 rail drawers. The rail
 // column around them mirrors App.jsx's markup. Not part of the app build.
 import { lazy, Suspense, useReducer, useRef, useState } from "react";
@@ -14,6 +14,7 @@ import { normalizeSettings } from "./catalog.js";
 import { TYPES, TLBL } from "./uiconst.js";
 
 const SettingsWorkspace = lazy(() => import("./SettingsWorkspace.jsx"));
+const CustomerBrowser = lazy(() => import("./CustomerBrowser.jsx"));
 const RAIL_W = 205;
 const noop = () => {};
 const inp = "ft-field w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent";
@@ -21,6 +22,19 @@ const lbl = "ft-eyebrow text-[10px] mb-1 block";
 const railItemBase = "w-full flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-left text-[13px] font-semibold";
 const railItem = `${railItemBase} text-slate-600 hover:bg-slate-50`;
 const PEOPLE = [{ id: "p1", name: "Hendricks" }, { id: "p2", name: "Okafor" }, { id: "p3", name: "Ruiz Builders" }, { id: "p4", name: "Patel" }];
+const DAY = 86400000;
+const NOW = Date.UTC(2026, 8, 24);
+const DIR = [
+  ["Hendricks", "(614) 555-0142", "4905 Harris Rd, Dublin", "Dana Whitaker", ["Kitchen backsplash", "Master bath"]],
+  ["Okafor", "(740) 555-0202", "5063 County Road 314", "Marcus Mast", ["Whole house LVP"]],
+  ["Ruiz Builders", "(330) 555-0101", "112 Market St, Wooster", "Gina Boyd", ["Lot 14 spec home", "Lot 15 spec home", "Model showers"]],
+  ["Patel", "(614) 555-0177", "88 Ridge Ct, Powell", "Dana Whitaker", ["Basement carpet"]],
+  ["Sutton", "(740) 555-0311", "9 Elm St, Delaware", "Marcus Mast", ["Hall bath"]],
+  ["Amy Adams", "", "", "", []],
+];
+const DIR_PEOPLE = DIR.map(([name, phone, address], i) => ({ id: `c${i}`, name, phone, address, createdAt: NOW - (i + 3) * DAY, updatedAt: NOW - (i + 1) * DAY }));
+const DIR_PROJECTS = DIR.flatMap(([, , , sales, projs], i) => projs.map((name, j) => ({ id: `c${i}j${j}`, customerId: `c${i}`, name, sales, updatedAt: NOW - (i + j + 1) * DAY })))
+  .concat([{ id: "q1", customerId: null, name: "Quick price", quick: true, updatedAt: NOW - DAY, sales: "Dana Whitaker" }]);
 
 function Harness() {
   const [nav, dispatch] = useReducer(railReducer, initialRail);
@@ -50,7 +64,9 @@ function Harness() {
           <div className="relative"><Search size={16} className="absolute left-2.5 top-2.5 text-slate-400" /><input placeholder="Search" className={inp + " pl-8"} /></div>
           <button className="ft-spark-btn w-full flex items-center justify-center gap-1.5 text-sm font-semibold py-2"><Zap size={16} className="-ml-1" /> Quick Price</button>
           <div>
-            <button className={railItem}><Folder size={15} fill="currentColor" className="w-4 shrink-0 text-indigo-500" /> Customers</button>
+            <button data-customers onClick={() => dispatch({ type: "openCustomers" })}
+              className={nav.pane?.kind === "customers" ? `${railItemBase} bg-indigo-600 text-white` : railItem}>
+              <Folder size={15} fill="currentColor" className={`w-4 shrink-0 ${nav.pane?.kind === "customers" ? "" : "text-indigo-500"}`} /> Customers</button>
             <button className={railItem}><Plus size={15} className="w-4 shrink-0" /> New Customer</button>
             <button onClick={() => pick("app", "wedi")} className={railItem}><ShowerHead size={15} className="w-4 shrink-0" /> wedi</button>
             <button onClick={() => pick("app", "sheoga")} className={railItem}><TreePine size={15} className="w-4 shrink-0" /> Sheoga</button>
@@ -79,13 +95,22 @@ function Harness() {
           <div className="bg-white rounded-lg border border-slate-200 p-4"><div className="ft-eyebrow-accent text-[10px]">Customer</div><div className="ft-serif text-3xl">{cur.name}</div></div>
         </main>
         <div className={nav.pane ? "absolute inset-0 z-20 flex flex-col bg-white" : "hidden"}>
-          {nav.pane && <PaneHeader backLabel={cur.name} group={nav.pane.kind === "app" ? "Apps" : "Settings"}
-            title={(nav.pane.kind === "app" ? APP_ITEMS : SETTINGS_ITEMS).find((x) => x.id === nav.pane.id).label}
+          {nav.pane?.kind === "app" && nav.pane.id === "labels" && <PaneHeader backLabel={cur.name} group="Apps"
+            title={APP_ITEMS.find((x) => x.id === "labels").label}
             onBack={() => dispatch({ type: "closePane" })} onClose={() => dispatch({ type: "closePane" })} />}
+          {nav.pane?.kind === "customers" && (
+            <div className="flex-1 min-h-0">
+              <Suspense fallback={null}>
+                <CustomerBrowser people={DIR_PEOPLE} projects={DIR_PROJECTS} builders={[]} myName="Dana Whitaker"
+                  onClose={() => dispatch({ type: "closePane" })} onOpenCustomer={() => dispatch({ type: "closePane" })}
+                  onOpenProject={() => dispatch({ type: "closePane" })} onNewProject={() => dispatch({ type: "closePane" })} />
+              </Suspense>
+            </div>
+          )}
           {nav.pane?.kind === "settings" && (
             <div className="flex-1 min-h-0">
               <Suspense fallback={null}>
-                <SettingsWorkspace key={nav.pane.id} section={nav.pane.id} settings={settings} setSettings={(p) => setSettingsState((s) => ({ ...s, ...p }))}
+                <SettingsWorkspace key={nav.pane.id} section={nav.pane.id} onClose={() => dispatch({ type: "closePane" })} settings={settings} setSettings={(p) => setSettingsState((s) => ({ ...s, ...p }))}
                   gFamilies={[]} ping={noop} exportBackup={noop} importBackup={noop} fileRef={{ current: null }}
                   inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} theme="system" setTheme={noop} headerLayout="bar" setHeaderLayout={noop}
                   profile={{ name: "Dana Whitaker", phone: "(614) 555-0142", email: "dana@example.com" }} saveProfile={noop} user={{ email: "dana@example.com" }}

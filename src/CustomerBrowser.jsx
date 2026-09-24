@@ -3,6 +3,7 @@ import { X, Search, Plus, Users, Folder, FileText, ChevronRight, ChevronDown, Ar
 import { browserRows, quickRows, draftRows, filterRows, filterBySales, sortRows, groupBySales, salesNameOf, salesRoster, defaultSalesFilter, shortDate, projNos, erpNos, SORTS, NO_SALES, normColOrder, moveCol, custSamples, filterBySamples, normPanelH, clampPanelH, stripOpenDefault, STRIP_H, LINES_H } from "./custbrowser.js";
 import { erpNosOf } from "./erporders.js";
 import { useEscClose, DotMenu, HelpTip } from "./widgets.jsx";
+import { PaneBack, PaneClose } from "./raildrawer.jsx";
 
 // The customer browser (issue 040): an ERP-style directory — a dense grid of
 // every customer, grouped by salesman, over a bottom panel of the selected
@@ -10,7 +11,7 @@ import { useEscClose, DotMenu, HelpTip } from "./widgets.jsx";
 // reads all day). Replaces the sidebar's expanding age-bucket folders. Pure
 // UI over the boot's light rows; opening it fetches nothing, and every action
 // routes back through App's existing handlers.
-export default function CustomerBrowser({ people, projects, builders, myName, initialCols, onColOrder, initialPanels, onPanels = () => {}, onClose, onOpenCustomer, onOpenProject, onNewCustomer, onNewProject, sampleTally = new Map() }) {
+export default function CustomerBrowser({ people, projects, builders, myName, initialCols, onColOrder, initialPanels, onPanels = () => {}, onClose, onOpenCustomer, onOpenProject, onNewProject, sampleTally = new Map() }) {
   const [q, setQ] = useState("");
   // Column order: seeded from the salesperson's saved arrangement, edited by
   // dragging the header cells; every change flows up through onColOrder.
@@ -57,7 +58,6 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
   const groups = useMemo(() => salesQ.trim() ? groupBySales(shown) : [{ sales: null, rows: shown }], [salesQ, shown]);
   const flat = useMemo(() => groups.flatMap((g) => g.rows), [groups]);
   const sel = flat.find((r) => r.id === selId) || null;
-  const projCount = rows.reduce((n, r) => n + r.projs.length, 0);
 
   // Shared count chips — the samples column, the strips, and the lines panel.
   const sampleChips = (t) => (t.need || t.ordered) ? (
@@ -185,14 +185,14 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
   };
 
   return (
-    <div className="print:hidden fixed inset-0 z-50 p-2 md:p-5" style={{ background: "rgba(20,15,10,.4)" }} onClick={onClose}>
-      <div className="bg-white h-full rounded-xl border border-slate-200 shadow-xl flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      <div className="print:hidden bg-white h-full flex flex-col overflow-hidden">
 
         {/* Header: title + counts, search, sort, grouping, new customer */}
         <div className="flex items-center gap-2 flex-wrap px-3 md:px-4 py-2.5 border-b border-slate-200 shrink-0">
+          <PaneBack onClick={onClose} />
           <Folder size={17} className="text-indigo-500 shrink-0" />
           <h3 className="ft-serif text-xl leading-none">Customers</h3>
-          <span className="text-[11px] text-slate-400 whitespace-nowrap">{shown.length === rows.length ? rows.length : `${shown.length} of ${rows.length}`} · {projCount} projects</span>
+          <span className="text-[11px] text-slate-400 whitespace-nowrap">{shown.length === rows.length ? rows.length : `${shown.length} of ${rows.length}`} customers</span>
           <div className="relative flex-1 min-w-[160px] max-w-xs">
             <Search size={14} className="absolute left-2 top-2 text-slate-400" />
             <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={onSearchKeys}
@@ -241,8 +241,7 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
               <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 rounded-full px-1.5 leading-4">{unfiledCount}</span>
             </button>
           )}
-          <button onClick={onNewCustomer} className="ft-spark-btn h-[26px] flex items-center gap-1 text-xs font-semibold px-2.5 shrink-0"><Plus size={14} className="-ml-0.5" /> New customer</button>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 shrink-0 ml-auto"><X size={18} /></button>
+          <PaneClose onClick={onClose} className="ml-auto" />
         </div>
 
         {/* Estimates & drafts strip — the customer-less projects: quick-price
@@ -336,7 +335,6 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
           </div>
         )}
       </div>
-    </div>
   );
 }
 

@@ -299,9 +299,12 @@ src/
                     # both `filterRows` and `unfiledRows`; `"erp"` joins
                     # BROWSER_COLS right after `"projno"`
   CustomerBrowser.jsx  # the customer browser, a `React.lazy` chunk (ADR 0026):
-                    # near-fullscreen ERP-style directory grid — dense customer
+                    # ERP-style directory grid — dense customer
                     # rows grouped by salesman over a bottom project-lines panel —
-                    # opened from the sidebar's Customers folder (issue 040).
+                    # opened from the sidebar's Customers folder (issue 040) into
+                    # the work area (ADR 0047 amendment: a railnav pane, not an
+                    # overlay; back caret + X in its title row, no New customer
+                    # button — the rail has one).
                     # Takes a `sampleTally` prop (App, `projectSampleTally`
                     # re-run on every sampleRequests change): a draggable
                     # Samples column (`sampleChips` — amber "N to order" +
@@ -2084,10 +2087,15 @@ src/
                     # closePane / projectChanged / restore), the "break"
                     # flags behind Continue / Start new, and the
                     # ft-open-layer mapping (layerOf / stateFromLayer,
-                    # reads pre-0047 shapes)
+                    # reads pre-0047 shapes). `openCustomers` puts the
+                    # Customers browser in the pane (ADR 0047 amendment),
+                    # still stored as the { kind: "browser" } layer
   raildrawer.jsx    # RailSlide (the one ~1.3 s height slide, content pinned
                     # top or bottom), DrawerList, APP_ITEMS / SETTINGS_ITEMS,
-                    # PaneHeader ("← project › Apps › Sheoga" + X)
+                    # PaneHeader ("← project › Apps › Label Generator" + X —
+                    # the Label Generator only, pending its redesign), and
+                    # PaneBack / PaneClose: the back caret + X every other
+                    # work-area page carries in its own title row
   railpreview.jsx   # dev-only harness (rail-preview.html): the REAL drawers,
                     # reducer, pane header and workspaces over mock state —
                     # preview proof for ADR 0047

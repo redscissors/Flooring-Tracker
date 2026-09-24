@@ -23,6 +23,7 @@ import { readXlsxSheets, readPdfPages, looksPdf } from "./fileread.js";
 import { ClaudeMark, FlagForClaude, CLAUDE_CLAY } from "./claudeflag.jsx";
 import { bookSource } from "./claudeissues.js";
 import { Modal, HelpTip } from "./widgets.jsx";
+import { PaneBack, PaneClose } from "./raildrawer.jsx";
 import { InHouseColumn, PasteSignInPopover, FLAG_SEMANTICS, useVendorFetch, VendorFetchPage } from "./vendorpanel.jsx";
 import { VendorBookPage } from "./vendorbook.jsx";
 import { vendorBookFor, vendorBookSeed, sheogaMarkups } from "./vendorbook.js";
@@ -413,7 +414,7 @@ function ItemSearchCard({ pcts, setPct }) {
   );
 }
 
-export function PriceBookLibrary({ books, addBook, updateBook, confirmBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setBookItemIssue, addClaudeIssue, settings, setSettings, inp, lbl, types, typeLabels }) {
+export function PriceBookLibrary({ onClose, books, addBook, updateBook, confirmBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setBookItemIssue, addClaudeIssue, settings, setSettings, inp, lbl, types, typeLabels }) {
   const [vendorPending, setVendorPending] = useState(() => captureHandoff()); // bookmarklet hand-off (ADR 0019/0020)
   const [vendorSession, setVendorSession] = useState(() => captureHandoffSession()); // bare session grab (ADR 0019): unlock only
   const [sel, setSel] = useState("library"); // "library" | bookId
@@ -508,6 +509,7 @@ export function PriceBookLibrary({ books, addBook, updateBook, confirmBook, delB
           behind HelpTips — the board starts a full panel row higher. */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2 min-w-0">
+          {onClose && <PaneBack onClick={onClose} />}
           <h2 className="ft-serif text-xl">Price books</h2>
           <HelpTip className="align-middle" tip={<>Every book in one place - grouped by portal sign-in.</>} />
         </div>
@@ -526,6 +528,7 @@ export function PriceBookLibrary({ books, addBook, updateBook, confirmBook, delB
           <button onClick={() => setHideCosts((v) => !v)} title="Mask cost & margin figures on screen" className={`flex items-center gap-1.5 text-xs rounded-md border px-2.5 py-1 ${hideCosts ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}>
             {hideCosts ? <Lock size={13} /> : <Percent size={13} />} {hideCosts ? "Costs hidden" : "Hide costs"}
           </button>
+          {onClose && <PaneClose onClick={onClose} />}
         </div>
       </div>
 
