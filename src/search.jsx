@@ -198,7 +198,7 @@ export function StockSearch({ stock, onPick, inp, placeholder = "Search the pric
         onKeyDown={(e) => { if (e.key === "Enter" && results.length) { e.preventDefault(); pick(results[0]); } if (e.key === "Escape" && open && results.length) { e.preventDefault(); setOpen(false); } }}
         className={inp} placeholder={placeholder} />
       {open && pos && results.length > 0 && createPortal(
-        <div ref={panelRef} style={{ ...vPos(pos), maxHeight: pos.maxH, left: pos.left, width: pos.width }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 flex flex-col">
+        <div ref={panelRef} data-up={pos.bottom != null ? "true" : undefined} style={{ ...vPos(pos), maxHeight: pos.maxH, left: pos.left, width: pos.width }} className="fixed ft-pop z-50 flex flex-col">
           <div className="max-h-60 min-h-0 overflow-y-auto">
             {results.map((it) => (
               <button key={it.sku} onMouseDown={(e) => { e.preventDefault(); pick(it); }} className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 border-b border-slate-100 last:border-0">
@@ -243,7 +243,7 @@ export function SeriesSearch({ stock, itemsByBook, bookName = () => "book", onPi
         }}
         className={inp} placeholder={placeholder} />
       {open && pos && (series.length > 0 || results.length > 0 || q.trim().length >= 2) && createPortal(
-        <div ref={panelRef} style={{ ...vPos(pos), maxHeight: pos.maxH, left: pos.left, width: pos.width }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 flex flex-col">
+        <div ref={panelRef} data-up={pos.bottom != null ? "true" : undefined} style={{ ...vPos(pos), maxHeight: pos.maxH, left: pos.left, width: pos.width }} className="fixed ft-pop z-50 flex flex-col">
           <div className="max-h-72 min-h-0 overflow-y-auto">
             {series.length === 0 && results.length === 0 && (
               <div className="px-2.5 py-2 text-[11px] text-slate-400">No stock rows match — try fewer or different words (the exports rarely carry brand names, e.g. just "permacolor").</div>
@@ -297,7 +297,7 @@ export function FamilySearch({ families, onPick, inp }) {
         onKeyDown={(e) => { if (e.key === "Enter" && matches.length) { e.preventDefault(); pick(matches[0]); } if (e.key === "Escape" && open && matches.length) { e.preventDefault(); setOpen(false); } }}
         className={inp} placeholder="Link colors — search the book's grout & caulk families…" />
       {open && pos && matches.length > 0 && createPortal(
-        <div ref={panelRef} style={{ ...vPos(pos), maxHeight: Math.min(240, pos.maxH), left: pos.left, width: pos.width }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 overflow-y-auto">
+        <div ref={panelRef} data-up={pos.bottom != null ? "true" : undefined} style={{ ...vPos(pos), maxHeight: Math.min(240, pos.maxH), left: pos.left, width: pos.width }} className="fixed ft-pop z-50 overflow-y-auto">
           {matches.map((f) => (
             <button key={f.product} onMouseDown={(e) => { e.preventDefault(); pick(f); }} className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 border-b border-slate-100 last:border-0">
               <div className="flex items-baseline gap-2"><span className="text-xs font-medium truncate flex-1">{f.product}</span><span className="ft-mono text-[11px] text-slate-400 shrink-0">{f.colors.length} colors</span></div>

@@ -133,7 +133,7 @@ function SaveVersionPop({ open, onOpen, onClose, name, setName, onConfirm, tip }
     <>
       <button ref={anchorRef} onClick={() => (open ? onClose() : onOpen())} data-tip={tip} className={MINI} style={MINI_STYLE}><Save size={13} /></button>
       {open && pos && createPortal(
-        <div ref={panelRef} style={{ ...vPos(pos), left: Math.max(8, Math.min(pos.left + pos.width / 2 - W / 2, window.innerWidth - W - 8)), width: W }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 p-2">
+        <div ref={panelRef} data-up={pos.bottom != null ? "true" : undefined} style={{ ...vPos(pos), left: Math.max(8, Math.min(pos.left + pos.width / 2 - W / 2, window.innerWidth - W - 8)), width: W }} className="fixed ft-pop z-50 p-2">
           <div className="ft-eyebrow text-[9px] mb-1.5">Save a version</div>
           <div className="flex items-center gap-1.5">
             <input autoFocus value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") onConfirm(); if (e.key === "Escape") { e.preventDefault(); onClose(); } }} placeholder="Version name" className="ft-field flex-1 min-w-0 h-[30px] text-sm rounded-md border border-slate-200 px-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />

@@ -48,8 +48,8 @@ export class LazyBoundary extends Component {
 // The drawer's dropdowns keep a <select>'s call shape — <option>/<optgroup>
 // children and onChange(e) reading e.target.value — so they read like the
 // markup they replaced; underneath each is a MorphSelect (ADR 0048).
-export const FitSelect = ({ display, className = "", sm, children, value, onChange, title, bg = "var(--ft-field)" }) => (
-  <MorphSelect size={sm ? "sm" : "md"} className={className} title={title} value={String(value ?? "")} display={display}
+export const FitSelect = ({ display, className = "", sm, full, children, value, onChange, title, bg = "var(--ft-field)" }) => (
+  <MorphSelect size={sm ? "sm" : "md"} full={full} className={className} title={title} value={String(value ?? "")} display={display}
     groups={selectGroups(children)} bg={bg} onChange={(v) => onChange?.({ target: { value: v } })} />
 );
 
@@ -182,7 +182,7 @@ export function BuilderCombo({ value, builders, onSelect, onAddBuilder, inp }) {
         onBlur={() => setTimeout(() => { setOpen(false); setQ(cur ? cur.name : ""); }, 150)}
         placeholder="No builder — type to search or add" className={inp} />
       {open && (
-        <div className="absolute left-0 right-0 top-full mt-1 z-30 rounded-md border border-slate-200 bg-white shadow-lg overflow-hidden max-h-64 overflow-y-auto">
+        <div className="absolute left-0 right-0 top-full mt-1 z-30 ft-pop overflow-hidden max-h-64 overflow-y-auto">
           {cur && <div onMouseDown={(e) => { e.preventDefault(); pick(null); }} className="px-3 py-2 text-sm text-slate-500 hover:bg-slate-50 cursor-pointer flex justify-between"><span>Remove builder</span><span className="text-[11px]">direct customer</span></div>}
           {matches.map((b) => (
             <div key={b.id} onMouseDown={(e) => { e.preventDefault(); pick(b); }} className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer truncate">{b.name}</div>
@@ -233,7 +233,7 @@ export function SalespersonPop({ value, fallback, onChange, alignRight, small })
         {sp.name || sp.email || "Set salesperson"}
       </button>
       {open && pos && createPortal(
-        <div ref={panelRef} style={{ ...vPos(pos), left: Math.max(8, Math.min(alignRight ? pos.left + pos.width - W : pos.left, window.innerWidth - W - 8)) }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 p-3 space-y-1.5" onKeyDown={(e) => { if (e.key === "Escape") e.preventDefault(); if (e.key === "Escape" || e.key === "Enter") setOpen(false); }} >
+        <div ref={panelRef} data-up={pos.bottom != null ? "true" : undefined} style={{ ...vPos(pos), left: Math.max(8, Math.min(alignRight ? pos.left + pos.width - W : pos.left, window.innerWidth - W - 8)) }} className="fixed ft-pop z-50 p-3 space-y-1.5" onKeyDown={(e) => { if (e.key === "Escape") e.preventDefault(); if (e.key === "Escape" || e.key === "Enter") setOpen(false); }} >
           <div className="ft-eyebrow text-[9px]">Salesperson</div>
           <input autoFocus value={sp.name} onChange={(e) => onChange({ ...sp, name: e.target.value })} placeholder="Name" className={fld} style={{ width: W - 24 }} />
           <input type="tel" inputMode="tel" value={sp.phone} onChange={(e) => onChange({ ...sp, phone: phoneChange(sp.phone, e.target.value) })} placeholder="Phone" className={fld} style={{ width: W - 24 }} />
@@ -373,7 +373,7 @@ export function FilesPop({ attachments, onOpen, onDelete, onAdd, mini, tip }) {
           : <span className="font-semibold">{n}</span>)}
       </button>
       {open && pos && createPortal(
-        <div ref={panelRef} style={{ ...vPos(pos), left: Math.max(8, Math.min(pos.left, window.innerWidth - W - 8)), width: W }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 p-2">
+        <div ref={panelRef} data-up={pos.bottom != null ? "true" : undefined} style={{ ...vPos(pos), left: Math.max(8, Math.min(pos.left, window.innerWidth - W - 8)), width: W }} className="fixed ft-pop z-50 p-2">
           <div className="ft-eyebrow text-[9px] mb-1.5">Files <span className="normal-case tracking-normal font-normal text-slate-400">— not printed</span></div>
           <div className="flex flex-wrap gap-1">
             {(attachments || []).map((m) => (
@@ -889,7 +889,7 @@ export function AddressField({ value, onChange, inp, placeholder, autoFocus, pin
         <button type="button" title="Paste the address you copied" className={ADDR_BTN} onClick={paste}><ClipboardPaste size={15} /></button>
       </div>
       {suggest && open && (suggestions.length > 0 || (err && err !== "not-configured")) && (
-        <div className="absolute left-0 right-16 top-full mt-1 z-30 rounded-md border border-slate-200 bg-white shadow-lg overflow-hidden max-h-64 overflow-y-auto">
+        <div className="absolute left-0 right-16 top-full mt-1 z-30 ft-pop overflow-hidden max-h-64 overflow-y-auto">
           {err && err !== "not-configured"
             ? <div className="px-3 py-2 text-[12.5px] text-amber-800 bg-amber-50">{lookupErrText(err)}</div>
             : suggestions.map((s) => (

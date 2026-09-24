@@ -786,7 +786,7 @@ export function PasteSignInPopover({ vf, setupOpen, setSetupOpen, inp, lbl }) {
         <Hand size={13} /> Paste sign-in
       </button>
       {open && (
-        <div className="absolute left-0 mt-1 w-80 max-w-[calc(100vw-2rem)] z-50 rounded-xl border border-slate-200 bg-white shadow-xl p-3">
+        <div className="absolute left-0 mt-1 w-80 max-w-[calc(100vw-2rem)] z-50 ft-pop p-3">
           <div className="flex items-center justify-between gap-2">
             <label className={lbl + " mb-0"}>Add a sign-in <HelpTip className="align-middle" w={280} tip={<>Click the bookmark on a vendor portal, then paste it here - no new tab. One bookmark copies your portal sign-in to the clipboard - paste it here to unlock every saved sheet for download. First time on a portal, or the bookmark can't reach your sign-in? Open one sheet, copy its link from the browser's Downloads page (<b>Ctrl+J</b> → right-click → Copy link address), then use “paste a link instead” → “Add to board” to save it.</>} /></label>
             <button onClick={() => setSetupOpen((v) => !v)} className="text-[11px] text-indigo-600 hover:underline shrink-0">{setupOpen ? "Hide setup" : "Set up bookmark"}</button>

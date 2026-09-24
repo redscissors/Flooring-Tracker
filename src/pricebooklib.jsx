@@ -23,7 +23,7 @@ import { money } from "./model.js";
 import { readXlsxSheets, readPdfPages, looksPdf } from "./fileread.js";
 import { ClaudeMark, FlagForClaude, CLAUDE_CLAY } from "./claudeflag.jsx";
 import { bookSource } from "./claudeissues.js";
-import { Modal, HelpTip } from "./widgets.jsx";
+import { Modal, HelpTip, FitSelect } from "./widgets.jsx";
 import { PaneTitleBar } from "./raildrawer.jsx";
 import { InHouseColumn, PasteSignInPopover, FLAG_SEMANTICS, useVendorFetch, VendorFetchPage } from "./vendorpanel.jsx";
 import { VendorBookPage } from "./vendorbook.jsx";
@@ -273,9 +273,9 @@ export function ImportRouter({ files, preferTarget, targets, sourceKeys, linkedS
                   {r.error ? <span className="text-[11px] text-red-500 shrink-0">Skipped</span> : (
                     // !w-auto: inp carries w-full, which outranks a plain w-auto
                     // in the generated CSS and squeezes the filename to nothing.
-                    <select className={`${inp} !w-auto shrink-0 text-xs`} value={r.target || "skip"} onChange={(e) => setTarget(i, e.target.value)}>
+                    <FitSelect sm value={r.target || "skip"} onChange={(e) => setTarget(i, e.target.value)}>
                       {bookOpts.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
-                    </select>
+                    </FitSelect>
                   )}
                 </div>
               ))}
@@ -1480,10 +1480,10 @@ export function MarkupEditor({ book, items, onSave, inp, lbl, embedded }) {   //
         <div className="mt-3">
           <div>
             <label className={lbl}>Group markups by</label>
-            <select className={`${inp} w-auto`} value={axes.some(([f]) => f === groupBy) ? groupBy : ""} onChange={(e) => changeGroupBy(e.target.value)}>
+            <FitSelect value={axes.some(([f]) => f === groupBy) ? groupBy : ""} onChange={(e) => changeGroupBy(e.target.value)}>
               <option value="">— one markup for all —</option>
               {axes.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
-            </select>
+            </FitSelect>
           </div>
           {groupBy && groups.length > 0 && (
             <div className="mt-3">
@@ -2077,9 +2077,9 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
             <div className="flex flex-wrap items-end gap-3">
               <div>
                 <label className={lbl}>Data sheet</label>
-                <select className={`${inp} w-auto`} value={sheetName} onChange={(e) => applySheet(sheets.find((s) => s.name === e.target.value))}>
+                <FitSelect value={sheetName} onChange={(e) => applySheet(sheets.find((s) => s.name === e.target.value))}>
                   {sheets.map((s) => <option key={s.name} value={s.name}>{s.name} ({s.rows?.length || 0})</option>)}
-                </select>
+                </FitSelect>
               </div>
               <div>
                 <label className={lbl}>Header row</label>
@@ -2092,17 +2092,17 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
               {book.kind === "order" && (
                 <div>
                   <label className={lbl}>Markup group</label>
-                  <select className={`${inp} w-auto`} value={groupBy} onChange={(e) => setGroupBy(e.target.value)}>
+                  <FitSelect value={groupBy} onChange={(e) => setGroupBy(e.target.value)}>
                     {[["", "— none —"], ["mfg", "Manufacturer"], ["productLine", "Product line"], ["section", "Section"], ["brand", "Brand"]].map(([v, t]) => <option key={v} value={v}>{t}</option>)}
-                  </select>
+                  </FitSelect>
                 </div>
               )}
               <div>
                 <label className={lbl}>Default type</label>
-                <select className={`${inp} w-auto`} value={defaultType} onChange={(e) => setDefaultType(e.target.value)}>
+                <FitSelect value={defaultType} onChange={(e) => setDefaultType(e.target.value)}>
                   <option value="">Misc / accessory</option>
                   {types.filter((t) => t !== "misc").map((t) => <option key={t} value={t}>{typeLabels[t] || t}</option>)}
-                </select>
+                </FitSelect>
               </div>
             </div>
 
@@ -2114,9 +2114,9 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
                     <tr>{Array.from({ length: maxCol }, (_, i) => (
                       <th key={i} className="px-1.5 py-1 border-b border-slate-100 align-top">
                         <div className={`text-[10px] mb-1 max-w-[120px] truncate ${headerLabel(i) ? "text-slate-500 font-medium" : "text-slate-300 italic"}`} title={headerLabel(i) || "no header"}>{headerLabel(i) || "— no header —"}</div>
-                        <select className="ft-field rounded border border-slate-200 px-1 py-0.5 text-[11px] max-w-[120px]" value={columns[i] || ""} onChange={(e) => setCol(i, e.target.value)}>
+                        <FitSelect sm value={columns[i] || ""} onChange={(e) => setCol(i, e.target.value)}>
                           {bookFieldOptions.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
-                        </select>
+                        </FitSelect>
                       </th>
                     ))}</tr>
                   </thead>
@@ -2138,9 +2138,9 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
                   {flagValues.map((v) => (
                     <div key={v} className="flex items-center gap-1 border border-slate-200 rounded px-2 py-1">
                       <span className="font-mono text-xs">{v}</span>
-                      <select className="ft-field text-[11px] border-0 focus:ring-0" value={flags[v] || ""} onChange={(e) => setFlags((f) => { const n = { ...f }; if (e.target.value) n[v] = e.target.value; else delete n[v]; return n; })}>
+                      <FitSelect sm value={flags[v] || ""} onChange={(e) => setFlags((f) => { const n = { ...f }; if (e.target.value) n[v] = e.target.value; else delete n[v]; return n; })}>
                         {FLAG_SEMANTICS.map(([val, t]) => <option key={val} value={val}>{t}</option>)}
-                      </select>
+                      </FitSelect>
                     </div>
                   ))}
                 </div>

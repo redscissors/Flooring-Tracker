@@ -3,7 +3,7 @@ import { Search, Plus, Trash2, Printer, Eye, EyeOff, GripVertical } from "lucide
 import { LABEL_FIELDS, KIND_OF, VARIANT_KEYS, newDraftFromPreset, normPreset, stockToLabelFields, perLetterSheet, sheetsForLabels, labelCardHTML, clampSize, isKeimHeader, isSpacer, clampSpace, newSpacerLine } from "./labels.js";
 import { searchStock } from "./stock.js";
 import { stampKit } from "./model.js";
-import { HelpTip } from "./widgets.jsx";
+import { HelpTip, FitSelect } from "./widgets.jsx";
 import { PaneBack, PaneClose } from "./raildrawer.jsx";
 import SheogaConfigurator from "./SheogaConfigurator.jsx";
 import keimLogo from "./assets/keim-logo-ink.png";
@@ -87,7 +87,7 @@ function SkuLookup({ stock, onPick, onBulk, placeholder = "Search SKU or name to
       <input value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)}
         className={inp + " pl-8"} placeholder={placeholder} />
       {open && results.length > 0 && (
-        <div className="absolute z-10 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-64 overflow-y-auto">
+        <div className="absolute z-10 left-0 right-0 mt-1 ft-pop max-h-64 overflow-y-auto">
           {results.map((it) => (
             <button key={it.sku} onMouseDown={(e) => { e.preventDefault(); choose(it, e.shiftKey); }} className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 border-b border-slate-100 last:border-0">
               <div className="flex items-baseline gap-2">
@@ -448,9 +448,9 @@ export function AppsWorkspace({ app, visible = true, onClose, resume = false, on
                   <Search size={13} className="absolute left-2 top-2 text-slate-400" />
                   <input value={listSearch} onChange={(e) => setListSearch(e.target.value)} placeholder="Search name / SKU / grout" className="w-full border border-slate-200 rounded-md pl-7 pr-2 py-1 text-xs" />
                 </div>
-                <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="border border-slate-200 rounded-md px-2 py-1 text-xs">
+                <FitSelect sm value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
                   <option value="recent">Recent</option><option value="az">A–Z</option>
-                </select>
+                </FitSelect>
               </div>
               <div className="flex gap-1.5 mb-3 flex-wrap">
                 <button onClick={() => setSizeFilter("all")} className={`text-xs px-2.5 py-1 rounded-full border ${sizeFilter === "all" ? "bg-indigo-600 text-white border-indigo-600" : "border-slate-200"}`}>All</button>

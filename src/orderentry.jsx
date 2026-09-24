@@ -166,8 +166,8 @@ function KeyedPop({ stamp, active, onCopyAgain, onClear, render }) {
     <>
       {render({ ref: anchorRef, onClick: () => setOpen((o) => !o) })}
       {open && pos && stamp && createPortal(
-        <div ref={panelRef} style={{ ...vPos(pos), left: Math.max(8, Math.min(pos.left, window.innerWidth - W - 8)), width: W }}
-          className="fixed z-50 rounded-lg border border-slate-200 bg-white shadow-lg p-3 text-[12px]">
+        <div ref={panelRef} data-up={pos.bottom != null ? "true" : undefined} style={{ ...vPos(pos), left: Math.max(8, Math.min(pos.left, window.innerWidth - W - 8)), width: W }}
+          className="fixed z-50 ft-pop p-3 text-[12px]">
           <div className="font-semibold">Keyed on ERP {stamp.no}</div>
           <div className="text-slate-500">{[when(stamp.at), stamp.by].filter(Boolean).join(" · ")}</div>
           <div className="mt-2 flex items-center gap-1.5 flex-wrap">
