@@ -1528,7 +1528,6 @@ export default function App({ user, onSignOut }) {
                 <NedLogo style={{ width: "clamp(205px, 28vw, 345px)" }} />
                 <div className="ft-eyebrow mt-3" style={{ fontSize: "clamp(11px,1.4vw,16px)", letterSpacing: ".32em" }}>Selection Manager</div>
                 <button onClick={startQuickPrice} className="ft-spark-btn mt-8 inline-flex items-center gap-2 font-semibold px-6 py-3 text-base"><Zap size={18} className="-ml-1" /> Quick Price</button>
-                <button onClick={() => setNewCust("")} className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-indigo-700 transition"><Plus size={15} /> New customer</button>
               </div>
             )
           ) : !sel._full ? (
