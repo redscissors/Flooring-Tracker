@@ -127,9 +127,11 @@ export function AppsWorkspace({ app, visible = true, onClose, resume = false, on
   // configurator mounted (spec 2026-09-24). The first report is its opening
   // state; StrictMode's repeat of it compares equal.
   const firstCfg = useRef({});
+  const lastCfg = useRef({});
   const [touched, setTouched] = useState({});
   const cfgSeen = (k) => (cfg) => {
     const j = JSON.stringify(cfg);
+    lastCfg.current[k] = j;
     if (firstCfg.current[k] === undefined) firstCfg.current[k] = j;
     else if (j !== firstCfg.current[k]) setTouched((t) => (t[k] ? t : { ...t, [k]: true }));
   };
@@ -145,6 +147,7 @@ export function AppsWorkspace({ app, visible = true, onClose, resume = false, on
   const startNew = (k) => {
     setBasketFor[k]([]);
     firstCfg.current[k] = undefined;
+    lastCfg.current[k] = undefined;
     setTouched((t) => ({ ...t, [k]: false }));
     setGen((g) => ({ ...g, [k]: (g[k] || 0) + 1 }));
     onResume?.();
@@ -158,6 +161,8 @@ export function AppsWorkspace({ app, visible = true, onClose, resume = false, on
   };
   const commitTo = (where, p) => {
     if (where === "current") p.dest.addToCurrent(p.lines); else p.dest.addToNew(p.lines);
+    firstCfg.current[p.destKey] = lastCfg.current[p.destKey];
+    setTouched((t) => (t[p.destKey] ? { ...t, [p.destKey]: false } : t));
     // Only a MOVE hands over a next basket (`[]` when it emptied it). A plain
     // Add passes nothing and must leave every staged entry standing.
     if (p.nextBasket && setBasketFor[p.destKey]) setBasketFor[p.destKey](p.nextBasket);

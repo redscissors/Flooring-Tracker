@@ -1185,9 +1185,9 @@ function useMedia(query) {
 const useIsWide = () => useMedia("(min-width: 768px)");
 // The third tier: wide enough to dock a price grid beside the rail AND the
 // build card. Measured on the configurator's own frame rather than the
-// viewport — embedded in the Apps hub it is narrower than the window by the
-// hub's rail and gutters, and a viewport query docked the grid into a box
-// that then crushed the build card (1440–1700px laptops).
+// viewport — in the work-area pane it is narrower than the window by the
+// 205px app rail (docks at about DOCK_FRAME_W + 205), and a viewport query
+// docked the grid into a box that then crushed the build card.
 function useDockGrid(ref, mode, pad) {
   const [w, setW] = useState(0);
   useEffect(() => {

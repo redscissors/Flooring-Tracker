@@ -18,7 +18,8 @@ const RAIL_W = 205;
 const noop = () => {};
 const inp = "ft-field w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent";
 const lbl = "ft-eyebrow text-[10px] mb-1 block";
-const railItem = "w-full flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-left text-[13px] font-semibold text-slate-600 hover:bg-slate-50";
+const railItemBase = "w-full flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-left text-[13px] font-semibold";
+const railItem = `${railItemBase} text-slate-600 hover:bg-slate-50`;
 const PEOPLE = [{ id: "p1", name: "Hendricks" }, { id: "p2", name: "Okafor" }, { id: "p3", name: "Ruiz Builders" }, { id: "p4", name: "Patel" }];
 
 function Harness() {
@@ -43,7 +44,7 @@ function Harness() {
         </div>
         <RailSlide open={nav.drawer === "settings"} anchor="bottom">
           <DrawerList title="Settings" items={SETTINGS_ITEMS} activeId={nav.pane?.kind === "settings" ? nav.pane.id : null}
-            onPick={(id) => pick("settings", id)} itemClass={railItem} className="px-2.5 pt-2.5 pb-2.5" divider />
+            onPick={(id) => pick("settings", id)} baseClass={railItemBase} className="px-2.5 pt-2.5 pb-2.5" divider />
         </RailSlide>
         <div className="p-2.5 pb-8 space-y-2">
           <div className="relative"><Search size={16} className="absolute left-2.5 top-2.5 text-slate-400" /><input placeholder="Search" className={inp + " pl-8"} /></div>
@@ -64,7 +65,7 @@ function Harness() {
         </div>
         <RailSlide open={nav.drawer === "apps"} anchor="top">
           <DrawerList title="Apps" items={APP_ITEMS} activeId={nav.pane?.kind === "app" ? nav.pane.id : null}
-            onPick={(id) => pick("app", id)} itemClass={railItem} className="px-2.5 pt-1 pb-1.5" />
+            onPick={(id) => pick("app", id)} baseClass={railItemBase} className="px-2.5 pt-1 pb-1.5" />
         </RailSlide>
         <div className="px-4 py-2 border-t border-slate-100 flex items-center justify-between">
           <button className="flex items-center justify-center rounded-md hover:bg-slate-50 p-1.5 text-slate-500"><LogOut size={16} /></button>

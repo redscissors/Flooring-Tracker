@@ -433,11 +433,11 @@ src/
   SettingsWorkspace.jsx  # the Settings workspace, now a `React.lazy` chunk (ADR 0026);
                     # `MATERIAL_CATEGORIES` lives here. Shrink-to-fit (issue 084,
                     # the wedi popup's rig): drawn at SETTINGS_DESIGN_W (1240)
-                    # and zoomed to the overlay's measured width, so a phone
-                    # gets the whole layout smaller instead of the fixed
+                    # and zoomed to the work-area pane's measured width, so a
+                    # phone gets the whole layout smaller instead of the fixed
                     # columns eating the detail pane; the low ZOOM_FLOOR is a
                     # sub-phone backstop (owner: scale first, revert if the
-                    # type gets too small), below which the overlay scrolls.
+                    # type gets too small), below which the pane scrolls.
                     # Renders in the work-area pane with a controlled
                     # `section` (ADR 0047) — no overlay shell or section menu;
                     # mounted with `key={section}`.

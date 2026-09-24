@@ -641,10 +641,11 @@ export default function App({ user, onSignOut }) {
   // the rail's open drawer and the app or Settings section in the work area
   // (so the price book stays open), the customer browser, the issues list,
   // and either vendor configurator (whose live { mode, cfg } rides along via
-  // onConfigChange, so it reopens mid-configuration). Restored once, after the last-open spot above; a
-  // configurator layer additionally waits for the restored project's full
-  // record so the row it was opened from exists again. A layer that can't be
-  // re-created (its project/row is gone) is simply dropped.
+  // onConfigChange, so it reopens mid-configuration). Restored once, after
+  // the last-open spot above; a configurator layer additionally waits for the
+  // restored project's full record so the row it was opened from exists
+  // again. A layer that can't be re-created (its project/row is gone) is
+  // simply dropped.
   const [restoreLayer, setRestoreLayer] = useState(() => { try { return restoreIsFresh() ? JSON.parse(localStorage.getItem("ft-open-layer") || "null") : null; } catch { return null; } });
   useEffect(() => {
     if (loading || restoreSpot || !restoreLayer) return;
@@ -668,10 +669,10 @@ export default function App({ user, onSignOut }) {
     const layer = sheogaPop ? { kind: "sheoga", aid: sheogaPop.aid, pid: sheogaPop.pid, seed: sheogaPop.seed || null }
       : wediPop ? { kind: "wedi", aid: wediPop.aid, pid: wediPop.pid, seed: wediPop.seed || null }
         : schluterPop ? { kind: "schluter", aid: schluterPop.aid, pid: schluterPop.pid, seed: schluterPop.seed || null }
-          : layerOf(railNav) ? layerOf(railNav)
+          : railNav.pane ? layerOf(railNav)
             : showBrowser ? { kind: "browser" }
               : showTodos ? { kind: "todos" }
-                : null;
+                : layerOf(railNav);
     try { localStorage.setItem("ft-open-layer", JSON.stringify(layer)); } catch (x) { }
   }, [sheogaPop, wediPop, schluterPop, railNav, showBrowser, showTodos, loading, restoreLayer]);
   // The row search's instant in-memory tier: every active stock-kind book's
@@ -1340,7 +1341,8 @@ export default function App({ user, onSignOut }) {
   if (loading) return <div className="h-screen flex items-center justify-center text-slate-400">Loading…</div>;
   const inp = "ft-field w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent";
   const lbl = "ft-eyebrow text-[10px] mb-1 block";
-  const railItem = "w-full flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-left text-[13px] font-semibold text-slate-600 hover:bg-slate-50";
+  const railItemBase = "w-full flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-left text-[13px] font-semibold";
+  const railItem = `${railItemBase} text-slate-600 hover:bg-slate-50`;
 
   const renderProjRow = (p) => {
     const on = selId === p.id;
@@ -1402,7 +1404,7 @@ export default function App({ user, onSignOut }) {
                 </>);
               })() : selCust ? selCust.name : ""}
             </span>
-            {sel && sel._full && <button onClick={() => setProjSheet(true)} title="Project details" className="shrink-0 rounded-md border border-slate-200 bg-white p-1 text-slate-500"><MoreHorizontal size={15} /></button>}
+            {!railNav.pane && sel && sel._full && <button onClick={() => setProjSheet(true)} title="Project details" className="shrink-0 rounded-md border border-slate-200 bg-white p-1 text-slate-500"><MoreHorizontal size={15} /></button>}
           </div>
         )}
 
@@ -1423,7 +1425,7 @@ export default function App({ user, onSignOut }) {
           </div>
           <RailSlide open={railNav.drawer === "settings"} anchor="bottom">
             <DrawerList title="Settings" items={SETTINGS_ITEMS} activeId={railNav.pane?.kind === "settings" ? railNav.pane.id : null}
-              onPick={(id) => railPick("settings", id)} itemClass={railItem} className="px-2.5 pt-2.5 pb-2.5" divider />
+              onPick={(id) => railPick("settings", id)} baseClass={railItemBase} className="px-2.5 pt-2.5 pb-2.5" divider />
           </RailSlide>
           <div className="p-2.5 pb-8 space-y-2">
             <div className="relative"><Search size={16} className="absolute left-2.5 top-2.5 text-slate-400" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search" className={inp + " pl-8"} /></div>
@@ -1443,7 +1445,7 @@ export default function App({ user, onSignOut }) {
                   moss-filled icon in the list, so the eye lands on it. */}
               <button onClick={() => { setShowBrowser(true); setSidebarOpen(false); refreshSampleRequests(); }} title="Browse all customers" className={railItem}><Folder size={15} fill="currentColor" className="w-4 shrink-0 text-indigo-500" /> Customers</button>
               <button onClick={() => setNewCust("")} className={railItem}><Plus size={15} className="w-4 shrink-0" /> New Customer</button>
-              {/* Configurator shortcuts (owner kept them, 2026-09-24): open the app in the work area and slide the Apps tray up with it highlighted. */}
+              {/* Owner kept these beside the Apps tray (2026-09-24). */}
               <button onClick={() => railPick("app", "wedi")} title="wedi shower configurator" className={railItem}><ShowerHead size={15} className="w-4 shrink-0" /> wedi</button>
               <button onClick={() => railPick("app", "sheoga")} title="Sheoga hardwood configurator" className={railItem}><TreePine size={15} className="w-4 shrink-0" /> Sheoga</button>
             </div>
@@ -1477,7 +1479,7 @@ export default function App({ user, onSignOut }) {
           </div>
           <RailSlide open={railNav.drawer === "apps"} anchor="top">
             <DrawerList title="Apps" items={APP_ITEMS} activeId={railNav.pane?.kind === "app" ? railNav.pane.id : null}
-              onPick={(id) => railPick("app", id)} itemClass={railItem} className="px-2.5 pt-1 pb-1.5" />
+              onPick={(id) => railPick("app", id)} baseClass={railItemBase} className="px-2.5 pt-1 pb-1.5" />
           </RailSlide>
           <div className="px-4 py-2 border-t border-slate-100 flex items-center justify-between">
             <button onClick={handleSignOut} aria-label="Sign out" title={`Sign out — ${user.email}`} className="flex items-center justify-center rounded-md hover:bg-slate-50 p-1.5 text-slate-500"><LogOut size={16} /></button>

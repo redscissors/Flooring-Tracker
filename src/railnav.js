@@ -9,6 +9,17 @@ export const initialRail = { drawer: null, pane: null, lastApp: null, broke: {} 
 // A "break" (owner, 2026-09-24) is the Apps tray closing or the open project
 // changing; only a configurator returned to after a break asks to resume.
 const breakAll = () => Object.fromEntries(CONFIGURATOR_IDS.map((id) => [id, true]));
+// The configurator on screen when the tray closes hasn't been left; it breaks
+// only once it is left with the tray shut.
+const cfgOnScreen = (s) => (s.pane?.kind === "app" && CONFIGURATOR_IDS.includes(s.pane.id) ? s.pane.id : null);
+const breakAllButOnScreen = (s) => {
+  const id = cfgOnScreen(s);
+  return id ? { ...breakAll(), [id]: false } : breakAll();
+};
+const leave = (s, broke) => {
+  const id = cfgOnScreen(s);
+  return id && s.drawer !== "apps" ? { ...broke, [id]: true } : broke;
+};
 const idsFor = (kind) => (kind === "app" ? APP_IDS : kind === "settings" ? SETTINGS_IDS : []);
 const drawerFor = (kind) => (kind === "app" ? "apps" : "settings");
 
@@ -17,14 +28,14 @@ export function railReducer(s, a) {
     case "toggleDrawer": {
       if (a.which !== "apps" && a.which !== "settings") return s;
       const drawer = s.drawer === a.which ? null : a.which;
-      return { ...s, drawer, broke: s.drawer === "apps" ? breakAll() : s.broke };
+      return { ...s, drawer, broke: s.drawer === "apps" ? breakAllButOnScreen(s) : s.broke };
     }
     case "pick": {
       if (!idsFor(a.kind).includes(a.id)) return s;
       const drawer = drawerFor(a.kind);
-      let broke = s.drawer === "apps" && drawer !== "apps" ? breakAll() : s.broke;
-      const isCfg = a.kind === "app" && CONFIGURATOR_IDS.includes(a.id);
       const same = s.pane && s.pane.kind === a.kind && s.pane.id === a.id;
+      let broke = s.drawer === "apps" && drawer !== "apps" ? breakAll() : same ? s.broke : leave(s, s.broke);
+      const isCfg = a.kind === "app" && CONFIGURATOR_IDS.includes(a.id);
       const resume = !same && isCfg && !!a.inProgress && !!broke[a.id];
       if (isCfg && broke[a.id]) broke = { ...broke, [a.id]: false };
       if (same) return { ...s, drawer, broke };
@@ -33,7 +44,7 @@ export function railReducer(s, a) {
     case "resolveResume":
       return s.pane?.resume ? { ...s, pane: { ...s.pane, resume: false } } : s;
     case "closePane":
-      return s.pane ? { ...s, pane: null } : s;
+      return s.pane ? { ...s, pane: null, broke: leave(s, s.broke) } : s;
     case "projectChanged":
       return { ...s, pane: null, broke: breakAll() };
     case "restore":

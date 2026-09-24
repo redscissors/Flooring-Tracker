@@ -149,7 +149,9 @@ The whole navigation state as a small reducer plus helpers, no React:
 - Break flags: set for every configurator when the Apps tray closes (its
   button, or opening Settings) or on `projectChanged`; consumed by the next
   pick of that configurator, which asks to resume only if the flag was set
-  and `inProgress` is true.
+  and `inProgress` is true. The configurator on screen when the tray closes
+  hasn't been left, so its flag waits until it is left with the tray shut
+  (another pick or `closePane`).
 - `layerOf(state)` / `stateFromLayer(stored)` — the `ft-open-layer` mapping,
   including the old entry shapes above. Unknown or stale entries yield the
   empty state.

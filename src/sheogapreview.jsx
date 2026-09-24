@@ -18,7 +18,7 @@ const bundleLines = stampKit(multiWidthLineItems({ mode: "floor", cfg: { ...floo
 const area0 = { ...newArea(), name: "Great room", products: [...land(singleLines), ...land(bundleLines), newProduct()] };
 const staged = [normBasketEntry({ id: uid(), kind: "single", addedAt: Date.now(), markupPct: 40, snap: { mode: "floor", cfg: { ...floorCfg, sp: "Maple" } }, sf: 150 })].filter(Boolean);
 
-// `?hub=1` renders the REAL AppsWorkspace on the Sheoga app, at the width the work-area pane gives it.
+// `?hub=1` renders the REAL AppsWorkspace on the Sheoga app.
 const HUB = new URLSearchParams(location.search).get("hub") === "1";
 
 function Hub() {

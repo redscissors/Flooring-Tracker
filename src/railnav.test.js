@@ -67,6 +67,20 @@ test("tray closed by its button, then back → asks", () => {
   assert.deepEqual(s.pane, { kind: "app", id: "wedi", resume: true });
 });
 
+test("the app on screen when the tray closes was never left → no ask", () => {
+  const s = run(pick("app", "wedi", true), toggle("apps"), toggle("apps"), pick("app", "sheoga", true), pick("app", "wedi", true));
+  assert.equal(s.pane.resume, false);
+});
+
+test("the app on screen when the tray closes asks once it is left with the tray shut", () => {
+  const viaSettings = run(pick("app", "wedi", true), toggle("settings"), pick("settings", "book"), pick("app", "wedi", true));
+  assert.equal(viaSettings.pane.resume, true);
+  const viaClose = run(pick("app", "wedi", true), toggle("apps"), { type: "closePane" }, pick("app", "wedi", true));
+  assert.equal(viaClose.pane.resume, true);
+  const viaShortcut = run(pick("app", "wedi", true), toggle("apps"), pick("app", "sheoga", true), pick("app", "wedi", true));
+  assert.equal(viaShortcut.pane.resume, true);
+});
+
 test("Settings opened, then back → asks (by toggle or by pick)", () => {
   const a = run(pick("app", "wedi", true), pick("app", "sheoga", true), toggle("settings"), pick("app", "wedi", true));
   assert.equal(a.pane.resume, true);

@@ -60,7 +60,7 @@ export function RailSlide({ open, anchor = "top", children }) {
   );
 }
 
-export function DrawerList({ title, items, activeId, onPick, itemClass, className = "", divider = false }) {
+export function DrawerList({ title, items, activeId, onPick, baseClass, className = "", divider = false }) {
   return (
     <div className={className} style={divider ? { borderBottom: "1px solid var(--ft-border-strong)" } : undefined}>
       <div className="mb-1 px-3.5 ft-eyebrow text-[9px]">{title}</div>
@@ -68,7 +68,7 @@ export function DrawerList({ title, items, activeId, onPick, itemClass, classNam
         const on = id === activeId;
         return (
           <button key={id} onClick={() => onPick(id)} aria-current={on ? "page" : undefined}
-            className={`${itemClass} ${on ? "!bg-indigo-600 !text-white" : ""}`}>
+            className={`${baseClass} ${on ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-50"}`}>
             <Icon size={15} className="w-4 shrink-0" /> <span className="truncate">{label}</span>
           </button>
         );
