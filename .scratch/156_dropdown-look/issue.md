@@ -28,5 +28,6 @@ the field as the outlined box's top row (proof/search/).
 Follow-up (owner 2026-09-24): search boxes open and close smoothly — the
 field focuses in the ink line and the results grow out of it / fold back
 into it like MorphSelect (proof/search-motion/, incl. search-boxes.webm;
-grid-preview.html has a speed toggle). Next: the price cell's cost & markup
-popup grows out of the cell (piece 2).
+grid-preview.html has a speed toggle). Piece 2: the price cell's cost &
+markup popup grows out of the cell — cost beside the price, presets 2×2
+below (proof/price-pop/, mockup .scratch/mockups/price-pop-grow-2026-09-24.html).

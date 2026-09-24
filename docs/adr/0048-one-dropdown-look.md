@@ -45,6 +45,12 @@ phone's own full-screen chooser.
    field, then widens and grows its results (240ms), and folds back into
    the field on close (200ms) instead of vanishing. The moss ring stays the
    focus mark everywhere else.
+   *Amendment (owner 2026-09-24):* the price cell's cost & markup popup
+   grows out of the cell the same way: the price cell stays the one price
+   field inside the box's top row, cost sits to its left, and the markup
+   presets sit two by two below, so the box is the cell plus ~78px, not a
+   268px card. No margin line, close button or key hints; Tab goes cost →
+   price → out, Enter closes. Mockup: `.scratch/mockups/price-pop-grow-2026-09-24.html`.
 
 ## Consequences
 

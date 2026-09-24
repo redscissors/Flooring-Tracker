@@ -202,7 +202,10 @@ src/
                     # `FamilySearch`, hit rows, merged-results hooks
                     # (useMergedResults hands rankMerged the WHOLE stock
                     # cache as its twin index, not just the matches)
-  grid.jsx          # selection-grid cells: `TypeSelect`, `GridPriceCell`,
+  grid.jsx          # selection-grid cells: `TypeSelect`, `GridPriceCell`
+                    # (its cost & markup popup is the price cell grown on
+                    # SearchPop's `lead` slot: cost left of the live price
+                    # cell, presets 2×2 below; Tab cost → price → out),
                     # `GridSizeInput`, `GridProductBox`, `GridOmniSearch`,
                     # `UnitPick` (issue 138) — the SF/CT · PC/CT · EA tag as a
                     # select writing the row's cartonUnit / sellUnit, shared

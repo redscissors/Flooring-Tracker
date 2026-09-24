@@ -152,8 +152,9 @@ const foldingPops = new WeakMap();
 // MorphSelect: it mounts exactly over the field, then widens and grows its
 // results below (above when it flips up). The field row is see-through and
 // passes clicks, so the caret stays in the real field underneath. `box` is the
-// results' { left, width } when wider than the field.
-export function SearchPop({ pos, box, fieldRef, panelRef, bg = "var(--ft-card)", className = "", style, children }) {
+// results' { left, width } when wider than the field; `lead` fills the box's
+// field row left of the field (the price popup's cost input).
+export function SearchPop({ pos, box, fieldRef, panelRef, lead, bg = "var(--ft-card)", className = "", style, children }) {
   const rootRef = useRef(null);
   const [shown, setShown] = useState(false);
   const [B, setB] = useState(1.5);
@@ -185,13 +186,15 @@ export function SearchPop({ pos, box, fieldRef, panelRef, bg = "var(--ft-card)",
   // see-through hole stays pinned over the field while the box widens.
   const head = (
     <div className="flex shrink-0" style={{ height: Math.max(0, pos.h - 2 * B) }}>
-      <div data-spop-fill style={{ width: shown ? Math.max(0, pos.left - left) : 0, background: bg, transition: ease("width") }} />
+      <div data-spop-fill className="flex justify-end overflow-hidden" style={{ width: shown ? Math.max(0, pos.left - left) : 0, background: bg, transition: ease("width") }}>
+        {lead && <div className="shrink-0 flex items-center" style={{ width: Math.max(0, pos.left - left), pointerEvents: "auto" }}>{lead}</div>}
+      </div>
       <div className="shrink-0" style={{ width: Math.max(0, pos.width - 2 * B) }} />
       <div className="flex-1" style={{ background: bg }} />
     </div>
   );
   const rule = <div className="shrink-0 border-t border-slate-300 mx-2" />;
-  const body = <div ref={panelRef} className={"min-h-0 " + className} style={{ pointerEvents: "auto", maxHeight: pos.maxH, ...style }}>{children}</div>;
+  const body = <div className={"min-h-0 " + className} style={{ pointerEvents: "auto", maxHeight: pos.maxH, ...style }}>{children}</div>;
   const grow = (
     <div data-spop-grow style={{ display: "grid", gridTemplateRows: shown ? "1fr" : "0fr", transition: ease("grid-template-rows") }}>
       <div className="min-h-0 overflow-hidden flex flex-col" style={{ background: bg }}>
@@ -200,7 +203,7 @@ export function SearchPop({ pos, box, fieldRef, panelRef, bg = "var(--ft-card)",
     </div>
   );
   return createPortal(
-    <div ref={rootRef} className="flex flex-col" data-up={up ? "true" : undefined} data-l0={pos.left} data-w0={pos.width}
+    <div ref={(el) => { rootRef.current = el; if (panelRef) panelRef.current = el; }} className="flex flex-col" data-up={up ? "true" : undefined} data-l0={pos.left} data-w0={pos.width}
       style={{ position: "fixed", zIndex: 50, left: shown ? left : pos.left, width: shown ? width : pos.width,
         ...(up ? { bottom: window.innerHeight - pos.fb } : { top: pos.ft }),
         border: `${B}px solid var(--ft-text)`, borderRadius: radius, overflow: "hidden", pointerEvents: "none",

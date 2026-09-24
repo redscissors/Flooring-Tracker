@@ -34,7 +34,8 @@ function Row() {
         <span data-shot="type"><TypeSelect type={p.type} onChange={(type) => patch({ type })} /></span>
         <span className="flex-1 font-bold">{p.brandColor}</span>
         <span className="ft-mono">{p.cartonSf} SF/<span data-shot="unit" className="inline-flex"><UnitPick value={p.cartonUnit} options={BUNDLE_UNITS} onChange={(cartonUnit) => patch({ cartonUnit })} title="What the coverage counts in" size={11} /></span></span>
-        <span data-shot="price" className="w-24"><GridPriceCell p={p} tier="retail" onPatch={patch} /></span>
+        <span data-shot="price" className="w-24 flex self-stretch items-center"><GridPriceCell p={p} tier="retail" onPatch={patch} title="Price per sq ft" /></span>
+        <span data-shot="price-tier" className="w-24 flex self-stretch items-center"><GridPriceCell p={p} tier="builder" tierPrice={Math.round(parseFloat(p.priceSqft || 0) * 90) / 100} onPatch={patch} title="Price per sq ft" /></span>
         <button data-shot="menu" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu({ x: r.left - 200, y: r.bottom }); }} className="w-7 h-7 rounded-md flex items-center justify-center text-slate-500 hover:bg-[color:var(--ft-hover)]"><MoreHorizontal size={16} /></button>
       </div>
       <div className="px-3 py-2 flex flex-wrap items-center gap-2 text-sm" style={{ background: ROW_WASH, borderTop: "1px solid var(--ft-border)" }}>
