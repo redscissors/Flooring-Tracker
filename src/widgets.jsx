@@ -67,6 +67,27 @@ export const GroutColorOptions = ({ groups }) => groups.special.length === 0
     <optgroup label="Special order">{groups.special.map((c) => <option key={c}>{c}</option>)}</optgroup>
   </>;
 
+export const useDismissOutside = (open, anchorRef, panelRef, onDismiss) => {
+  useEffect(() => {
+    if (!open) return;
+    const close = (e) => { if (!anchorRef.current?.contains(e.target) && !panelRef.current?.contains(e.target)) onDismiss(); };
+    // Focus leaving the field (Tab, or clicking into another input) must dismiss
+    // too — a pointer-outside alone leaves the panel orphaned over the new field.
+    // Deferred so focus has settled onto its target; picks keep focus in the
+    // anchor (they preventDefault on mousedown), so they never trip this.
+    const onFocusOut = () => requestAnimationFrame(() => {
+      const ae = document.activeElement;
+      if (ae && ae !== document.body && !anchorRef.current?.contains(ae) && !panelRef.current?.contains(ae)) onDismiss();
+    });
+    document.addEventListener("pointerdown", close);
+    anchorRef.current?.addEventListener("focusout", onFocusOut);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      anchorRef.current?.removeEventListener("focusout", onFocusOut);
+    };
+  }, [open]);
+};
+
 // Dropdown panels render in a portal on <body>: the product-row field bar and
 // the settings modal both clip absolutely-positioned children (overflow), so
 // the panel anchors to the input with fixed coordinates instead. Returns the
@@ -96,24 +117,7 @@ export const useAnchoredPanel = (open, anchorRef, panelRef, onDismiss) => {
     window.addEventListener("resize", place);
     return () => { window.removeEventListener("scroll", place, true); window.removeEventListener("resize", place); };
   }, [open]);
-  useEffect(() => {
-    if (!open) return;
-    const close = (e) => { if (!anchorRef.current?.contains(e.target) && !panelRef.current?.contains(e.target)) onDismiss(); };
-    // Focus leaving the field (Tab, or clicking into another input) must dismiss
-    // too — a pointer-outside alone leaves the panel orphaned over the new field.
-    // Deferred so focus has settled onto its target; picks keep focus in the
-    // anchor (they preventDefault on mousedown), so they never trip this.
-    const onFocusOut = () => requestAnimationFrame(() => {
-      const ae = document.activeElement;
-      if (ae && ae !== document.body && !anchorRef.current?.contains(ae) && !panelRef.current?.contains(ae)) onDismiss();
-    });
-    document.addEventListener("pointerdown", close);
-    anchorRef.current?.addEventListener("focusout", onFocusOut);
-    return () => {
-      document.removeEventListener("pointerdown", close);
-      anchorRef.current?.removeEventListener("focusout", onFocusOut);
-    };
-  }, [open]);
+  useDismissOutside(open, anchorRef, panelRef, onDismiss);
   return pos;
 };
 export const vPos = (pos) => (pos.top != null ? { top: pos.top } : { bottom: pos.bottom });
@@ -124,14 +128,16 @@ export const vPos = (pos) => (pos.top != null ? { top: pos.top } : { bottom: pos
 // page. The right edge hugs the trigger, clamped to the viewport; dismissal
 // (outside pointer-down / focus-out) comes from useAnchoredPanel, so callers
 // don't need a backdrop.
-export function DotMenu({ open, onClose, anchorRef, width = 224, align = "right", children }) {
+export function DotMenu({ open, onClose, anchorRef, width = 224, align = "right", bg, children }) {
   const panelRef = useRef(null);
   const pos = useAnchoredPanel(open, anchorRef, panelRef, onClose);
   useEscClose(open, onClose);
   if (!open || !pos) return null;
   const left = Math.max(8, Math.min(align === "left" ? pos.left : pos.left + pos.width - width, window.innerWidth - width - 8));
   return createPortal(
-    <div ref={panelRef} style={{ ...vPos(pos), maxHeight: pos.maxH, width, left }} className="fixed z-50 rounded-lg border border-slate-200 bg-white shadow-lg py-1 text-sm overflow-y-auto">
+    <div ref={panelRef} data-up={pos.bottom != null ? "true" : undefined}
+      style={{ ...vPos(pos), maxHeight: pos.maxH, width, left, "--pop-bg": bg }}
+      className="ft-pop fixed z-50 py-1 text-sm overflow-y-auto">
       {children}
     </div>, document.body);
 }
