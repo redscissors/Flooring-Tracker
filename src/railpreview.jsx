@@ -8,7 +8,7 @@ import { Settings, LayoutGrid, LogOut, Search, Zap, Folder, Plus, ShowerHead, Tr
 import "./index.css";
 import NedLogo from "./NedLogo.jsx";
 import { railReducer, initialRail } from "./railnav.js";
-import { RailSlide, DrawerList, APP_ITEMS, SETTINGS_ITEMS, PaneHeader } from "./raildrawer.jsx";
+import { RailSlide, DrawerList, APP_ITEMS, SETTINGS_ITEMS, PaneTitleBar } from "./raildrawer.jsx";
 import { AppsWorkspace } from "./AppsWorkspace.jsx";
 import { normalizeSettings } from "./catalog.js";
 import { TYPES, TLBL } from "./uiconst.js";
@@ -95,9 +95,7 @@ function Harness() {
           <div className="bg-white rounded-lg border border-slate-200 p-4"><div className="ft-eyebrow-accent text-[10px]">Customer</div><div className="ft-serif text-3xl">{cur.name}</div></div>
         </main>
         <div className={nav.pane ? "absolute inset-0 z-20 flex flex-col bg-white" : "hidden"}>
-          {nav.pane?.kind === "app" && nav.pane.id === "labels" && <PaneHeader backLabel={cur.name} group="Apps"
-            title={APP_ITEMS.find((x) => x.id === "labels").label}
-            onBack={() => dispatch({ type: "closePane" })} onClose={() => dispatch({ type: "closePane" })} />}
+          {nav.pane?.kind === "app" && nav.pane.id === "labels" && <PaneTitleBar icon={APP_ITEMS.find((x) => x.id === "labels").icon} title={APP_ITEMS.find((x) => x.id === "labels").label} onClose={() => dispatch({ type: "closePane" })} />}
           {nav.pane?.kind === "customers" && (
             <div className="flex-1 min-h-0">
               <Suspense fallback={null}>

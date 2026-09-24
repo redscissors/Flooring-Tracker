@@ -10,7 +10,7 @@
 // control for now; phase 4 lifts it into the shared shell so wedi inherits it.
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, Plus, Eye, Printer, Copy } from "lucide-react";
+import { X, Plus, Eye, Printer, Copy, Layers } from "lucide-react";
 import { useEscClose, SourceSwitch, NumIn, KitBasketPanel, KitOverwriteConfirm, HelpTip } from "./widgets.jsx";
 import { PaneBack, PaneClose } from "./raildrawer.jsx";
 import { TIER_COLOR } from "./uiconst.js";
@@ -98,10 +98,7 @@ const CSS = `
   color:var(--ft-text);font-family:var(--ft-ui);line-height:normal}
 .sch-pop button{font-family:inherit}
 .sch-pop input,.sch-pop select{font-family:inherit}
-.sch-pop .pop-head{display:flex;align-items:center;gap:14px;padding:12px 16px 0;background:var(--ft-cream)}
-.sch-pop .eyebrow{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.15em;color:var(--ft-brand-deep)}
-.sch-pop .name{font-size:18px;font-weight:800;letter-spacing:-.01em}
-.sch-pop .name small{font-weight:600;color:var(--ft-muted);font-size:12px;margin-left:6px}
+.sch-pop .pop-head{display:flex;align-items:center;gap:14px;padding:8px 14px 0;background:var(--ft-cream)}
 .sch-pop .xbtn{width:30px;height:30px;border-radius:6px;border:1px solid var(--ft-border);background:var(--ft-card);color:var(--ft-muted);font-size:15px;font-weight:700;cursor:pointer;flex:none;display:flex;align-items:center;justify-content:center}
 .sch-pop .headctl{margin-left:auto;display:flex;align-items:center;gap:10px}
 .sch-pop .rclear{border:1px solid var(--ft-border);border-radius:6px;background:transparent;color:var(--ft-muted);font-size:11px;font-weight:700;padding:5px 10px;cursor:pointer;white-space:nowrap}
@@ -2245,10 +2242,10 @@ export default function SchluterConfigurator({
           : { background: "var(--ft-cream)", borderColor: "var(--ft-border-strong)", height: fit.h, minHeight: 560, zoom: fit.zoom }}
         onClick={embedded ? undefined : (e) => e.stopPropagation()} data-schluter-pop>
         <div className="pop-head">
-          {embedded && <PaneBack onClick={onClose} className="-mr-2" />}
-          <div>
-            <div className="eyebrow">Vendor configurator</div>
-            <div className="name">Schluter <small>shower systems · registry-priced (retail = 1.5× cost)</small></div>
+          <div className="flex items-center gap-2 min-w-0">
+            {embedded && <PaneBack onClick={onClose} />}
+            <Layers size={17} className="text-slate-400 shrink-0" />
+            <h2 className="ft-serif text-xl leading-none">Schluter</h2>
           </div>
           <div className="headctl">
             {onBasketChange && <button className="relative inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold hover:bg-slate-50" onClick={() => setBasketOpen(true)} data-schluter-basket>

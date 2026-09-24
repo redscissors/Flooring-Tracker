@@ -77,15 +77,18 @@ export function DrawerList({ title, items, activeId, onPick, baseClass, classNam
   );
 }
 
-export function PaneHeader({ backLabel, group, title, onBack, onClose }) {
+// The one title bar every Settings and Apps page opens with (owner,
+// 2026-09-24: "the same size" as Materials & add-ons). Page controls ride in
+// children, right-aligned before the X.
+export function PaneTitleBar({ icon: Icon, title, tip, onClose, children }) {
   return (
-    <div className="shrink-0 flex items-center gap-2 px-3.5 py-2 border-b border-slate-200 text-[13px] bg-white">
-      <button onClick={onBack} className="rounded-md px-1.5 py-0.5 font-semibold text-slate-400 hover:bg-slate-50 hover:text-slate-700 truncate max-w-[40%]">← {backLabel}</button>
-      <span className="text-slate-300">›</span>
-      <span className="font-semibold text-slate-400">{group}</span>
-      <span className="text-slate-300">›</span>
-      <span className="font-bold text-slate-800 truncate">{title}</span>
-      <button onClick={onClose} aria-label="Close" title="Close" className="ml-auto rounded-md p-1 text-slate-400 hover:bg-slate-50 hover:text-slate-600"><X size={17} /></button>
+    <div className="shrink-0 flex items-center gap-2 px-3.5 py-2 border-b border-slate-200 bg-white">
+      {onClose && <PaneBack onClick={onClose} />}
+      {Icon && <Icon size={17} className="text-slate-400 shrink-0" />}
+      <h2 className="ft-serif text-xl leading-none">{title}</h2>
+      {tip}
+      {children && <div className="ml-auto flex items-center gap-2 flex-wrap justify-end">{children}</div>}
+      {onClose && <PaneClose onClick={onClose} className={children ? "" : "ml-auto"} />}
     </div>
   );
 }

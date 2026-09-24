@@ -2112,10 +2112,10 @@ src/
                     # still stored as the { kind: "browser" } layer
   raildrawer.jsx    # RailSlide (the one ~1.3 s height slide, content pinned
                     # top or bottom), DrawerList, APP_ITEMS / SETTINGS_ITEMS,
-                    # PaneHeader ("← project › Apps › Label Generator" + X —
-                    # the Label Generator only, pending its redesign), and
-                    # PaneBack / PaneClose: the back caret + X every other
-                    # work-area page carries in its own title row
+                    # PaneTitleBar (caret · icon · serif title · controls · X —
+                    # the one bar every Settings/Apps page opens with; the
+                    # configurators and Customers draw the same row by hand),
+                    # and PaneBack / PaneClose: its caret + X
   railpreview.jsx   # dev-only harness (rail-preview.html): the REAL drawers,
                     # reducer, pane header and workspaces over mock state —
                     # preview proof for ADR 0047
