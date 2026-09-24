@@ -157,6 +157,14 @@ src/
                     # `PriceLevelMenu` (names the level, Custom its discount
                     # alone; slides open inside a growing dark border, on the
                     # Esc ladder) and `BasketButton` (icon + count badge).
+                    # `MorphSelect` (ADR 0048) — the one pick-one dropdown,
+                    # the price menu's look: the open box is the trigger
+                    # grown, portalled at the trigger's spot and zoom, with a
+                    # <select>'s keyboard contract; `PriceLevelMenu` and the
+                    # phone band's price/print picks run on it. `DotMenu`
+                    # wears `.ft-pop` (index.css), the shared panel shell;
+                    # `useDismissOutside` is the outside-press/focus-out rule
+                    # `useAnchoredPanel` and `MorphSelect` share.
                     # Row order: Stock only · Clear design | price · basket · X.
                     # `KitOverwriteConfirm` (2026-09-02, ADR 0035 amendment) —
                     # the kit-card confirm both popups raise over customized
@@ -170,6 +178,12 @@ src/
                     # KitBasketPanel — the shared wedi/Schluter basket drawer
                     # shell (ADR 0035 step 3, presentation-only view rows: the
                     # two popups can't drift on the drawer either)
+  dropdown.js       # MorphSelect's pure half (ADR 0048): `flatten` (grouped
+                    # rows → one walkable list + heading positions),
+                    # `moveIndex`/`edgeIndex` (skip disabled, wrap),
+                    # `typeahead` (first-letter jump, cycling), `placeMorph`
+                    # (over the trigger, flip up when short of room, lengths
+                    # ÷ the trigger's zoom) (dropdown.test.js)
   search.jsx        # price-book search suite: `SkuPicker`, `StockSearch`,
                     # `FamilySearch`, hit rows, merged-results hooks
                     # (useMergedResults hands rankMerged the WHOLE stock
@@ -2126,11 +2140,11 @@ src/
                     # Apps configurator header top-right options the owner
                     # reviewed 2026-09-24 (flat controls, price dropdown,
                     # basket icon); not part of the app build
-  dropdownpreview.jsx  # dev-only mockup (dropdown-preview.html): the
-                    # PriceLevelMenu look carried onto other dropdowns
-                    # (materials drawer, Sheoga options, ⋯ menus, phone) beside
-                    # today's, for the owner's 2026-09-24 review; not part of
-                    # the app build
+  dropdownpreview.jsx  # dev-only harness (dropdown-preview.html): the REAL
+                    # MorphSelect/DotMenu beside today's dropdowns (materials
+                    # drawer, Sheoga options, ⋯ menus, phone), plus a 75%-zoomed
+                    # box and a near-the-bottom flip — ADR 0048's gallery; not
+                    # part of the app build
   railpreview.jsx   # dev-only harness (rail-preview.html): the REAL drawers,
                     # reducer, pane header and workspaces over mock state —
                     # preview proof for ADR 0047
