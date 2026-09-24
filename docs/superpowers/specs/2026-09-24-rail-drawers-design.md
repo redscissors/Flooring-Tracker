@@ -80,19 +80,34 @@ area; 1B tray + app as a pop-up over the dimmed project; 2 start-menu pop-out):
 ### Coming back to a build
 
 Configurators (Sheoga, wedi, Schluter) stay mounted after their first pick, so
-a staged build survives a trip to a customer or to Settings. When the
-salesperson returns to a configurator that is **in progress** — its basket has
-staged entries, or any option changed since it was opened — the pane first
-shows a prompt:
+a staged build survives a trip to a customer or to Settings. A build is **in
+progress** when its basket has staged entries or any option changed since it
+was opened.
+
+- **Hopping between apps keeps each build silently.** With the Apps tray open,
+  wedi → Sheoga → wedi shows wedi exactly as left, no question. Closing the
+  pane (X / Esc) and reopening the same app from the still-open tray is the
+  same: no question.
+- **The question comes only after a real break** (owner, 2026-09-24): the
+  salesperson returns to an in-progress configurator after the Apps tray was
+  closed (by its button, or by opening Settings), or after the open project
+  changed (a Recent customer, the Customers browser, Home, a new quick price).
+
+Then the pane first shows:
 
 > **Pick up your wedi build?** You left one in progress when you clicked away.
 > [summary line] — **Continue build** · **Start new**
 
 Continue shows the configurator as left. Start new clears that app's basket and
 remounts that one configurator (fresh defaults). A configurator that is not in
-progress opens straight away. Switching directly between two apps in the tray
-also counts as leaving and returning. The Label Generator never prompts (its
-labels are saved rows; the draft form is cheap to redo).
+progress opens straight away. The Label Generator never prompts (its labels are
+saved rows; the draft form is cheap to redo).
+
+This is also how a build moves to a different customer: a build is never tied
+to a project — Add lands it on whichever project is open at that moment (the
+existing "Add to which project?" prompt). Start a shower, click the right
+customer, come back, Continue, Add. Today that is impossible only because the
+hub covers the window and closing it discards the build.
 
 ### Unchanged
 
@@ -129,9 +144,11 @@ The whole navigation state as a small reducer plus helpers, no React:
 - Actions: `toggleDrawer(which)` (exclusive), `pick(kind, id)`,
   `shortcut(appId)` (opens the pane and the Apps tray), `closePane()`,
   `openRecord()` (closes the pane, keeps the drawer).
-- `needsResume({ from, to, inProgress })` — true when `to` is a configurator
-  that is in progress and the pane is arriving from anything other than that
-  same configurator.
+- Per-configurator "break" flags: set for every configurator when the Apps
+  tray closes (button or Settings opening) or the open project id changes;
+  cleared when that configurator is shown. `needsResume({ to, inProgress,
+  broke })` — true only when `to` is a configurator, it is in progress, and its
+  break flag is set.
 - `layerOf(state)` / `stateFromLayer(stored)` — the `ft-open-layer` mapping,
   including the old entry shapes above. Unknown or stale entries yield the
   empty state.
@@ -208,8 +225,10 @@ The whole navigation state as a small reducer plus helpers, no React:
 
 - `src/railnav.test.js` (`npm test`): drawer exclusivity; shortcut opens pane +
   tray; closing the pane keeps the drawer; opening a record closes the pane;
-  `needsResume` truth table (same app, other app, settings → app, not in
-  progress, Label Generator); `ft-open-layer` round-trip plus old shapes
+  `needsResume` truth table (hop between apps with the tray open → no; close
+  pane and reopen from the open tray → no; tray closed then reopen → yes;
+  Settings opened then back → yes; project changed → yes; not in progress →
+  no; Label Generator → no); `ft-open-layer` round-trip plus old shapes
   (`{kind:"apps"}`, `{kind:"apps", app}`, `{kind:"settings", section}`,
   unknown kinds, garbage).
 - `npm run lint` and `npm run build` clean.
