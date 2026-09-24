@@ -53,31 +53,23 @@ h1{font-size:20px;margin:0 0 4px}h2{font-size:14px;margin:34px 0 4px}p.d{font-si
 </style></head><body>
 <div class="wrap">
 <h1>Price popup: grow out of the price cell</h1>
-<p class="d">Click (or tab into) a <b>price</b> cell. The cell gets the ink line, and the cost &amp; markup box grows out of it, the same way the search boxes now do. The cell stays live inside the box's top row, so you can still type the price there. Esc, Enter or a click elsewhere folds it back into the cell.</p>
+<p class="d">Revised after the owner's notes: click (or tab into) a <b>price</b> cell, and the box grows out of it with Cost beside the price and the markups below.</p>
 <div class="speed">Speed: <button data-s="180,150">Quicker</button><button data-s="240,200" class="on">Current</button><button data-s="320,260">Softer</button></div>
 
-<h2><span class="badge">A</span>The cell <i>is</i> the price field (recommended)</h2>
-<p class="d">The popup's own Price box goes away; the price cell at the top of the box is where you type the price. The body is just <b>Cost</b>, <b>Markup</b> and the margin. No duplicate price, and the popup gets shorter. Tab walks cost → markup → back to the price cell.</p>
+<h2><span class="badge">A2</span>Cost beside the price, markups below</h2>
+<p class="d">The price cell is the price box. <b>Cost</b> sits just left of it in the top row, and the caret starts there. <b>Tab</b> goes to the price and <b>Tab</b> again closes it and moves on down the row. A markup button sets the price and puts the caret on it, so Tab or Enter closes it. <b>Enter</b> closes from anywhere, and <b>Esc</b> or a click away closes it too. No margin line, no ✕, no hints.</p>
 <div class="g h"><div></div><div>Product</div><div>Size</div><div>Qty</div><div>Coverage</div><div style="text-align:right">Price /sf</div><div></div></div>
 <div class="g" style="border-radius:0 0 8px 8px">
   <div class="c"><span class="chip">T</span></div><div class="c">Daltile Volume 1.0 Bone 12×24 Matte</div><div class="c">12×24</div><div class="c r">220</div><div class="c r">15.5 SF/CT</div>
-  <div class="c pc" data-v="A"><input value="4.29" data-price></div><div class="c">⋯</div>
+  <div class="c pc"><input value="4.29" data-price></div><div class="c"><input class="next" placeholder="next" style="width:100%;border:0;background:transparent;font:inherit;outline:none"></div>
 </div>
 
-<h2><span class="badge">B</span>The cell on top, the popup keeps its own Price box</h2>
-<p class="d">Same growth, but the body keeps today's Cost → Price pair, so the price shows twice (the cell and the box) while it's open. Nothing about how you enter numbers changes.</p>
-<div class="g h"><div></div><div>Product</div><div>Size</div><div>Qty</div><div>Coverage</div><div style="text-align:right">Price /sf</div><div></div></div>
-<div class="g" style="border-radius:0 0 8px 8px">
-  <div class="c"><span class="chip">T</span></div><div class="c">Daltile Volume 1.0 Bone 12×24 Matte</div><div class="c">12×24</div><div class="c r">220</div><div class="c r">15.5 SF/CT</div>
-  <div class="c pc" data-v="B"><input value="4.29" data-price></div><div class="c">⋯</div>
-</div>
-
-<h2><span class="badge">A</span>Under a non-retail tier (Builder)</h2>
-<p class="d">When the row shows a tier price with the small retail field under it, the whole two-line cell becomes the top row, not just the tiny retail box.</p>
+<h2><span class="badge">A2</span>Under a non-retail tier (Builder)</h2>
+<p class="d">The whole two-line cell is the top row; Cost sits to its left the same way.</p>
 <div class="g h"><div></div><div>Product</div><div>Size</div><div>Qty</div><div>Coverage</div><div style="text-align:right">Price /sf</div><div></div></div>
 <div class="g" style="border-radius:0 0 8px 8px">
   <div class="c"><span class="chip">T</span></div><div class="c">Arvora Glacier Matte 12×24</div><div class="c">12×24</div><div class="c r">140</div><div class="c r">15.5 SF/CT</div>
-  <div class="c pc" data-v="A" data-tier><div class="stack"><span class="tp">$4.64</span><span class="rt">retail <input value="5.10" data-price></span></div></div><div class="c">⋯</div>
+  <div class="c pc" data-tier><div class="stack"><span class="tp">$4.64</span><span class="rt">retail <input value="5.10" data-price></span></div></div><div class="c">⋯</div>
 </div>
 
 <h2>Today, for comparison</h2>
@@ -87,60 +79,47 @@ h1{font-size:20px;margin:0 0 4px}h2{font-size:14px;margin:34px 0 4px}p.d{font-si
 </div>
 
 <script>
-const W = 268, root = document.documentElement;
+const W = 300, root = document.documentElement;
 document.querySelectorAll(".speed button").forEach((b) => b.onclick = () => {
   const [i, o] = b.dataset.s.split(",");
   root.style.setProperty("--in", i + "ms"); root.style.setProperty("--out", o + "ms");
   document.querySelectorAll(".speed button").forEach((x) => x.classList.toggle("on", x === b));
 });
 let cur = null;
-const money = (n) => "$" + n.toFixed(2);
-function body(v, st) {
-  const m = st.price - st.cost, pct = st.price ? (m / st.price * 100).toFixed(1) : 0;
-  const cost = `<label><div class="lbl" style="padding-bottom:2px">Cost</div><input class="f" data-cost value="${st.cost.toFixed(2)}"></label>`;
-  const top = v === "A"
-    ? `<div class="row">${cost}<span class="ar" style="flex:1;text-align:right;font-size:10.5px;color:var(--muted);padding-bottom:7px">margin <b>${money(m)}</b> · ${pct}%</span></div>`
-    : `<div class="row">${cost}<span class="ar">→</span><label><div class="lbl" style="padding-bottom:2px">Price</div><input class="f" data-bprice style="font-weight:800" value="${st.price.toFixed(2)}"></label></div>`;
-  const chips = `<div><div class="lbl" style="padding-bottom:4px">Markup</div><div class="chips">${[30, 50, 100].map((p) => `<button data-mk="${p}" class="${Math.abs(st.cost * (1 + p / 100) - st.price) < .005 ? "on" : ""}">+${p}%</button>`).join("")}<span class="pct"><input placeholder="—">%&nbsp;</span></div></div>`;
-  const foot = v === "A" ? `<div class="foot"><span>Esc / click away to close</span><span>Enter ↵</span></div>`
-    : `<div class="foot"><span>Margin <b>${money(m)}</b>/sf · ${pct}%</span><span>Enter ↵</span></div>`;
-  return top + chips + foot;
-}
+const MK = [30, 50, 100];
 function open(cell) {
   if (cur?.cell === cell) return;
   close();
-  const v = cell.dataset.v, input = cell.querySelector("[data-price]");
+  const input = cell.querySelector("[data-price]");
   const r = cell.getBoundingClientRect();
-  const st = { cost: 2.35, price: parseFloat(input.value) || 0 };
+  const st = { cost: 2.35 };
   const box = document.createElement("div");
   box.className = "box";
-  const left = Math.max(8, r.right - W);
-  Object.assign(box.style, { left: r.left + "px", top: r.top + "px", width: r.width + "px", borderRadius: "4px" });
-  box.innerHTML = `<div class="head" style="height:${r.height - 3}px"><div class="fill"><span class="lbl">Cost &amp; markup</span></div><div style="width:${r.width - 3}px;flex:none"></div></div>
-    <div class="grow"><div><div class="rule"></div><div class="body">${body(v, st)}</div></div></div>`;
+  const left = Math.max(8, r.right - W), lead = r.left - left;
+  Object.assign(box.style, { left: r.left + "px", top: r.top + "px", width: r.width + "px" });
+  box.innerHTML = `<div class="head" style="height:${r.height - 3}px">
+      <div class="fill" data-fill style="flex:none;width:0;justify-content:flex-end;padding:0;transition:width var(--in) var(--ease)">
+        <label style="flex:none;width:${lead - 1.5}px;display:flex;align-items:center;gap:6px;padding:0 8px;pointer-events:auto"><span class="lbl">Cost</span><input class="f" data-cost value="2.35" style="flex:1;min-width:0;padding:3px 6px;font-size:12.5px"></label>
+      </div><div style="width:${r.width - 3}px;flex:none"></div><div style="flex:1;background:var(--card)"></div></div>
+    <div class="grow"><div><div class="rule"></div><div class="body" style="padding:7px 8px 8px"><div class="chips"><span class="lbl" style="margin-right:4px">Markup</span>${MK.map((p) => `<button data-mk="${p}">+${p}%</button>`).join("")}<span class="pct"><input data-pct placeholder="—">%&nbsp;</span></div></div></div></div>`;
   document.body.appendChild(box);
   box.getBoundingClientRect();
   input.classList.add("hidden-ring");
-  requestAnimationFrame(() => { box.classList.add("on"); Object.assign(box.style, { left: left + "px", width: W + "px" }); });
-  const wire = () => {
-    box.querySelectorAll("[data-mk]").forEach((b) => b.onmousedown = (e) => { e.preventDefault(); st.price = Math.round(st.cost * (1 + b.dataset.mk / 100) * 100) / 100; input.value = st.price.toFixed(2); render(); });
-    const c = box.querySelector("[data-cost]"); c.oninput = () => { st.cost = parseFloat(c.value) || 0; renderFoot(); };
-    const bp = box.querySelector("[data-bprice]"); if (bp) bp.oninput = () => { st.price = parseFloat(bp.value) || 0; input.value = bp.value; renderFoot(); };
-    box.querySelectorAll("input").forEach((i) => i.onkeydown = keys);
-  };
-  const render = () => { const f = document.activeElement?.dataset?.cost != null; box.querySelector(".body").innerHTML = body(v, st); wire(); if (f) box.querySelector("[data-cost]").focus(); };
-  const renderFoot = () => {
-    const tmp = document.createElement("div"); tmp.innerHTML = body(v, st);
-    box.querySelector(".foot").replaceWith(tmp.querySelector(".foot"));
-    const mg = box.querySelector(".row .ar[style]"); if (mg) mg.replaceWith(tmp.querySelector(".row .ar[style]"));
-    box.querySelectorAll("[data-mk]").forEach((b, i) => b.classList.toggle("on", tmp.querySelectorAll("[data-mk]")[i].classList.contains("on")));
-  };
-  input.oninput = () => { st.price = parseFloat(input.value) || 0; const bp = box.querySelector("[data-bprice]"); if (bp) bp.value = input.value; renderFoot(); };
-  wire();
-  cur = { cell, box, input, v };
-  const c = box.querySelector("[data-cost]"); c.focus(); c.select();
+  requestAnimationFrame(() => { box.classList.add("on"); Object.assign(box.style, { left: left + "px", width: W + "px" }); box.querySelector("[data-fill]").style.width = lead + "px"; });
+  const cost = box.querySelector("[data-cost]");
+  const mark = () => { const price = parseFloat(input.value) || 0; box.querySelectorAll("[data-mk]").forEach((b) => b.classList.toggle("on", Math.abs(st.cost * (1 + b.dataset.mk / 100) - price) < .005)); };
+  const setPct = (pct) => { input.value = (Math.round(st.cost * (1 + pct / 100) * 100) / 100).toFixed(2); mark(); };
+  box.querySelectorAll("[data-mk]").forEach((b) => b.onmousedown = (e) => { e.preventDefault(); setPct(+b.dataset.mk); box.querySelector("[data-pct]").value = ""; input.focus(); input.select(); });
+  const pct = box.querySelector("[data-pct]");
+  pct.oninput = () => { if (pct.value !== "") setPct(parseFloat(pct.value) || 0); };
+  cost.oninput = () => { st.cost = parseFloat(cost.value) || 0; mark(); };
+  const toPrice = (e) => { if (e.key === "Tab" && !e.shiftKey) { e.preventDefault(); input.focus(); input.select(); } else if (e.key === "Enter") { e.preventDefault(); close(true); input.focus(); } else if (e.key === "Escape") { e.preventDefault(); close(true); input.focus(); } };
+  cost.onkeydown = toPrice; pct.onkeydown = toPrice;
+  input.oninput = mark;
+  mark();
+  cur = { cell, box, input, cost };
+  cost.focus(); cost.select();
 }
-function keys(e) { if (e.key === "Enter" || e.key === "Escape") { e.preventDefault(); const i = cur?.input; close(true); i?.focus(); } }
 function close(keep) {
   if (!cur) return;
   const { box, input, cell } = cur; cur = null;
@@ -149,7 +128,9 @@ function close(keep) {
   const ease = "cubic-bezier(.4,0,.2,1)";
   box.style.transition = `left ${out} ${ease},width ${out} ${ease},box-shadow ${out} ${ease},border-color ${out} ${ease}`;
   box.querySelector(".grow").style.transition = `grid-template-rows ${out} ${ease}`;
-  box.style.pointerEvents = "none"; box.querySelector(".body").style.pointerEvents = "none";
+  box.querySelector("[data-fill]").style.transition = `width ${out} ${ease}`;
+  box.querySelector("[data-fill]").style.width = "0px";
+  box.querySelectorAll("*").forEach((n) => n.style.pointerEvents = "none");
   box.classList.remove("on");
   Object.assign(box.style, { left: r.left + "px", width: r.width + "px" });
   if (!keep) box.style.borderColor = "transparent";
@@ -160,7 +141,12 @@ document.querySelectorAll(".pc").forEach((cell) => {
   const input = cell.querySelector("[data-price]");
   const target = "tier" in cell.dataset ? cell : input;
   target.addEventListener("mousedown", (e) => { if (cur?.cell === cell) return; e.preventDefault(); input.focus(); open(cell); });
-  input.addEventListener("keydown", (e) => { if (cur?.cell === cell) keys(e); });
+  input.addEventListener("keydown", (e) => {
+    if (cur?.cell !== cell) return;
+    if (e.key === "Tab" && e.shiftKey) { e.preventDefault(); cur.cost.focus(); cur.cost.select(); }
+    else if (e.key === "Tab") close(false);
+    else if (e.key === "Enter" || e.key === "Escape") { e.preventDefault(); close(true); }
+  });
   input.addEventListener("focus", () => open(cell));
 });
 document.addEventListener("mousedown", (e) => { if (cur && !cur.box.contains(e.target) && !cur.cell.contains(e.target)) close(false); });
