@@ -4,7 +4,7 @@ import { offeredGrouts, offeredMortars, isOffered, setCatalogDefault, isDuplicat
 import { stockBaseCompanion } from "./stock.js";
 import { deriveSeriesRule, matchRule, parseColorToken, normBookFamily, resolveFamily, familyWarnings, linkedItemState, proposeLinks, applyProposals, looksLikeBase } from "./booklink.js";
 import { uid } from "./model.js";
-import { DotMenu, Modal, HelpTip, AddressField, lookupErrText, DARK_MODE } from "./widgets.jsx";
+import { DotMenu, Modal, HelpTip, AddressField, lookupErrText, DARK_MODE, FitSelect } from "./widgets.jsx";
 import { StockSearch, FamilySearch, SeriesSearch } from "./search.jsx";
 import { PriceBookLibrary } from "./pricebooklib.jsx";
 import { PaneTitleBar } from "./raildrawer.jsx";
@@ -152,9 +152,9 @@ function OrderSourceConfirm({ fam, books, bookStock, orderBookStock, loadFamilyB
       {orderBooks.length === 0 ? (
         <p className="text-xs text-amber-600">No special-order price book is imported yet — add the vendor's price list in Settings → Price book first.</p>
       ) : (
-        <select className={inp} value={bookId} onChange={(e) => pickBook(e.target.value)}>
+        <FitSelect full value={bookId} onChange={(e) => pickBook(e.target.value)}>
           {orderBooks.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-        </select>
+        </FitSelect>
       )}
       {bookId && (items == null ? (
         <p className="text-xs text-slate-400 mt-2">Loading the book…</p>
@@ -492,10 +492,10 @@ export default function SettingsWorkspace({ settings, setSettings, gFamilies, ex
         </div>
         <div className="mt-6 max-w-xs">
           <label className={lbl}>Default product <HelpTip className="align-middle" tip={cat === "underlay" ? "Pre-selected when a row's underlayment chip is turned on." : "New tile rows start with this product."} /></label>
-          <select value={offered.includes(current) ? current : ""} onChange={(e) => onChange(setCatalogDefault(catalog, meta.kind, e.target.value))} className={inp}>
+          <FitSelect full value={offered.includes(current) ? current : ""} onChange={(e) => onChange(setCatalogDefault(catalog, meta.kind, e.target.value))}>
             {cat === "underlay" ? <option value="">— first offered —</option> : !offered.includes(current) && <option value="">Select…</option>}
             {offered.map((n) => <option key={n} value={n}>{n}</option>)}
-          </select>
+          </FitSelect>
         </div>
         <p className="text-xs text-slate-400 mt-8">Pick a product on the left to edit its numbers — or add one under its company.</p>
       </div>
@@ -548,10 +548,10 @@ export default function SettingsWorkspace({ settings, setSettings, gFamilies, ex
           </div>
           <div className="max-w-xs">
             <label className={lbl}>Default product <HelpTip className="align-middle" tip={`Pre-selected when a row's ${c.name} chip is turned on.`} /></label>
-            <select value={offered.includes(c.default) ? c.default : ""} onChange={(e) => onChange(updateCategory(catalog, c.id, { default: e.target.value }))} className={inp}>
+            <FitSelect full value={offered.includes(c.default) ? c.default : ""} onChange={(e) => onChange(updateCategory(catalog, c.id, { default: e.target.value }))}>
               <option value="">— first offered —</option>
               {offered.map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
+            </FitSelect>
           </div>
           <label className="flex items-center gap-1.5 text-xs text-slate-500">{box(c.enabled, () => onChange(updateCategory(catalog, c.id, { enabled: !c.enabled })), c.enabled ? "Hide this add-on's chip from job rows" : "Offer this add-on's chip on job rows")} offered on jobs</label>
         </div>
@@ -722,10 +722,10 @@ export default function SettingsWorkspace({ settings, setSettings, gFamilies, ex
               </div>
               {m.kind === "mortar" ? (
                 <div><label className={lbl}>Mortar</label>
-                  <select value={m.product} onChange={(e) => setInstallItem(co.id, u, m.id, { product: e.target.value })} className={inp}>
+                  <FitSelect full value={m.product} onChange={(e) => setInstallItem(co.id, u, m.id, { product: e.target.value })}>
                     {!m.product && <option value="">Select…</option>}
                     {(m.product && !mortarNames.includes(m.product) ? [m.product, ...mortarNames] : mortarNames).map((n) => <option key={n} value={n}>{n}</option>)}
-                  </select>
+                  </FitSelect>
                 </div>
               ) : (
                 txtField("Name", m.name, (v) => setInstallItem(co.id, u, m.id, { name: v }))

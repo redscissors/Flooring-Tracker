@@ -16,7 +16,7 @@ import { money, sf1, miscQty, rowBlank } from "./model.js";
 import { lineTotal, printProduct, KSHORT } from "./print.js";
 import { unitCode, bundleUnit, BUNDLE_UNITS, COUNT_UNITS } from "./units.js";
 import { MARKUP_PRESETS, unitMargin, editCost, editMarkup, editPrice } from "./costentry.js";
-import { FitSelect, GroutColorOptions, useEscClose, DotMenu, SalespersonPop } from "./widgets.jsx";
+import { FitSelect, GroutColorOptions, useEscClose, SalespersonPop, MorphSelect } from "./widgets.jsx";
 import { ClaudeMark } from "./claudeflag.jsx";
 import { SfPartsMenu } from "./SfPartsMenu.jsx";
 import { Hit, hitKey, matchSummary, useMergedResults, NearMatchNote, SearchingBar } from "./search.jsx";
@@ -691,69 +691,45 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutS
 const BAND_BOX = { border: "1px solid var(--ft-border-strong)", borderRadius: 6, padding: "2px 7px 3px", minWidth: 0, display: "flex", flexDirection: "column", justifyContent: "center" };
 const BAND_MINI = "h-[22px] min-w-0 flex items-center justify-center gap-1 rounded-md px-1.5 text-[10px] font-bold text-slate-500 whitespace-nowrap";
 const BAND_MINI_STYLE = { border: "1px solid var(--ft-border-strong)", flex: "1 1 auto" };
-const BAND_ROW = "w-full flex items-center gap-2 px-2.5 py-1.5 text-[12.5px] font-bold text-left";
 
 function TierDrop({ sel, tv, pcts, updateProject }) {
-  const [open, setOpen] = useState(false);
-  const anchorRef = useRef(null);
   const tier = sel.priceTier || "retail";
   const label = tierBadgeText(tv.tier, tv.pct) || (tier === "custom" ? "Custom" : "Retail");
   const fill = TIER_COLOR[tier]?.main;
-  const opts = [
-    { v: "retail", label: "Retail" },
-    { v: "builder", label: "Builder", note: `−${pcts.builderPct}%` },
-    { v: "employee", label: "Employee", note: "cost +6%" },
-    { v: "sale", label: "Sale", note: `−${pcts.salePct}%` },
-    { v: "custom", label: "Custom", input: true },
+  const dot = (v) => TIER_COLOR[v]?.main || "var(--ft-text)";
+  const options = [
+    { v: "retail", label: "Retail", dot: dot("retail") },
+    { v: "builder", label: "Builder", note: `−${pcts.builderPct}%`, dot: dot("builder") },
+    { v: "employee", label: "Employee", note: "cost +6%", dot: dot("employee") },
+    { v: "sale", label: "Sale", note: `−${pcts.salePct}%`, dot: dot("sale") },
+    { v: "custom", label: "Custom", dot: dot("custom") },
   ];
-  const pick = (v) => { updateProject(sel.id, { priceTier: v }); if (v !== "custom") setOpen(false); };
-  const onStyle = (v) => tier === v ? { background: TIER_COLOR[v]?.soft || "var(--ft-hover)", color: TIER_COLOR[v]?.main || "var(--ft-text)" } : undefined;
   return (
-    <>
-      <button ref={anchorRef} onClick={() => setOpen((o) => !o)} title="Price level"
-        className={"h-[24px] flex-1 min-w-0 flex items-center gap-1 rounded-md px-1.5 text-[10px] font-extrabold overflow-hidden " + (fill ? "text-white" : "bg-indigo-600")} style={fill ? { background: fill } : undefined}>
-        <span className="truncate">{label}</span><ChevronDown size={10} className="ml-auto shrink-0" />
-      </button>
-      <DotMenu open={open} onClose={() => setOpen(false)} anchorRef={anchorRef} width={168} align="left">
-        {opts.map((o) => {
-          const dot = <span className="shrink-0 rounded-full" style={{ width: 8, height: 8, background: TIER_COLOR[o.v]?.main || "var(--ft-text)" }} />;
-          if (o.input) return (
-            <label key={o.v} className={BAND_ROW + " cursor-text"} style={onStyle(o.v)}>
-              {dot}{o.label}
-              <input type="number" min="0" max="100" inputMode="numeric" value={sel.customPct ?? ""} placeholder="%" onFocus={() => pick("custom")}
-                onChange={(e) => updateProject(sel.id, { priceTier: "custom", customPct: e.target.value })}
-                className="ft-nospin ml-auto w-9 bg-transparent text-right border-b border-slate-300 focus:outline-none" />
-              <span className="text-[10px] font-semibold">%</span>
-            </label>
-          );
-          return (
-            <button key={o.v} onClick={() => pick(o.v)} className={BAND_ROW} style={onStyle(o.v)}>
-              {dot}{o.label}{o.note && <span className="ml-auto text-[10px] font-semibold opacity-80">{o.note}</span>}
-            </button>
-          );
-        })}
-      </DotMenu>
-    </>
+    <MorphSelect value={tier} onChange={(v) => updateProject(sel.id, { priceTier: v })} options={options} display={label}
+      tinted bold size="sm" minOpenW={168} title="Price level" className="flex-1 min-w-0"
+      triggerClass={"h-[24px] w-full min-w-0 flex items-center gap-1 rounded-md px-1.5 text-[10px] font-extrabold overflow-hidden " + (fill ? "text-white" : "bg-indigo-600")}
+      triggerStyle={fill ? { background: fill } : {}}
+      renderRow={(it, { close }) => it.v !== "custom" ? undefined : (
+        <label className="flex-1 flex items-center gap-1 cursor-text" onClick={(e) => e.stopPropagation()}>
+          Custom
+          <input type="number" min="0" max="100" inputMode="numeric" value={sel.customPct ?? ""} placeholder="%"
+            onFocus={() => updateProject(sel.id, { priceTier: "custom" })}
+            onChange={(e) => updateProject(sel.id, { priceTier: "custom", customPct: e.target.value })}
+            onKeyDown={(e) => { if (e.key === "Enter") close(); }}
+            className="ft-nospin ml-auto w-9 bg-transparent text-right border-b border-slate-300 focus:outline-none" />
+          <span className="text-[10px] font-semibold">%</span>
+        </label>
+      )} />
   );
 }
 
 const PRINT_OPTS = [["full", "All $", "Print every price and total"], ["unit", "Unit $", "Unit prices only — no line or job totals"], ["none", "No $", "No pricing"]];
 function PrintDrop({ sel, updateProject }) {
-  const [open, setOpen] = useState(false);
-  const anchorRef = useRef(null);
-  const cur = sel.printPricing || "full";
   return (
-    <>
-      <button ref={anchorRef} onClick={() => setOpen((o) => !o)} title="What the printed estimate shows" className={BAND_MINI} style={BAND_MINI_STYLE}>
-        {PRINT_OPTS.find(([v]) => v === cur)?.[1]}<ChevronDown size={9} className="shrink-0" />
-      </button>
-      <DotMenu open={open} onClose={() => setOpen(false)} anchorRef={anchorRef} width={176} align="left">
-        <div className="ft-eyebrow text-[9px] px-2.5 pt-1 pb-0.5">Estimate shows</div>
-        {PRINT_OPTS.map(([v, label, title]) => (
-          <button key={v} title={title} onClick={() => { updateProject(sel.id, { printPricing: v }); setOpen(false); }} className={BAND_ROW} style={cur === v ? { background: "var(--ft-brand-soft)", color: "var(--ft-brand-deep)" } : undefined}>{label}</button>
-        ))}
-      </DotMenu>
-    </>
+    <MorphSelect value={sel.printPricing || "full"} onChange={(v) => updateProject(sel.id, { printPricing: v })}
+      groups={[{ label: "Estimate shows", items: PRINT_OPTS.map(([v, label, title]) => ({ v, label, title })) }]}
+      size="sm" minOpenW={176} title="What the printed estimate shows" className="flex-auto min-w-0"
+      triggerClass={BAND_MINI + " w-full"} triggerStyle={{ border: BAND_MINI_STYLE.border }} />
   );
 }
 

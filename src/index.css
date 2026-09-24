@@ -211,6 +211,14 @@ input::placeholder,textarea::placeholder{color:color-mix(in oklab, var(--ft-text
 .ft-acc-in{overflow:hidden;min-height:0;}
 @media (prefers-reduced-motion: reduce){.ft-acc{transition:none;}}
 
+/* The one floating-panel shell (ADR 0048): the price-level menu's open look —
+   surface fill, ink outline, lifted shadow, a slide-open reveal. */
+.ft-pop{background:var(--pop-bg,var(--ft-card));border:1.5px solid var(--ft-text);border-radius:.5rem;box-shadow:0 12px 28px -12px rgba(28,26,23,.45);animation:ft-pop-down 240ms cubic-bezier(.2,.8,.2,1);}
+.ft-pop[data-up="true"]{animation-name:ft-pop-up;}
+@keyframes ft-pop-down{from{clip-path:inset(0 0 100% 0 round .5rem)}to{clip-path:inset(0 0 0 0 round .5rem)}}
+@keyframes ft-pop-up{from{clip-path:inset(100% 0 0 0 round .5rem)}to{clip-path:inset(0 0 0 0 round .5rem)}}
+@media (prefers-reduced-motion: reduce){.ft-pop{animation:none;}}
+
 /* App-shell height. 100vh on phones is the LARGE viewport (URL bar hidden), and
    the shell only scrolls inside <main>, so the browser chrome never collapses —
    a 100vh root keeps the bottom Area/Product/Print bar permanently cut off

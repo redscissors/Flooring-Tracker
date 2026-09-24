@@ -1,4 +1,4 @@
-import { Component, useState, useEffect, useLayoutEffect, useRef } from "react";
+import { Children, Component, Fragment, isValidElement, useState, useEffect, useLayoutEffect, useRef, useId } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, User, Paperclip, X, Lock, LockOpen, Eye, EyeOff, MapPin, ClipboardPaste, Check, ShoppingBasket } from "lucide-react";
 import { num } from "./catalog.js";
@@ -8,6 +8,7 @@ import { normName, matchName } from "./names.js";
 import { phoneChange } from "./phone.js";
 import { mapsUrl, cleanAddress } from "./address.js";
 import { escPush } from "./escstack.js";
+import { flatten, moveIndex, edgeIndex, typeahead, placeMorph } from "./dropdown.js";
 import { useAddressSuggest, fetchDistance, fetchPlaceDetails } from "./usemapslookup.js";
 import { MIN_SUGGEST, formatDist, distStale } from "./mapslookup.js";
 
@@ -44,17 +45,34 @@ export class LazyBoundary extends Component {
   }
 }
 
-// A native select sizes to its longest option (or its container), not the
-// selected one — an invisible twin of the selected label sets the width here.
-export const FitSelect = ({ display, className = "", sm, children, ...rest }) => {
-  const pad = sm ? "pl-1.5 pr-5 py-0.5 text-xs" : "pl-2 pr-6 py-1.5 text-sm";
-  return (
-    <span className={`relative inline-block max-w-full align-middle ${className}`}>
-      <span aria-hidden="true" className={`invisible block truncate whitespace-pre border border-transparent ${pad}`}>{display || " "}</span>
-      <select {...rest} className={`ft-field absolute inset-0 w-full h-full appearance-none rounded-md border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent ${pad}`}>{children}</select>
-      <ChevronDown size={sm ? 11 : 13} className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 text-slate-400" />
-    </span>
-  );
+// The drawer's dropdowns keep a <select>'s call shape — <option>/<optgroup>
+// children and onChange(e) reading e.target.value — so they read like the
+// markup they replaced; underneath each is a MorphSelect (ADR 0048).
+export const FitSelect = ({ display, className = "", sm, full, children, value, onChange, title, bg = "var(--ft-field)" }) => (
+  <MorphSelect size={sm ? "sm" : "md"} full={full} className={className} title={title} value={String(value ?? "")} display={display}
+    groups={selectGroups(children)} bg={bg} onChange={(v) => onChange?.({ target: { value: v } })} />
+);
+
+const selectGroups = (children) => {
+  const groups = [];
+  let loose = null;
+  const walk = (nodes, into) => Children.forEach(nodes, (c) => {
+    if (!isValidElement(c)) return;
+    if (c.type === Fragment) return walk(c.props.children, into);
+    if (c.type === GroutColorOptions) return walk(GroutColorOptions(c.props), into);
+    if (c.type === "optgroup") {
+      const g = { label: c.props.label, items: [] };
+      groups.push(g);
+      loose = null;
+      return walk(c.props.children, g.items);
+    }
+    if (c.type !== "option") return;
+    if (!into && !loose) { loose = { label: null, items: [] }; groups.push(loose); }
+    const label = Children.toArray(c.props.children).join("");
+    (into || loose.items).push({ v: String(c.props.value ?? label), label, disabled: c.props.disabled });
+  });
+  walk(children, null);
+  return groups;
 };
 
 // A grout color dropdown's options (stock.js groutColorOptions): flat while
@@ -66,6 +84,27 @@ export const GroutColorOptions = ({ groups }) => groups.special.length === 0
     <optgroup label="In stock">{groups.stock.map((c) => <option key={c}>{c}</option>)}</optgroup>
     <optgroup label="Special order">{groups.special.map((c) => <option key={c}>{c}</option>)}</optgroup>
   </>;
+
+export const useDismissOutside = (open, anchorRef, panelRef, onDismiss) => {
+  useEffect(() => {
+    if (!open) return;
+    const close = (e) => { if (!anchorRef.current?.contains(e.target) && !panelRef.current?.contains(e.target)) onDismiss(); };
+    // Focus leaving the field (Tab, or clicking into another input) must dismiss
+    // too — a pointer-outside alone leaves the panel orphaned over the new field.
+    // Deferred so focus has settled onto its target; picks keep focus in the
+    // anchor (they preventDefault on mousedown), so they never trip this.
+    const onFocusOut = () => requestAnimationFrame(() => {
+      const ae = document.activeElement;
+      if (ae && ae !== document.body && !anchorRef.current?.contains(ae) && !panelRef.current?.contains(ae)) onDismiss();
+    });
+    document.addEventListener("pointerdown", close);
+    anchorRef.current?.addEventListener("focusout", onFocusOut);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      anchorRef.current?.removeEventListener("focusout", onFocusOut);
+    };
+  }, [open]);
+};
 
 // Dropdown panels render in a portal on <body>: the product-row field bar and
 // the settings modal both clip absolutely-positioned children (overflow), so
@@ -87,36 +126,54 @@ export const useAnchoredPanel = (open, anchorRef, panelRef, onDismiss) => {
       const below = window.innerHeight - r.bottom - 12;
       const above = r.top - 12;
       const up = below < Math.min(PANEL_MAX, above);
+      const field = { ft: r.top, fb: r.bottom, h: r.height };
       setPos(up
-        ? { bottom: window.innerHeight - r.top + 4, left: r.left, width: r.width, maxH: Math.max(above, 120) }
-        : { top: r.bottom + 4, left: r.left, width: r.width, maxH: Math.max(below, 120) });
+        ? { bottom: window.innerHeight - r.top + 4, left: r.left, width: r.width, maxH: Math.max(above, 120), ...field }
+        : { top: r.bottom + 4, left: r.left, width: r.width, maxH: Math.max(below, 120), ...field });
     };
     place();
     window.addEventListener("scroll", place, true);
     window.addEventListener("resize", place);
     return () => { window.removeEventListener("scroll", place, true); window.removeEventListener("resize", place); };
   }, [open]);
-  useEffect(() => {
-    if (!open) return;
-    const close = (e) => { if (!anchorRef.current?.contains(e.target) && !panelRef.current?.contains(e.target)) onDismiss(); };
-    // Focus leaving the field (Tab, or clicking into another input) must dismiss
-    // too — a pointer-outside alone leaves the panel orphaned over the new field.
-    // Deferred so focus has settled onto its target; picks keep focus in the
-    // anchor (they preventDefault on mousedown), so they never trip this.
-    const onFocusOut = () => requestAnimationFrame(() => {
-      const ae = document.activeElement;
-      if (ae && ae !== document.body && !anchorRef.current?.contains(ae) && !panelRef.current?.contains(ae)) onDismiss();
-    });
-    document.addEventListener("pointerdown", close);
-    anchorRef.current?.addEventListener("focusout", onFocusOut);
-    return () => {
-      document.removeEventListener("pointerdown", close);
-      anchorRef.current?.removeEventListener("focusout", onFocusOut);
-    };
-  }, [open]);
+  useDismissOutside(open, anchorRef, panelRef, onDismiss);
   return pos;
 };
 export const vPos = (pos) => (pos.top != null ? { top: pos.top } : { bottom: pos.bottom });
+
+// A search field's results in the price menu's open look (ADR 0048): one ink
+// outline wraps the field and its results. The box's top row is see-through
+// and passes clicks, so the caret stays in the real field underneath — only
+// the field's own border and focus ring step aside while the box is up.
+// `box` is the results' { left, width } when wider than the field.
+export function SearchPop({ pos, box, fieldRef, panelRef, bg = "var(--ft-card)", className = "", style, children }) {
+  useLayoutEffect(() => {
+    const el = fieldRef?.current;
+    const f = el && (el.matches("input, textarea") ? el : el.querySelector("input, textarea"));
+    if (!f) return;
+    const prev = { borderColor: f.style.borderColor, boxShadow: f.style.boxShadow, outline: f.style.outline };
+    Object.assign(f.style, { borderColor: "transparent", boxShadow: "none", outline: "none" });
+    return () => Object.assign(f.style, prev);
+  }, []);
+  const up = pos.bottom != null;
+  const left = box?.left ?? pos.left;
+  const width = box?.width ?? pos.width;
+  const head = (
+    <div className="flex shrink-0" style={{ height: pos.h }}>
+      <div style={{ width: Math.max(0, pos.left - left), background: bg }} />
+      <div style={{ width: pos.width }} />
+      <div className="flex-1" style={{ background: bg }} />
+    </div>
+  );
+  const rule = <div className="shrink-0" style={{ background: bg }}><div className="border-t border-slate-300 mx-2" /></div>;
+  const body = <div ref={panelRef} className={"min-h-0 " + className} style={{ background: bg, pointerEvents: "auto", maxHeight: pos.maxH, ...style }}>{children}</div>;
+  return createPortal(
+    <div className="ft-pop flex flex-col" data-up={up ? "true" : undefined}
+      style={{ position: "fixed", zIndex: 50, left: left - 1.5, width: width + 3, background: "transparent", pointerEvents: "none", overflow: "hidden",
+        ...(up ? { bottom: window.innerHeight - pos.fb - 1.5 } : { top: pos.ft - 1.5 }) }}>
+      {up ? <>{body}{rule}{head}</> : <>{head}{rule}{body}</>}
+    </div>, document.body);
+}
 
 // A right-anchored ⋯ action menu on the same portal + fixed-coordinates rig as
 // the search panels: a scroll container can't clip it, and a trigger near the
@@ -124,14 +181,16 @@ export const vPos = (pos) => (pos.top != null ? { top: pos.top } : { bottom: pos
 // page. The right edge hugs the trigger, clamped to the viewport; dismissal
 // (outside pointer-down / focus-out) comes from useAnchoredPanel, so callers
 // don't need a backdrop.
-export function DotMenu({ open, onClose, anchorRef, width = 224, align = "right", children }) {
+export function DotMenu({ open, onClose, anchorRef, width = 224, align = "right", bg, children }) {
   const panelRef = useRef(null);
   const pos = useAnchoredPanel(open, anchorRef, panelRef, onClose);
   useEscClose(open, onClose);
   if (!open || !pos) return null;
   const left = Math.max(8, Math.min(align === "left" ? pos.left : pos.left + pos.width - width, window.innerWidth - width - 8));
   return createPortal(
-    <div ref={panelRef} style={{ ...vPos(pos), maxHeight: pos.maxH, width, left }} className="fixed z-50 rounded-lg border border-slate-200 bg-white shadow-lg py-1 text-sm overflow-y-auto">
+    <div ref={panelRef} data-up={pos.bottom != null ? "true" : undefined}
+      style={{ ...vPos(pos), maxHeight: pos.maxH, width, left, "--pop-bg": bg }}
+      className="ft-pop fixed z-50 py-1 text-sm overflow-y-auto">
       {children}
     </div>, document.body);
 }
@@ -142,6 +201,9 @@ export function DotMenu({ open, onClose, anchorRef, width = 224, align = "right"
 export function BuilderCombo({ value, builders, onSelect, onAddBuilder, inp }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+  const panelRef = useRef(null);
+  const pos = useAnchoredPanel(open, wrapRef, panelRef, () => setOpen(false));
   const cur = builders.find((b) => b.id === value) || null;
   useEffect(() => { setQ(cur ? cur.name : ""); }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
   const typed = q.trim();
@@ -153,12 +215,12 @@ export function BuilderCombo({ value, builders, onSelect, onAddBuilder, inp }) {
   // the effect above syncs the input text.
   const add = (name) => { onAddBuilder(name); setOpen(false); };
   return (
-    <div className="relative">
+    <div ref={wrapRef} className="relative">
       <input value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => { setOpen(false); setQ(cur ? cur.name : ""); }, 150)}
         placeholder="No builder — type to search or add" className={inp} />
-      {open && (
-        <div className="absolute left-0 right-0 top-full mt-1 z-30 rounded-md border border-slate-200 bg-white shadow-lg overflow-hidden max-h-64 overflow-y-auto">
+      {open && pos && (
+        <SearchPop pos={pos} fieldRef={wrapRef} panelRef={panelRef} className="overflow-y-auto" style={{ maxHeight: Math.min(256, pos.maxH) }}>
           {cur && <div onMouseDown={(e) => { e.preventDefault(); pick(null); }} className="px-3 py-2 text-sm text-slate-500 hover:bg-slate-50 cursor-pointer flex justify-between"><span>Remove builder</span><span className="text-[11px]">direct customer</span></div>}
           {matches.map((b) => (
             <div key={b.id} onMouseDown={(e) => { e.preventDefault(); pick(b); }} className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer truncate">{b.name}</div>
@@ -173,7 +235,7 @@ export function BuilderCombo({ value, builders, onSelect, onAddBuilder, inp }) {
           ) : (
             <div onMouseDown={(e) => { e.preventDefault(); add(typed); }} className="px-3 py-2 text-[12.5px] border-t border-slate-100 text-slate-600 hover:bg-slate-50 cursor-pointer">+ Add new builder <b>"{typed}"</b></div>
           ))}
-        </div>
+        </SearchPop>
       )}
     </div>
   );
@@ -209,7 +271,7 @@ export function SalespersonPop({ value, fallback, onChange, alignRight, small })
         {sp.name || sp.email || "Set salesperson"}
       </button>
       {open && pos && createPortal(
-        <div ref={panelRef} style={{ ...vPos(pos), left: Math.max(8, Math.min(alignRight ? pos.left + pos.width - W : pos.left, window.innerWidth - W - 8)) }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 p-3 space-y-1.5" onKeyDown={(e) => { if (e.key === "Escape") e.preventDefault(); if (e.key === "Escape" || e.key === "Enter") setOpen(false); }} >
+        <div ref={panelRef} data-up={pos.bottom != null ? "true" : undefined} style={{ ...vPos(pos), left: Math.max(8, Math.min(alignRight ? pos.left + pos.width - W : pos.left, window.innerWidth - W - 8)) }} className="fixed ft-pop z-50 p-3 space-y-1.5" onKeyDown={(e) => { if (e.key === "Escape") e.preventDefault(); if (e.key === "Escape" || e.key === "Enter") setOpen(false); }} >
           <div className="ft-eyebrow text-[9px]">Salesperson</div>
           <input autoFocus value={sp.name} onChange={(e) => onChange({ ...sp, name: e.target.value })} placeholder="Name" className={fld} style={{ width: W - 24 }} />
           <input type="tel" inputMode="tel" value={sp.phone} onChange={(e) => onChange({ ...sp, phone: phoneChange(sp.phone, e.target.value) })} placeholder="Phone" className={fld} style={{ width: W - 24 }} />
@@ -349,7 +411,7 @@ export function FilesPop({ attachments, onOpen, onDelete, onAdd, mini, tip }) {
           : <span className="font-semibold">{n}</span>)}
       </button>
       {open && pos && createPortal(
-        <div ref={panelRef} style={{ ...vPos(pos), left: Math.max(8, Math.min(pos.left, window.innerWidth - W - 8)), width: W }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 p-2">
+        <div ref={panelRef} data-up={pos.bottom != null ? "true" : undefined} style={{ ...vPos(pos), left: Math.max(8, Math.min(pos.left, window.innerWidth - W - 8)), width: W }} className="fixed ft-pop z-50 p-2">
           <div className="ft-eyebrow text-[9px] mb-1.5">Files <span className="normal-case tracking-normal font-normal text-slate-400">— not printed</span></div>
           <div className="flex flex-wrap gap-1">
             {(attachments || []).map((m) => (
@@ -469,74 +531,183 @@ export function BasketButton({ count = 0, onClick, ...rest }) {
   );
 }
 
+const MORPH_EASE = "cubic-bezier(.2,.8,.2,1)";
+const touchRows = () => window.matchMedia?.("(pointer: coarse)").matches || window.innerWidth < 768;
+
+// The one pick-one dropdown (ADR 0048), the price-level menu's look: the open
+// box is the trigger grown — portalled onto <body> at the trigger's spot so a
+// scroll container can't clip it, wearing the trigger's zoom inside the
+// shrink-to-fit workspaces. Focus stays on the trigger (rows preventDefault on
+// mousedown) so it keeps a <select>'s keyboard contract.
+export function MorphSelect({ value, onChange, options, groups, placeholder = "Pick…", display, bg = "var(--ft-card)", size = "md", flat = false, tinted = false, bold = false, full = false, align = "left", minOpenW = 0, title, className = "", triggerClass, triggerStyle, renderRow, tabIndex, chevron = true }) {
+  const { items, heads } = flatten({ options, groups });
+  const [open, setOpen] = useState(false);
+  const [shown, setShown] = useState(false);
+  const [active, setActive] = useState(-1);
+  const [box, setBox] = useState(null);
+  const anchorRef = useRef(null);
+  const panelRef = useRef(null);
+  const listRef = useRef(null);
+  const timer = useRef(0);
+  const lid = useId();
+  const sel = items.findIndex((it) => it.v === value);
+  const cur = items[sel];
+  const text = display ?? (cur ? cur.label : placeholder);
+  const ink = tinted && cur?.dot ? cur.dot : undefined;
+  const closedBorder = flat ? "transparent" : "var(--ft-border-strong)";
+  const sz = size === "sm" ? "px-1.5 text-xs" : "px-2.5 text-[12.5px]";
+  const rowSz = touchRows() ? "py-2.5 text-[14px]" : size === "sm" ? "py-1 text-xs" : "py-1.5 text-[12.5px]";
+
+  const openMenu = () => {
+    clearTimeout(timer.current);
+    setActive(sel >= 0 ? sel : edgeIndex(items, "first"));
+    if (open) setShown(true); else setOpen(true);
+  };
+  const closeMenu = () => {
+    setShown(false);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setOpen(false), 240);
+  };
+  const pick = (i) => { onChange(items[i].v); closeMenu(); };
+  useEffect(() => () => clearTimeout(timer.current), []);
+  useEscClose(open && shown, closeMenu);
+  useDismissOutside(open, anchorRef, panelRef, closeMenu);
+
+  useLayoutEffect(() => {
+    if (!open) { setBox(null); setShown(false); return; }
+    const place = () => {
+      const el = anchorRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const scale = el.offsetWidth ? r.width / el.offsetWidth : 1;
+      const want = Math.min(PANEL_MAX, 12 + items.length * (touchRows() ? 40 : 30) + heads.length * 24);
+      const pos = placeMorph({ rect: r, vw: window.innerWidth, vh: window.innerHeight, scale, align, want });
+      setBox((b) => ({ ...pos, scale, w: el.offsetWidth, h: el.offsetHeight, target: b?.target ?? el.offsetWidth }));
+    };
+    place();
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return () => { window.removeEventListener("scroll", place, true); window.removeEventListener("resize", place); };
+  }, [open]);
+
+  useLayoutEffect(() => {
+    if (!open || !box) return;
+    const natural = listRef.current?.offsetWidth || 0;
+    const target = Math.min(box.maxW, Math.max(box.w, natural, minOpenW));
+    setBox((b) => ({ ...b, target }));
+    const id = requestAnimationFrame(() => setShown(true));
+    return () => cancelAnimationFrame(id);
+  }, [open, !!box]);
+
+  useEffect(() => {
+    if (shown && active >= 0) listRef.current?.querySelector(`[data-i="${active}"]`)?.scrollIntoView({ block: "nearest" });
+  }, [shown, active]);
+
+  const onKey = (e) => {
+    const k = e.key;
+    const stop = () => { e.preventDefault(); e.stopPropagation(); };
+    const letter = k.length === 1 && /\S/.test(k) && !e.ctrlKey && !e.metaKey && !e.altKey;
+    if (!(open && shown)) {
+      if (k === "Enter" || k === " " || k === "ArrowDown" || k === "ArrowUp") { stop(); openMenu(); }
+      else if (letter) { const i = typeahead(items, sel, k); if (i >= 0) { stop(); onChange(items[i].v); } }
+      return;
+    }
+    if (k === "Escape") { stop(); closeMenu(); }
+    else if (k === "Tab") closeMenu();
+    else if (k === "Enter" || k === " ") { stop(); if (active >= 0 && !items[active]?.disabled) pick(active); }
+    else if (k === "ArrowDown" || k === "ArrowUp") { stop(); setActive(moveIndex(items, active, k === "ArrowDown" ? 1 : -1)); }
+    else if (k === "Home" || k === "End") { stop(); setActive(edgeIndex(items, k === "Home" ? "first" : "last")); }
+    else if (letter) { stop(); const i = typeahead(items, active, k); if (i >= 0) setActive(i); }
+  };
+
+  const headAt = new Map(heads.filter((h) => h.label).map((h) => [h.at, h.label]));
+  const chevronIcon = (turned) => <ChevronDown size={size === "sm" ? 12 : 14} className="ml-auto shrink-0 text-slate-400" style={{ transform: turned ? "rotate(180deg)" : "none", transition: "transform 220ms ease" }} />;
+  const rows = items.map((it, i) => {
+    const on = i === sel;
+    const custom = renderRow?.(it, { selected: on, close: closeMenu });
+    return (
+      <div key={i}>
+        {headAt.has(i) && <div className="ft-eyebrow text-[9px] px-3 pt-2 pb-0.5">{headAt.get(i)}</div>}
+        <div data-i={i} id={`${lid}-${i}`} role="option" aria-selected={on} aria-disabled={it.disabled || undefined} title={it.title}
+          onMouseEnter={() => { if (!it.disabled) setActive(i); }}
+          onMouseDown={(e) => { if (e.target.tagName !== "INPUT") e.preventDefault(); }}
+          onClick={() => { if (!it.disabled) pick(i); }}
+          className={"w-full flex items-center gap-2 px-3 whitespace-nowrap " + rowSz
+            + (it.disabled ? " text-slate-300 cursor-default" : " cursor-pointer")
+            + (i === active && !it.disabled ? " bg-[color:var(--ft-hover)]" : "")
+            + (on ? " font-extrabold" : " font-semibold" + (it.disabled ? "" : " text-slate-600"))}>
+          {it.dot && <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ background: it.dot }} />}
+          {custom ?? <span className="flex-1" style={on && tinted && it.dot ? { color: it.dot } : undefined}>{it.label}</span>}
+          {it.note && <span className="text-[10.5px] font-semibold text-slate-400">{it.note}</span>}
+          <span className="w-3.5 shrink-0">{on && <Check size={13} />}</span>
+        </div>
+      </div>
+    );
+  });
+
+  const header = box && (
+    <div onMouseDown={(e) => e.preventDefault()} onClick={closeMenu}
+      className={"flex items-center gap-1.5 whitespace-nowrap cursor-pointer " + sz + (bold ? " font-extrabold" : " font-semibold")}
+      style={{ height: Math.max(box.h - 3, size === "sm" ? 20 : 24), color: ink || "var(--ft-text)" }}>
+      <span className="truncate">{text}</span>{chevronIcon(shown)}
+    </div>
+  );
+  const divider = <div className="border-t border-slate-300 mx-2" />;
+  const list = (
+    <div style={{ display: "grid", gridTemplateRows: shown ? "1fr" : "0fr", transition: `grid-template-rows 240ms ${MORPH_EASE}` }}>
+      <div className="min-h-0 overflow-hidden">
+        <div ref={listRef} id={lid} role="listbox" className="py-1 overflow-y-auto" style={{ maxHeight: box?.maxList, minWidth: "100%", width: "max-content" }}>{rows}</div>
+      </div>
+    </div>
+  );
+  const panel = box && (
+    <div ref={panelRef} className="fixed rounded-lg overflow-hidden"
+      style={{ zIndex: 90, top: box.top, bottom: box.bottom, left: box.left, right: box.right, zoom: box.scale !== 1 ? box.scale : undefined,
+        width: shown ? box.target : box.w, background: bg,
+        border: "1.5px solid " + (shown ? "var(--ft-text)" : closedBorder),
+        boxShadow: shown ? "0 12px 28px -12px rgba(28,26,23,.45)" : "none",
+        transition: `width 220ms ${MORPH_EASE}, border-color 220ms ease, box-shadow 220ms ease` }}>
+      {box.up ? <>{list}{divider}{header}</> : <>{header}{divider}{list}</>}
+    </div>
+  );
+
+  return (
+    <span ref={anchorRef} className={(full ? "flex w-full" : "inline-flex max-w-full") + " relative align-middle " + className}
+      style={triggerClass ? undefined : { background: bg, border: "1.5px solid " + closedBorder, borderRadius: 8 }}>
+      <button type="button" tabIndex={tabIndex} onClick={() => (open && shown ? closeMenu() : openMenu())} onKeyDown={onKey} title={title}
+        aria-haspopup="listbox" aria-expanded={open && shown} aria-controls={open ? lid : undefined}
+        aria-activedescendant={open && shown && active >= 0 ? `${lid}-${active}` : undefined}
+        className={triggerClass ?? ("min-w-0 w-full flex items-center gap-1.5 rounded-[6.5px] whitespace-nowrap focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 hover:bg-[color:var(--ft-hover)] " + sz + (size === "sm" ? " h-[22px]" : " h-[27px]") + (bold ? " font-extrabold" : " font-semibold"))}
+        style={triggerStyle ?? { color: ink || (cur || display ? "var(--ft-text)" : "var(--ft-muted)") }}>
+        <span className="truncate">{text}</span>{chevron && chevronIcon(false)}
+      </button>
+      {open && box && createPortal(panel, document.body)}
+    </span>
+  );
+}
+
 const PRICE_LEVELS = ["retail", "builder", "employee", "sale", "custom"];
 const levelInk = (t) => TIER_COLOR[t]?.main || "var(--ft-text)";
 
 // The configurators' price level (owner 2026-09-24): closed it names the level
 // — Custom shows only its discount — and a click slides the list open while a
-// dark border grows around trigger and list as one piece. The wrapper holds
-// the closed width so nothing beside it moves. `bg` is the header's own fill,
-// which the open box takes on.
+// dark border grows around trigger and list as one piece (MorphSelect). `bg`
+// is the header's own fill, which the open box takes on.
 export function PriceLevelMenu({ value = "retail", customPct, onPick, onPct, bg = "var(--ft-cream)" }) {
-  const [open, setOpen] = useState(false);
-  const [w, setW] = useState(0);
-  const label = useRef(null);
-  const box = useRef(null);
-  const text = value === "custom" ? `−${customPct || 0}%` : value[0].toUpperCase() + value.slice(1);
-  useLayoutEffect(() => { if (label.current) setW(label.current.offsetWidth + 16); }, [text]);
-  useEscClose(open, () => setOpen(false));
-  useEffect(() => {
-    if (!open) return;
-    const down = (e) => { if (box.current && !box.current.contains(e.target)) setOpen(false); };
-    document.addEventListener("mousedown", down);
-    return () => document.removeEventListener("mousedown", down);
-  }, [open]);
-  const ease = "cubic-bezier(.2,.8,.2,1)";
+  const options = PRICE_LEVELS.map((t) => ({ v: t, label: t[0].toUpperCase() + t.slice(1), dot: levelInk(t) }));
   return (
-    <div className="relative h-[30px] shrink-0" style={{ width: w || undefined }}>
-      <div ref={box} className="absolute right-0 top-0 rounded-lg overflow-hidden" data-price-level
-        style={{ zIndex: open ? 30 : 10, width: open ? Math.max(w, 170) : w || "auto", background: bg,
-          border: "1.5px solid " + (open ? "var(--ft-text)" : "transparent"),
-          boxShadow: open ? "0 12px 28px -12px rgba(28,26,23,.45)" : "none",
-          transition: `width 220ms ${ease}, border-color 220ms ease, box-shadow 220ms ease` }}>
-        <button onClick={() => setOpen(!open)} aria-expanded={open} title="Price level"
-          className={"h-[27px] w-full flex items-center justify-end px-2 text-[12.5px] font-extrabold whitespace-nowrap " + (open ? "" : "hover:bg-[color:var(--ft-hover)]")}
-          style={{ color: levelInk(value) }}>
-          <span ref={label} className="inline-flex items-center gap-1.5">
-            {text}
-            <ChevronDown size={14} className="text-slate-400" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 220ms ease" }} />
+    <MorphSelect value={value} onChange={onPick} options={options} bg={bg} flat tinted bold align="right" minOpenW={170} title="Price level"
+      display={value === "custom" ? `−${customPct || 0}%` : undefined}
+      renderRow={(it, { close }) => it.v !== "custom" ? undefined : (
+        <span className="flex-1">
+          <span className="inline-flex items-center gap-0.5 rounded border border-slate-300 bg-white px-1.5 text-[12px] font-bold" style={{ color: levelInk("custom") }} onClick={(e) => e.stopPropagation()}>
+            −<input value={customPct ?? ""} inputMode="decimal" title="Custom % off retail"
+              onFocus={() => onPick("custom")} onChange={(e) => onPct(e.target.value.replace(/[^\d.]/g, ""))}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); close(); } }}
+              className="w-6 text-right bg-transparent focus:outline-none" />%
           </span>
-        </button>
-        <div style={{ display: "grid", gridTemplateRows: open ? "1fr" : "0fr", transition: `grid-template-rows 240ms ${ease}` }}>
-          <div className="min-h-0 overflow-hidden">
-            <div className="border-t border-slate-300 mx-2" />
-            <div className="py-1">
-              {PRICE_LEVELS.map((t) => {
-                const on = value === t;
-                const pick = () => { onPick(t); setOpen(false); };
-                return (
-                  <div key={t} role="button" tabIndex={open ? 0 : -1} data-level={t} onClick={pick} onKeyDown={(e) => { if (e.key === "Enter") pick(); }}
-                    className={"w-full flex items-center gap-2 px-3 py-1.5 text-[12.5px] cursor-pointer hover:bg-[color:var(--ft-hover)] " + (on ? "font-extrabold" : "font-semibold text-slate-600")}>
-                    <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ background: levelInk(t) }} />
-                    {t === "custom" ? (
-                      <span className="flex-1">
-                        <span className="inline-flex items-center gap-0.5 rounded border border-slate-300 bg-white px-1.5 text-[12px] font-bold" style={{ color: levelInk(t) }} onClick={(e) => e.stopPropagation()}>
-                          −<input value={customPct ?? ""} inputMode="decimal" tabIndex={open ? 0 : -1} title="Custom % off retail"
-                            onFocus={() => onPick("custom")} onChange={(e) => onPct(e.target.value.replace(/[^\d.]/g, ""))}
-                            onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); setOpen(false); } }}
-                            className="w-6 text-right bg-transparent focus:outline-none" />%
-                        </span>
-                      </span>
-                    ) : <span className="flex-1" style={on ? { color: levelInk(t) } : undefined}>{t[0].toUpperCase() + t.slice(1)}</span>}
-                    <span className="w-3.5 shrink-0">{on && <Check size={13} />}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+        </span>
+      )} />
   );
 }
 
@@ -681,7 +852,9 @@ export const lookupErrText = (code) => LOOKUP_ERR[code] || (code ? "Address look
 
 export function AddressField({ value, onChange, inp, placeholder, autoFocus, ping, suggest = false, distance = null, shopAddress = "", onDistance }) {
   const ref = useRef(null);
+  const panelRef = useRef(null);
   const [open, setOpen] = useState(false);
+  const pos = useAnchoredPanel(open && suggest, ref, panelRef, () => setOpen(false));
   const { suggestions, err, ask, clear, takeToken } = useAddressSuggest();
   const [busy, setBusy] = useState(false);
   const [distErr, setDistErr] = useState("");
@@ -755,15 +928,15 @@ export function AddressField({ value, onChange, inp, placeholder, autoFocus, pin
           onClick={() => window.open(mapsUrl(value), "_blank", "noopener,noreferrer")}><MapPin size={15} /></button>
         <button type="button" title="Paste the address you copied" className={ADDR_BTN} onClick={paste}><ClipboardPaste size={15} /></button>
       </div>
-      {suggest && open && (suggestions.length > 0 || (err && err !== "not-configured")) && (
-        <div className="absolute left-0 right-16 top-full mt-1 z-30 rounded-md border border-slate-200 bg-white shadow-lg overflow-hidden max-h-64 overflow-y-auto">
+      {suggest && open && pos && (suggestions.length > 0 || (err && err !== "not-configured")) && (
+        <SearchPop pos={pos} fieldRef={ref} panelRef={panelRef} className="overflow-y-auto" style={{ maxHeight: Math.min(256, pos.maxH) }}>
           {err && err !== "not-configured"
             ? <div className="px-3 py-2 text-[12.5px] text-amber-800 bg-amber-50">{lookupErrText(err)}</div>
             : suggestions.map((s) => (
               <div key={s.placeId || s.text} onMouseDown={(e) => { e.preventDefault(); pick(s); }}
                 className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer">{s.text}</div>
             ))}
-        </div>
+        </SearchPop>
       )}
       {shopAddress && (distance || distErr || busy) && (
         <div className="flex items-center gap-1.5 flex-wrap text-xs mt-1">

@@ -27,7 +27,7 @@ export function LineMenu({ menu, title, subtitle, areas, canDelete, sampleOn, ha
   const top = Math.max(8, Math.min(menu.y + 2, window.innerHeight - 60));
   const mi = "flex w-full items-center gap-2.5 px-3 py-1.5 text-[12.5px] font-medium text-left hover:bg-slate-50";
   return createPortal(
-    <div ref={ref} style={{ left, top, width: MENU_W, maxHeight: window.innerHeight - top - 8 }} className="fixed z-50 rounded-lg border border-slate-200 bg-white shadow-lg py-1 text-sm overflow-y-auto">
+    <div ref={ref} style={{ left, top, width: MENU_W, maxHeight: window.innerHeight - top - 8 }} className="ft-pop fixed z-50 py-1 text-sm overflow-y-auto">
       <div className="px-3 pt-1 pb-1.5 border-b border-slate-100 mb-1">
         <div className="text-xs font-semibold truncate">{title}</div>
         {subtitle && <div className="text-[10px] text-slate-400 truncate">{subtitle}</div>}

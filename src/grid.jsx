@@ -9,7 +9,7 @@ import { queryHit as sheogaQueryHit, parseQuery as sheogaParseQuery, querySummar
 import { queryHit as wediQueryHit, parseQuery as wediParseQuery, querySummary as wediQuerySummary } from "./wediquery.js";
 // schluterquery.js, never schluter.js — same boot contract (ADR 0026).
 import { queryHit as schluterQueryHit, parseQuery as schluterParseQuery, querySummary as schluterQuerySummary } from "./schluterquery.js";
-import { useAnchoredPanel, vPos, useEscClose } from "./widgets.jsx";
+import { useAnchoredPanel, vPos, useEscClose, MorphSelect, SearchPop } from "./widgets.jsx";
 import { Hit, searchPanelBox, hitKey, matchSummary, useMergedResults, NearMatchNote, SearchingBar } from "./search.jsx";
 import { MARKUP_PRESETS, unitMargin, editCost, editMarkup, editPrice } from "./costentry.js";
 
@@ -58,7 +58,7 @@ export function TypeSelect({ type, onChange, triggerRef, compact, blank }) {
       )}
       {open && pos && createPortal(
         <div ref={panelRef} style={{ position: "fixed", ...vPos(pos), left: Math.max(8, Math.min(pos.left, window.innerWidth - 176 - 8)), width: 176, maxHeight: pos.maxH, overflowY: "auto" }}
-          className="z-50 rounded-lg border border-slate-200 bg-white shadow-lg py-1 overflow-hidden">
+          data-up={pos.bottom != null ? "true" : undefined} className="ft-pop z-50 py-1 overflow-hidden">
           {TYPES.map((t) => {
             const on = !blank && t === type;
             return (
@@ -86,11 +86,12 @@ export function UnitPick({ value, options, onChange, prefix = "", title, size = 
   const cur = String(value || options[0]).toUpperCase();
   const opts = options.includes(cur) ? options : [cur, ...options];
   return (
-    <span className={`shrink-0 inline-flex items-center whitespace-nowrap pr-0.5 ${className}`} title={title} style={{ fontSize: size, letterSpacing: "-0.02em", color: "var(--ft-muted)" }}>
+    <span className={`shrink-0 inline-flex items-center whitespace-nowrap pr-0.5 ${className}`} title={title} data-c="unit" style={{ fontSize: size, letterSpacing: "-0.02em", color: "var(--ft-muted)" }}>
       {prefix}
-      <select tabIndex={-1} value={cur} onChange={(e) => onChange(e.target.value)} data-c="unit" aria-label={title} className="appearance-none bg-transparent border-0 p-0 m-0 cursor-pointer rounded-sm focus:outline-none focus:ring-1 focus:ring-indigo-500" style={{ font: "inherit", color: "inherit", letterSpacing: "inherit", fontWeight: 800, textDecoration: "underline dotted", textUnderlineOffset: 1 }}>
-        {opts.map((u) => <option key={u} value={u}>{u}</option>)}
-      </select>
+      <MorphSelect tabIndex={-1} chevron={false} size="sm" minOpenW={64} title={title} value={cur} onChange={onChange}
+        options={opts.map((u) => ({ v: u, label: u }))}
+        triggerClass="cursor-pointer rounded-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500"
+        triggerStyle={{ font: "inherit", color: "inherit", letterSpacing: "inherit", fontWeight: 800, textDecoration: "underline dotted", textUnderlineOffset: 1, background: "transparent", border: 0, padding: 0 }} />
     </span>
   );
 }
@@ -127,7 +128,7 @@ function PriceCostPop({ p, unit, markups, onPatch, onClose, anchorRef }) {
   return createPortal(
     <div ref={panelRef} onKeyDown={keys}
       style={{ position: "fixed", ...vPos(pos), left: Math.max(8, Math.min(pos.left + pos.width - POP_W, window.innerWidth - POP_W - 8)), width: POP_W }}
-      className="z-50 rounded-lg border border-slate-200 bg-white shadow-lg">
+      data-up={pos.bottom != null ? "true" : undefined} className="ft-pop z-50">
       <div className="flex items-center justify-between px-2.5 pt-2">
         <span style={POP_LBL}>Cost &amp; price per {unit}</span>
         <button tabIndex={-1} onClick={() => onClose(true)} title="Close (Enter or Esc)" className="text-slate-300 hover:text-slate-600" style={{ lineHeight: 0 }}><X size={12} /></button>
@@ -349,9 +350,8 @@ export function GridProductBox({ value, stock, onChange, onPick, searchOrder, bo
           </span>
         )}
       </div>
-      {open && pos && (matches.length > 0 || pending) && createPortal(
-        <div ref={panelRef} style={searchPanelBox(pos)}
-          className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 flex flex-col overflow-hidden">
+      {open && pos && (matches.length > 0 || pending) && (
+        <SearchPop pos={pos} box={searchPanelBox(pos)} fieldRef={wrapRef} panelRef={panelRef} className="flex flex-col overflow-hidden">
           {pending && <SearchingBar />}
           {near && <NearMatchNote />}
           {pending && matches.length === 0 && <div className="px-2.5 py-1.5 text-[11px] text-slate-400">Searching the order books…</div>}
@@ -362,7 +362,7 @@ export function GridProductBox({ value, stock, onChange, onPick, searchOrder, bo
               </button>
             ))}
           </div>
-        </div>, document.body)}
+        </SearchPop>)}
     </div>
   );
 }
@@ -456,9 +456,8 @@ export function GridOmniSearch({ stock, stockReady, query, onQuery, onPick, onPi
       <input ref={inputRef} value={query} onChange={(e) => { onQuery(e.target.value); setOpen(true); setHi(0); }} onFocus={() => { committedRef.current = false; setOpen(true); }} onBlur={onBlur}
         onKeyDown={onKey} data-c="product" className="ft-cell ft-field font-bold" placeholder="Search SKU or product…  (double-click to type by hand)"
         title="Search the price book by SKU or product name, then pick a match to fill the whole row. Shift-click to add several. Double-click to enter a product by hand." />
-      {panelShowing && pos && createPortal(
-        <div ref={panelRef} style={searchPanelBox(pos)}
-          className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 flex flex-col overflow-hidden">
+      {panelShowing && pos && (
+        <SearchPop pos={pos} box={searchPanelBox(pos)} fieldRef={wrapRef} panelRef={panelRef} className="flex flex-col overflow-hidden">
           {pending && <SearchingBar />}
           {near && results.length > 0 && <NearMatchNote />}
           {results.length > 0 && (
@@ -509,7 +508,7 @@ export function GridOmniSearch({ stock, stockReady, query, onQuery, onPick, onPi
               )}
             </>)}
           </div>
-        </div>, document.body)}
+        </SearchPop>)}
     </div>
   );
 }

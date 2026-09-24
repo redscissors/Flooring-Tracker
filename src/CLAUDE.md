@@ -157,6 +157,24 @@ src/
                     # `PriceLevelMenu` (names the level, Custom its discount
                     # alone; slides open inside a growing dark border, on the
                     # Esc ladder) and `BasketButton` (icon + count badge).
+                    # `MorphSelect` (ADR 0048) — the one pick-one dropdown,
+                    # the price menu's look: the open box is the trigger
+                    # grown, portalled at the trigger's spot and zoom, with a
+                    # <select>'s keyboard contract; `PriceLevelMenu` and the
+                    # phone band's price/print picks run on it. `DotMenu`
+                    # wears `.ft-pop` (index.css), the shared panel shell;
+                    # `useDismissOutside` is the outside-press/focus-out rule
+                    # `useAnchoredPanel` and `MorphSelect` share.
+                    # `FitSelect` keeps the <select> call shape (<option>/
+                    # <optgroup> children, onChange(e) → e.target.value) over a
+                    # MorphSelect — the materials drawer's dropdowns read as
+                    # before; `GroutColorOptions` children are expanded inline.
+                    # `SearchPop` — every search field's results box (grid
+                    # search + product cell, the Settings book searches,
+                    # builder/address/label-SKU lookups): one outline around
+                    # field + results, the top row see-through so typing stays
+                    # in the real field; useAnchoredPanel's pos carries the
+                    # field rect (ft/fb/h) it needs.
                     # Row order: Stock only · Clear design | price · basket · X.
                     # `KitOverwriteConfirm` (2026-09-02, ADR 0035 amendment) —
                     # the kit-card confirm both popups raise over customized
@@ -170,6 +188,12 @@ src/
                     # KitBasketPanel — the shared wedi/Schluter basket drawer
                     # shell (ADR 0035 step 3, presentation-only view rows: the
                     # two popups can't drift on the drawer either)
+  dropdown.js       # MorphSelect's pure half (ADR 0048): `flatten` (grouped
+                    # rows → one walkable list + heading positions),
+                    # `moveIndex`/`edgeIndex` (skip disabled, wrap),
+                    # `typeahead` (first-letter jump, cycling), `placeMorph`
+                    # (over the trigger, flip up when short of room, lengths
+                    # ÷ the trigger's zoom) (dropdown.test.js)
   search.jsx        # price-book search suite: `SkuPicker`, `StockSearch`,
                     # `FamilySearch`, hit rows, merged-results hooks
                     # (useMergedResults hands rankMerged the WHOLE stock
@@ -2126,6 +2150,18 @@ src/
                     # Apps configurator header top-right options the owner
                     # reviewed 2026-09-24 (flat controls, price dropdown,
                     # basket icon); not part of the app build
+  dropdownpreview.jsx  # dev-only harness (dropdown-preview.html): the REAL
+                    # MorphSelect/DotMenu beside today's dropdowns (materials
+                    # drawer, Sheoga options, ⋯ menus, phone), plus a 75%-zoomed
+                    # box and a near-the-bottom flip — ADR 0048's gallery; not
+                    # part of the app build
+  gridpreview.jsx   # dev-only harness (grid-preview.html): the REAL
+                    # TypeSelect, UnitPick, drawer FitSelects, GridPriceCell's
+                    # popup, LineMenu and LineWastePop, plus the grid search,
+                    # product cell, StockSearch and BuilderCombo boxes, over
+                    # local state and mock book items — the
+                    # grid rows live inside App.jsx, so this is ADR 0048's
+                    # preview proof for them; not part of the app build
   railpreview.jsx   # dev-only harness (rail-preview.html): the REAL drawers,
                     # reducer, pane header and workspaces over mock state —
                     # preview proof for ADR 0047

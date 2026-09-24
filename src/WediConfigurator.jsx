@@ -336,7 +336,7 @@ const CSS = `
 .wedi-pop .wbtn.primary:hover{background:var(--ft-brand-deep)}
 .wedi-pop .wbtn:disabled{opacity:.45;cursor:not-allowed}
 
-.wedi-swap{position:fixed;z-index:90;background:var(--ft-card);color:var(--ft-text);border:1px solid var(--ft-border-strong);border-radius:9px;box-shadow:0 18px 50px rgba(0,0,0,.3);width:300px;max-height:340px;overflow-y:auto;padding:6px;font-family:var(--ft-ui)}
+.wedi-swap{position:fixed;z-index:90;background:var(--ft-card);color:var(--ft-text);border:1.5px solid var(--ft-text);border-radius:.5rem;box-shadow:0 12px 28px -12px rgba(28,26,23,.45);animation:ft-pop-down 240ms cubic-bezier(.2,.8,.2,1);width:300px;max-height:340px;overflow-y:auto;padding:6px;font-family:var(--ft-ui)}
 .wedi-swap .ph{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.11em;color:var(--ft-muted);padding:6px 8px 4px}
 .wedi-swap .srow{display:flex;align-items:center;gap:8px;width:100%;border:none;background:none;padding:6px 8px;border-radius:6px;cursor:pointer;text-align:left}
 .wedi-swap .srow:hover{background:var(--ft-tint)}

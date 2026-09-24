@@ -95,7 +95,7 @@ export function LineWastePop({ pop, p, s, dflt, onPatch, onClose }) {
   const left = Math.max(8, Math.min(pop.x, window.innerWidth - POP_W - 8));
   const top = Math.max(8, Math.min(pop.y, window.innerHeight - 190));
   return createPortal(
-    <div ref={ref} data-line-waste-pop style={{ left, top, width: POP_W }} className="fixed z-50 rounded-lg border border-slate-200 bg-white shadow-lg p-2">
+    <div ref={ref} data-line-waste-pop style={{ left, top, width: POP_W }} className="ft-pop fixed z-50 p-2">
       <div className="px-2 pb-1.5 uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".14em", color: "var(--ft-muted)" }}>Waste — this line</div>
       <LineWasteControl key={p.id} p={p} s={s} dflt={dflt} onPatch={onPatch} onDone={onClose} />
     </div>, document.body);

@@ -1,9 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { createPortal } from "react-dom";
 import { searchStock, relaxSearchWords } from "./stock.js";
 import { suggestSeries } from "./booklink.js";
 import { mergedRungs, SKU_SHOW } from "./orderbook.js";
-import { useAnchoredPanel, vPos } from "./widgets.jsx";
+import { useAnchoredPanel, vPos, SearchPop } from "./widgets.jsx";
 
 export { SKU_SHOW };
 
@@ -197,8 +196,8 @@ export function StockSearch({ stock, onPick, inp, placeholder = "Search the pric
       <input value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
         onKeyDown={(e) => { if (e.key === "Enter" && results.length) { e.preventDefault(); pick(results[0]); } if (e.key === "Escape" && open && results.length) { e.preventDefault(); setOpen(false); } }}
         className={inp} placeholder={placeholder} />
-      {open && pos && results.length > 0 && createPortal(
-        <div ref={panelRef} style={{ ...vPos(pos), maxHeight: pos.maxH, left: pos.left, width: pos.width }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 flex flex-col">
+      {open && pos && results.length > 0 && (
+        <SearchPop pos={pos} fieldRef={wrapRef} panelRef={panelRef} className="flex flex-col">
           <div className="max-h-60 min-h-0 overflow-y-auto">
             {results.map((it) => (
               <button key={it.sku} onMouseDown={(e) => { e.preventDefault(); pick(it); }} className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 border-b border-slate-100 last:border-0">
@@ -207,7 +206,7 @@ export function StockSearch({ stock, onPick, inp, placeholder = "Search the pric
             ))}
           </div>
           <div className="shrink-0 px-2.5 py-1.5 border-t border-slate-200 text-[11px] text-slate-400 bg-slate-50/60">{matchSummary(results.length, matches.length)}</div>
-        </div>, document.body)}
+        </SearchPop>)}
     </div>
   );
 }
@@ -242,8 +241,8 @@ export function SeriesSearch({ stock, itemsByBook, bookName = () => "book", onPi
           if (e.key === "Escape" && open && (series.length || results.length || q.trim().length >= 2)) { e.preventDefault(); setOpen(false); }
         }}
         className={inp} placeholder={placeholder} />
-      {open && pos && (series.length > 0 || results.length > 0 || q.trim().length >= 2) && createPortal(
-        <div ref={panelRef} style={{ ...vPos(pos), maxHeight: pos.maxH, left: pos.left, width: pos.width }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 flex flex-col">
+      {open && pos && (series.length > 0 || results.length > 0 || q.trim().length >= 2) && (
+        <SearchPop pos={pos} fieldRef={wrapRef} panelRef={panelRef} className="flex flex-col">
           <div className="max-h-72 min-h-0 overflow-y-auto">
             {series.length === 0 && results.length === 0 && (
               <div className="px-2.5 py-2 text-[11px] text-slate-400">No stock rows match — try fewer or different words (the exports rarely carry brand names, e.g. just "permacolor").</div>
@@ -275,7 +274,7 @@ export function SeriesSearch({ stock, itemsByBook, bookName = () => "book", onPi
               {series.length > 0 && `${series.length} collection${series.length === 1 ? "" : "s"} · `}{matchSummary(results.length, matches.length)}
             </div>
           )}
-        </div>, document.body)}
+        </SearchPop>)}
     </div>
   );
 }
@@ -296,15 +295,15 @@ export function FamilySearch({ families, onPick, inp }) {
       <input value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
         onKeyDown={(e) => { if (e.key === "Enter" && matches.length) { e.preventDefault(); pick(matches[0]); } if (e.key === "Escape" && open && matches.length) { e.preventDefault(); setOpen(false); } }}
         className={inp} placeholder="Link colors — search the book's grout & caulk families…" />
-      {open && pos && matches.length > 0 && createPortal(
-        <div ref={panelRef} style={{ ...vPos(pos), maxHeight: Math.min(240, pos.maxH), left: pos.left, width: pos.width }} className="fixed rounded-md border border-slate-200 bg-white shadow-lg z-50 overflow-y-auto">
+      {open && pos && matches.length > 0 && (
+        <SearchPop pos={pos} fieldRef={wrapRef} panelRef={panelRef} className="overflow-y-auto" style={{ maxHeight: Math.min(240, pos.maxH) }}>
           {matches.map((f) => (
             <button key={f.product} onMouseDown={(e) => { e.preventDefault(); pick(f); }} className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 border-b border-slate-100 last:border-0">
               <div className="flex items-baseline gap-2"><span className="text-xs font-medium truncate flex-1">{f.product}</span><span className="ft-mono text-[11px] text-slate-400 shrink-0">{f.colors.length} colors</span></div>
               <div className="flex items-baseline gap-2 text-[11px] text-slate-400"><span className="truncate">{f.brand}</span>{f.price != null && <span className="ml-auto shrink-0 ft-mono">${f.price.toFixed(2)}</span>}</div>
             </button>
           ))}
-        </div>, document.body)}
+        </SearchPop>)}
     </div>
   );
 }
