@@ -18,15 +18,16 @@ const bundleLines = stampKit(multiWidthLineItems({ mode: "floor", cfg: { ...floo
 const area0 = { ...newArea(), name: "Great room", products: [...land(singleLines), ...land(bundleLines), newProduct()] };
 const staged = [normBasketEntry({ id: uid(), kind: "single", addedAt: Date.now(), markupPct: 40, snap: { mode: "floor", cfg: { ...floorCfg, sp: "Maple" } }, sf: 150 })].filter(Boolean);
 
-// `?hub=1` opens the REAL Apps hub on the Sheoga app instead, so the rail
-// fold and the embedded width the docked grid has to fit are the real ones.
+// `?hub=1` renders the REAL AppsWorkspace on the Sheoga app.
 const HUB = new URLSearchParams(location.search).get("hub") === "1";
 
 function Hub() {
   return (
-    <AppsWorkspace initialApp="sheoga" onClose={() => console.log("close")}
-      stock={[]} labels={[]} presets={[]} onAddLabel={() => {}} onAddLabelsBulk={() => {}} onUpdateLabel={() => {}} onDeleteLabel={() => {}} onSavePreset={() => {}}
-      sheoga={{ markupDefault: 40, ventMarkupDefault: 50, currentName: "", addToCurrent: () => {}, addToNew: (l) => console.log("add", l) }} />
+    <div style={{ height: "100vh" }}>
+      <AppsWorkspace app="sheoga" onClose={() => console.log("close")} onResume={() => {}} progressRef={{ current: () => false }}
+        stock={[]} labels={[]} presets={[]} onAddLabel={() => {}} onAddLabelsBulk={() => {}} onUpdateLabel={() => {}} onDeleteLabel={() => {}} onSavePreset={() => {}}
+        sheoga={{ markupDefault: 40, ventMarkupDefault: 50, currentName: "", addToCurrent: () => {}, addToNew: (l) => console.log("add", l) }} />
+    </div>
   );
 }
 

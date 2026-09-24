@@ -356,7 +356,8 @@ src/
                     # `loadFamilyBook` the on-demand loader Settings' source dialog uses
   usetodos.js       # `useTodos` — team to-do/issue list state + write paths (issue 006);
                     # the central Claude bucket lives beside it in useclaudeissues.js
-  uselabels.js      # `useLabels` — Apps hub label-set state + write paths
+  uselabels.js      # `useLabels` — Label Generator label-set state (loaded
+                    # when the Label Generator opens) + write paths
   useordersearch.js # `useOrderSearch` — fuzzy/synonym order-book search (ADR 0009 §6) + on-demand
                     # order-row drift fetch
   usetrims.js       # `useTrims` — session cache of a floor's trims (the ADR 0012
@@ -432,11 +433,14 @@ src/
   SettingsWorkspace.jsx  # the Settings workspace, now a `React.lazy` chunk (ADR 0026);
                     # `MATERIAL_CATEGORIES` lives here. Shrink-to-fit (issue 084,
                     # the wedi popup's rig): drawn at SETTINGS_DESIGN_W (1240)
-                    # and zoomed to the overlay's measured width, so a phone
-                    # gets the whole layout smaller instead of the fixed
+                    # and zoomed to the work-area pane's measured width, so a
+                    # phone gets the whole layout smaller instead of the fixed
                     # columns eating the detail pane; the low ZOOM_FLOOR is a
                     # sub-phone backstop (owner: scale first, revert if the
-                    # type gets too small), below which the overlay scrolls
+                    # type gets too small), below which the pane scrolls.
+                    # Renders in the work-area pane with a controlled
+                    # `section` (ADR 0047) — no overlay shell or section menu;
+                    # mounted with `key={section}`.
   catalog.js        # settings normalization + material math + shared catalog.
                     # Every material entry carries `cost` beside `price` (ADR
                     # 0018 amendment 2026-09-10) and the getters expose it as
@@ -685,7 +689,10 @@ src/
                     # remounts on key={pid} so the seed re-applies; a bundle
                     # seed restores the whole multi-width build off
                     # sheoga.bundle) and Remove deletes the kit's lines
-                    # through removeKitLines with an inline confirm
+                    # through removeKitLines with an inline confirm.
+                    # `escActive` (default true) gates its Escape handler —
+                    # the Apps pane passes false while it is hidden (ADR
+                    # 0047).
   wedi.js           # wedi shower-system configurator engine (issue 066): the
                     # opposite of Sheoga on both axes — every piece has a part
                     # number and wedi publishes retail, so nothing is marked up
@@ -1066,7 +1073,10 @@ src/
                     # of the anchor) and seeds qtyOv/manual from them once
                     # on mount (sessionFromRows over the marker rebuilt with
                     # the default session), so a quantity typed on the sheet
-                    # reopens as the override, not the recipe's figure
+                    # reopens as the override, not the recipe's figure.
+                    # `escActive` (default true) gates its Escape handler —
+                    # the Apps pane passes false while it is hidden (ADR
+                    # 0047).
   panelplan.js      # `planPanels(walls, sheets)` — the wall-board course
                     # planner both shower engines share (wedi `panelPlan`,
                     # Schluter `boardPlan`; owner 2026-09-22): full courses
@@ -1623,6 +1633,9 @@ src/
                     # tray survive staging, and the entry's `session` sibling
                     # (qtyOv + the Fit flag) rides beside it, so a
                     # staged-then-moved kit bills what was on screen.
+                    # `escActive` (default true) gates its Escape handler —
+                    # the Apps pane passes false while it is hidden (ADR
+                    # 0047).
   schluterpreview.jsx  # dev-only harness (schluter-preview.html): the REAL
                     # SchluterConfigurator over the fixture pushed BACKWARDS
                     # through normOrderItem into live registry shape (shop
@@ -2066,12 +2079,27 @@ src/
                     # matches. The Price book library's drop area (top of the
                     # board page, ADR 0024) routes a mixed drop and reuses
                     # each book's normal import preview.
+  railnav.js        # rail drawers + work-area pane state (ADR 0047): pure
+                    # reducer (toggleDrawer / pick / resolveResume /
+                    # closePane / projectChanged / restore), the "break"
+                    # flags behind Continue / Start new, and the
+                    # ft-open-layer mapping (layerOf / stateFromLayer,
+                    # reads pre-0047 shapes)
+  raildrawer.jsx    # RailSlide (the one ~1.3 s height slide, content pinned
+                    # top or bottom), DrawerList, APP_ITEMS / SETTINGS_ITEMS,
+                    # PaneHeader ("← project › Apps › Sheoga" + X)
+  railpreview.jsx   # dev-only harness (rail-preview.html): the REAL drawers,
+                    # reducer, pane header and workspaces over mock state —
+                    # preview proof for ADR 0047
   labels.js         # Label Generator pure logic (Apps hub): LABEL_FIELDS,
                     # built-in size presets, preset/label normalization
                     # (incl. "sp_" filler spacer lines — user-added blanks
                     # whose size is a height in px, holding a gap open),
                     # stock->field mapping, per-letter-sheet math, print HTML
-  AppsWorkspace.jsx # the Apps hub overlay (SettingsWorkspace-style shell) +
+  AppsWorkspace.jsx # the Apps work-area pane (ADR 0047: no shell or app list
+                    # of its own — the rail's Apps tray picks; configurators
+                    # stay mounted after first pick, track in-progress, show
+                    # the Continue / Start new prompt) +
                     # the Label Generator UI (preset strip, SKU fill,
                     # drag-to-reorder lines + filler spacers, preview with
                     # line-boxes toggle, label set, print). Also hosts the
@@ -2080,6 +2108,10 @@ src/
                     # carry the OTHER engine's builder knob (and the wedi bag
                     # the Schluter registry props) so the hub's copies render
                     # their Compare tab; neither gets `onQuoteOptions`, since
-                    # the hub has no host area to hang option A/B on
+                    # the hub has no host area to hang option A/B on. Takes a
+                    # `visible` prop (App.jsx: the pane is showing an app) and
+                    # passes each configurator `escActive={visible &&
+                    # shown(k)}` (ADR 0047) so a hidden, still-mounted
+                    # configurator's Escape handler stays off
   lib/supabase.js   # Supabase client (reads VITE_ env vars)
 ```

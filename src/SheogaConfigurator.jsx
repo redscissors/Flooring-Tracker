@@ -1185,9 +1185,9 @@ function useMedia(query) {
 const useIsWide = () => useMedia("(min-width: 768px)");
 // The third tier: wide enough to dock a price grid beside the rail AND the
 // build card. Measured on the configurator's own frame rather than the
-// viewport — embedded in the Apps hub it is narrower than the window by the
-// hub's rail and gutters, and a viewport query docked the grid into a box
-// that then crushed the build card (1440–1700px laptops).
+// viewport — in the work-area pane it is narrower than the window by the
+// 205px app rail (docks at about DOCK_FRAME_W + 205), and a viewport query
+// docked the grid into a box that then crushed the build card.
 function useDockGrid(ref, mode, pad) {
   const [w, setW] = useState(0);
   useEffect(() => {
@@ -1289,7 +1289,7 @@ function BasketPanel({ basket, sel, onToggle, onRemove, onSelectAll, onMove, onM
 
 // --- the popup ----------------------------------------------------------------
 
-export default function SheogaConfigurator({ seed, initialSf, markupDefault, ventMarkupDefault, basket, onBasketChange, onMove, onMoveEntries, onAdd, onClose, areaName, embedded = false, onConfigChange, tier, onTierChange, placed, onOpenPlaced, onDeleteKit }) {
+export default function SheogaConfigurator({ seed, initialSf, markupDefault, ventMarkupDefault, basket, onBasketChange, onMove, onMoveEntries, onAdd, onClose, areaName, embedded = false, onConfigChange, tier, onTierChange, placed, onOpenPlaced, onDeleteKit, escActive = true }) {
   // A bundle marker (sheoga.bundle on the first width line, ADR 0035 step 2)
   // reopens the whole multi-width build, not the anchor's single width.
   const bseed = seed?.bundle;
@@ -1339,7 +1339,7 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
   const [gridPrice, setGridPrice] = useState("sell");
   const [stockOnly, setStockOnly] = useState(false);
   const [mobileGrid, setMobileGrid] = useState(false);
-  useEscClose(true, () => { if (mobileGrid) setMobileGrid(false); else if (grid) setGrid(false); else if (sheetUp) setSheetUp(false); else if (basketOpen) setBasketOpen(false); else onClose(); });
+  useEscClose(escActive, () => { if (mobileGrid) setMobileGrid(false); else if (grid) setGrid(false); else if (sheetUp) setSheetUp(false); else if (basketOpen) setBasketOpen(false); else onClose(); });
 
   const cfg = cfgs[mode];
   const set = (next) => setCfgs((c) => ({ ...c, [mode]: next }));

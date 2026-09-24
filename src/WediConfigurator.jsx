@@ -567,7 +567,8 @@ function seedState(seed) {
 // Non-embedded it keeps the fixed overlay backdrop. The old `return null` did
 // not: during the load the popup rendered literally nothing, so clicks fell
 // straight through to the app underneath a "modal" the user had just opened.
-function WediGate({ embedded, onClose, children }) {
+function WediGate({ embedded, onClose, escActive = true, children }) {
+  useEscClose(escActive, onClose);
   return (
     <div className={embedded
         ? "relative flex-1 min-h-0 flex flex-col overflow-auto"
@@ -618,7 +619,7 @@ export default function WediConfigurator(props) {
   const { cat, catReady, caption, bookError, retryBook } = useWediCatalog(props);
   if (!catReady) {
     return (
-      <WediGate embedded={props.embedded} onClose={props.onClose}>
+      <WediGate embedded={props.embedded} onClose={props.onClose} escActive={props.escActive ?? true}>
         {bookError ? (<>
           <div className="font-bold mb-1.5" style={{ color: "var(--ft-text)" }}>Couldn&rsquo;t load the wedi price book.</div>
           <p>The configurator prices off the live book, so it will not open on the transcribed
@@ -638,7 +639,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   cat, caption = "",
   stockRows, bookStockReady, books, loadBookItems, mortars, mortarDefault,
   onAdd, onAddNew, editing = null, editRows = null, basket, onBasketChange, onMoveEntries, placed, onOpenPlaced, onDeleteKit,
-  onQuoteOptions, onClose, areaName, projectName, onConfigChange, embedded = false }) {
+  onQuoteOptions, onClose, areaName, projectName, onConfigChange, embedded = false, escActive = true }) {
   const init = useRef(null);
   if (!init.current) init.current = seedState(seed);
   const s0 = init.current;
@@ -791,7 +792,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     toastT.current = setTimeout(() => setToast(""), 2600);
   };
   useEffect(() => () => clearTimeout(toastT.current), []);
-  useEscClose(true, () => {
+  useEscClose(escActive, () => {
     if (payload) setPayload(null);
     else if (confirmPan) setConfirmPan(null);
     else if (benchMenu) setBenchMenu(null);
