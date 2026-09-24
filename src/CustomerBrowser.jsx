@@ -192,7 +192,6 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
           <PaneBack onClick={onClose} />
           <Folder size={17} className="text-indigo-500 shrink-0" />
           <h3 className="ft-serif text-xl leading-none">Customers</h3>
-          <span className="text-[11px] text-slate-400 whitespace-nowrap">{shown.length === rows.length ? rows.length : `${shown.length} of ${rows.length}`} customers</span>
           <div className="relative flex-1 min-w-[160px] max-w-xs">
             <Search size={14} className="absolute left-2 top-2 text-slate-400" />
             <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={onSearchKeys}

@@ -10,5 +10,5 @@ The Customers browser opens in the work area like the Apps, instead of a
 pop-up. The breadcrumb bar above work-area pages is replaced by a back caret
 left of each page's icon/title and the X in the same row — Customers, the
 three configurators and every Settings section. The Label Generator keeps
-the old bar until its redesign. The browser header drops "· N projects" and
+the old bar until its redesign. The browser header drops its customer and project counts and
 the New customer button.

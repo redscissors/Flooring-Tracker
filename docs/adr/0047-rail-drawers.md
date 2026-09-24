@@ -69,5 +69,5 @@ and the X at the row's right end (`PaneBack` / `PaneClose` in
 the resume prompt, and every Settings section — Materials & add-ons, which had
 no title, gets a slim one. Both return to the project; the configurators show
 them only when embedded, so the row-opened pop-ups are unchanged. The
-browser's header also drops its "· N projects" count and its New customer
+browser's header also drops its customer and project counts and its New customer
 button (the rail's New Customer does the same thing).
