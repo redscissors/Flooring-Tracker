@@ -50,3 +50,24 @@ Sheoga's grid); a start-menu pop-out (switching apps costs two clicks).
   accepted this trade-off (2026-09-24) over folding the main rail on Sheoga,
   which would fight the tray staying open; revisit if the grid is missed on
   1680–1728px screens.
+
+## Amendment 2026-09-24 — Customers joins the work area; pages carry their own back caret
+
+Owner, same day: the Customers browser stops being a near-fullscreen pop-up and
+opens in the work area like Apps and Settings (`openCustomers` in
+`railnav.js`; a pane of kind `customers`, persisted as the old
+`{ kind: "browser" }` layer so a refresh still reopens it). It replaces
+whatever app or setting was showing and counts as leaving a configurator, so
+the Continue / Start new rule is unchanged. The rail's Customers button stays
+highlighted while it shows.
+
+The breadcrumb bar ("← project › Apps › Sheoga" + X) is gone from every page
+but the Label Generator, which keeps it until its own redesign. Instead each
+page's own title row carries a back caret to the left of its icon or title
+and the X at the row's right end (`PaneBack` / `PaneClose` in
+`raildrawer.jsx`): Customers, Sheoga, wedi (and its catalog gate), Schluter,
+the resume prompt, and every Settings section — Materials & add-ons, which had
+no title, gets a slim one. Both return to the project; the configurators show
+them only when embedded, so the row-opened pop-ups are unchanged. The
+browser's header also drops its customer and project counts and its New customer
+button (the rail's New Customer does the same thing).

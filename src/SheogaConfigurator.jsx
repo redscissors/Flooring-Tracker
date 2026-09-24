@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { X, Grid3X3, Plus, ChevronUp } from "lucide-react";
 import { useEscClose, HelpTip } from "./widgets.jsx";
+import { PaneBack, PaneClose } from "./raildrawer.jsx";
 import {
   MODES, HB_RETIRED, defaultConfig, calcConfig, calcFloor, calcStocked, calcHerringbone, calcVent,
   floorBase, floorWidths, floorCellCost, floorGridIncludes, WIDTHS, WIDTH_LABEL, LIVE_SAWN_SP, LIVE_SAWN, SPECIES, SP_SHORT, UNFINISHED,
@@ -1521,6 +1522,7 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
   );
   const header = (
     <div className="flex items-center gap-3 px-4 pt-3">
+      {embedded && <PaneBack onClick={onClose} className="-mr-1.5" />}
       <div className="leading-tight">
         <div className="ft-eyebrow text-[9px]">Vendor configurator</div>
         <div className="text-lg font-extrabold inline-flex items-center gap-2">Sheoga Hardwood <HelpTip className="align-middle" w={300} tip={SHEOGA_TIP} /></div>
@@ -1530,7 +1532,7 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
         <button onClick={() => setBasketOpen(true)} className="relative inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold hover:bg-slate-50">
           🧺 Basket{(basket || []).length > 0 && <span className="rounded-full bg-[color:var(--ft-brand)] text-white text-[11px] font-extrabold min-w-[18px] h-[18px] px-1 flex items-center justify-center">{basket.length}</span>}
         </button>
-        {!embedded && <button onClick={onClose} className="w-7 h-7 rounded-md border border-slate-200 text-slate-500 hover:text-slate-700 flex items-center justify-center"><X size={15} /></button>}
+        {embedded ? <PaneClose onClick={onClose} /> : <button onClick={onClose} className="w-7 h-7 rounded-md border border-slate-200 text-slate-500 hover:text-slate-700 flex items-center justify-center"><X size={15} /></button>}
       </div>
     </div>
   );

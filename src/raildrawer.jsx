@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Tag, Layers, ShowerHead, TreePine, User, Percent, BookOpen, Database, X } from "lucide-react";
+import { Tag, Layers, ShowerHead, TreePine, User, Percent, BookOpen, Database, X, ChevronLeft } from "lucide-react";
 
 export const RAIL_SLIDE_MS = 1300;
 
@@ -87,5 +87,26 @@ export function PaneHeader({ backLabel, group, title, onBack, onClose }) {
       <span className="font-bold text-slate-800 truncate">{title}</span>
       <button onClick={onClose} aria-label="Close" title="Close" className="ml-auto rounded-md p-1 text-slate-400 hover:bg-slate-50 hover:text-slate-600"><X size={17} /></button>
     </div>
+  );
+}
+
+// Work-area pages carry these in their own title row (owner, 2026-09-24): the
+// caret left of the page's icon, the X at the row's right end. Both return to
+// the project the page opened over.
+export function PaneBack({ onClick, className = "" }) {
+  return (
+    <button onClick={onClick} aria-label="Back" title="Back"
+      className={`-ml-1 shrink-0 rounded-md p-0.5 text-slate-400 hover:bg-slate-50 hover:text-slate-700 ${className}`}>
+      <ChevronLeft size={20} strokeWidth={2.25} />
+    </button>
+  );
+}
+
+export function PaneClose({ onClick, className = "" }) {
+  return (
+    <button onClick={onClick} aria-label="Close" title="Close"
+      className={`shrink-0 rounded-md p-1 text-slate-400 hover:bg-slate-50 hover:text-slate-600 ${className}`}>
+      <X size={17} />
+    </button>
   );
 }

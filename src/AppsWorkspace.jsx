@@ -4,6 +4,7 @@ import { LABEL_FIELDS, KIND_OF, VARIANT_KEYS, newDraftFromPreset, normPreset, st
 import { searchStock } from "./stock.js";
 import { stampKit } from "./model.js";
 import { HelpTip } from "./widgets.jsx";
+import { PaneBack, PaneClose } from "./raildrawer.jsx";
 import SheogaConfigurator from "./SheogaConfigurator.jsx";
 import keimLogo from "./assets/keim-logo-ink.png";
 
@@ -282,7 +283,11 @@ export function AppsWorkspace({ app, visible = true, onClose, resume = false, on
     <div className="print:hidden relative h-full flex flex-col min-w-0 bg-white">
       <div className="flex-1 min-h-0 flex flex-col">
           {resume && CONFIG_NAME[app] && (
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto px-4 pt-3 pb-6">
+              <div className="flex items-center">
+                <PaneBack onClick={onClose} />
+                <PaneClose onClick={onClose} className="ml-auto" />
+              </div>
               <div data-resume-prompt className="max-w-md mx-auto mt-10 rounded-xl border border-slate-200 bg-white p-5 shadow-[0_16px_36px_-20px_var(--ft-shadow)]">
                 <h3 className="ft-serif text-xl">Pick up your {CONFIG_NAME[app]} build?</h3>
                 <p className="text-sm text-slate-500 mt-1">You left one in progress when you clicked away.</p>

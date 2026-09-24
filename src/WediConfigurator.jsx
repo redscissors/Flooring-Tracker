@@ -14,6 +14,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Plus, Printer, Copy, Eye } from "lucide-react";
 import { useEscClose, SourceSwitch, NumIn, KitBasketPanel, KitOverwriteConfirm, HelpTip } from "./widgets.jsx";
+import { PaneBack, PaneClose } from "./raildrawer.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
   item, group, pans, curbs, kitFor, solve, figureConsumables, panelPlan,
@@ -580,10 +581,12 @@ function WediGate({ embedded, onClose, escActive = true, children }) {
         style={{ background: "var(--ft-cream)", borderColor: "var(--ft-border-strong)" }}
         onClick={embedded ? undefined : (e) => e.stopPropagation()} data-wedi-gate>
         <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: "var(--ft-border-strong)" }}>
+          {embedded && <PaneBack onClick={onClose} className="-mr-1.5" />}
           <div className="min-w-0">
             <div className="text-[9.5px] font-extrabold uppercase tracking-[.14em]" style={{ color: "var(--ft-faint)" }}>Vendor configurator</div>
             <div className="text-[14px] font-extrabold">wedi shower systems</div>
           </div>
+          {embedded && <PaneClose onClick={onClose} className="ml-auto" />}
           {!embedded && <button className="ml-auto w-[26px] h-[26px] rounded-md border flex items-center justify-center"
             style={{ borderColor: "var(--ft-border)", background: "var(--ft-card)", color: "var(--ft-muted)" }}
             onClick={onClose} title="Close"><X size={15} /></button>}
@@ -2571,6 +2574,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
           : { background: "var(--ft-cream)", borderColor: "var(--ft-border-strong)", height: fit.h, minHeight: 560, zoom: uiZoom }}
         onClick={embedded ? undefined : (e) => e.stopPropagation()} data-wedi-pop>
         <div className="pop-head">
+          {embedded && <PaneBack onClick={onClose} className="-mr-2" />}
           <div>
             <div className="eyebrow">Vendor configurator</div>
             <div className="name">wedi shower systems <small>sell = book retail · cost = distributor net</small></div>
@@ -2583,7 +2587,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
             onClick={() => { hardReset(null); say("Design cleared"); }}>Clear design</button>
           <SourceSwitch source={source} onChange={changeSource} />
           {tierBar}
-          {!embedded && <button className="xbtn" onClick={onClose} title="Close"><X size={15} /></button>}
+          {embedded ? <PaneClose onClick={onClose} /> : <button className="xbtn" onClick={onClose} title="Close"><X size={15} /></button>}
         </div>
         <div className="modetabs">
           {TAB_DEFS.map((d) => (

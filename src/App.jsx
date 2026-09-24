@@ -153,10 +153,6 @@ function gridEnterNav(e, addRow) {
 export default function App({ user, onSignOut }) {
   // Which customers are expanded in the sidebar tree.
   const [openCust, setOpenCust] = useState({});
-  // The sidebar's Customers button opens the browser overlay (issue 040);
-  // estimates, drafts, and quick prices all live behind its
-  // Estimates & drafts strip.
-  const [showBrowser, setShowBrowser] = useState(false);
   // The "New customer" modal: null when closed, else the draft name string.
   const [newCust, setNewCust] = useState(null);
   const [custModal, setCustModal] = useState(null); // customer id whose details box is open
@@ -659,8 +655,7 @@ export default function App({ user, onSignOut }) {
       return;
     }
     setRestoreLayer(null);
-    if (L.kind === "settings" || L.kind === "apps") railDispatch({ type: "restore", layer: L });
-    else if (L.kind === "browser") setShowBrowser(true);
+    if (L.kind === "settings" || L.kind === "apps" || L.kind === "browser") railDispatch({ type: "restore", layer: L });
     else if (L.kind === "todos") setShowTodos(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot post-boot restore
   }, [loading, restoreSpot, restoreLayer, sel]);
@@ -670,11 +665,10 @@ export default function App({ user, onSignOut }) {
       : wediPop ? { kind: "wedi", aid: wediPop.aid, pid: wediPop.pid, seed: wediPop.seed || null }
         : schluterPop ? { kind: "schluter", aid: schluterPop.aid, pid: schluterPop.pid, seed: schluterPop.seed || null }
           : railNav.pane ? layerOf(railNav)
-            : showBrowser ? { kind: "browser" }
-              : showTodos ? { kind: "todos" }
-                : layerOf(railNav);
+            : showTodos ? { kind: "todos" }
+              : layerOf(railNav);
     try { localStorage.setItem("ft-open-layer", JSON.stringify(layer)); } catch (x) { }
-  }, [sheogaPop, wediPop, schluterPop, railNav, showBrowser, showTodos, loading, restoreLayer]);
+  }, [sheogaPop, wediPop, schluterPop, railNav, showTodos, loading, restoreLayer]);
   // The row search's instant in-memory tier: every active stock-kind book's
   // items, flattened from the ADR 0026 background cache (the ERP exports that
   // replaced the shop workbook, ADR 0027). stockKind marks a hit as shop
@@ -1438,12 +1432,15 @@ export default function App({ user, onSignOut }) {
             {/* Borderless menu list: icons sit on the Search icon's line and
                 labels on the Search text's line, as do the Recent names. */}
             <div>
-              {/* The Customers button opens the browser overlay — the compact
+              {/* The Customers button fills the work area with the compact
                   ERP-style directory grid (issue 040). Quick prices AND the
                   unassigned estimates/drafts live behind its Estimates & drafts
                   toggle, so this is the everyday door to all of them — the one
                   moss-filled icon in the list, so the eye lands on it. */}
-              <button onClick={() => { setShowBrowser(true); setSidebarOpen(false); refreshSampleRequests(); }} title="Browse all customers" className={railItem}><Folder size={15} fill="currentColor" className="w-4 shrink-0 text-indigo-500" /> Customers</button>
+              <button onClick={() => { railDispatch({ type: "openCustomers" }); setSidebarOpen(false); refreshSampleRequests(); }} title="Browse all customers"
+                aria-current={railNav.pane?.kind === "customers" ? "page" : undefined}
+                className={railNav.pane?.kind === "customers" ? `${railItemBase} bg-indigo-600 text-white` : railItem}>
+                <Folder size={15} fill="currentColor" className={`w-4 shrink-0 ${railNav.pane?.kind === "customers" ? "" : "text-indigo-500"}`} /> Customers</button>
               <button onClick={() => setNewCust("")} className={railItem}><Plus size={15} className="w-4 shrink-0" /> New Customer</button>
               {/* Owner kept these beside the Apps tray (2026-09-24). */}
               <button onClick={() => railPick("app", "wedi")} title="wedi shower configurator" className={railItem}><ShowerHead size={15} className="w-4 shrink-0" /> wedi</button>
@@ -2613,23 +2610,44 @@ export default function App({ user, onSignOut }) {
             </div>
           )}
         </main>
-        {/* Apps + Settings open here, over the still-mounted project (spec
-            2026-09-24). AppsWorkspace stays mounted after its first pick so a
-            configurator build survives a trip away. */}
+        {/* Customers, Apps and Settings open here, over the still-mounted
+            project (spec 2026-09-24). AppsWorkspace stays mounted after its
+            first pick so a configurator build survives a trip away. Each page
+            carries its own back caret + X; only the Label Generator, pending
+            its redesign, keeps the breadcrumb bar. */}
         <div className={railNav.pane ? "absolute inset-0 z-20 flex flex-col bg-white" : "hidden"} style={zoomStyle}>
-          {railNav.pane && (
+          {railNav.pane?.kind === "app" && railNav.pane.id === "labels" && (
             <PaneHeader
               backLabel={sel ? (sel.name || "Untitled project") : selCust ? (selCust.name || "Customer") : "Home"}
-              group={railNav.pane.kind === "app" ? "Apps" : "Settings"}
-              title={(railNav.pane.kind === "app" ? APP_ITEMS : SETTINGS_ITEMS).find((x) => x.id === railNav.pane.id)?.label || ""}
+              group="Apps"
+              title={APP_ITEMS.find((x) => x.id === "labels").label}
               onBack={() => railDispatch({ type: "closePane" })}
               onClose={() => railDispatch({ type: "closePane" })} />
+          )}
+          {railNav.pane?.kind === "customers" && (
+            <div className="flex-1 min-h-0">
+              <LazyBoundary>
+              <Suspense fallback={null}>
+              <CustomerBrowser people={data.people} projects={data.projects} builders={data.builders}
+                myName={profile.name || ""}
+                sampleTally={sampleTally}
+                initialCols={appBlobRef.current?.ui?.browserCols}
+                onColOrder={(order) => saveUiPref({ browserCols: order })}
+                initialPanels={appBlobRef.current?.ui?.browserPanels}
+                onPanels={(patch) => saveUiPref({ browserPanels: { ...(appBlobRef.current?.ui?.browserPanels || {}), ...patch } })}
+                onClose={() => railDispatch({ type: "closePane" })}
+                onOpenCustomer={(id) => { railDispatch({ type: "closePane" }); setSelId(null); setSelCustId(id); }}
+                onOpenProject={(id) => pickProject(id)}
+                onNewProject={(cid) => { railDispatch({ type: "closePane" }); addProject(cid); }} />
+              </Suspense>
+              </LazyBoundary>
+            </div>
           )}
           {railNav.pane?.kind === "settings" && (
             <div className="flex-1 min-h-0">
               <LazyBoundary>
               <Suspense fallback={null}>
-              <SettingsWorkspace key={railNav.pane.id} section={railNav.pane.id}
+              <SettingsWorkspace key={railNav.pane.id} section={railNav.pane.id} onClose={() => railDispatch({ type: "closePane" })}
                 settings={settings} setSettings={setSettings} gFamilies={gFamilies} ping={ping}
                 exportBackup={exportBackup} importBackup={importBackup} fileRef={fileRef}
                 inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} theme={theme} setTheme={setTheme} headerLayout={headerLayout} setHeaderLayout={setHeaderLayout}
@@ -2799,28 +2817,6 @@ export default function App({ user, onSignOut }) {
           );
         })() : <EstimatePaper {...paperProps} />)}
       </div>
-
-      {/* Customer browser (issue 040) — the ERP-style directory grid over the
-          boot's light rows; every action routes back through the existing
-          handlers, and the New-customer modal stacks above it. */}
-      {showBrowser && (
-        <LazyBoundary>
-        <Suspense fallback={null}>
-        <CustomerBrowser people={data.people} projects={data.projects} builders={data.builders}
-          myName={profile.name || ""}
-          sampleTally={sampleTally}
-          initialCols={appBlobRef.current?.ui?.browserCols}
-          onColOrder={(order) => saveUiPref({ browserCols: order })}
-          initialPanels={appBlobRef.current?.ui?.browserPanels}
-          onPanels={(patch) => saveUiPref({ browserPanels: { ...(appBlobRef.current?.ui?.browserPanels || {}), ...patch } })}
-          onClose={() => setShowBrowser(false)}
-          onOpenCustomer={(id) => { railDispatch({ type: "closePane" }); setSelId(null); setSelCustId(id); setShowBrowser(false); }}
-          onOpenProject={(id) => { pickProject(id); setShowBrowser(false); }}
-          onNewCustomer={() => setNewCust("")}
-          onNewProject={(cid) => { addProject(cid); setShowBrowser(false); }} />
-        </Suspense>
-        </LazyBoundary>
-      )}
 
       {showTodos && (
         <Modal onClose={() => setShowTodos(false)} title="Issues & To-Do">
