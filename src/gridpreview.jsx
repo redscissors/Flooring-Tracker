@@ -89,12 +89,34 @@ function Searches() {
   );
 }
 
+// Try the search boxes' open/close speed before one is locked into index.css.
+const SPEEDS = [["Quicker", 180, 150], ["Current", 240, 200], ["Softer", 320, 260]];
+function SpeedToggle() {
+  const [cur, setCur] = useState("Current");
+  const set = ([name, open, close]) => {
+    document.documentElement.style.setProperty("--ft-spop-in", open + "ms");
+    document.documentElement.style.setProperty("--ft-spop-out", close + "ms");
+    setCur(name);
+  };
+  return (
+    <div className="flex items-center gap-1.5 text-[12px] font-semibold" data-speed>
+      <span className="text-slate-500 mr-1">Search box speed</span>
+      {SPEEDS.map((sp) => (
+        <button key={sp[0]} onClick={() => set(sp)} className={`px-2.5 py-1 rounded-md border ${cur === sp[0] ? "border-slate-800 font-extrabold" : "border-slate-200 text-slate-500"}`}>
+          {sp[0]} <span className="ft-mono text-[10px] text-slate-400">{sp[1]}/{sp[2]}ms</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function Page() {
   return (
     <div className="min-h-screen p-6 space-y-6" style={{ background: "var(--ft-cream)", maxWidth: 1100 }}>
       <h1 className="ft-serif text-2xl">Grid dropdowns — the real components</h1>
       <Row />
       <h2 className="text-base font-extrabold pt-4">Search boxes</h2>
+      <SpeedToggle />
       <Searches />
       <div style={{ height: 420 }} />
     </div>

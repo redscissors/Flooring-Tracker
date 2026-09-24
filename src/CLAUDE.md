@@ -174,7 +174,11 @@ src/
                     # builder/address/label-SKU lookups): one outline around
                     # field + results, the top row see-through so typing stays
                     # in the real field; useAnchoredPanel's pos carries the
-                    # field rect (ft/fb/h) it needs.
+                    # field rect (ft/fb/h) it needs. Its field wears
+                    # `.ft-search` (ink focus line, not the moss ring); the box
+                    # mounts field-sized and grows like MorphSelect, and on
+                    # unmount an inert DOM clone plays the fold (foldAway).
+                    # Speeds: --ft-spop-in / --ft-spop-out (index.css).
                     # Row order: Stock only · Clear design | price · basket · X.
                     # `KitOverwriteConfirm` (2026-09-02, ADR 0035 amendment) —
                     # the kit-card confirm both popups raise over customized

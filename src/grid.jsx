@@ -303,11 +303,11 @@ const OVER_RED = "#dc2626";
 export function GridProductBox({ value, stock, onChange, onPick, searchOrder, bookName, placeholder = "Product…", inputRef, budget = Infinity, descLimit = 0, strictness, fallback }) {
   const [open, setOpen] = useState(false);
   const [twoLine, setTwoLine] = useState(false);
-  const wrapRef = useRef(null);
+  const fieldRef = useRef(null);
   const panelRef = useRef(null);
   const mirrorRef = useRef(null);
   const { results: matches, near, pending } = useMergedResults(open, stock, value, searchOrder, strictness, fallback);
-  const pos = useAnchoredPanel(open, wrapRef, panelRef, () => setOpen(false));
+  const pos = useAnchoredPanel(open, fieldRef, panelRef, () => setOpen(false));
   // Measured, not guessed, so the single/two-line toggle survives any column
   // width — single-line text keeps today's centered look. scrollHeight includes
   // the mode's own padding, so subtract it or a shrink could never toggle back.
@@ -321,8 +321,8 @@ export function GridProductBox({ value, stock, onChange, onPick, searchOrder, bo
     whiteSpace: "pre-wrap", wordBreak: "break-word", overflow: "hidden",
   };
   return (
-    <div ref={wrapRef} className="relative flex-1 min-w-0 self-stretch flex items-center">
-      <div className="relative w-full" style={{ minHeight: CELL_LINE + 12, maxHeight: 2 * CELL_LINE + 6 }}>
+    <div className="relative flex-1 min-w-0 self-stretch flex items-center">
+      <div ref={fieldRef} className="relative w-full" style={{ minHeight: CELL_LINE + 12, maxHeight: 2 * CELL_LINE + 6 }}>
         {/* zIndex 1: the mirror paints ABOVE the textarea — the focused cell's
             opaque .ft-cell:focus background would otherwise hide the glyphs.
             Caret, selection and focus ring show through its transparent body.
@@ -340,7 +340,7 @@ export function GridProductBox({ value, stock, onChange, onPick, searchOrder, bo
           onChange={(e) => { onChange(e.target.value.replace(/\r?\n/g, " ")); setOpen(true); }}
           onKeyDown={(e) => { if (e.key === "Escape" && open && matches.length) { e.preventDefault(); setOpen(false); } if (e.key === "Enter" && open && matches.length && e.altKey) { e.preventDefault(); onPick(matches[0]); setOpen(false); } }}
           onScroll={(e) => { if (mirrorRef.current) mirrorRef.current.scrollTop = e.target.scrollTop; }}
-          data-c="product" className={`ft-cell font-bold ${value ? "" : "ft-field"}`} placeholder={placeholder}
+          data-c="product" className={`ft-cell ft-search font-bold ${value ? "" : "ft-field"}`} placeholder={placeholder}
           style={{ ...text, position: "absolute", inset: 0, height: "100%", resize: "none", color: "transparent", caretColor: "var(--ft-text)" }}
           title="Brand / color — or search the price book and pick a match to fill the row" />
         {over && descLimit > 0 && (
@@ -351,7 +351,7 @@ export function GridProductBox({ value, stock, onChange, onPick, searchOrder, bo
         )}
       </div>
       {open && pos && (matches.length > 0 || pending) && (
-        <SearchPop pos={pos} box={searchPanelBox(pos)} fieldRef={wrapRef} panelRef={panelRef} className="flex flex-col overflow-hidden">
+        <SearchPop pos={pos} box={searchPanelBox(pos)} fieldRef={fieldRef} panelRef={panelRef} className="flex flex-col overflow-hidden">
           {pending && <SearchingBar />}
           {near && <NearMatchNote />}
           {pending && matches.length === 0 && <div className="px-2.5 py-1.5 text-[11px] text-slate-400">Searching the order books…</div>}
@@ -454,7 +454,7 @@ export function GridOmniSearch({ stock, stockReady, query, onQuery, onPick, onPi
   return (
     <div ref={wrapRef} className="relative flex-1 min-w-0 self-stretch flex" onDoubleClick={goManual}>
       <input ref={inputRef} value={query} onChange={(e) => { onQuery(e.target.value); setOpen(true); setHi(0); }} onFocus={() => { committedRef.current = false; setOpen(true); }} onBlur={onBlur}
-        onKeyDown={onKey} data-c="product" className="ft-cell ft-field font-bold" placeholder="Search SKU or product…  (double-click to type by hand)"
+        onKeyDown={onKey} data-c="product" className="ft-cell ft-field ft-search font-bold" placeholder="Search SKU or product…  (double-click to type by hand)"
         title="Search the price book by SKU or product name, then pick a match to fill the whole row. Shift-click to add several. Double-click to enter a product by hand." />
       {panelShowing && pos && (
         <SearchPop pos={pos} box={searchPanelBox(pos)} fieldRef={wrapRef} panelRef={panelRef} className="flex flex-col overflow-hidden">

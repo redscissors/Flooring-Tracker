@@ -219,6 +219,13 @@ input::placeholder,textarea::placeholder{color:color-mix(in oklab, var(--ft-text
 @keyframes ft-pop-up{from{clip-path:inset(100% 0 0 0 round .5rem)}to{clip-path:inset(0 0 0 0 round .5rem)}}
 @media (prefers-reduced-motion: reduce){.ft-pop{animation:none;}}
 
+/* Search fields (SearchPop) focus in the dropdown's ink line, not the moss
+   ring, so the results box grows out of the same outline. An inset outline
+   covers a bordered input's own border and fits a borderless grid cell. */
+:root{--ft-spop-in:240ms;--ft-spop-out:200ms;}
+@media (prefers-reduced-motion: reduce){:root{--ft-spop-in:0ms;}}
+:root .ft-search:focus{outline:1.5px solid var(--ft-text);outline-offset:-1.5px;box-shadow:none;}
+
 /* App-shell height. 100vh on phones is the LARGE viewport (URL bar hidden), and
    the shell only scrolls inside <main>, so the browser chrome never collapses —
    a 100vh root keeps the bottom Area/Product/Print bar permanently cut off

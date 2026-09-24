@@ -39,6 +39,12 @@ phone's own full-screen chooser.
    box widens past the field only where the results need the room. Full-
    screen search sheets and in-place list filters are not dropdowns and
    keep their own look.
+   *Amendment (owner 2026-09-24):* a search field focuses in that same thin
+   ink line instead of the moss focus ring (`.ft-search`), and the box
+   morphs out of it the way `MorphSelect` does: it mounts exactly over the
+   field, then widens and grows its results (240ms), and folds back into
+   the field on close (200ms) instead of vanishing. The moss ring stays the
+   focus mark everywhere else.
 
 ## Consequences
 
