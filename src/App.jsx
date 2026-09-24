@@ -1,4 +1,4 @@
-import { Fragment, lazy, Suspense, useState, useEffect, useMemo, useRef, useLayoutEffect } from "react";
+import { Fragment, lazy, Suspense, useState, useEffect, useMemo, useReducer, useRef, useLayoutEffect } from "react";
 import { Search, Plus, Trash2, Settings, Save, Printer, ClipboardList, FileText, X, History, Check, Paperclip, Menu, LogOut, ChevronRight, ChevronDown, ChevronUp, Phone, Mail, MapPin, Building2, StickyNote, MoreHorizontal, AlignJustify, AlertTriangle, Zap, Folder, LayoutGrid, ShowerHead, TreePine, Layers, Bath, UserRound } from "lucide-react";
 import { supabase } from "./lib/supabase.js";
 import { listSelect, lightRow, loadProjects, loadPeople, loadBuilders, loadTodos, loadClaudeIssues, loadBooks, loadSettingsRow, resolveSharedSettings, loadSampleRequests } from "./bootload.js";
@@ -53,6 +53,8 @@ import { FlagForClaude, ClaudeMark, IssuesMark, CLAUDE_CLAY } from "./claudeflag
 import { LineMenu } from "./linemenu.jsx";
 import { LineWastePop, wasteTag, wasteTagTitle, takesWaste, POP_W } from "./linewaste.jsx";
 import { useLabels } from "./uselabels.js";
+import { railReducer, initialRail, layerOf } from "./railnav.js";
+import { RailSlide, DrawerList, APP_ITEMS, SETTINGS_ITEMS, PaneHeader } from "./raildrawer.jsx";
 import { useVersions } from "./useversions.js";
 import { useJobShowers } from "./usejobshowers.js";
 import { SfPartsMenu, SfPartsChips } from "./SfPartsMenu.jsx";
@@ -163,25 +165,29 @@ export default function App({ user, onSignOut }) {
   const [promoteId, setPromoteId] = useState(null);
   const [promoteQ, setPromoteQ] = useState("");
   const [search, setSearch] = useState("");
-  const [showSettings, setShowSettings] = useState(false);
-  // Which left-nav section Settings is on — lifted here so the refresh
-  // restore (ft-open-layer below) can reopen the workspace on it.
-  const [settingsSection, setSettingsSection] = useState("materials");
   const [confirm, setConfirm] = useState(null);
   const [focusName, setFocusName] = useState(false);
   const [focusProd, setFocusProd] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { toast, saveOk, ping, flashSaved } = useToast();
+  const [railNav, railDispatch] = useReducer(railReducer, initialRail);
+  // What an open app would lose on a trip away (AppsWorkspace keeps it current).
+  const appsProgress = useRef(() => false);
   const {
     data, setData, loading, setLoading, hydrateDirectory,
     selId, setSelId, selCustId, setSelCustId, sel, selCust,
-    updateProject, addProject, startQuickPrice, pickProject, goHome, delProject, dropUnsavedDraft,
+    updateProject, addProject, startQuickPrice, pickProject: pickProjectRaw, goHome: goHomeRaw, delProject, dropUnsavedDraft,
     promoteProject, promoteToNewCustomer,
     addPerson, updatePerson, delPerson, addBuilderFor,
     builderNameOf, projectsOf, migrateLegacyCustomers,
     setSettings, saveProfile, saveUiPref, profile, setProfile, appBlobRef,
     dataRef, baselineRef, prevSelRef, custData,
   } = useDirectory({ user, ping, flashSaved, setSidebarOpen, setFocusProd, setFocusName, setConfirm, setPromoteId, setPromoteQ });
+  // Picking a record from the rail or browser shows it — even the one already
+  // open underneath an app or Settings pane.
+  const pickProject = (id) => { railDispatch({ type: "closePane" }); pickProjectRaw(id); };
+  const goHome = () => { railDispatch({ type: "closePane" }); goHomeRaw(); };
+  const railPick = (kind, id) => { railDispatch({ type: "pick", kind, id, inProgress: kind === "app" ? appsProgress.current(id) : false }); setSidebarOpen(false); };
   const settings = data.settings;
   const {
     books, hydrateBooks, orderItems, setOrderItems,
@@ -614,20 +620,28 @@ export default function App({ user, onSignOut }) {
   // shared request list actually changes, not on every render of the browser.
   const sampleTally = useMemo(() => projectSampleTally(sampleRequests), [sampleRequests]);
   const {
-    labels, showApps, setShowApps,
-    openApps, addLabel, addLabelsBulk, updateLabel, delLabel, saveLabelPreset,
-  } = useLabels({ user, profile, ping, flashSaved, setSidebarOpen, settings, setSettings });
-  // Which app the hub opens on: the sidebar's wedi/Sheoga shortcuts jump
-  // straight to their configurator; the plain Apps button keeps the default.
-  const [appsStart, setAppsStart] = useState(null);
-  const openAppsTo = (k) => { setAppsStart(k); openApps(); };
+    labels, refreshLabels, addLabel, addLabelsBulk, updateLabel, delLabel, saveLabelPreset,
+  } = useLabels({ user, profile, ping, flashSaved, settings, setSettings });
+  useEffect(() => {
+    if (railNav.pane?.kind === "app" && railNav.pane.id === "labels") refreshLabels();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load on each Label Generator open
+  }, [railNav.pane?.kind, railNav.pane?.id]);
+  // A different project (or customer view, or home) is a "break": the next
+  // in-progress configurator asks Continue / Start new (spec 2026-09-24).
+  const navKey = `${selId || ""}|${selCustId || ""}`;
+  const lastNavKey = useRef(navKey);
+  useEffect(() => {
+    if (lastNavKey.current === navKey) return;
+    lastNavKey.current = navKey;
+    railDispatch({ type: "projectChanged" });
+  }, [navKey]);
 
   // Which overlay was on screen, per device ("ft-open-layer", beside
   // ft-last-open): a refresh reopens the popup/workspace it interrupted —
-  // Settings on its last section (so the price book stays open), the Apps
-  // hub, the customer browser, the issues list, and either vendor configurator
-  // (whose live { mode, cfg } rides along via onConfigChange, so it reopens
-  // mid-configuration). Restored once, after the last-open spot above; a
+  // the rail's open drawer and the app or Settings section in the work area
+  // (so the price book stays open), the customer browser, the issues list,
+  // and either vendor configurator (whose live { mode, cfg } rides along via
+  // onConfigChange, so it reopens mid-configuration). Restored once, after the last-open spot above; a
   // configurator layer additionally waits for the restored project's full
   // record so the row it was opened from exists again. A layer that can't be
   // re-created (its project/row is gone) is simply dropped.
@@ -644,8 +658,7 @@ export default function App({ user, onSignOut }) {
       return;
     }
     setRestoreLayer(null);
-    if (L.kind === "settings") { setSettingsSection(["profile", "general", "book", "materials", "backup"].includes(L.section) ? L.section : "materials"); setShowSettings(true); }
-    else if (L.kind === "apps") setShowApps(true);
+    if (L.kind === "settings" || L.kind === "apps") railDispatch({ type: "restore", layer: L });
     else if (L.kind === "browser") setShowBrowser(true);
     else if (L.kind === "todos") setShowTodos(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot post-boot restore
@@ -655,13 +668,12 @@ export default function App({ user, onSignOut }) {
     const layer = sheogaPop ? { kind: "sheoga", aid: sheogaPop.aid, pid: sheogaPop.pid, seed: sheogaPop.seed || null }
       : wediPop ? { kind: "wedi", aid: wediPop.aid, pid: wediPop.pid, seed: wediPop.seed || null }
         : schluterPop ? { kind: "schluter", aid: schluterPop.aid, pid: schluterPop.pid, seed: schluterPop.seed || null }
-          : showSettings ? { kind: "settings", section: settingsSection }
-            : showApps ? { kind: "apps" }
-              : showBrowser ? { kind: "browser" }
-                : showTodos ? { kind: "todos" }
-                  : null;
+          : layerOf(railNav) ? layerOf(railNav)
+            : showBrowser ? { kind: "browser" }
+              : showTodos ? { kind: "todos" }
+                : null;
     try { localStorage.setItem("ft-open-layer", JSON.stringify(layer)); } catch (x) { }
-  }, [sheogaPop, wediPop, schluterPop, showSettings, settingsSection, showApps, showBrowser, showTodos, loading, restoreLayer]);
+  }, [sheogaPop, wediPop, schluterPop, railNav, showBrowser, showTodos, loading, restoreLayer]);
   // The row search's instant in-memory tier: every active stock-kind book's
   // items, flattened from the ADR 0026 background cache (the ERP exports that
   // replaced the shop workbook, ADR 0027). stockKind marks a hit as shop
@@ -1159,8 +1171,7 @@ export default function App({ user, onSignOut }) {
   useEscClose(namingVersion, () => setNamingVersion(false));
   useEscClose(showOrderCopy, () => setShowOrderCopy(false));
   useEscClose(showSamples, () => setShowSamples(false));
-  useEscClose(showSettings, () => setShowSettings(false));
-  useEscClose(showApps, () => setShowApps(false));
+  useEscClose(!!railNav.pane, () => railDispatch({ type: "closePane" }));
 
   const dl = (blob, name) => { const u = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = u; a.download = name; a.click(); URL.revokeObjectURL(u); };
   const exportBackup = async () => {
@@ -1403,10 +1414,17 @@ export default function App({ user, onSignOut }) {
           <div className="relative px-4 py-3.5 border-b border-slate-100">
             <div className="min-w-0"><button onClick={goHome} title="Home" className="block text-left hover:opacity-70 transition"><NedLogo height={27} /></button><div className="ft-eyebrow text-[9.5px] mt-1">Selection Manager</div></div>
             <div className="absolute top-3 right-3 flex items-center">
-              <button onClick={() => { setSettingsSection("materials"); setShowSettings(true); setSidebarOpen(false); }} aria-label="Settings" title="Settings" className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-50"><Settings size={16} /></button>
+              <button onClick={() => railDispatch({ type: "toggleDrawer", which: "settings" })} aria-label="Settings" aria-expanded={railNav.drawer === "settings"} title="Settings"
+                className={`p-1 rounded-md ${railNav.drawer === "settings" ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"}`}>
+                <Settings size={16} className={`transition-transform duration-500 ${railNav.drawer === "settings" ? "rotate-[60deg]" : ""}`} />
+              </button>
               {!isWide && <button onClick={() => setSidebarOpen(false)} className="p-1 text-slate-400"><X size={18} /></button>}
             </div>
           </div>
+          <RailSlide open={railNav.drawer === "settings"} anchor="bottom">
+            <DrawerList title="Settings" items={SETTINGS_ITEMS} activeId={railNav.pane?.kind === "settings" ? railNav.pane.id : null}
+              onPick={(id) => railPick("settings", id)} itemClass={railItem} className="px-2.5 pt-2.5 pb-2.5" divider />
+          </RailSlide>
           <div className="p-2.5 pb-8 space-y-2">
             <div className="relative"><Search size={16} className="absolute left-2.5 top-2.5 text-slate-400" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search" className={inp + " pl-8"} /></div>
             {/* The rail's two starting points sit together: a throwaway quick
@@ -1425,10 +1443,9 @@ export default function App({ user, onSignOut }) {
                   moss-filled icon in the list, so the eye lands on it. */}
               <button onClick={() => { setShowBrowser(true); setSidebarOpen(false); refreshSampleRequests(); }} title="Browse all customers" className={railItem}><Folder size={15} fill="currentColor" className="w-4 shrink-0 text-indigo-500" /> Customers</button>
               <button onClick={() => setNewCust("")} className={railItem}><Plus size={15} className="w-4 shrink-0" /> New Customer</button>
-              {/* Configurator shortcuts: the same wedi/Sheoga apps the hub lists,
-                  one press from the customer column. */}
-              <button onClick={() => openAppsTo("wedi")} title="wedi shower configurator" className={railItem}><ShowerHead size={15} className="w-4 shrink-0" /> wedi</button>
-              <button onClick={() => openAppsTo("sheoga")} title="Sheoga hardwood configurator" className={railItem}><TreePine size={15} className="w-4 shrink-0" /> Sheoga</button>
+              {/* Configurator shortcuts (owner kept them, 2026-09-24): open the app in the work area and slide the Apps tray up with it highlighted. */}
+              <button onClick={() => railPick("app", "wedi")} title="wedi shower configurator" className={railItem}><ShowerHead size={15} className="w-4 shrink-0" /> wedi</button>
+              <button onClick={() => railPick("app", "sheoga")} title="Sheoga hardwood configurator" className={railItem}><TreePine size={15} className="w-4 shrink-0" /> Sheoga</button>
             </div>
           </div>
           <div className="flex-1 overflow-y-auto px-1.5 pb-2">
@@ -1458,9 +1475,14 @@ export default function App({ user, onSignOut }) {
               {unassigned.map((p) => renderProjRow(p))}
             </>)}
           </div>
+          <RailSlide open={railNav.drawer === "apps"} anchor="top">
+            <DrawerList title="Apps" items={APP_ITEMS} activeId={railNav.pane?.kind === "app" ? railNav.pane.id : null}
+              onPick={(id) => railPick("app", id)} itemClass={railItem} className="px-2.5 pt-1 pb-1.5" />
+          </RailSlide>
           <div className="px-4 py-2 border-t border-slate-100 flex items-center justify-between">
             <button onClick={handleSignOut} aria-label="Sign out" title={`Sign out — ${user.email}`} className="flex items-center justify-center rounded-md hover:bg-slate-50 p-1.5 text-slate-500"><LogOut size={16} /></button>
-            <button onClick={() => openAppsTo(null)} aria-label="Apps" title="Apps — shop tools" className="flex items-center justify-center rounded-md hover:bg-slate-50 p-1.5 text-slate-500"><LayoutGrid size={16} /></button>
+            <button onClick={() => railDispatch({ type: "toggleDrawer", which: "apps" })} aria-label="Apps" aria-expanded={railNav.drawer === "apps"} title="Apps — shop tools"
+              className={`flex items-center justify-center rounded-md p-1.5 ${railNav.drawer === "apps" ? "bg-indigo-600 text-white" : "hover:bg-slate-50 text-slate-500"}`}><LayoutGrid size={16} /></button>
             <button onClick={() => openIssues()} aria-label="Issues" title={`Issues & to-do — ${openTodoCount} team, ${openClaudeCount} Claude open`} className="flex items-center justify-center rounded-md hover:bg-slate-50 p-1.5 text-slate-500">
               <IssuesMark size={16} team={openTodoCount > 0} claude={openClaudeCount > 0} />
             </button>
@@ -1468,7 +1490,8 @@ export default function App({ user, onSignOut }) {
         </aside>
 
         {/* Main */}
-        <main ref={mainRef} style={zoomStyle} className="flex-1 overflow-y-auto">
+        <div className="relative flex-1 min-w-0 min-h-0 flex flex-col">
+        <main ref={mainRef} style={{ ...zoomStyle, visibility: railNav.pane ? "hidden" : undefined }} className="flex-1 overflow-y-auto">
           {!sel ? (
             selCust ? (
               <div className="max-w-3xl mx-auto p-3 md:p-5">
@@ -2588,6 +2611,89 @@ export default function App({ user, onSignOut }) {
             </div>
           )}
         </main>
+        {/* Apps + Settings open here, over the still-mounted project (spec
+            2026-09-24). AppsWorkspace stays mounted after its first pick so a
+            configurator build survives a trip away. */}
+        <div className={railNav.pane ? "absolute inset-0 z-20 flex flex-col bg-white" : "hidden"} style={zoomStyle}>
+          {railNav.pane && (
+            <PaneHeader
+              backLabel={sel ? (sel.name || "Untitled project") : selCust ? (selCust.name || "Customer") : "Home"}
+              group={railNav.pane.kind === "app" ? "Apps" : "Settings"}
+              title={(railNav.pane.kind === "app" ? APP_ITEMS : SETTINGS_ITEMS).find((x) => x.id === railNav.pane.id)?.label || ""}
+              onBack={() => railDispatch({ type: "closePane" })}
+              onClose={() => railDispatch({ type: "closePane" })} />
+          )}
+          {railNav.pane?.kind === "settings" && (
+            <div className="flex-1 min-h-0">
+              <LazyBoundary>
+              <Suspense fallback={null}>
+              <SettingsWorkspace key={railNav.pane.id} section={railNav.pane.id}
+                settings={settings} setSettings={setSettings} gFamilies={gFamilies} ping={ping}
+                exportBackup={exportBackup} importBackup={importBackup} fileRef={fileRef}
+                inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} theme={theme} setTheme={setTheme} headerLayout={headerLayout} setHeaderLayout={setHeaderLayout}
+                profile={profile} saveProfile={saveProfile} user={user}
+                books={books} addBook={addBook} updateBook={updateBook} confirmBook={confirmBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImportSynced}
+                bookStock={bookStock} orderBookStock={orderBookStock} loadFamilyBook={loadFamilyBook} bookStockReady={bookStockReady} refreshBookStock={refreshBookStock}
+                loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} setBookItemIssue={setBookItemIssue} addClaudeIssue={addClaudeIssue} />
+              </Suspense>
+              </LazyBoundary>
+            </div>
+          )}
+          {railNav.lastApp && (
+            <div className={railNav.pane?.kind === "app" ? "flex-1 min-h-0 flex flex-col" : "hidden"}>
+              <LazyBoundary>
+              <Suspense fallback={null}>
+              <AppsWorkspace
+                app={railNav.lastApp}
+                onClose={() => railDispatch({ type: "closePane" })}
+                resume={railNav.pane?.kind === "app" && !!railNav.pane.resume}
+                onResume={() => railDispatch({ type: "resolveResume" })}
+                progressRef={appsProgress}
+                stock={stockItems}
+                labels={labels}
+                presets={settings.apps?.labels?.presets || []}
+                onAddLabel={addLabel}
+                onAddLabelsBulk={addLabelsBulk}
+                onUpdateLabel={updateLabel}
+                onDeleteLabel={delLabel}
+                onSavePreset={saveLabelPreset}
+                sheoga={{
+                  markupDefault: sheogaMarkups(books, settings).markupPct,
+                  ventMarkupDefault: sheogaMarkups(books, settings).ventMarkupPct,
+                  currentName: sel?._full ? (sel.name || "Untitled project") : null,
+                  addToCurrent: (lines) => { if (!lines?.length || !sel) return; updateProject(sel.id, { categories: applySheogaToFirstArea(sel.categories, lines) }); railDispatch({ type: "closePane" }); },
+                  addToNew: (lines) => { if (!lines?.length) return; createQuickWithSheoga(lines); railDispatch({ type: "closePane" }); },
+                }}
+                wedi={{
+                  // wedi lines are the same product-row patches Sheoga emits, so the
+                  // hub's destination flow reuses the Sheoga landing helpers whole.
+                  builderPct: normPricing(settings.pricing).wediBuilderPct,
+                  // The hub's wedi popup shows the Compare tab too, so it needs the
+                  // Schluter side's registry bag and knob (no quote options here —
+                  // there is no host area to hang them on).
+                  schluterBuilderPct: normPricing(settings.pricing).schluterBuilderPct,
+                  stockRows: stockItems, bookStockReady, books, loadBookItems,
+                  mortars: settings.mortars, mortarDefault: settings.catalog?.defaults?.mortar || "",
+                  currentName: sel?._full ? (sel.name || "Untitled project") : null,
+                  addToCurrent: (lines) => { if (!lines?.length || !sel) return; updateProject(sel.id, { categories: applySheogaToFirstArea(sel.categories, lines) }); railDispatch({ type: "closePane" }); },
+                  addToNew: (lines) => { if (!lines?.length) return; createQuickWithSheoga(lines); railDispatch({ type: "closePane" }); },
+                }}
+                schluter={{
+                  builderPct: normPricing(settings.pricing).schluterBuilderPct,
+                  wediBuilderPct: normPricing(settings.pricing).wediBuilderPct,
+                  stockRows: stockItems, bookStockReady, books, loadBookItems,
+                  mortars: settings.mortars, mortarDefault: settings.catalog?.defaults?.mortar || "",
+                  currentName: sel?._full ? (sel.name || "Untitled project") : null,
+                  addToCurrent: (lines) => { if (!lines?.length || !sel) return; updateProject(sel.id, { categories: applySheogaToFirstArea(sel.categories, lines) }); railDispatch({ type: "closePane" }); },
+                  addToNew: (lines) => { if (!lines?.length) return; createQuickWithSheoga(lines); railDispatch({ type: "closePane" }); },
+                }}
+              />
+              </Suspense>
+              </LazyBoundary>
+            </div>
+          )}
+        </div>
+        </div>
 
         {/* Mobile add bar (mobile shell 2026-07-16): + Product and Price book
             both follow the area in view (activeAreaId). Price book is the
@@ -2600,7 +2706,7 @@ export default function App({ user, onSignOut }) {
             overlaps content and stays locked to the bottom whenever a
             project is open. While a bottom sheet is up the bar slides down
             out of the way and returns when it closes. */}
-        {!isWide && sel && sel._full && (() => {
+        {!isWide && !railNav.pane && sel && sel._full && (() => {
           const cur = sel.categories.find((a) => a.id === activeAreaId) || sel.categories[0];
           const sheetUp = projSheet || !!rowSheet;
           const canSearch = skuSearchable(stockItems, searchOrder, bookStockReady);
@@ -2705,77 +2811,10 @@ export default function App({ user, onSignOut }) {
           initialPanels={appBlobRef.current?.ui?.browserPanels}
           onPanels={(patch) => saveUiPref({ browserPanels: { ...(appBlobRef.current?.ui?.browserPanels || {}), ...patch } })}
           onClose={() => setShowBrowser(false)}
-          onOpenCustomer={(id) => { setSelId(null); setSelCustId(id); setShowBrowser(false); }}
+          onOpenCustomer={(id) => { railDispatch({ type: "closePane" }); setSelId(null); setSelCustId(id); setShowBrowser(false); }}
           onOpenProject={(id) => { pickProject(id); setShowBrowser(false); }}
           onNewCustomer={() => setNewCust("")}
           onNewProject={(cid) => { addProject(cid); setShowBrowser(false); }} />
-        </Suspense>
-        </LazyBoundary>
-      )}
-
-      {/* Settings — PC-first workspace (issue 007); all writes still flow
-          through setSettings / the import + backup handlers. */}
-      {showSettings && (
-        <LazyBoundary>
-        <Suspense fallback={null}>
-        <SettingsWorkspace onClose={() => setShowSettings(false)}
-          initialSection={settingsSection} onSectionChange={setSettingsSection}
-          settings={settings} setSettings={setSettings} gFamilies={gFamilies} ping={ping}
-          exportBackup={exportBackup} importBackup={importBackup} fileRef={fileRef}
-          inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} theme={theme} setTheme={setTheme} headerLayout={headerLayout} setHeaderLayout={setHeaderLayout}
-          profile={profile} saveProfile={saveProfile} user={user}
-          books={books} addBook={addBook} updateBook={updateBook} confirmBook={confirmBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImportSynced}
-          bookStock={bookStock} orderBookStock={orderBookStock} loadFamilyBook={loadFamilyBook} bookStockReady={bookStockReady} refreshBookStock={refreshBookStock}
-          loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} setBookItemIssue={setBookItemIssue} addClaudeIssue={addClaudeIssue} />
-        </Suspense>
-        </LazyBoundary>
-      )}
-
-      {showApps && (
-        <LazyBoundary>
-        <Suspense fallback={null}>
-        <AppsWorkspace
-          onClose={() => setShowApps(false)}
-          initialApp={appsStart}
-          stock={stockItems}
-          labels={labels}
-          presets={settings.apps?.labels?.presets || []}
-          onAddLabel={addLabel}
-          onAddLabelsBulk={addLabelsBulk}
-          onUpdateLabel={updateLabel}
-          onDeleteLabel={delLabel}
-          onSavePreset={saveLabelPreset}
-          sheoga={{
-            markupDefault: sheogaMarkups(books, settings).markupPct,
-            ventMarkupDefault: sheogaMarkups(books, settings).ventMarkupPct,
-            currentName: sel?._full ? (sel.name || "Untitled project") : null,
-            addToCurrent: (lines) => { if (!lines?.length || !sel) return; updateProject(sel.id, { categories: applySheogaToFirstArea(sel.categories, lines) }); setShowApps(false); },
-            addToNew: (lines) => { if (!lines?.length) return; createQuickWithSheoga(lines); setShowApps(false); },
-          }}
-          wedi={{
-            // wedi lines are the same product-row patches Sheoga emits, so the
-            // hub's destination flow reuses the Sheoga landing helpers whole.
-            builderPct: normPricing(settings.pricing).wediBuilderPct,
-            // The hub's wedi popup shows the Compare tab too, so it needs the
-            // Schluter side's registry bag and knob (no quote options here —
-            // there is no host area to hang them on).
-            schluterBuilderPct: normPricing(settings.pricing).schluterBuilderPct,
-            stockRows: stockItems, bookStockReady, books, loadBookItems,
-            mortars: settings.mortars, mortarDefault: settings.catalog?.defaults?.mortar || "",
-            currentName: sel?._full ? (sel.name || "Untitled project") : null,
-            addToCurrent: (lines) => { if (!lines?.length || !sel) return; updateProject(sel.id, { categories: applySheogaToFirstArea(sel.categories, lines) }); setShowApps(false); },
-            addToNew: (lines) => { if (!lines?.length) return; createQuickWithSheoga(lines); setShowApps(false); },
-          }}
-          schluter={{
-            builderPct: normPricing(settings.pricing).schluterBuilderPct,
-            wediBuilderPct: normPricing(settings.pricing).wediBuilderPct,
-            stockRows: stockItems, bookStockReady, books, loadBookItems,
-            mortars: settings.mortars, mortarDefault: settings.catalog?.defaults?.mortar || "",
-            currentName: sel?._full ? (sel.name || "Untitled project") : null,
-            addToCurrent: (lines) => { if (!lines?.length || !sel) return; updateProject(sel.id, { categories: applySheogaToFirstArea(sel.categories, lines) }); setShowApps(false); },
-            addToNew: (lines) => { if (!lines?.length) return; createQuickWithSheoga(lines); setShowApps(false); },
-          }}
-        />
         </Suspense>
         </LazyBoundary>
       )}

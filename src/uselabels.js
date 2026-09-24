@@ -4,20 +4,18 @@ import { loadLabels } from "./bootload.js";
 import { normLabel } from "./labels.js";
 import { uid } from "./model.js";
 
-export function useLabels({ user, profile, ping, flashSaved, setSidebarOpen, settings, setSettings }) {
+export function useLabels({ user, profile, ping, flashSaved, settings, setSettings }) {
   // Apps → Label Generator: saved showroom labels, shared team-wide (issue
-  // label-generator-integration). Own table, loaded when the Apps hub opens
+  // label-generator-integration). Own table, loaded when the Label Generator opens
   // (ADR 0026) — nothing at boot reads it.
   const [labels, setLabels] = useState([]);
-  const [showApps, setShowApps] = useState(false);
 
   // Labels write path (Apps → Label Generator). Mirrors the todos helpers; the
   // paged loader lives in bootload.js.
   const labelData = (l) => ({ presetId: l.presetId, w: l.w, h: l.h, header: l.header, lines: l.lines, fields: l.fields, twoVariant: l.twoVariant, fields2: l.fields2, sku: l.sku, createdBy: l.createdBy, createdAt: l.createdAt });
   // The refresh merges instead of replacing: an optimistic add made before the
   // fetch resolves (its select predates the insert) must not vanish from view.
-  const openApps = () => {
-    setShowApps(true); setSidebarOpen(false);
+  const refreshLabels = () => {
     loadLabels(supabase).then((rows) => setLabels((prev) => {
       const have = new Set(rows.map((l) => l.id));
       return [...rows, ...prev.filter((l) => !have.has(l.id))];
@@ -56,7 +54,6 @@ export function useLabels({ user, profile, ping, flashSaved, setSidebarOpen, set
 
   return {
     labels, hydrateLabels: setLabels,
-    showApps, setShowApps,
-    openApps, addLabel, addLabelsBulk, updateLabel, delLabel, saveLabelPreset,
+    refreshLabels, addLabel, addLabelsBulk, updateLabel, delLabel, saveLabelPreset,
   };
 }
