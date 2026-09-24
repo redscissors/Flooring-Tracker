@@ -29,7 +29,7 @@ import { uid, money, sf1, miscQty, blobToDataURL, dataURLToBlob, wasteNote, newP
 import { lineTotal, printProduct, printAreaFloor, KSHORT, u1, orderEntryRow, matOrderRow } from "./print.js";
 import { jobTotals } from "./jobtotals.js";
 import { OPTION_SLOTS, OPTION_COLOR, optionsUsed, bucketCats, scopedCats, optionTitle, optionShort, duplicateInto, compareOptionsPatch } from "./options.js";
-import { LazyBoundary, FitSelect, GroutColorOptions, BuilderCombo, MetaChip, SalespersonPop, SegBar, WasteBar, DARK_MODE, MarginLine, Modal, useEscClose, HelpTip, AddressField } from "./widgets.jsx";
+import { LazyBoundary, FitSelect, GroutColorOptions, BuilderCombo, MetaChip, SalespersonPop, SegBar, WasteBar, DARK_MODE, MarginLine, Modal, useEscClose, HelpTip, AddressField, PopMenu } from "./widgets.jsx";
 import { escPush } from "./escstack.js";
 import { TypeSelect, GRID_COLS, GridPriceCell, GridSizeInput, GridProductBox, GridOmniSearch, UnitPick } from "./grid.jsx";
 import { MobileSheet, MobileProductRow, MobileRowSheet, MobileProjectBand } from "./mobile.jsx";
@@ -1361,7 +1361,7 @@ export default function App({ user, onSignOut }) {
     };
     return (
       <div key={c.id} className="mb-0.5">
-        <div onContextMenu={(e) => { e.preventDefault(); setCustMenu({ cid: c.id, x: e.clientX, y: e.clientY }); }}
+        <div onContextMenu={(e) => { e.preventDefault(); setCustMenu({ cid: c.id, x: e.clientX, y: e.clientY, anchor: e.currentTarget }); }}
           className={`w-full rounded-md flex items-center gap-0.5 border ${on ? "bg-white border-slate-200 shadow-[0_1px_4px_var(--ft-shadow)]" : custMenu?.cid === c.id ? "border-transparent bg-[var(--ft-hover)]" : "border-transparent hover:bg-slate-50"}`}>
           <button onClick={clickName} title={`${projs.length === 1 ? "Open project" : isOpen ? "Collapse" : "Expand"}${CAN_RIGHT_CLICK ? " · right-click for more" : ""}`} className="min-w-0 flex-1 py-2 pl-[13px] pr-1 text-left">
             <div className="ft-item-name text-[12.5px] font-semibold truncate">{c.name || "Unnamed customer"}</div>
@@ -1732,7 +1732,7 @@ export default function App({ user, onSignOut }) {
                       <div className="flex items-baseline gap-2.5 flex-1 min-w-0">
                         <input ref={(el) => { if (el) areaRefs.current[a.id] = el; }} value={a.name} onChange={(e) => updArea(a.id, { name: e.target.value })} placeholder={`Area ${ai + 1}`} className="ft-serif bg-transparent border-b border-transparent focus:border-indigo-500 focus:outline-none min-w-0 placeholder:text-slate-400" style={{ fontSize: isWide ? 20 : 18, lineHeight: 1.1, width: `${Math.max(a.name.length || `Area ${ai + 1}`.length, 4) + 1}ch` }} />
                         {(a.option || optsUsed.length > 0) && (
-                          <button tabIndex={-1} onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setAreaMenu({ aid: a.id, x: r.left, y: r.bottom + 4 }); }}
+                          <button tabIndex={-1} onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setAreaMenu({ aid: a.id, x: r.left, y: r.bottom + 4, anchor: e.currentTarget }); }}
                             className="ft-noprint rounded-md px-2 py-0.5 text-[10.5px] font-bold shrink-0"
                             style={oc ? { background: `color-mix(in srgb, ${oc.main} 12%, var(--ft-card))`, color: oc.deep, boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${oc.main} 45%, transparent)` } : { border: "1px dashed var(--ft-border-strong)", color: "var(--ft-muted)" }}>
                             {a.option ? optionShort(sel, a.option).toUpperCase() : "SHARED"}
@@ -3221,14 +3221,12 @@ export default function App({ user, onSignOut }) {
         const close = () => setCustMenu(null);
         const item = "w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[12.5px] text-left hover:bg-slate-100";
         return (
-          <div className="ft-noprint fixed inset-0 z-50" onClick={close} onContextMenu={(e) => { e.preventDefault(); close(); }}>
-            <div className="ft-pop absolute p-1" style={{ left: Math.min(custMenu.x, window.innerWidth - 212), top: Math.min(custMenu.y, window.innerHeight - 136), width: 200 }} onClick={(e) => e.stopPropagation()}>
-              <button className={item} onClick={() => { close(); setCustModal(c.id); }}><UserRound size={13} className="text-slate-400" /> Customer details…</button>
-              <button className={item} onClick={() => { close(); addProject(c.id); }}><Plus size={13} className="text-slate-400" /> New project</button>
-              <div className="border-t border-slate-100 my-1" />
-              <button className={`${item} text-red-600 hover:bg-red-50`} onClick={() => { close(); setConfirm({ kind: "person", id: c.id }); }}><Trash2 size={13} /> Delete customer…</button>
-            </div>
-          </div>
+          <PopMenu at={custMenu} width={196} onClose={close} className="ft-noprint p-1">
+            <button className={item} onClick={() => { close(); setCustModal(c.id); }}><UserRound size={13} className="text-slate-400" /> Customer details…</button>
+            <button className={item} onClick={() => { close(); addProject(c.id); }}><Plus size={13} className="text-slate-400" /> New project</button>
+            <div className="border-t border-slate-100 my-1" />
+            <button className={`${item} text-red-600 hover:bg-red-50`} onClick={() => { close(); setConfirm({ kind: "person", id: c.id }); }}><Trash2 size={13} /> Delete customer…</button>
+          </PopMenu>
         );
       })()}
 
@@ -3249,10 +3247,12 @@ export default function App({ user, onSignOut }) {
         };
         const free = OPTION_SLOTS.filter((s) => !optsUsed.includes(s));
         const item = "w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[12.5px] text-left hover:bg-slate-100";
+        const inLabel = "uppercase text-[9px] font-bold tracking-widest text-slate-400";
+        const fromChip = areaMenu.anchor?.isConnected;
         return (
-          <div className="ft-noprint fixed inset-0 z-50" onClick={() => setAreaMenu(null)} onContextMenu={(e) => { e.preventDefault(); setAreaMenu(null); }}>
-            <div className="ft-pop absolute p-1 overflow-y-auto" style={{ left: Math.min(areaMenu.x, window.innerWidth - 250), top: Math.min(areaMenu.y, window.innerHeight - 300), maxHeight: window.innerHeight - Math.min(areaMenu.y, window.innerHeight - 300) - 12, width: 236 }} onClick={(e) => e.stopPropagation()}>
-              <div className="uppercase text-[9px] font-bold tracking-widest text-slate-400 px-2.5 pt-1.5 pb-0.5">This area is in</div>
+          <PopMenu at={areaMenu} width={212} onClose={() => setAreaMenu(null)} className="ft-noprint p-1"
+            trail={<span className={inLabel + " pl-2.5"}>This area is in</span>}>
+              {!fromChip && <div className={inLabel + " px-2.5 pt-1.5 pb-0.5"}>This area is in</div>}
               <button className={item} onClick={() => setOpt("")}><span className="w-2 h-2 rounded-sm" style={{ background: "var(--ft-faint)" }} />Shared — every option{!a.option && <Check size={12} className="ml-auto" />}</button>
               {OPTION_SLOTS.map((s) => (optsUsed.includes(s) || free[0] === s) && (
                 <button key={s} className={item} onClick={() => setOpt(s)}>
@@ -3267,8 +3267,7 @@ export default function App({ user, onSignOut }) {
               ))}
               {a.option && <button className={item} onClick={() => { setRenamingOpt(a.option); setAreaMenu(null); }}>Rename {optionTitle(sel, a.option)}…</button>}
               {a.option && <button className={item} onClick={() => { setPreviewScope(a.option); if (isWide) setViewTab("preview"); else setPrintMode("estimate"); setAreaMenu(null); }}>Print this option…</button>}
-            </div>
-          </div>
+          </PopMenu>
         );
       })()}
       {renamingOpt && sel && (

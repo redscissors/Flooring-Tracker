@@ -266,6 +266,35 @@ export function PointPop({ popRef, className = "", style, children }) {
     document.body);
 }
 
+// An option menu that grows out of what opened it (`at.anchor`: a row, a
+// chip) or, with nothing to grow from, opens at `at.x`/`at.y`. Callers own Esc.
+export function PopMenu({ at, ...props }) {
+  return at.anchor?.isConnected
+    ? <GrownMenu key="g" at={at} {...props} />
+    : <PointMenu key={`${at.x},${at.y}`} at={at} {...props} />;
+}
+
+function GrownMenu({ at, width, align = "left", onClose, lead, trail, className = "", children }) {
+  const anchorRef = useRef(at.anchor);
+  const panelRef = useRef(null);
+  const pos = useAnchoredPanel(true, anchorRef, panelRef, onClose);
+  if (!pos) return null;
+  const W = Math.max(width, pos.width);
+  const x = align === "right" ? pos.left + pos.width - W : pos.left;
+  return (
+    <SearchPop pos={pos} box={{ left: Math.max(8, Math.min(x, window.innerWidth - W - 8)), width: W }} fieldRef={anchorRef} panelRef={panelRef}
+      lead={lead} trail={trail} className={"overflow-y-auto " + className}>{children}</SearchPop>
+  );
+}
+
+function PointMenu({ at, width, onClose, className = "", children }) {
+  const ref = useRef(null);
+  useDismissOutside(true, ref, ref, onClose);
+  const left = Math.max(8, Math.min(at.x, window.innerWidth - width - 8));
+  const top = Math.max(8, Math.min(at.y, window.innerHeight - 140));
+  return <PointPop popRef={ref} className={"overflow-y-auto " + className} style={{ left, top, width, maxHeight: window.innerHeight - top - 8 }}>{children}</PointPop>;
+}
+
 function fadeAway(el) {
   if (!el || calmMotion()) return;
   const ghost = el.cloneNode(true);

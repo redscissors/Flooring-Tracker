@@ -56,7 +56,12 @@ phone's own full-screen chooser.
    (its name beside it), the order cell (a "Waste" label beside it) and the
    row-end ⋯ cell (the line's name beside it). Panels with nothing to grow
    from, such as the right-click line menu or waste opened from that menu,
-   stay at the pointer and fold away on close (`PointPop`).
+   stay at the pointer and fold away on close (`PointPop`). The sidebar
+   customer menu grows out of the right-clicked customer row, and the area
+   menu out of its option chip ("This area is in" beside it); a right-click
+   on the area band opens it at the pointer (`PopMenu`). Neither keeps the
+   old full-screen click-catcher: an outside press closes it like any other
+   dropdown.
 
 ## Consequences
 

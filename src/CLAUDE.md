@@ -183,6 +183,8 @@ src/
                     # order cell, ⋯ cell): `lead`/`trail` fill its row, the
                     # outline fades in. `PointPop` — `.ft-pop` at a point
                     # (right-click menus) that folds away on unmount.
+                    # `PopMenu` — an option menu that grows from `at.anchor`
+                    # or opens at `at.x/y` (customer + area menus).
                     # Row order: Stock only · Clear design | price · basket · X.
                     # `KitOverwriteConfirm` (2026-09-02, ADR 0035 amendment) —
                     # the kit-card confirm both popups raise over customized

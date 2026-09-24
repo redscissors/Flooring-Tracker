@@ -5,9 +5,9 @@
 // live inside App.jsx). Not part of the app build.
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal, UserRound, Plus, Trash2, Check } from "lucide-react";
 import "./index.css";
-import { FitSelect, GroutColorOptions, BuilderCombo } from "./widgets.jsx";
+import { FitSelect, GroutColorOptions, BuilderCombo, PopMenu, useEscClose } from "./widgets.jsx";
 import { TypeSelect, UnitPick, GridPriceCell, GridOmniSearch, GridProductBox } from "./grid.jsx";
 import { StockSearch } from "./search.jsx";
 import { LineMenu } from "./linemenu.jsx";
@@ -98,6 +98,62 @@ function Searches() {
   );
 }
 
+// The sidebar customer row and an area band as App.jsx draws them, with its
+// right-click / option-chip menus on the real PopMenu (App's own wiring needs
+// a signed-in session).
+function ShellMenus() {
+  const [cust, setCust] = useState(null);
+  const [area, setArea] = useState(null);
+  const [opt, setOpt] = useState("A");
+  useEscClose(!!cust, () => setCust(null));
+  useEscClose(!!area, () => setArea(null));
+  const item = "w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[12.5px] text-left hover:bg-slate-100";
+  const inLabel = "uppercase text-[9px] font-bold tracking-widest text-slate-400";
+  const fromChip = area?.anchor?.isConnected;
+  const pick = (o) => { setOpt(o); setArea(null); };
+  return (
+    <div className="flex gap-6 items-start">
+      <div className="w-60 p-2 rounded-lg" style={{ background: "var(--ft-cream)", border: "1px solid var(--ft-border)" }}>
+        {["Jordan Whitaker", "Maria Delgado", "Sam Okafor"].map((n, i) => (
+          <div key={n} data-shot={"cust" + i} onContextMenu={(e) => { e.preventDefault(); setCust({ x: e.clientX, y: e.clientY, anchor: e.currentTarget }); }}
+            className={`w-full rounded-md flex items-center border ${i === 0 ? "bg-white border-slate-200" : "border-transparent hover:bg-slate-50"}`}>
+            <div className="py-2 pl-[13px] pr-1 text-[12.5px] font-semibold truncate">{n}</div>
+          </div>
+        ))}
+      </div>
+      <div className="flex-1 rounded-lg overflow-hidden" style={{ border: "1px solid var(--ft-border)" }}>
+        <div data-shot="band" onContextMenu={(e) => { e.preventDefault(); setArea({ x: e.clientX, y: e.clientY }); }} className="flex items-baseline gap-2.5" style={{ background: "var(--ft-area-head)", padding: "8px 14px" }}>
+          <span className="ft-serif" style={{ fontSize: 20, lineHeight: 1.1 }}>Kitchen</span>
+          <button data-shot="chip" onClick={(e) => setArea({ x: 0, y: 0, anchor: e.currentTarget })} className="rounded-md px-2 py-0.5 text-[10.5px] font-bold"
+            style={{ border: "1px dashed var(--ft-border-strong)", color: "var(--ft-muted)" }}>{opt ? "OPTION " + opt : "SHARED"}</button>
+        </div>
+        <div className="px-3 py-3 text-[12px] text-slate-400">(area rows)</div>
+      </div>
+      {cust && (
+        <PopMenu at={cust} width={196} onClose={() => setCust(null)} className="p-1">
+          <button className={item} onClick={() => setCust(null)}><UserRound size={13} className="text-slate-400" /> Customer details…</button>
+          <button className={item} onClick={() => setCust(null)}><Plus size={13} className="text-slate-400" /> New project</button>
+          <div className="border-t border-slate-100 my-1" />
+          <button className={`${item} text-red-600 hover:bg-red-50`} onClick={() => setCust(null)}><Trash2 size={13} /> Delete customer…</button>
+        </PopMenu>
+      )}
+      {area && (
+        <PopMenu at={area} width={212} onClose={() => setArea(null)} className="p-1" trail={<span className={inLabel + " pl-2.5"}>This area is in</span>}>
+          {!fromChip && <div className={inLabel + " px-2.5 pt-1.5 pb-0.5"}>This area is in</div>}
+          <button className={item} onClick={() => pick("")}><span className="w-2 h-2 rounded-sm" style={{ background: "var(--ft-faint)" }} />Shared — every option{!opt && <Check size={12} className="ml-auto" />}</button>
+          {["A", "B"].map((o) => <button key={o} className={item} onClick={() => pick(o)}><span className="w-2 h-2 rounded-sm" style={{ background: o === "A" ? "#57703A" : "#8a5a14" }} />Option {o}{opt === o && <Check size={12} className="ml-auto" />}</button>)}
+          <button className={item} onClick={() => pick("C")}><span className="w-2 h-2 rounded-sm" style={{ background: "#3b6a8a" }} />New option…</button>
+          <div className="border-t border-slate-100 my-1" />
+          <button className={item} onClick={() => setArea(null)}>Duplicate into Option A…</button>
+          <button className={item} onClick={() => setArea(null)}>Duplicate into new option…</button>
+          {opt && <button className={item} onClick={() => setArea(null)}>Rename Option {opt}…</button>}
+          {opt && <button className={item} onClick={() => setArea(null)}>Print this option…</button>}
+        </PopMenu>
+      )}
+    </div>
+  );
+}
+
 // Try the search boxes' open/close speed before one is locked into index.css.
 const SPEEDS = [["Quicker", 180, 150], ["Current", 240, 200], ["Softer", 320, 260]];
 function SpeedToggle() {
@@ -124,6 +180,8 @@ function Page() {
     <div className="min-h-screen p-6 space-y-6" style={{ background: "var(--ft-cream)", maxWidth: 1100 }}>
       <h1 className="ft-serif text-2xl">Grid dropdowns — the real components</h1>
       <Row />
+      <h2 className="text-base font-extrabold pt-4">Customer &amp; area menus</h2>
+      <ShellMenus />
       <h2 className="text-base font-extrabold pt-4">Search boxes</h2>
       <SpeedToggle />
       <Searches />
