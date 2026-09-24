@@ -638,7 +638,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   cat, caption = "",
   stockRows, bookStockReady, books, loadBookItems, mortars, mortarDefault,
   onAdd, onAddNew, editing = null, editRows = null, basket, onBasketChange, onMoveEntries, placed, onOpenPlaced, onDeleteKit,
-  onQuoteOptions, onClose, areaName, projectName, onConfigChange, embedded = false }) {
+  onQuoteOptions, onClose, areaName, projectName, onConfigChange, embedded = false, escActive = true }) {
   const init = useRef(null);
   if (!init.current) init.current = seedState(seed);
   const s0 = init.current;
@@ -791,7 +791,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     toastT.current = setTimeout(() => setToast(""), 2600);
   };
   useEffect(() => () => clearTimeout(toastT.current), []);
-  useEscClose(true, () => {
+  useEscClose(escActive, () => {
     if (payload) setPayload(null);
     else if (confirmPan) setConfirmPan(null);
     else if (benchMenu) setBenchMenu(null);

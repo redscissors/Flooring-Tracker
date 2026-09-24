@@ -97,7 +97,7 @@ function Harness() {
           )}
           {nav.lastApp && (
             <div className={nav.pane?.kind === "app" ? "flex-1 min-h-0 flex flex-col" : "hidden"}>
-              <AppsWorkspace app={nav.lastApp} onClose={() => dispatch({ type: "closePane" })}
+              <AppsWorkspace app={nav.lastApp} visible={nav.pane?.kind === "app"} onClose={() => dispatch({ type: "closePane" })}
                 resume={nav.pane?.kind === "app" && !!nav.pane.resume} onResume={() => dispatch({ type: "resolveResume" })} progressRef={progress}
                 stock={[]} labels={[]} presets={[]} onAddLabel={noop} onAddLabelsBulk={noop} onUpdateLabel={noop} onDeleteLabel={noop} onSavePreset={noop}
                 sheoga={{ markupDefault: 40, ventMarkupDefault: 50, ...bag }}

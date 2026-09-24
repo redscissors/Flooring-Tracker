@@ -103,7 +103,7 @@ function SkuLookup({ stock, onPick, onBulk, placeholder = "Search SKU or name to
   );
 }
 
-export function AppsWorkspace({ app, onClose, resume = false, onResume, progressRef, stock, labels, presets, onAddLabel, onAddLabelsBulk, onUpdateLabel, onDeleteLabel, onSavePreset, sheoga, wedi, schluter }) {
+export function AppsWorkspace({ app, visible = true, onClose, resume = false, onResume, progressRef, stock, labels, presets, onAddLabel, onAddLabelsBulk, onUpdateLabel, onDeleteLabel, onSavePreset, sheoga, wedi, schluter }) {
   // Configurators (Apps hub): builds stage locally — nothing touches a real
   // project until the salesperson picks a destination. A commit request parks
   // its lines in `pending` (with the configurator's own commit handlers as
@@ -478,6 +478,7 @@ export function AppsWorkspace({ app, onClose, resume = false, onResume, progress
                 onMove={(lines) => requestCommit("sheoga", sheoga, lines, null)}
                 onMoveEntries={(lines, nextBasket) => requestCommit("sheoga", sheoga, lines, nextBasket)}
                 onConfigChange={cfgSeen("sheoga")}
+                escActive={visible && shown("sheoga")}
                 onClose={() => { if (!pendingRef.current) onClose?.(); }}
               />
             </div>
@@ -499,6 +500,7 @@ export function AppsWorkspace({ app, onClose, resume = false, onResume, progress
                   onMoveEntries={(groups, nextBasket) => requestCommit("wedi", wedi, groups.flatMap((g) => stampKit(g.lines)), nextBasket)}
                   onAdd={(lines) => requestCommit("wedi", wedi, lines, null)}
                   onConfigChange={cfgSeen("wedi")}
+                  escActive={visible && shown("wedi")}
                   onClose={() => { if (!pendingRef.current) onClose?.(); }}
                 />
               </Suspense>
@@ -521,6 +523,7 @@ export function AppsWorkspace({ app, onClose, resume = false, onResume, progress
                   onMoveEntries={(groups, nextBasket) => requestCommit("schluter", schluter, groups.flatMap((g) => stampKit(g.lines)), nextBasket)}
                   onAdd={(lines) => requestCommit("schluter", schluter, lines, null)}
                   onConfigChange={cfgSeen("schluter")}
+                  escActive={visible && shown("schluter")}
                   onClose={() => { if (!pendingRef.current) onClose?.(); }}
                 />
               </Suspense>

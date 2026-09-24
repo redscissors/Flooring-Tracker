@@ -53,7 +53,7 @@ import { FlagForClaude, ClaudeMark, IssuesMark, CLAUDE_CLAY } from "./claudeflag
 import { LineMenu } from "./linemenu.jsx";
 import { LineWastePop, wasteTag, wasteTagTitle, takesWaste, POP_W } from "./linewaste.jsx";
 import { useLabels } from "./uselabels.js";
-import { railReducer, initialRail, layerOf } from "./railnav.js";
+import { railReducer, initialRail, layerOf, CONFIGURATOR_IDS } from "./railnav.js";
 import { RailSlide, DrawerList, APP_ITEMS, SETTINGS_ITEMS, PaneHeader } from "./raildrawer.jsx";
 import { useVersions } from "./useversions.js";
 import { useJobShowers } from "./usejobshowers.js";
@@ -1171,7 +1171,7 @@ export default function App({ user, onSignOut }) {
   useEscClose(namingVersion, () => setNamingVersion(false));
   useEscClose(showOrderCopy, () => setShowOrderCopy(false));
   useEscClose(showSamples, () => setShowSamples(false));
-  useEscClose(!!railNav.pane, () => railDispatch({ type: "closePane" }));
+  useEscClose(!!railNav.pane && !(railNav.pane.kind === "app" && CONFIGURATOR_IDS.includes(railNav.pane.id) && !railNav.pane.resume), () => railDispatch({ type: "closePane" }));
 
   const dl = (blob, name) => { const u = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = u; a.download = name; a.click(); URL.revokeObjectURL(u); };
   const exportBackup = async () => {
@@ -2645,6 +2645,7 @@ export default function App({ user, onSignOut }) {
               <Suspense fallback={null}>
               <AppsWorkspace
                 app={railNav.lastApp}
+                visible={railNav.pane?.kind === "app"}
                 onClose={() => railDispatch({ type: "closePane" })}
                 resume={railNav.pane?.kind === "app" && !!railNav.pane.resume}
                 onResume={() => railDispatch({ type: "resolveResume" })}

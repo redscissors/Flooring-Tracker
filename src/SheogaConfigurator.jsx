@@ -1289,7 +1289,7 @@ function BasketPanel({ basket, sel, onToggle, onRemove, onSelectAll, onMove, onM
 
 // --- the popup ----------------------------------------------------------------
 
-export default function SheogaConfigurator({ seed, initialSf, markupDefault, ventMarkupDefault, basket, onBasketChange, onMove, onMoveEntries, onAdd, onClose, areaName, embedded = false, onConfigChange, tier, onTierChange, placed, onOpenPlaced, onDeleteKit }) {
+export default function SheogaConfigurator({ seed, initialSf, markupDefault, ventMarkupDefault, basket, onBasketChange, onMove, onMoveEntries, onAdd, onClose, areaName, embedded = false, onConfigChange, tier, onTierChange, placed, onOpenPlaced, onDeleteKit, escActive = true }) {
   // A bundle marker (sheoga.bundle on the first width line, ADR 0035 step 2)
   // reopens the whole multi-width build, not the anchor's single width.
   const bseed = seed?.bundle;
@@ -1339,7 +1339,7 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
   const [gridPrice, setGridPrice] = useState("sell");
   const [stockOnly, setStockOnly] = useState(false);
   const [mobileGrid, setMobileGrid] = useState(false);
-  useEscClose(true, () => { if (mobileGrid) setMobileGrid(false); else if (grid) setGrid(false); else if (sheetUp) setSheetUp(false); else if (basketOpen) setBasketOpen(false); else onClose(); });
+  useEscClose(escActive, () => { if (mobileGrid) setMobileGrid(false); else if (grid) setGrid(false); else if (sheetUp) setSheetUp(false); else if (basketOpen) setBasketOpen(false); else onClose(); });
 
   const cfg = cfgs[mode];
   const set = (next) => setCfgs((c) => ({ ...c, [mode]: next }));

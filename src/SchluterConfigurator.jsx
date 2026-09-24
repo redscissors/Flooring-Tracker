@@ -456,7 +456,7 @@ export default function SchluterConfigurator({
   seed, tier, onTierChange, schluterBuilderPct, wediBuilderPct, onAdd, onAddNew, editing = null, editRows = null,
   basket, onBasketChange, onMoveEntries, placed, onOpenPlaced, onDeleteKit,
   onClose, areaName, projectName,
-  onConfigChange, onQuoteOptions, embedded = false,
+  onConfigChange, onQuoteOptions, embedded = false, escActive = true,
   stockRows, bookStockReady, books, loadBookItems, mortars, mortarDefault,
 }) {
   const init = useRef(null);
@@ -584,7 +584,7 @@ export default function SchluterConfigurator({
     }
   };
 
-  useEscClose(true, () => {
+  useEscClose(escActive, () => {
     if (payload) setPayload(null);
     else if (confirmKit) setConfirmKit(null);
     else if (swap) setSwap(null);
