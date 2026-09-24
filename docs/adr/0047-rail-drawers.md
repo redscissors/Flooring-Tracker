@@ -44,3 +44,9 @@ Sheoga's grid); a start-menu pop-out (switching apps costs two clicks).
   screen (`escActive`, default true for the row-opened pop-ups); while one
   shows, its own Escape chain — inner menus first, then close — replaces the
   pane's, so the project → customer → home Escape ladder is untouched.
+- Sheoga's docked price grid now needs the pane to hold it beside the 205px
+  rail, so it docks from about 1790px instead of the ~1626px the old hub
+  reached by folding its own app list (owner decision 2026-09-04). The owner
+  accepted this trade-off (2026-09-24) over folding the main rail on Sheoga,
+  which would fight the tray staying open; revisit if the grid is missed on
+  1680–1728px screens.
