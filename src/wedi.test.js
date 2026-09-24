@@ -8,7 +8,7 @@ import { rowItemKey, sessionFromRows,
   queryHit, parseQuery, querySummary, seedFromQuery,
   normBench, benchFootprint, benchLines, benchPanRoom, benchPanPlan, smallerPanFor, benchPremades,
   BENCH_H, BENCH_DEPTH, BENCH_CORNER_LEG,
-  curbWidth, curbInsets, applyCurbInset, CURB_LAP, benchWallShadowSf,
+  curbWidth, curbInsets, applyCurbInset,
   setStockSource, clearStockSource, stockSourceIsBook,
 } from "./wedi.js";
 

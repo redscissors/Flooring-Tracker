@@ -8,7 +8,7 @@
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
-import { ChevronDown, ChevronRight, Eye, FileText, Pencil, Percent, Plus, RotateCcw, Trash2, Truck, Upload } from "lucide-react";
+import { ChevronDown, ChevronRight, FileText, Pencil, Percent, Plus, RotateCcw, Truck, Upload } from "lucide-react";
 
 // --- the mock book (matches the owner's screenshot) ---------------------------
 const B = {

@@ -12,7 +12,6 @@ import { queryHit as schluterQueryHit, parseQuery as schluterParseQuery, querySu
 import { useAnchoredPanel, vPos, useEscClose } from "./widgets.jsx";
 import { Hit, searchPanelBox, hitKey, matchSummary, useMergedResults, NearMatchNote, SearchingBar } from "./search.jsx";
 import { MARKUP_PRESETS, unitMargin, editCost, editMarkup, editPrice } from "./costentry.js";
-import { BUNDLE_UNITS, COUNT_UNITS } from "./units.js";
 
 // Product flooring-type picker: a colour-coded pill that opens a swatch menu of
 // all types. Each type keeps its editorial accent (TYPE_ACCENT) here and on the
