@@ -194,12 +194,13 @@ export function GridPriceCell({ p, tier, tierPrice, noCost, onPatch, title, tabI
   if (!tiered) return (<>
     <input ref={anchorRef} type="number" tabIndex={tabIndex} value={p.priceSqft} onChange={(e) => onPatch(editPrice(p, e.target.value))}
       onFocus={open} onClick={open} onKeyDown={keys} data-c="price" className="ft-cell ft-search text-right" placeholder="0.00" title={hint}
-      style={costed ? { boxShadow: "inset 2px 0 0 var(--ft-brand)" } : undefined} />
+      style={{ alignSelf: "stretch", ...(costed ? { boxShadow: "inset 2px 0 0 var(--ft-brand)" } : null) }} />
     {popup}
   </>);
   const color = TIER_COLOR[tier]?.main || "var(--ft-brand-deep)";
   return (
-    <div ref={stackRef} className="flex flex-col min-w-0 flex-1 self-stretch justify-center" style={{ gap: 1, padding: "2px 0" }}>
+    <div ref={stackRef} className="flex flex-col min-w-0 flex-1 self-stretch justify-center cursor-pointer" style={{ gap: 1, padding: "2px 0" }}
+      onMouseDown={(e) => { if (e.target === anchorRef.current) return; e.preventDefault(); anchorRef.current?.focus(); open(); }}>
       {noCost ? (
         <div className="text-right font-bold" style={{ fontSize: 10.5, padding: "3px 4px 0", color: "#dc2626" }} title="No vendor cost on this line — Employee can't compute cost + 6%, so it stays at the retail price below. Click the retail field to enter one.">Retail</div>
       ) : (
