@@ -11,7 +11,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Plus, Eye, Printer, Copy } from "lucide-react";
-import { useEscClose, SourceSwitch, NumIn, KitBasketPanel, KitOverwriteConfirm, HelpTip, PriceLevelMenu, BasketButton, FLAT_BTN } from "./widgets.jsx";
+import { useEscClose, SourceSwitch, NumIn, KitBasketPanel, KitOverwriteConfirm, HelpTip, PriceLevelMenu, BasketButton, FLAT_BTN, MorphSelect } from "./widgets.jsx";
 import { PaneBack, PaneClose } from "./raildrawer.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
@@ -94,7 +94,7 @@ const CSS = `
 .sch-pop{--s-rust:#B4552D;--s-paper:#FBFAF5;--s-stock:color-mix(in oklab, var(--ft-brand) 11%, var(--ft-card));
   color:var(--ft-text);font-family:var(--ft-ui);line-height:normal}
 .sch-pop button{font-family:inherit}
-.sch-pop input,.sch-pop select{font-family:inherit}
+.sch-pop input{font-family:inherit}
 .sch-pop .pop-head{display:flex;align-items:center;gap:14px;padding:8px 14px 0;background:var(--ft-cream)}
 .sch-pop .xbtn{width:30px;height:30px;border-radius:6px;border:1px solid var(--ft-border);background:var(--ft-card);color:var(--ft-muted);font-size:15px;font-weight:700;cursor:pointer;flex:none;display:flex;align-items:center;justify-content:center}
 .sch-pop .modetabs{display:flex;gap:2px;padding:10px 16px 0;border-bottom:1px solid var(--ft-border-strong);background:var(--ft-cream)}
@@ -178,7 +178,6 @@ const CSS = `
 .sch-pop .stockdot{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;font-weight:700;color:var(--ft-brand-deep);background:var(--ft-brand-soft);border-radius:4px;padding:1px 6px}
 .sch-pop .stockdot.so{color:var(--s-rust);background:var(--ft-hover-red,#F7E8E1)}
 .sch-pop .mortarcard{background:var(--ft-tint);border:1px solid var(--ft-border);border-radius:9px;padding:9px 12px;margin-bottom:10px;font-size:11.5px;color:var(--ft-muted);font-weight:600;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
-.sch-pop .mortarcard select{border:1px solid var(--ft-border-strong);border-radius:6px;background:var(--ft-card);color:var(--ft-text);font-size:11.5px;font-weight:700;padding:3px 6px}
 .sch-pop .browsebar{display:flex;gap:8px;margin-bottom:10px}
 .sch-pop .inp{border:1px solid var(--ft-border-strong);border-radius:7px;background:var(--ft-card);color:var(--ft-text);font-size:13.5px;font-weight:700;padding:7px 9px}
 .sch-pop .browsebar .inp{flex:1;width:auto}
@@ -271,7 +270,7 @@ const CSS = `
 .sch-pop .ptable .mono{font-weight:700;white-space:nowrap}
 .sch-pop .ptable .mark{font-size:9.5px;font-weight:700;color:var(--ft-brand-deep);background:var(--ft-brand-soft);border-radius:4px;padding:1px 6px;white-space:nowrap}
 .sch-pop .ptable .mark.part{color:var(--ft-faint);background:var(--ft-sand)}
-.sch-swap{position:fixed;z-index:90;background:var(--ft-card);color:var(--ft-text);border:1px solid var(--ft-border-strong);border-radius:9px;box-shadow:0 18px 50px rgba(0,0,0,.3);width:300px;max-height:340px;overflow-y:auto;padding:6px;font-family:var(--ft-ui)}
+.sch-swap{position:fixed;z-index:90;background:var(--ft-card);color:var(--ft-text);border:1.5px solid var(--ft-text);border-radius:.5rem;box-shadow:0 12px 28px -12px rgba(28,26,23,.45);animation:ft-pop-down 240ms cubic-bezier(.2,.8,.2,1);width:300px;max-height:340px;overflow-y:auto;padding:6px;font-family:var(--ft-ui)}
 .sch-swap .ph{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.11em;color:var(--ft-muted);padding:6px 8px 4px}
 .sch-swap .srow{display:flex;align-items:center;gap:8px;width:100%;border:none;background:none;padding:6px 8px;border-radius:6px;cursor:pointer;text-align:left}
 .sch-swap .srow:hover{background:var(--ft-tint)}
@@ -1175,10 +1174,8 @@ export default function SchluterConfigurator({
   const mortarCard = pickCand && pickCand.kind === "mortar" && (
     <div className="mortarcard">
       <span>Mortar bed product (Settings → Materials):</span>
-      <select value={mortarName || mortarDefault || ""} onChange={(e) => setMortarName(e.target.value)} data-schluter-mortar>
-        {!mortarNames.length && <option value="">— none set up —</option>}
-        {mortarNames.map((n) => <option key={n} value={n}>{n}</option>)}
-      </select>
+      <span data-schluter-mortar><MorphSelect size="sm" bold placeholder="— none set up —" value={mortarName || mortarDefault || ""}
+        onChange={setMortarName} options={mortarNames.map((n) => ({ v: n, label: n }))} /></span>
       <span>bed figured at ≈{MORTAR_BED_SF_PER_BAG} sf/bag @ 1-1/2″ — KERDI goes over the cured bed</span>
     </div>
   );
