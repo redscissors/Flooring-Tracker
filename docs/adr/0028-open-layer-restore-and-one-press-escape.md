@@ -44,6 +44,13 @@ popups autofocus their inputs.
    layer (`onConfigChange`), so a refresh reopens it mid-configuration, not on
    its opening seed. Manual opens are unchanged (Settings still opens on its
    default section); only the refresh path reads the key.
+
+   *Amended 2026-09-24 ([ADR 0047](0047-rail-drawers.md)):* Settings and
+   Apps now open from rail drawers into the work area; the gear opens the
+   section list and waits — there is no default section. The stored layer is
+   `{ kind: "apps", app }` / `{ kind: "settings", section }` or the bare open
+   drawer; the older `{ kind: "apps" }` still restores (the tray, nothing
+   picked).
 4. **Restore is best-effort and self-clearing.** The layer restores once,
    after boot and after the `ft-last-open` spot restore; the Sheoga layer
    waits for the restored project's full record and is dropped silently if

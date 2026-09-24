@@ -1,6 +1,6 @@
 # Rail drawers — Apps rise from the bar, Settings drops from the logo — design
 
-**Date:** 2026-09-24 · **Status:** approved design, not yet implemented
+**Date:** 2026-09-24 · **Status:** implemented
 
 Prototype the owner signed off on (v4):
 https://claude.ai/artifact/TmLaLgXEmZpntm5CsiR9j4
@@ -141,14 +141,15 @@ The whole navigation state as a small reducer plus helpers, no React:
 
 - State: `{ drawer: null | "apps" | "settings", pane: null | { kind: "app",
   id } | { kind: "settings", id } }`.
-- Actions: `toggleDrawer(which)` (exclusive), `pick(kind, id)`,
-  `shortcut(appId)` (opens the pane and the Apps tray), `closePane()`,
-  `openRecord()` (closes the pane, keeps the drawer).
-- Per-configurator "break" flags: set for every configurator when the Apps
-  tray closes (button or Settings opening) or the open project id changes;
-  cleared when that configurator is shown. `needsResume({ to, inProgress,
-  broke })` — true only when `to` is a configurator, it is in progress, and its
-  break flag is set.
+- Actions: `toggleDrawer(which)` (exclusive), `pick(kind, id, inProgress)` (a
+  pick of an app also opens the Apps tray — this is what the wedi/Sheoga
+  shortcuts use; picking the pane already showing only reopens its drawer and
+  never asks), `resolveResume`, `closePane` (also used when a record is
+  re-picked), `projectChanged`, `restore(layer)`.
+- Break flags: set for every configurator when the Apps tray closes (its
+  button, or opening Settings) or on `projectChanged`; consumed by the next
+  pick of that configurator, which asks to resume only if the flag was set
+  and `inProgress` is true.
 - `layerOf(state)` / `stateFromLayer(stored)` — the `ft-open-layer` mapping,
   including the old entry shapes above. Unknown or stale entries yield the
   empty state.
@@ -172,7 +173,7 @@ The whole navigation state as a small reducer plus helpers, no React:
   `railnav` state (`useReducer`).
 - The rail mounts `SettingsDrawer` directly under the logo block and
   `AppsTray` directly above the bottom bar; the gear and grid buttons dispatch
-  `toggleDrawer`; the wedi / Sheoga shortcuts dispatch `shortcut`.
+  `toggleDrawer`; the wedi / Sheoga shortcuts dispatch `pick`.
 - `<main>` renders the pane layer (`absolute inset-0` over the project, which
   stays mounted with `hidden`). `AppsWorkspace` mounts on the first app pick
   and stays mounted (hidden) until sign-out; `SettingsWorkspace` mounts while a
@@ -192,8 +193,9 @@ The whole navigation state as a small reducer plus helpers, no React:
   seen since mount via the configurators' existing `onConfigChange`); renders
   the resume prompt when `App.jsx` asks for it; Start new clears that basket
   and bumps that configurator's `key`.
-- The Sheoga docked-grid breakpoint (`hubQuery`) is recomputed for the 205px
-  app rail (`RAIL_W`) instead of the hub's 224px list.
+- `hubQuery` / `wideHub` are removed: the Sheoga docked grid already measures
+  its own frame (`useDockGrid`'s `ResizeObserver`), so the pane's width is
+  accounted for automatically.
 - The commit-destination prompt ("Add to which project?") is unchanged.
 
 ### Changed: `src/SettingsWorkspace.jsx`
