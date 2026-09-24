@@ -11,6 +11,7 @@ import { parsePdfPages } from "./pdfbook.js";
 import { isManningtonCartons, parseManningtonPages } from "./manningtonbook.js";
 import { isTrueTouch, parseTrueTouchPages } from "./truetouchbook.js";
 import { isInterfacePriceList, parseInterfacePages } from "./interfacebook.js";
+import { isSomersetPriceList, parseSomersetPages } from "./somersetbook.js";
 import { parseOvf } from "./ovfbook.js";
 import { parseEmser } from "./emserbook.js";
 import { parseMirage } from "./miragebook.js";
@@ -1858,13 +1859,14 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
       // account list leads each row with Pattern, not the item code, so its fixed
       // grid gets a dedicated parser (ADR 0012), and OVF's TrueTouch list keeps
       // its prices in a per-collection band with color-name-led rows, so it gets
-      // one too (truetouchbook.js); every other text PDF stays on
+      // one too (truetouchbook.js), as does Somerset's merged-price-cell matrix
+      // (somersetbook.js); every other text PDF stays on
       // parsePdfPages. Everything downstream — sheet picker, mapping controls,
       // diff preview — is unchanged.
       if (isPdf || prePages) {
         const pages = prePages || (await readPdfPages(file));
         setFmt(fileFormat({ pages, isPdf: true }));
-        const parsePdf = isManningtonCartons(pages) ? parseManningtonPages : isTrueTouch(pages) ? parseTrueTouchPages : isInterfacePriceList(pages) ? parseInterfacePages : parsePdfPages;
+        const parsePdf = isManningtonCartons(pages) ? parseManningtonPages : isTrueTouch(pages) ? parseTrueTouchPages : isInterfacePriceList(pages) ? parseInterfacePages : isSomersetPriceList(pages) ? parseSomersetPages : parsePdfPages;
         const { name, rows, mapping, warnings } = parsePdf(pages, (file?.name || book.name || "book").replace(/\.pdf$/i, ""));
         // Parser-level warnings (Interface's per-square-yard conversion, a
         // Mannington page that recognized nothing) merge into the wizard's
