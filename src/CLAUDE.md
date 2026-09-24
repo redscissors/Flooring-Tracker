@@ -179,6 +179,10 @@ src/
                     # mounts field-sized and grows like MorphSelect, and on
                     # unmount an inert DOM clone plays the fold (foldAway).
                     # Speeds: --ft-spop-in / --ft-spop-out (index.css).
+                    # The anchor may be a plain button or cell (type chip,
+                    # order cell, ⋯ cell): `lead`/`trail` fill its row, the
+                    # outline fades in. `PointPop` — `.ft-pop` at a point
+                    # (right-click menus) that folds away on unmount.
                     # Row order: Stock only · Clear design | price · basket · X.
                     # `KitOverwriteConfirm` (2026-09-02, ADR 0035 amendment) —
                     # the kit-card confirm both popups raise over customized

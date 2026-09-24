@@ -936,6 +936,7 @@ export default function App({ user, onSignOut }) {
   const dotsPointer = (e, aid, p, pi) => {
     if (e.button != null && e.button !== 0) return;
     const node = e.currentTarget.closest("[data-prod-card]");
+    const cell = e.currentTarget.parentElement;
     const at = { x: e.clientX, y: e.clientY };
     let moved = false;
     const onMove = (ev) => { if (Math.hypot(ev.clientX - at.x, ev.clientY - at.y) > 6) moved = true; };
@@ -945,7 +946,7 @@ export default function App({ user, onSignOut }) {
       window.removeEventListener("pointercancel", onUp);
       // Registered before startDrag's own pointerup, so an armed drag still
       // carries data-dragging here — that release is a drop, not a click.
-      if (!moved && !node?.dataset.dragging) setLineMenu({ x: at.x, y: at.y, aid, pid: p.id, pi });
+      if (!moved && !node?.dataset.dragging) setLineMenu({ x: at.x, y: at.y, anchor: cell, aid, pid: p.id, pi });
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
@@ -2138,7 +2139,7 @@ export default function App({ user, onSignOut }) {
                                       <span className="flex flex-col items-end min-w-0" style={{ lineHeight: 1.1 }}>
                                         <span className="flex items-center" style={{ gap: 3 }}>{qtyIn}{unit}</span>
                                         <button tabIndex={-1} data-waste-tag={p.id} title={wasteTagTitle(p, wSet, C)}
-                                          onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setWastePop({ aid: a.id, pid: p.id, x: r.right - POP_W, y: r.bottom + 4 }); }}
+                                          onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setWastePop({ aid: a.id, pid: p.id, x: r.right - POP_W, y: r.bottom + 4, anchor: e.currentTarget.parentElement.closest("div") }); }}
                                           className="hover:underline" style={{ fontSize: 8.5, lineHeight: 1.1, paddingRight: 1, fontWeight: wt.own ? 800 : 600, color: wt.own ? "var(--ft-brand-deep)" : "var(--ft-faint)" }}>{wt.text}</button>
                                       </span>
                                     );

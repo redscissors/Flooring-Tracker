@@ -1,10 +1,9 @@
-import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useRef, useState } from "react";
 import { num, lineWastePct, ownWaste, wastePatch, getCarton } from "./catalog.js";
 import { sf1 } from "./model.js";
-import { useEscClose } from "./widgets.jsx";
+import { useEscClose, useAnchoredPanel, useDismissOutside, SearchPop, PointPop } from "./widgets.jsx";
 
-export const POP_W = 236;
+export const POP_W = 208;
 
 export const takesWaste = (p) => p.type !== "misc" && p.type !== "underlayment" && p.qtyType === "sqft";
 const famLabel = (p) => (p.type === "tile" ? "tile" : "flooring");
@@ -73,31 +72,53 @@ export function LineWasteControl({ p, s, dflt, onPatch, onDone }) {
       </div>
       <div className="mt-1.5 pt-1.5 px-2 text-[10.5px] leading-snug" style={{ borderTop: "1px solid var(--ft-row-line)", color: "var(--ft-faint)" }}>
         {C
-          ? `${sf1(sqft)} sf measured → ${sf1(sqft * (1 + pct / 100))} sf with waste · ${C.order} ${C.unit}${hand ? " (count set by hand)" : ""}`
+          ? `${sf1(sqft)} → ${sf1(sqft * (1 + pct / 100))} sf with waste · ${C.order} ${C.unit}${hand ? " (set by hand)" : ""}`
           : "No carton size on this line — it bills the measured sq ft; waste applies to its grout, mortar and add-ons."}
       </div>
     </div>
   );
 }
 
-// Anchored at a point (the tag's corner or the line menu's), clamped to the
-// viewport like the line menu; outside press, Esc or Enter closes it.
-export function LineWastePop({ pop, p, s, dflt, onPatch, onClose }) {
-  const ref = useRef(null);
-  useEscClose(!!pop, onClose);
-  useEffect(() => {
-    if (!pop) return;
-    const down = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
-    window.addEventListener("pointerdown", down, true);
-    return () => window.removeEventListener("pointerdown", down, true);
-  }, [pop, onClose]);
-  if (!pop || !p) return null;
-  const left = Math.max(8, Math.min(pop.x, window.innerWidth - POP_W - 8));
-  const top = Math.max(8, Math.min(pop.y, window.innerHeight - 190));
-  return createPortal(
-    <div ref={ref} data-line-waste-pop style={{ left, top, width: POP_W }} className="ft-pop fixed z-50 p-2">
-      <div className="px-2 pb-1.5 uppercase" style={{ fontSize: 8.5, fontWeight: 700, letterSpacing: ".14em", color: "var(--ft-muted)" }}>Waste — this line</div>
-      <LineWasteControl key={p.id} p={p} s={s} dflt={dflt} onPatch={onPatch} onDone={onClose} />
-    </div>, document.body);
+// From the waste tag it grows out of the line's order cell (pop.anchor) with
+// its label beside that cell (ADR 0048); from the line menu it opens at the
+// menu's point. Outside press, Esc or Enter closes it.
+export function LineWastePop({ pop, ...props }) {
+  if (!pop || !props.p) return null;
+  return pop.anchor?.isConnected
+    ? <GrownWaste key={"g" + props.p.id} pop={pop} {...props} />
+    : <PointWaste key={`p${pop.x},${pop.y}`} pop={pop} {...props} />;
 }
 
+const LABEL = { fontSize: 8.5, fontWeight: 700, letterSpacing: ".14em", color: "var(--ft-muted)" };
+
+function GrownWaste({ pop, p, s, dflt, onPatch, onClose }) {
+  const anchorRef = useRef(pop.anchor);
+  const panelRef = useRef(null);
+  const pos = useAnchoredPanel(true, anchorRef, panelRef, onClose);
+  useEscClose(true, onClose);
+  if (!pos) return null;
+  const W = Math.max(POP_W, pos.width + 90);
+  const left = Math.max(8, Math.min(pos.left + pos.width - W, window.innerWidth - W - 8));
+  return (
+    <SearchPop pos={pos} box={{ left, width: W }} fieldRef={anchorRef} panelRef={panelRef} className="p-1.5"
+      lead={<span className="pl-2.5 uppercase" style={LABEL}>Waste</span>}>
+      <div data-line-waste-pop><LineWasteControl key={p.id} p={p} s={s} dflt={dflt} onPatch={onPatch} onDone={onClose} /></div>
+    </SearchPop>
+  );
+}
+
+function PointWaste({ pop, p, s, dflt, onPatch, onClose }) {
+  const ref = useRef(null);
+  useEscClose(true, onClose);
+  useDismissOutside(true, ref, ref, onClose);
+  const left = Math.max(8, Math.min(pop.x, window.innerWidth - POP_W - 8));
+  const top = Math.max(8, Math.min(pop.y, window.innerHeight - 190));
+  return (
+    <PointPop popRef={ref} className="p-2" style={{ left, top, width: POP_W }}>
+      <div data-line-waste-pop>
+        <div className="px-2 pb-1.5 uppercase" style={LABEL}>Waste — this line</div>
+        <LineWasteControl key={p.id} p={p} s={s} dflt={dflt} onPatch={onPatch} onDone={onClose} />
+      </div>
+    </PointPop>
+  );
+}

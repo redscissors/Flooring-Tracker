@@ -51,6 +51,12 @@ phone's own full-screen chooser.
    presets sit two by two below, so the box is the cell plus ~78px, not a
    268px card. No margin line, close button or key hints; Tab goes cost →
    price → out, Enter closes. Mockup: `.scratch/mockups/price-pop-grow-2026-09-24.html`.
+   *Amendment (owner 2026-09-24):* the grid's type picker, waste popup and
+   ⋯ line menu grow out of what opened them the same way: the type chip
+   (its name beside it), the order cell (a "Waste" label beside it) and the
+   row-end ⋯ cell (the line's name beside it). Panels with nothing to grow
+   from, such as the right-click line menu or waste opened from that menu,
+   stay at the pointer and fold away on close (`PointPop`).
 
 ## Consequences
 

@@ -145,6 +145,7 @@ const MORPH_EASE = "cubic-bezier(.2,.8,.2,1)";
 const POP_SHADOW = "0 12px 28px -12px rgba(28,26,23,.45)";
 const calmMotion = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 const searchInput = (el) => el && (el.matches("input, textarea") ? el : el.querySelector("input, textarea"));
+const anchorTarget = (el) => searchInput(el) || el;
 const foldingPops = new WeakMap();
 
 // A search field's results in the price menu's open look (ADR 0048). The field
@@ -152,15 +153,20 @@ const foldingPops = new WeakMap();
 // MorphSelect: it mounts exactly over the field, then widens and grows its
 // results below (above when it flips up). The field row is see-through and
 // passes clicks, so the caret stays in the real field underneath. `box` is the
-// results' { left, width } when wider than the field; `lead` fills the box's
-// field row left of the field (the price popup's cost input).
-export function SearchPop({ pos, box, fieldRef, panelRef, lead, bg = "var(--ft-card)", className = "", style, children }) {
+// results' { left, width } when wider than the field; `lead` / `trail` fill
+// the box's field row left / right of the field (the price popup's cost
+// input, the line menu's title). The anchor can also be a plain button (type
+// chip, ⋯): its box outline then fades in rather than taking over a focus line.
+export function SearchPop({ pos, box, fieldRef, panelRef, lead, trail, bg = "var(--ft-card)", className = "", style, children }) {
   const rootRef = useRef(null);
   const [shown, setShown] = useState(false);
   const [B, setB] = useState(1.5);
-  const [radius] = useState(() => { const f = searchInput(fieldRef?.current); return f ? getComputedStyle(f).borderTopLeftRadius : "8px"; });
+  const [{ radius, inked }] = useState(() => {
+    const f = anchorTarget(fieldRef?.current);
+    return { radius: Math.max(4, f ? parseFloat(getComputedStyle(f).borderTopLeftRadius) || 0 : 8), inked: !!f?.matches(".ft-search") };
+  });
   useLayoutEffect(() => {
-    const field = searchInput(fieldRef?.current);
+    const field = anchorTarget(fieldRef?.current);
     foldingPops.get(field)?.remove();
     // The box's border now draws the field's line; the field's own rounded
     // outline would otherwise show its corners inside a box wider than it.
@@ -190,7 +196,9 @@ export function SearchPop({ pos, box, fieldRef, panelRef, lead, bg = "var(--ft-c
         {lead && <div className="shrink-0 flex items-center" style={{ width: Math.max(0, pos.left - left), pointerEvents: "auto" }}>{lead}</div>}
       </div>
       <div className="shrink-0" style={{ width: Math.max(0, pos.width - 2 * B) }} />
-      <div className="flex-1" style={{ background: bg }} />
+      <div className="flex-1 overflow-hidden" style={{ background: bg }}>
+        {trail && <div className="h-full flex items-center whitespace-nowrap" style={{ width: Math.max(0, left + width - pos.left - pos.width), pointerEvents: "auto" }}>{trail}</div>}
+      </div>
     </div>
   );
   const rule = <div className="shrink-0 border-t border-slate-300 mx-2" />;
@@ -206,8 +214,8 @@ export function SearchPop({ pos, box, fieldRef, panelRef, lead, bg = "var(--ft-c
     <div ref={(el) => { rootRef.current = el; if (panelRef) panelRef.current = el; }} className="flex flex-col" data-up={up ? "true" : undefined} data-l0={pos.left} data-w0={pos.width}
       style={{ position: "fixed", zIndex: 50, left: shown ? left : pos.left, width: shown ? width : pos.width,
         ...(up ? { bottom: window.innerHeight - pos.fb } : { top: pos.ft }),
-        border: `${B}px solid var(--ft-text)`, borderRadius: radius, overflow: "hidden", pointerEvents: "none",
-        boxShadow: shown ? POP_SHADOW : "none", transition: [ease("left"), ease("width"), ease("box-shadow")].join(", ") }}>
+        border: `${B}px solid ${shown || inked ? "var(--ft-text)" : "transparent"}`, borderRadius: radius, overflow: "hidden", pointerEvents: "none",
+        boxShadow: shown ? POP_SHADOW : "none", transition: [ease("left"), ease("width"), ease("box-shadow"), ease("border-color")].join(", ") }}>
       {up ? <>{grow}{head}</> : <>{head}{grow}</>}
     </div>, document.body);
 }
@@ -227,7 +235,7 @@ function foldAway(root, field) {
   const ms = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--ft-spop-out")) || 200;
   requestAnimationFrame(() => {
     const ease = (prop) => `${prop} ${ms}ms cubic-bezier(.4,0,.2,1)`;
-    const keep = field?.isConnected && document.activeElement === field;
+    const keep = field?.isConnected && field.matches(".ft-search") && document.activeElement === field;
     Object.assign(ghost.style, {
       transition: ["left", "width", "box-shadow", "border-color"].map(ease).join(", "),
       left: ghost.dataset.l0 + "px", width: ghost.dataset.w0 + "px", boxShadow: "none",
@@ -242,6 +250,34 @@ function foldAway(root, field) {
     ghost.remove();
     if (field && foldingPops.get(field) === ghost) foldingPops.delete(field);
   }, ms + 60);
+}
+
+// A floating panel with no button to grow from (right-click menus): `.ft-pop`
+// at fixed coordinates, and on unmount an inert clone folds it up and fades
+// it rather than dropping it in one frame.
+export function PointPop({ popRef, className = "", style, children }) {
+  const ref = useRef(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    return () => fadeAway(el);
+  }, []);
+  return createPortal(
+    <div ref={(el) => { ref.current = el; if (popRef) popRef.current = el; }} style={style} className={"ft-pop fixed z-50 " + className}>{children}</div>,
+    document.body);
+}
+
+function fadeAway(el) {
+  if (!el || calmMotion()) return;
+  const ghost = el.cloneNode(true);
+  Object.assign(ghost.style, { pointerEvents: "none", animation: "none", clipPath: "inset(0 0 0 0 round .5rem)" });
+  document.body.appendChild(ghost);
+  ghost.scrollTop = el.scrollTop;
+  const ms = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--ft-spop-out")) || 200;
+  requestAnimationFrame(() => Object.assign(ghost.style, {
+    transition: `clip-path ${ms}ms cubic-bezier(.4,0,.2,1), opacity ${ms}ms cubic-bezier(.4,0,.2,1)`,
+    clipPath: ghost.dataset.up ? "inset(100% 0 0 0 round .5rem)" : "inset(0 0 100% 0 round .5rem)", opacity: "0",
+  }));
+  setTimeout(() => ghost.remove(), ms + 60);
 }
 
 // A right-anchored ⋯ action menu on the same portal + fixed-coordinates rig as

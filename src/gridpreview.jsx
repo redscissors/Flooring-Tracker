@@ -30,13 +30,21 @@ function Row() {
   const [waste, setWaste] = useState(null);
   return (
     <div className="rounded-lg overflow-hidden" style={{ border: "1px solid var(--ft-border)" }}>
-      <div className="flex items-center gap-3 px-3 py-2 text-[12px] font-semibold" style={{ background: ROW_WASH }}>
-        <span data-shot="type"><TypeSelect type={p.type} onChange={(type) => patch({ type })} /></span>
+      <div data-shot="row" onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY }); }} className="flex items-center gap-3 px-3 py-2 text-[12px] font-semibold" style={{ background: ROW_WASH }}>
+        <span data-shot="type" className="self-stretch flex"><TypeSelect compact type={p.type} onChange={(type) => patch({ type })} /></span>
         <span className="flex-1 font-bold">{p.brandColor}</span>
         <span className="ft-mono">{p.cartonSf} SF/<span data-shot="unit" className="inline-flex"><UnitPick value={p.cartonUnit} options={BUNDLE_UNITS} onChange={(cartonUnit) => patch({ cartonUnit })} title="What the coverage counts in" size={11} /></span></span>
         <span data-shot="price" className="w-24 flex self-stretch items-center"><GridPriceCell p={p} tier="retail" onPatch={patch} title="Price per sq ft" /></span>
         <span data-shot="price-tier" className="w-24 flex self-stretch items-center"><GridPriceCell p={p} tier="builder" tierPrice={Math.round(parseFloat(p.priceSqft || 0) * 90) / 100} onPatch={patch} title="Price per sq ft" /></span>
-        <button data-shot="menu" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu({ x: r.left - 200, y: r.bottom }); }} className="w-7 h-7 rounded-md flex items-center justify-center text-slate-500 hover:bg-[color:var(--ft-hover)]"><MoreHorizontal size={16} /></button>
+        <span data-shot="order" className="self-stretch flex items-center justify-end" style={{ width: 64, borderLeft: "1px solid var(--ft-row-line)" }}>
+          <span className="flex flex-col items-end" style={{ lineHeight: 1.1 }}>
+            <span className="ft-mono">16 <span style={{ fontSize: 9.5 }}>CT</span></span>
+            <button data-shot="waste-tag" onClick={(e) => setWaste({ x: 0, y: 0, anchor: e.currentTarget.parentElement.closest("span[data-shot]") })} className="hover:underline" style={{ fontSize: 8.5, fontWeight: 600, color: "var(--ft-faint)" }}>+{p.waste === "" ? 10 : p.waste}%</button>
+          </span>
+        </span>
+        <span className="self-stretch flex items-center justify-center" style={{ width: 44, borderLeft: "1px solid var(--ft-row-line)" }}>
+          <button data-shot="menu" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu({ x: r.left - 200, y: r.bottom, anchor: e.currentTarget.parentElement }); }} className="p-0.5 rounded text-slate-400 hover:text-slate-600"><MoreHorizontal size={13} /></button>
+        </span>
       </div>
       <div className="px-3 py-2 flex flex-wrap items-center gap-2 text-sm" style={{ background: ROW_WASH, borderTop: "1px solid var(--ft-border)" }}>
         <span className="font-medium">Grout</span>

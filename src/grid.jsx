@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect, useLayoutEffect } from "react";
-import { createPortal } from "react-dom";
 import { Plus, ChevronDown, Check, Settings } from "lucide-react";
 import { TYPES, TLBL, TYPE_ACCENT, THICK, TIER_COLOR, TIER_LONG } from "./uiconst.js";
 import { money } from "./model.js";
@@ -9,13 +8,14 @@ import { queryHit as sheogaQueryHit, parseQuery as sheogaParseQuery, querySummar
 import { queryHit as wediQueryHit, parseQuery as wediParseQuery, querySummary as wediQuerySummary } from "./wediquery.js";
 // schluterquery.js, never schluter.js — same boot contract (ADR 0026).
 import { queryHit as schluterQueryHit, parseQuery as schluterParseQuery, querySummary as schluterQuerySummary } from "./schluterquery.js";
-import { useAnchoredPanel, vPos, useEscClose, MorphSelect, SearchPop } from "./widgets.jsx";
+import { useAnchoredPanel, useEscClose, MorphSelect, SearchPop } from "./widgets.jsx";
 import { Hit, searchPanelBox, hitKey, matchSummary, useMergedResults, NearMatchNote, SearchingBar } from "./search.jsx";
 import { MARKUP_PRESETS, editCost, editMarkup, editPrice } from "./costentry.js";
 
 // Product flooring-type picker: a colour-coded pill that opens a swatch menu of
 // all types. Each type keeps its editorial accent (TYPE_ACCENT) here and on the
 // card's left border.
+const TYPE_W = 148;
 export function TypeSelect({ type, onChange, triggerRef, compact, blank }) {
   const [open, setOpen] = useState(false);
   const accent = TYPE_ACCENT[type];
@@ -56,9 +56,9 @@ export function TypeSelect({ type, onChange, triggerRef, compact, blank }) {
         <ChevronDown size={12} className={`transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       )}
-      {open && pos && createPortal(
-        <div ref={panelRef} style={{ position: "fixed", ...vPos(pos), left: Math.max(8, Math.min(pos.left, window.innerWidth - 176 - 8)), width: 176, maxHeight: pos.maxH, overflowY: "auto" }}
-          data-up={pos.bottom != null ? "true" : undefined} className="ft-pop z-50 py-1 overflow-hidden">
+      {open && pos && (
+        <SearchPop pos={pos} box={{ left: Math.max(8, Math.min(pos.left, window.innerWidth - TYPE_W - 8)), width: TYPE_W }} fieldRef={btnRef} panelRef={panelRef} className="py-1 overflow-y-auto"
+          trail={compact && <span className="pl-2 text-xs font-bold" style={{ color: blank ? "var(--ft-muted)" : accent }}>{blank ? "Pick a type" : TLBL[type]}</span>}>
           {TYPES.map((t) => {
             const on = !blank && t === type;
             return (
@@ -71,7 +71,7 @@ export function TypeSelect({ type, onChange, triggerRef, compact, blank }) {
               </button>
             );
           })}
-        </div>, document.body)}
+        </SearchPop>)}
     </div>
   );
 }
