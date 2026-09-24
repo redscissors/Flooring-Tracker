@@ -9,7 +9,7 @@ import { queryHit as sheogaQueryHit, parseQuery as sheogaParseQuery, querySummar
 import { queryHit as wediQueryHit, parseQuery as wediParseQuery, querySummary as wediQuerySummary } from "./wediquery.js";
 // schluterquery.js, never schluter.js — same boot contract (ADR 0026).
 import { queryHit as schluterQueryHit, parseQuery as schluterParseQuery, querySummary as schluterQuerySummary } from "./schluterquery.js";
-import { useAnchoredPanel, vPos, useEscClose, MorphSelect } from "./widgets.jsx";
+import { useAnchoredPanel, vPos, useEscClose, MorphSelect, SearchPop } from "./widgets.jsx";
 import { Hit, searchPanelBox, hitKey, matchSummary, useMergedResults, NearMatchNote, SearchingBar } from "./search.jsx";
 import { MARKUP_PRESETS, unitMargin, editCost, editMarkup, editPrice } from "./costentry.js";
 
@@ -350,9 +350,8 @@ export function GridProductBox({ value, stock, onChange, onPick, searchOrder, bo
           </span>
         )}
       </div>
-      {open && pos && (matches.length > 0 || pending) && createPortal(
-        <div ref={panelRef} style={searchPanelBox(pos)} data-up={pos.bottom != null ? "true" : undefined}
-          className="ft-pop fixed z-50 flex flex-col overflow-hidden">
+      {open && pos && (matches.length > 0 || pending) && (
+        <SearchPop pos={pos} box={searchPanelBox(pos)} fieldRef={wrapRef} panelRef={panelRef} className="flex flex-col overflow-hidden">
           {pending && <SearchingBar />}
           {near && <NearMatchNote />}
           {pending && matches.length === 0 && <div className="px-2.5 py-1.5 text-[11px] text-slate-400">Searching the order books…</div>}
@@ -363,7 +362,7 @@ export function GridProductBox({ value, stock, onChange, onPick, searchOrder, bo
               </button>
             ))}
           </div>
-        </div>, document.body)}
+        </SearchPop>)}
     </div>
   );
 }
@@ -457,9 +456,8 @@ export function GridOmniSearch({ stock, stockReady, query, onQuery, onPick, onPi
       <input ref={inputRef} value={query} onChange={(e) => { onQuery(e.target.value); setOpen(true); setHi(0); }} onFocus={() => { committedRef.current = false; setOpen(true); }} onBlur={onBlur}
         onKeyDown={onKey} data-c="product" className="ft-cell ft-field font-bold" placeholder="Search SKU or product…  (double-click to type by hand)"
         title="Search the price book by SKU or product name, then pick a match to fill the whole row. Shift-click to add several. Double-click to enter a product by hand." />
-      {panelShowing && pos && createPortal(
-        <div ref={panelRef} style={searchPanelBox(pos)} data-up={pos.bottom != null ? "true" : undefined}
-          className="ft-pop fixed z-50 flex flex-col overflow-hidden">
+      {panelShowing && pos && (
+        <SearchPop pos={pos} box={searchPanelBox(pos)} fieldRef={wrapRef} panelRef={panelRef} className="flex flex-col overflow-hidden">
           {pending && <SearchingBar />}
           {near && results.length > 0 && <NearMatchNote />}
           {results.length > 0 && (
@@ -510,7 +508,7 @@ export function GridOmniSearch({ stock, stockReady, query, onQuery, onPick, onPi
               )}
             </>)}
           </div>
-        </div>, document.body)}
+        </SearchPop>)}
     </div>
   );
 }

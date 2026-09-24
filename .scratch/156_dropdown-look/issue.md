@@ -21,3 +21,6 @@ All four landed as commits on one branch; PR 1 is
 redscissors/Flooring-Tracker#421, PRs 2-4 follow it. The escstack SELECT
 blur-only case stays: dev harness pages still mount native selects, and it
 stays correct if one ever returns.
+
+Follow-up (owner 2026-09-24): search boxes open in the same look — SearchPop,
+the field as the outlined box's top row (proof/search/).

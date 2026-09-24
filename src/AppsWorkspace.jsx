@@ -3,7 +3,7 @@ import { Search, Plus, Trash2, Printer, Eye, EyeOff, GripVertical } from "lucide
 import { LABEL_FIELDS, KIND_OF, VARIANT_KEYS, newDraftFromPreset, normPreset, stockToLabelFields, perLetterSheet, sheetsForLabels, labelCardHTML, clampSize, isKeimHeader, isSpacer, clampSpace, newSpacerLine } from "./labels.js";
 import { searchStock } from "./stock.js";
 import { stampKit } from "./model.js";
-import { HelpTip, FitSelect } from "./widgets.jsx";
+import { HelpTip, FitSelect, SearchPop, useAnchoredPanel } from "./widgets.jsx";
 import { PaneBack, PaneClose } from "./raildrawer.jsx";
 import SheogaConfigurator from "./SheogaConfigurator.jsx";
 import keimLogo from "./assets/keim-logo-ink.png";
@@ -76,18 +76,21 @@ function LabelCard({ label, scale = 1, boxes = false }) {
 function SkuLookup({ stock, onPick, onBulk, placeholder = "Search SKU or name to fill…", hint = "Pick to fill · Shift-click to add as its own label" }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+  const panelRef = useRef(null);
+  const pos = useAnchoredPanel(open, wrapRef, panelRef, () => setOpen(false));
   const results = useMemo(() => (open ? searchStock(stock, q).slice(0, 30) : []), [open, q, stock]);
   const choose = (it, shift) => {
     if (shift) { onBulk(it); }
     else { onPick(it); setQ(""); setOpen(false); }
   };
   return (
-    <div className="relative mb-1">
+    <div ref={wrapRef} className="relative mb-1">
       <Search size={15} className="absolute left-2.5 top-2.5 text-slate-400" />
       <input value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)}
         className={inp + " pl-8"} placeholder={placeholder} />
-      {open && results.length > 0 && (
-        <div className="absolute z-10 left-0 right-0 mt-1 ft-pop max-h-64 overflow-y-auto">
+      {open && pos && results.length > 0 && (
+        <SearchPop pos={pos} fieldRef={wrapRef} panelRef={panelRef} className="overflow-y-auto" style={{ maxHeight: Math.min(256, pos.maxH) }}>
           {results.map((it) => (
             <button key={it.sku} onMouseDown={(e) => { e.preventDefault(); choose(it, e.shiftKey); }} className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 border-b border-slate-100 last:border-0">
               <div className="flex items-baseline gap-2">
@@ -98,7 +101,7 @@ function SkuLookup({ stock, onPick, onBulk, placeholder = "Search SKU or name to
             </button>
           ))}
           <div className="px-2.5 py-1.5 text-[11px] text-slate-400 bg-slate-50/60 border-t border-slate-100">{hint}</div>
-        </div>
+        </SearchPop>
       )}
     </div>
   );

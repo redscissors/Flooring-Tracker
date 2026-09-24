@@ -7,8 +7,9 @@ import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { MoreHorizontal } from "lucide-react";
 import "./index.css";
-import { FitSelect, GroutColorOptions } from "./widgets.jsx";
-import { TypeSelect, UnitPick, GridPriceCell } from "./grid.jsx";
+import { FitSelect, GroutColorOptions, BuilderCombo } from "./widgets.jsx";
+import { TypeSelect, UnitPick, GridPriceCell, GridOmniSearch, GridProductBox } from "./grid.jsx";
+import { StockSearch } from "./search.jsx";
 import { LineMenu } from "./linemenu.jsx";
 import { LineWastePop } from "./linewaste.jsx";
 import { mergeSettings } from "./catalog.js";
@@ -53,11 +54,49 @@ function Row() {
   );
 }
 
+const STOCK = [
+  { active: true, sku: "DAL-VL1224B", description: "DALTILE VOLUME 1.0 BONE 12X24 MATTE", product: "Volume 1.0", brand: "Daltile", type: "tile", size: "12x24", priceSqft: 4.29, sfPerUnit: 15.5, unit: "SF", orderUnit: "CT" },
+  { active: true, sku: "DAL-VL1224G", description: "DALTILE VOLUME 1.0 GRAY 12X24 MATTE", product: "Volume 1.0", brand: "Daltile", type: "tile", size: "12x24", priceSqft: 4.29, sfPerUnit: 15.5, unit: "SF", orderUnit: "CT" },
+  { active: true, sku: "DAL-VL0624B", description: "DALTILE VOLUME 1.0 BONE 6X24 MATTE", product: "Volume 1.0", brand: "Daltile", type: "tile", size: "6x24", priceSqft: 4.49, sfPerUnit: 11.6, unit: "SF", orderUnit: "CT" },
+  { active: true, sku: "AR-214", description: "ARVORA GLACIER MATTE 12X24", product: "Arvora", type: "tile", size: "12x24", priceSqft: 5.1, sfPerUnit: 15.5, unit: "SF", orderUnit: "CT" },
+];
+const BUILDERS = [{ id: "b1", name: "Ridgeline Homes" }, { id: "b2", name: "Rivera Custom Builders" }, { id: "b3", name: "Redstone Construction" }];
+
+function Searches() {
+  const [q, setQ] = useState("");
+  const [prod, setProd] = useState("");
+  const [picked, setPicked] = useState("");
+  const [builder, setBuilder] = useState(null);
+  const inp = "ft-field w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500";
+  return (
+    <div className="space-y-5">
+      <div className="rounded-lg overflow-hidden" style={{ border: "1px solid var(--ft-border)", background: ROW_WASH }}>
+        <div className="grid items-stretch" style={{ gridTemplateColumns: "1fr 1.4fr", height: 34 }}>
+          <div data-shot="omni" className="flex" style={{ borderRight: "1px solid var(--ft-border)" }}>
+            <GridOmniSearch stock={STOCK} stockReady query={q} onQuery={setQ} onPick={(it) => { setPicked(it.sku); setQ(""); }} onPickMany={() => {}} onManual={() => {}} onAbandon={() => setQ("")} />
+          </div>
+          <div data-shot="product" className="relative">
+            <GridProductBox value={prod} stock={STOCK} onChange={setProd} onPick={(it) => { setProd(it.description); setPicked(it.sku); }} />
+          </div>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-6 max-w-3xl">
+        <div data-shot="stock"><div className="ft-eyebrow text-[10px] mb-1">Settings — add from the price book</div><StockSearch stock={STOCK} inp={inp} onPick={(it) => setPicked(it.sku)} /></div>
+        <div data-shot="builder"><div className="ft-eyebrow text-[10px] mb-1">Customer — builder</div><BuilderCombo value={builder} builders={BUILDERS} onSelect={setBuilder} onAddBuilder={() => {}} inp={inp} /></div>
+      </div>
+      <pre className="text-[10px] text-slate-500" data-search-state>{JSON.stringify({ picked, builder })}</pre>
+    </div>
+  );
+}
+
 function Page() {
   return (
     <div className="min-h-screen p-6 space-y-6" style={{ background: "var(--ft-cream)", maxWidth: 1100 }}>
       <h1 className="ft-serif text-2xl">Grid dropdowns — the real components</h1>
       <Row />
+      <h2 className="text-base font-extrabold pt-4">Search boxes</h2>
+      <Searches />
+      <div style={{ height: 420 }} />
     </div>
   );
 }

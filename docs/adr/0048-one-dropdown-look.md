@@ -32,6 +32,13 @@ phone's own full-screen chooser.
 4. **It keeps a `<select>`'s keyboard contract**: arrows, Home/End,
    first-letter jump, Enter picks, Esc closes on its own Esc-ladder rung, and
    Tab moves on.
+5. **A search field's results wear the same box** (`SearchPop`, owner
+   2026-09-24): one ink outline wraps the field and its results, the field
+   as the top row (bottom row when it opens upward). The top row is
+   see-through and passes clicks, so the caret stays in the real field; the
+   box widens past the field only where the results need the room. Full-
+   screen search sheets and in-place list filters are not dropdowns and
+   keep their own look.
 
 ## Consequences
 

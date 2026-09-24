@@ -169,6 +169,12 @@ src/
                     # <optgroup> children, onChange(e) → e.target.value) over a
                     # MorphSelect — the materials drawer's dropdowns read as
                     # before; `GroutColorOptions` children are expanded inline.
+                    # `SearchPop` — every search field's results box (grid
+                    # search + product cell, the Settings book searches,
+                    # builder/address/label-SKU lookups): one outline around
+                    # field + results, the top row see-through so typing stays
+                    # in the real field; useAnchoredPanel's pos carries the
+                    # field rect (ft/fb/h) it needs.
                     # Row order: Stock only · Clear design | price · basket · X.
                     # `KitOverwriteConfirm` (2026-09-02, ADR 0035 amendment) —
                     # the kit-card confirm both popups raise over customized
@@ -2151,7 +2157,9 @@ src/
                     # part of the app build
   gridpreview.jsx   # dev-only harness (grid-preview.html): the REAL
                     # TypeSelect, UnitPick, drawer FitSelects, GridPriceCell's
-                    # popup, LineMenu and LineWastePop over local state — the
+                    # popup, LineMenu and LineWastePop, plus the grid search,
+                    # product cell, StockSearch and BuilderCombo boxes, over
+                    # local state and mock book items — the
                     # grid rows live inside App.jsx, so this is ADR 0048's
                     # preview proof for them; not part of the app build
   railpreview.jsx   # dev-only harness (rail-preview.html): the REAL drawers,
