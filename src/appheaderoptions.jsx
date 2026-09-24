@@ -10,75 +10,12 @@ import { HelpTip } from "./widgets.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 
 const APPS = [
-  { id: "schluter", name: "Schluter", tabs: ["Kits", "Custom shower", "Browse", "Compare"], tools: true, sub: { retail: "1.5× cost", builder: "−0%", employee: "cost × 1.06", sale: "−10%" } },
-  { id: "wedi", name: "wedi shower systems", tabs: ["Kits", "Custom shower", "Browse", "Compare"], tools: true, sub: { retail: "book price", builder: "× 1.00", employee: "cost × 1.06", sale: "−10%" } },
+  { id: "schluter", name: "Schluter", tabs: ["Kits", "Custom shower", "Browse", "Compare"], tools: true },
+  { id: "wedi", name: "wedi shower systems", tabs: ["Kits", "Custom shower", "Browse", "Compare"], tools: true },
   { id: "sheoga", name: "Sheoga Hardwood", tip: true, tabs: ["Unfinished & custom", "Stocked prefinished", "Wood vents", "Dampers"], tools: false },
 ];
 const TIERS = ["retail", "builder", "employee", "sale", "custom"];
 const LBL = { retail: "Retail", builder: "Builder", employee: "Employee", sale: "Sale", custom: "Custom" };
-const SHORT = { retail: "Retail", builder: "Bldr", employee: "Emp", sale: "Sale" };
-const fillOf = (t) => (TIER_COLOR[t] ? { background: TIER_COLOR[t].main, color: "#fff" } : { background: "#1C1A17", color: "#fff" });
-const pressed = { boxShadow: "inset 0 2px 4px rgba(0,0,0,.28)" };
-
-const Basket = ({ n = 2, w }) => (
-  <button style={w ? { width: w } : undefined} className="h-[30px] justify-center whitespace-nowrap relative inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-xs font-bold hover:bg-slate-50 shrink-0">
-    🧺 Basket{n > 0 && <span className="rounded-full bg-[color:var(--ft-brand)] text-white text-[11px] font-extrabold min-w-[18px] h-[18px] px-1 flex items-center justify-center">{n}</span>}
-  </button>
-);
-const StockChip = ({ on = true }) => (
-  <button className={"h-[30px] inline-flex items-center gap-1.5 rounded-md border px-2.5 text-[11.5px] font-bold shrink-0 " + (on ? "text-[color:var(--ft-brand-deep)] font-extrabold" : "border-slate-300 bg-white text-slate-500")}
-    style={on ? { background: "var(--ft-seg-on-bg)", borderColor: "var(--ft-brand)" } : undefined}>
-    <span className={"w-3 h-3 rounded-sm border flex items-center justify-center text-[9px] " + (on ? "bg-[color:var(--ft-brand)] border-[color:var(--ft-brand)] text-white" : "border-slate-400")}>{on ? "✓" : ""}</span>Stock only
-  </button>
-);
-const Clear = ({ w }) => <button style={w ? { width: w } : undefined} className="h-[30px] rounded-md border border-slate-200 px-2.5 text-[11px] font-bold text-slate-500 hover:bg-slate-50 shrink-0 whitespace-nowrap">Clear design</button>;
-const Source = ({ v = "stock", labels = ["Stock only", "Full catalog"] }) => (
-  <div className="h-[30px] inline-flex rounded-md border border-slate-300 overflow-hidden bg-white shrink-0 text-[11.5px] font-bold">
-    {[["stock", labels[0]], ["all", labels[1]]].map(([k, l], i) => (
-      <button key={k} className={"px-2.5 " + (i ? "border-l border-slate-300 " : "") + (v === k ? "text-[color:var(--ft-brand-deep)] font-extrabold" : "text-slate-500")}
-        style={v === k ? { background: "var(--ft-seg-on-bg)", boxShadow: "inset 0 0 0 1.5px var(--ft-brand)" } : undefined}>{l}</button>
-    ))}
-  </div>
-);
-
-// Today's two tier bars, as drawn now.
-function TierTwoLine({ tier, sub }) {
-  return (
-    <div className="flex items-stretch rounded-[7px] border border-slate-300 overflow-hidden bg-white shrink-0">
-      {TIERS.map((t, i) => {
-        const on = tier === t;
-        return (
-          <button key={t} className={"px-[11px] py-[6px] text-[11.5px] leading-[1.1] flex flex-col items-start " + (i ? "border-l border-slate-300 " : "") + (on ? "font-extrabold" : "font-bold text-slate-500")} style={on ? { ...fillOf(t), ...pressed } : undefined}>
-            {LBL[t]}<small className="text-[8.5px] font-semibold opacity-75">{t === "custom" ? "–  %" : sub[t]}</small>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-function TierLabeled({ tier, label = true, short = false }) {
-  return (
-    <div className="h-[30px] inline-flex shrink-0 items-stretch rounded-md border border-slate-300 overflow-hidden bg-white">
-      {label && <span className="flex items-center px-2 text-[9px] font-bold uppercase tracking-wider text-slate-400" style={{ background: "var(--ft-sand)" }}>Price level</span>}
-      {TIERS.map((t, i) => {
-        const on = tier === t;
-        return (
-          <button key={t} className={(label || i ? "border-l border-slate-300 " : "") + "px-2.5 text-[11px] whitespace-nowrap flex items-center gap-1 " + (on ? "font-extrabold " + (TIER_COLOR[t] ? "text-white" : "bg-slate-900 text-white") : "font-bold text-slate-500")} style={on ? { ...(TIER_COLOR[t] ? { background: TIER_COLOR[t].main } : {}), ...pressed } : undefined}>
-            {t === "custom" ? <>{short ? "" : "Custom "}<span className="w-5 text-right">–</span>%</> : short ? SHORT[t] : LBL[t]}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-function TierPill({ tier }) {
-  const txt = tier === "builder" ? "Builder −15%" : tier === "sale" ? "Sale −10%" : LBL[tier];
-  return (
-    <button className="h-[30px] inline-flex items-center gap-1.5 rounded-md px-2.5 text-[11.5px] font-extrabold shrink-0" style={fillOf(tier)}>
-      <span className="text-[9px] font-bold uppercase tracking-wider opacity-70">Price</span> {txt} <ChevronDown size={13} />
-    </button>
-  );
-}
 
 function Title({ app }) {
   return (
@@ -113,33 +50,6 @@ function Frame({ app, right, tabsRight, clip = true }) {
   );
 }
 
-const BW = 124; // Basket and Clear design share a width so they stack as a column
-const D_BASE = "The title row matches the job header's short price bar (Retail · Bldr · Emp · Sale · %). Basket and Clear design share a width, and Clear design sits right under Basket.";
-// One button language for the whole cluster: white fill, slate-300 border,
-// 11.5px bold slate-600, 30px tall. State colors only: the active tier cell and
-// the checked box.
-const BTN = "h-[30px] inline-flex items-center justify-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 text-[11.5px] font-bold text-slate-600 hover:bg-slate-50 shrink-0 whitespace-nowrap";
-const UBasket = () => <button className={BTN} style={{ width: BW }}>🧺 Basket<span className="rounded-full bg-[color:var(--ft-brand)] text-white text-[11px] font-extrabold min-w-[18px] h-[18px] px-1 flex items-center justify-center">2</span></button>;
-const UClear = () => <button className={BTN} style={{ width: BW }}>Clear design</button>;
-const UStock = ({ on = true }) => (
-  <button className={BTN}>
-    <span className={"w-3.5 h-3.5 rounded-[3px] border flex items-center justify-center text-[10px] leading-none " + (on ? "bg-[color:var(--ft-brand)] border-[color:var(--ft-brand)] text-white" : "border-slate-400")}>{on ? "✓" : ""}</span>Stock only
-  </button>
-);
-function UTier({ tier }) {
-  return (
-    <div className="h-[30px] inline-flex shrink-0 items-stretch rounded-md border border-slate-300 overflow-hidden bg-white">
-      {TIERS.map((t, i) => {
-        const on = tier === t;
-        return (
-          <button key={t} className={(i ? "border-l border-slate-300 " : "") + "px-2.5 text-[11.5px] font-bold whitespace-nowrap flex items-center gap-1 " + (on ? "text-white" : "text-slate-600 hover:bg-slate-50")} style={on ? { ...fillOf(t), ...pressed } : undefined}>
-            {t === "custom" ? <><span className="w-5 text-right">–</span>%</> : SHORT[t]}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 // Flat controls: the header's own background, no outline, a hover tint only.
 const FLAT = "h-[30px] inline-flex items-center gap-1.5 rounded-md px-2 text-[12px] font-bold text-slate-600 hover:bg-[color:var(--ft-hover)] shrink-0 whitespace-nowrap";
 const TIER_LBL = (t) => t === "builder" ? "Builder −15%" : t === "sale" ? "Sale −10%" : LBL[t];
