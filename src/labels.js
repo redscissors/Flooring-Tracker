@@ -2,8 +2,8 @@
 // No imports from app code so it stays acyclic and unit-testable, like stock.js.
 //
 // A Preset is a reusable template (size + which lines show + font sizes). A saved
-// Label snapshots its own copy of that layout, so editing/removing a preset never
-// changes an existing label (snapshot convention, as everywhere else in the app).
+// Label snapshots its own copy of that layout, so editing a preset changes an
+// existing label only when the team says yes to restyling it (restyleLabel).
 
 const str = (v) => (v == null ? "" : String(v).trim());
 const num = (v, d = 0) => { const n = parseFloat(v); return Number.isFinite(n) ? n : d; };
@@ -46,6 +46,19 @@ export const SPACE_DEFAULT = 12;
 export const clampSpace = (n) => Math.min(SPACE_MAX, Math.max(SPACE_MIN, Math.round(num(n, SPACE_DEFAULT))));
 export const newSpacerLine = () => ({ key: "sp_" + uid(), show: true, size: SPACE_DEFAULT });
 
+// The pin divider: lines after it sit at the bottom of the card however much
+// text is above. A list without one pins nothing, so labels saved before the
+// divider existed render as they always did.
+export const PIN_KEY = "pin";
+export const isPin = (k) => k === PIN_KEY;
+
+export const splitPinned = (lines) => {
+  const all = lines || [];
+  const at = all.findIndex((l) => isPin(l.key));
+  const shown = (ls) => ls.filter((l) => l.show && !isPin(l.key));
+  return at < 0 ? { body: shown(all), bottom: [] } : { body: shown(all.slice(0, at)), bottom: shown(all.slice(at + 1)) };
+};
+
 // Two-variant labels (v3 port): one tile sold in two sizes shares a single
 // label — these fields get a second column (`fields2`) when `twoVariant` is on.
 // Label-level only; presets don't carry it.
@@ -61,7 +74,7 @@ export const BUILTIN_PRESETS = [
     id: "sample-tag", name: "Sample Tag", w: 1.5, h: 2.5, header: "Keim",
     lines: [
       line("name", true, 13), line("surface", true, 8), line("sku", true, 10),
-      line("size", true, 10), line("price", true, 10), line("grout", true, 9),
+      line("size", true, 10), line("price", true, 10), line(PIN_KEY, true, 0), line("grout", true, 9),
       line("brand", false, 9), line("thickness", false, 9), line("note", false, 9),
     ],
   },
@@ -70,7 +83,7 @@ export const BUILTIN_PRESETS = [
     lines: [
       line("name", true, 22), line("surface", true, 10), line("sku", true, 12),
       line("size", true, 12), line("price", true, 12), line("brand", true, 11),
-      line("thickness", true, 11), line("grout", true, 11), line("note", false, 11),
+      line("thickness", true, 11), line(PIN_KEY, true, 0), line("grout", true, 11), line("note", false, 11),
     ],
   },
 ];
@@ -84,6 +97,11 @@ const normLines = (raw) => {
   for (const l of Array.isArray(raw) ? raw : []) {
     const key = str(l?.key);
     if (seen.has(key)) continue;
+    if (isPin(key)) {
+      seen.add(key);
+      out.push(line(PIN_KEY, true, 0));
+      continue;
+    }
     if (isSpacer(key)) {
       seen.add(key);
       out.push(line(key, l?.show !== false, clampSpace(l?.size)));
@@ -106,14 +124,24 @@ export const normPreset = (raw) => ({
   lines: normLines(raw?.lines),
 });
 
-// Built-ins are code-defined and always present; customs (anything whose id is
-// not a built-in) are layered on top. Built-in ids in raw are ignored so code
-// changes to the built-ins always win.
-export const normLabelPresets = (raw) => {
-  const customs = (Array.isArray(raw) ? raw : []).filter((p) => !BUILTIN_IDS.has(str(p?.id))).map(normPreset);
-  return [...BUILTIN_PRESETS.map(normPreset), ...customs];
+// Built-ins are always present and lead the list. A saved entry with a built-in
+// id is the team's edit of it and wins over the code default (owner 2026-09-25 —
+// until then code always won); saving the default back un-overrides it, since
+// only an entry that differs from the default is persisted.
+export const builtinDefault = (id) => {
+  const b = BUILTIN_PRESETS.find((p) => p.id === id);
+  return b ? normPreset(b) : null;
 };
-export const customLabelPresets = (presets) => (presets || []).filter((p) => !BUILTIN_IDS.has(p.id));
+export const isBuiltinOverridden = (p) => BUILTIN_IDS.has(p?.id) && JSON.stringify(normPreset(p)) !== JSON.stringify(builtinDefault(p.id));
+
+export const normLabelPresets = (raw) => {
+  const list = Array.isArray(raw) ? raw : [];
+  const saved = new Map(list.filter((p) => BUILTIN_IDS.has(str(p?.id))).map((p) => [str(p.id), p]));
+  const builtins = BUILTIN_PRESETS.map((b) => (saved.has(b.id) ? normPreset({ ...saved.get(b.id), id: b.id }) : normPreset(b)));
+  const customs = list.filter((p) => !BUILTIN_IDS.has(str(p?.id))).map(normPreset);
+  return [...builtins, ...customs];
+};
+export const customLabelPresets = (presets) => (presets || []).filter((p) => !BUILTIN_IDS.has(p.id) || isBuiltinOverridden(p));
 
 const blankFields = () => Object.fromEntries(LABEL_FIELDS.map((f) => [f.key, ""]));
 
@@ -201,6 +229,80 @@ export const stockToLabelFields = (item) => {
   };
 };
 
+// The tile name steps down until the card stops overflowing. `overflowsAt(px)`
+// applies the size and measures — the screen card and the print popup each
+// pass their own DOM check, so both shrink by the same rule.
+export const NAME_FLOOR = 7;
+export const fitNameSize = (overflowsAt, start, floor = NAME_FLOOR) => {
+  for (let px = start; px >= floor; px -= 0.5) if (!overflowsAt(px)) return px;
+  overflowsAt(floor);
+  return floor;
+};
+
+const SIZE_RE = /(\d+(?:\.\d+)?)\s*["']?\s*[x×]\s*(\d+(?:\.\d+)?)\s*["']?/i;
+export const faceArea = (size) => {
+  const m = str(size).match(SIZE_RE);
+  return m ? parseFloat(m[1]) * parseFloat(m[2]) : null;
+};
+export const trimSize = (name) => str(name).replace(/\s+\d+(?:\.\d+)?\s*["']?\s*[x×]\s*\d+(?:\.\d+)?\s*["']?\s*$/i, "").trim();
+
+// One label, two sizes from two stock picks: the bigger face leads whatever
+// order they were picked in (owner 2026-09-25); the name is the bigger item's
+// with its size dropped, since each size prints in its own column.
+export const twoSizeDraft = (a, b) => {
+  const fa = stockToLabelFields(a), fb = stockToLabelFields(b);
+  const aa = faceArea(fa.size), ab = faceArea(fb.size);
+  const swapped = aa != null && ab != null && ab > aa;
+  const [first, second, it] = swapped ? [fb, fa, b] : [fa, fb, a];
+  return {
+    fields: { ...first, name: trimSize(first.name) || first.name },
+    fields2: { sku: second.sku || "", size: second.size || "", price: second.price || "" },
+    sku: str(it.sku) || null,
+    swapped,
+  };
+};
+
+// A saved label restyled to its template: layout from the template (its own
+// font nudges reset), text, second size and SKU untouched.
+export const restyleLabel = (label, preset) => ({
+  presetId: preset.id,
+  w: label.twoVariant ? Math.max(preset.w, 2) : preset.w,
+  h: preset.h,
+  header: preset.header,
+  lines: preset.lines.map((l) => ({ ...l })),
+});
+
+// Re-check labels against the stock book: price only (owner 2026-09-25) — the
+// rest of a label may be hand-edited. `keysOf` is orderbook.js skuKeys, passed
+// in so this module stays import-free. Retired or switched-off items count as
+// gone, like everywhere the row search reads the cache.
+export const refreshPlan = (labels, stock, keysOf) => {
+  const index = new Map();
+  for (const it of stock || []) {
+    if (!it.active || it.discontinued || it.disabled) continue;
+    for (const k of keysOf(it.sku)) if (!index.has(k)) index.set(k, it);
+  }
+  const find = (code) => { for (const k of keysOf(code)) if (index.has(k)) return index.get(k); return null; };
+  const out = { changed: [], same: [], missing: [], noSku: [] };
+  for (const label of labels || []) {
+    const sku1 = str(label.fields?.sku) || str(label.sku);
+    const sku2 = label.twoVariant ? str(label.fields2?.sku) : "";
+    if (!sku1 && !sku2) { out.noSku.push({ id: label.id, label }); continue; }
+    const it1 = sku1 ? find(sku1) : null, it2 = sku2 ? find(sku2) : null;
+    const missingSkus = [sku1 && !it1 ? sku1 : null, sku2 && !it2 ? sku2 : null].filter(Boolean);
+    if (missingSkus.length) { out.missing.push({ id: label.id, label, missingSkus }); continue; }
+    const price = str(label.fields?.price), price2 = sku2 ? str(label.fields2?.price) : null;
+    const next = it1 ? stockToLabelFields(it1).price || price : price;
+    const next2 = it2 ? stockToLabelFields(it2).price || price2 : price2;
+    const before = { price, price2 }, after = { price: next, price2: next2 };
+    if (next === price && next2 === price2) { out.same.push({ id: label.id, label }); continue; }
+    const patch = { fields: { ...label.fields, price: next } };
+    if (sku2) patch.fields2 = { ...label.fields2, price: next2 };
+    out.changed.push({ id: label.id, label, patch, before, after });
+  }
+  return out;
+};
+
 export const escapeHtml = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 // The default "Keim" header renders as the logo wordmark; any other typed
@@ -230,18 +332,20 @@ export const labelCardHTML = (label, { logoSrc } = {}) => {
     return `<div style="margin-top:6px;"><div style="font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:#9a9a9a;font-weight:700;line-height:1;">${escapeHtml(LABEL_OF[l.key])}</div><div style="color:#fff;line-height:1.3;font-size:${l.size}px;${mono}word-break:break-word;">${get(l.key) || "—"}</div></div>`;
   }).join("");
   const variantBlock = `<div style="display:flex;gap:8px;"><div style="flex:1;min-width:0;">${variantCol(val)}</div><div style="width:1px;background:rgba(255,255,255,.18);align-self:stretch;margin-top:6px;"></div><div style="flex:1;min-width:0;">${variantCol(val2)}</div></div>`;
-  const body = (label.lines || []).filter((l) => l.show).map((l) => {
+  const { body, bottom } = splitPinned(label.lines);
+  const render = (l) => {
     if (isSpacer(l.key)) return `<div style="height:${l.size}px;flex:0 0 auto;"></div>`;
-    if (l.key === "name") return `<div style="font-family:'Oswald',sans-serif;font-size:${l.size}px;text-transform:uppercase;letter-spacing:.03em;line-height:1.12;color:#fff;word-break:break-word;">${val("name") || "Tile Name"}</div>`;
+    if (l.key === "name") return `<div class="lc-name" style="font-family:'Oswald',sans-serif;font-size:${l.size}px;text-transform:uppercase;letter-spacing:.03em;line-height:1.12;color:#fff;word-break:break-word;">${val("name") || "Tile Name"}</div>`;
     if (l.key === "surface") return val("surface") ? `<span style="align-self:flex-start;margin-top:6px;font-size:8px;text-transform:uppercase;letter-spacing:.1em;font-weight:700;padding:2px 7px;border-radius:4px;color:#fff;background:${surfaceColor(label.fields?.surface)};">${val("surface")}</span>` : "";
     if (KIND_OF[l.key] === "custom") return val(l.key) ? `<div style="margin-top:6px;color:#fff;line-height:1.3;font-size:${l.size}px;word-break:break-word;">${val(l.key)}</div>` : "";
     if (label.twoVariant && VARIANT_KEYS.includes(l.key)) return l.key === firstVariant ? variantBlock : "";
     const mono = l.key === "sku" ? "font-family:ui-monospace,monospace;" : "";
     return `<div style="margin-top:6px;"><div style="font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:#9a9a9a;font-weight:700;line-height:1;">${escapeHtml(LABEL_OF[l.key])}</div><div style="color:#fff;line-height:1.3;font-size:${l.size}px;${mono}">${val(l.key) || "—"}</div></div>`;
-  }).join("");
-  return `<div style="width:${label.w}in;height:${label.h}in;background:#1A1A1A;color:#fff;border-radius:3px;padding:.12in;font-family:'Inter',sans-serif;display:flex;flex-direction:column;box-sizing:border-box;overflow:hidden;">
+  };
+  const pinned = bottom.length ? `<div style="margin-top:auto;flex-shrink:0;display:flex;flex-direction:column;">${bottom.map(render).join("")}</div>` : "";
+  return `<div class="lc" style="width:${label.w}in;height:${label.h}in;background:#1A1A1A;color:#fff;border-radius:3px;padding:.12in;font-family:'Inter',sans-serif;display:flex;flex-direction:column;box-sizing:border-box;overflow:hidden;">
     ${header}
     <div style="border-top:1px solid rgba(255,255,255,.2);margin:6px 0 2px;"></div>
-    ${body}
+    ${body.map(render).join("")}${pinned}
   </div>`;
 };

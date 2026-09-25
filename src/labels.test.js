@@ -6,6 +6,8 @@ import {
   perLetterSheet, sheetsForLabels,
   faceSizeText, stockToLabelFields, escapeHtml, labelCardHTML, normLabel as _normLabel,
   isSpacer, clampSpace, newSpacerLine, SPACE_MIN, SPACE_MAX, SPACE_DEFAULT,
+  PIN_KEY, splitPinned, builtinDefault, isBuiltinOverridden,
+  NAME_FLOOR, fitNameSize, faceArea, trimSize, twoSizeDraft, restyleLabel, refreshPlan,
 } from "./labels.js";
 
 // --- presets ------------------------------------------------------------------
@@ -258,4 +260,145 @@ test("labelCardHTML renders visible fields and skips hidden ones", () => {
   assert.match(html, /CM-2046/);
   assert.doesNotMatch(html, /hidden note/);
   assert.match(html, /width:1\.5in/);
+});
+
+// --- pin to bottom -------------------------------------------------------------
+
+test("normLines keeps one pin divider where it was given and drops extras", () => {
+  const p = normPreset({ id: "x", lines: [{ key: "name", show: true, size: 13 }, { key: "pin" }, { key: "grout", show: true, size: 9 }, { key: "pin" }] });
+  const keys = p.lines.map((l) => l.key);
+  assert.equal(keys.filter((k) => k === PIN_KEY).length, 1);
+  assert.deepEqual(keys.slice(0, 3), ["name", "pin", "grout"]);
+});
+
+test("splitPinned: shown lines after the divider are the bottom group; none without a divider", () => {
+  const withPin = normPreset({ lines: [{ key: "name", show: true }, { key: "pin" }, { key: "grout", show: true }, { key: "brand", show: false }] });
+  const s = splitPinned(withPin.lines);
+  assert.deepEqual(s.body.map((l) => l.key), ["name"]);
+  assert.deepEqual(s.bottom.map((l) => l.key), ["grout"]);
+  const legacy = normPreset({ lines: [{ key: "name", show: true }, { key: "grout", show: true }] });
+  assert.deepEqual(splitPinned(legacy.lines).bottom, []);
+  assert.deepEqual(splitPinned(legacy.lines).body.map((l) => l.key), ["name", "grout"]);
+});
+
+test("built-in templates pin Grout Color to the bottom", () => {
+  for (const p of BUILTIN_PRESETS) {
+    const keys = p.lines.map((l) => l.key);
+    assert.equal(keys.indexOf("pin") + 1, keys.indexOf("grout"));
+  }
+});
+
+test("a saved built-in id overrides the code default; an unchanged one isn't persisted", () => {
+  const edited = { ...normPreset(BUILTIN_PRESETS[0]), h: 3 };
+  const presets = normLabelPresets([edited]);
+  assert.equal(presets.find((p) => p.id === "sample-tag").h, 3);
+  assert.equal(isBuiltinOverridden(presets[0]), true);
+  assert.deepEqual(customLabelPresets(presets).map((p) => p.id), ["sample-tag"]);
+  const reset = normLabelPresets([builtinDefault("sample-tag")]);
+  assert.equal(isBuiltinOverridden(reset[0]), false);
+  assert.deepEqual(customLabelPresets(reset), []);
+});
+
+test("labelCardHTML puts pinned lines in a bottom group and tags the name", () => {
+  const l = normLabel({ lines: [{ key: "name", show: true, size: 13 }, { key: "pin" }, { key: "grout", show: true, size: 9 }], fields: { name: "N", grout: "Bright White" } });
+  const html = labelCardHTML(l);
+  assert.match(html, /class="lc-name"/);
+  assert.match(html, /margin-top:auto[^>]*>.*Grout Color.*Bright White/s);
+});
+
+test("labelCardHTML without a divider has no bottom group", () => {
+  const l = normLabel({ lines: [{ key: "name", show: true, size: 13 }, { key: "grout", show: true, size: 9 }], fields: { name: "N" } });
+  assert.doesNotMatch(labelCardHTML(l), /margin-top:auto/);
+});
+
+// --- name auto-fit + two sizes -------------------------------------------------
+
+test("fitNameSize steps down by 0.5 until nothing overflows, stopping at the floor", () => {
+  assert.equal(fitNameSize(() => false, 13), 13);
+  assert.equal(fitNameSize((px) => px > 11, 13), 11);
+  assert.equal(fitNameSize((px) => px > 10.5, 13), 10.5);
+  assert.equal(fitNameSize(() => true, 13), NAME_FLOOR);
+});
+
+test("faceArea / trimSize", () => {
+  assert.equal(faceArea("24x48"), 1152);
+  assert.equal(faceArea('12" x 24"'), 288);
+  assert.equal(faceArea("Hex 2in"), null);
+  assert.equal(trimSize("Calacatta Gold Polished 24x48"), "Calacatta Gold Polished");
+  assert.equal(trimSize('Alpine 12" x 24"'), "Alpine");
+  assert.equal(trimSize("Meadow Hex 2in"), "Meadow Hex 2in");
+});
+
+test("twoSizeDraft puts the bigger face first whatever the pick order", () => {
+  const small = { sku: "CG-1224", description: "Calacatta Gold Polished 12x24", size: "12x24", priceSqft: 6.4, brand: "Emser" };
+  const big = { sku: "CG-2448", description: "Calacatta Gold Polished 24x48", size: "24x48", priceSqft: 7.25, brand: "Emser" };
+  const d = twoSizeDraft(small, big);
+  assert.equal(d.swapped, true);
+  assert.equal(d.fields.sku, "CG-2448");
+  assert.equal(d.fields.name, "Calacatta Gold Polished");
+  assert.deepEqual(d.fields2, { sku: "CG-1224", size: "12x24", price: "$6.40/sq ft" });
+  assert.equal(d.sku, "CG-2448");
+  assert.equal(twoSizeDraft(big, small).swapped, false);
+});
+
+test("twoSizeDraft keeps the pick order when sizes tie or can't be read", () => {
+  const a = { sku: "A", description: "Hex A", size: "Hex 2in", priceSqft: 1 };
+  const b = { sku: "B", description: "Hex B", size: "Hex 3in", priceSqft: 2 };
+  const d = twoSizeDraft(a, b);
+  assert.equal(d.swapped, false);
+  assert.equal(d.fields.sku, "A");
+});
+
+// --- restyle + stock-book refresh ----------------------------------------------
+
+const keysOf = (c) => [String(c || "").trim(), String(c || "").toUpperCase().replace(/[^A-Z0-9]/g, "")].filter(Boolean);
+const live = (o) => ({ active: true, ...o });
+
+test("refreshPlan buckets changed / same / missing / noSku, price only", () => {
+  const L = (id, f, extra = {}) => normLabel({ id, fields: f, ...extra });
+  const labels = [
+    L("a", { name: "Alpine", sku: "AL-1224", price: "$4.85/sq ft", grout: "Smoke" }),
+    L("b", { name: "Oak", sku: "OP-848", price: "$3.95/sq ft" }),
+    L("c", { name: "Terra", sku: "TR-66", price: "$2.95/sq ft" }),
+    L("d", { name: "No sku" }),
+  ];
+  const stock = [live({ sku: "AL-1224", description: "Renamed", priceSqft: 5.15 }), live({ sku: "OP-848", priceSqft: 3.95 }), live({ sku: "TR-66", priceSqft: 1, disabled: true })];
+  const plan = refreshPlan(labels, stock, keysOf);
+  assert.deepEqual(plan.changed.map((c) => c.id), ["a"]);
+  assert.equal(plan.changed[0].patch.fields.price, "$5.15/sq ft");
+  assert.equal(plan.changed[0].patch.fields.name, "Alpine");
+  assert.equal(plan.changed[0].patch.fields.grout, "Smoke");
+  assert.deepEqual(plan.changed[0].before, { price: "$4.85/sq ft", price2: null });
+  assert.deepEqual(plan.same.map((x) => x.id), ["b"]);
+  assert.deepEqual(plan.missing.map((x) => x.id), ["c"]);
+  assert.deepEqual(plan.missing[0].missingSkus, ["TR-66"]);
+  assert.deepEqual(plan.noSku.map((x) => x.id), ["d"]);
+});
+
+test("refreshPlan falls back to the provenance sku and checks the second size in any spelling", () => {
+  const l = normLabel({ id: "t", twoVariant: true, fields: { sku: "cg-2448", price: "$7.25/sq ft" }, fields2: { sku: "CG1224", price: "$6.40/sq ft" } });
+  const stock = [live({ sku: "CG-2448", priceSqft: 6.95 }), live({ sku: "CG-1224", priceSqft: 6.4 })];
+  const plan = refreshPlan([l], stock, keysOf);
+  assert.equal(plan.changed.length, 1);
+  assert.deepEqual(plan.changed[0].after, { price: "$6.95/sq ft", price2: "$6.40/sq ft" });
+  const prov = normLabel({ id: "p", sku: "OP-848", fields: { price: "$1.00/sq ft" } });
+  assert.equal(refreshPlan([prov], [live({ sku: "OP-848", priceSqft: 3.95 })], keysOf).changed[0].after.price, "$3.95/sq ft");
+});
+
+test("refreshPlan: a second SKU the book lost makes the label missing", () => {
+  const l = normLabel({ id: "t", twoVariant: true, fields: { sku: "A", price: "$1.00/sq ft" }, fields2: { sku: "GONE", price: "$2.00/sq ft" } });
+  const plan = refreshPlan([l], [live({ sku: "A", priceSqft: 1 })], keysOf);
+  assert.deepEqual(plan.missing[0].missingSkus, ["GONE"]);
+});
+
+test("restyleLabel takes the template layout and keeps the text", () => {
+  const tpl = normPreset({ id: "sample-tag", w: 1.5, h: 3, header: "Keim", lines: [{ key: "name", show: true, size: 20 }] });
+  const l = normLabel({ id: "x", twoVariant: true, w: 2, fields: { name: "Keep me" }, lines: [{ key: "name", show: true, size: 9 }] });
+  const p = restyleLabel(l, tpl);
+  assert.equal(p.h, 3);
+  assert.equal(p.w, 2);
+  assert.equal(p.presetId, "sample-tag");
+  assert.equal(p.lines.find((x) => x.key === "name").size, 20);
+  assert.equal(p.fields, undefined);
+  assert.equal(restyleLabel({ ...l, twoVariant: false }, tpl).w, 1.5);
 });
