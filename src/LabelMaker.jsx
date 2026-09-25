@@ -673,7 +673,7 @@ export function LabelMaker({ stock, bookStockReady = false, labels, presets, onA
         <div className="flex items-center gap-2 mt-2">
           <div className="flex items-center gap-1.5 text-xs text-slate-500 min-w-0">
             <span className="w-[7px] h-[7px] rounded-full shrink-0" style={{ background: editingId ? AMBER : "var(--ft-brand)" }} />
-            <span className="truncate">{editingId ? `Editing “${draft.fields.name || "label"}”` : "New label"}</span>
+            <span className="truncate">{editingId ? "Editing" : "New label"}</span>
           </div>
           <button onClick={startNewLabel} className="ml-auto border border-slate-200 rounded-md px-3 py-1.5 text-sm font-semibold hover:bg-slate-50">New</button>
           <button onClick={save} className="bg-slate-800 text-white rounded-md px-5 py-1.5 text-sm font-semibold hover:bg-slate-700 whitespace-nowrap">{editingId ? "Save changes" : "Save label"}</button>

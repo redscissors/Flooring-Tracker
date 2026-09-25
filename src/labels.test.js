@@ -4,7 +4,7 @@ import {
   LABEL_FIELDS, BUILTIN_PRESETS, BUILTIN_IDS, clampSize,
   normPreset, normLabelPresets, customLabelPresets, normLabel, newDraftFromPreset,
   perLetterSheet, sheetsForLabels,
-  faceSizeText, stockToLabelFields, escapeHtml, labelCardHTML, normLabel as _normLabel,
+  faceSizeText, stockToLabelFields, cleanLabelName, escapeHtml, labelCardHTML, normLabel as _normLabel,
   isSpacer, clampSpace, newSpacerLine, SPACE_MIN, SPACE_MAX, SPACE_DEFAULT,
   PIN_KEY, splitPinned, builtinDefault, isBuiltinOverridden,
   NAME_FLOOR, fitNameSize, faceArea, trimSize, twoSizeDraft, restyleLabel, refreshPlan,
@@ -114,9 +114,33 @@ test("stockToLabelFields maps a normalized stock item to label fields", () => {
 });
 
 test("stockToLabelFields derives $/sf from carton price when priceSqft is absent", () => {
-  const f = stockToLabelFields({ sku: "X", product: "Tile X", price: 50, sfPerUnit: 10 });
-  assert.equal(f.name, "Tile X");
+  const f = stockToLabelFields({ sku: "X", product: "Glacier X", price: 50, sfPerUnit: 10 });
+  assert.equal(f.name, "Glacier X");
   assert.equal(f.price, "$5.00/sq ft");
+});
+
+test("cleanLabelName drops the word Tile, dashes and manufacturer codes", () => {
+  assert.equal(cleanLabelName("Marazzi Rice Tile - RC03 Natural"), "Marazzi Rice Natural");
+  assert.equal(cleanLabelName("Daltile Tiles – ULRA1224 Ash"), "Daltile Ash");
+  assert.equal(cleanLabelName("Tilework Glossy"), "Tilework Glossy");
+  assert.equal(cleanLabelName("Meadow Hex 2in - 12x24 3/8\" 8mm"), "Meadow Hex 2in 12x24 3/8\" 8mm");
+  assert.equal(cleanLabelName("Oak-Grey Plank"), "Oak-Grey Plank");
+});
+
+test("cleanLabelName drops the item's own mfg code even when it is all letters or digits", () => {
+  assert.equal(cleanLabelName("Marazzi Rice Tile - MZRC Natural", "MZRC"), "Marazzi Rice Natural");
+  assert.equal(cleanLabelName("Rice 44120 Natural", "44120"), "Rice Natural");
+});
+
+test("cleanLabelName keeps the raw name when cleaning would empty it", () => {
+  assert.equal(cleanLabelName("Tile - RC03"), "Tile - RC03");
+  assert.equal(cleanLabelName(""), "");
+});
+
+test("stockToLabelFields cleans the stock-book name", () => {
+  const f = stockToLabelFields({ sku: "15042.07", description: "Marazzi Rice Tile - RC03 Natural", mfg: "RC03" });
+  assert.equal(f.name, "Marazzi Rice Natural");
+  assert.equal(f.sku, "15042.07");
 });
 
 test("escapeHtml neutralizes markup", () => {
