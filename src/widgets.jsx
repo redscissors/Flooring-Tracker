@@ -669,8 +669,8 @@ export function SideDock({ side = "right", onFlip, onClose, children }) {
             className={`hidden lg:flex absolute top-1/2 -translate-y-1/2 ${left ? "justify-start" : "justify-end"} w-4 h-48 text-slate-400 hover:text-slate-600`}
             style={left ? { left: "calc(100% - 1px)" } : { right: "calc(100% - 1px)" }}>
             <svg width="7" height="192" viewBox="0 0 7 192" className="block" style={left ? { transform: "scaleX(-1)" } : undefined} aria-hidden="true">
-              <path d="M7 0 L0.5 16 L0.5 176 L7 192 Z" fill="var(--ft-card)" />
-              <path d="M7 0 L0.5 16 L0.5 176 L7 192" fill="none" stroke="var(--ft-border)" strokeWidth="1" />
+              <path d="M7 0 Q7 2 5.9 4.6 L1.3 15.55 Q0.5 17.4 0.5 19.5 L0.5 172.5 Q0.5 174.6 1.3 176.45 L5.9 187.4 Q7 190 7 192 Z" fill="var(--ft-card)" />
+              <path d="M7 0 Q7 2 5.9 4.6 L1.3 15.55 Q0.5 17.4 0.5 19.5 L0.5 172.5 Q0.5 174.6 1.3 176.45 L5.9 187.4 Q7 190 7 192" fill="none" stroke="var(--ft-border)" strokeWidth="1" />
               <path d="M4 92.5 L2 96 L4 99.5" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
