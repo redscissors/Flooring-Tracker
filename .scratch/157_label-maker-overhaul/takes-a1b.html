@@ -119,6 +119,17 @@
   .in.pinned { border-left:3px solid var(--moss); padding-left:6px; }
   .cmp { display:flex; gap:16px; flex-wrap:wrap; }
   .cmp .screen { width:360px; padding:12px 14px; }
+  .tmenu { width:280px; border:1px solid var(--ink); border-radius:9px; background:#fff; box-shadow:0 18px 36px -20px rgba(0,0,0,.35); overflow:hidden; }
+  .tmenu .trig { display:flex; align-items:center; gap:9px; padding:6px 10px 6px 7px; border-bottom:1px solid var(--line-soft); }
+  .titem { display:flex; align-items:center; gap:10px; padding:7px 10px; font-size:13px; }
+  .titem:hover, .titem.hl { background:var(--tint); }
+  .titem .sw2 { background:#1A1A1A; border-radius:2px; flex:0 0 auto; }
+  .titem .tx { flex:1; line-height:1.15; } .titem .tx small { display:block; color:var(--faint); font-size:11px; }
+  .titem .ck { color:var(--moss); font-weight:800; width:14px; }
+  .tsep { border-top:1px solid var(--line-soft); margin:3px 0; }
+  .tgrp { font-size:10px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--faint); padding:7px 10px 3px; }
+  .tact { display:flex; align-items:center; gap:10px; padding:7px 10px; font-size:13px; font-weight:600; }
+  .tact:hover { background:var(--tint); }
 </style>
 </head>
 <body>
@@ -147,7 +158,6 @@
       <div class="col-r">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
           <div class="tpl" style="background:#fff;"><div class="sw"></div><div><b>Sample Tag</b><small>1.5 × 2.5″ · ≈12/sheet</small></div><span style="color:var(--faint)">▾</span></div>
-          <button class="btn ghost">⚙ Edit template</button>
           <button class="btn" style="margin-left:auto;">🖨 Print all · 1 sheet</button>
         </div>
         <div style="display:flex;gap:22px;align-items:flex-start;">
@@ -169,6 +179,28 @@
       </div>
     </div></div>
     <p class="cap">The Grout row shows the pinned marker as a small moss arrow-to-the-line icon, on the same line as “GROUT”. Hover it and it says “Pinned to the bottom of the label.”</p>
+  </section>
+
+  <section class="take">
+    <div class="take-head"><h2>Edit template lives in the template dropdown</h2></div>
+    <p class="why">There's no separate ⚙ button any more. Click the template chip and one menu lists every template, drawn to its real shape with its size and per-sheet count. Under them are <b>Edit “Sample Tag”…</b> (opens the editor beside the preview, as before) and <b>New template…</b> (starts the editor from a copy of the current one). Picking another template switches the label you're working on, as the chips do today.</p>
+    <div style="display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start;">
+      <div class="tmenu">
+        <div class="trig"><div class="sw" style="width:14px;height:22px;background:#1A1A1A;border-radius:2px;"></div><div style="flex:1;line-height:1.1;"><b style="font-size:13px;">Sample Tag</b><small style="display:block;color:var(--faint);font-size:11px;">1.5 × 2.5″ · ≈12/sheet</small></div><span style="color:var(--faint)">▴</span></div>
+        <div class="tgrp">Templates</div>
+        <div class="titem hl"><span class="ck">✓</span><span class="sw2" style="width:12px;height:20px;"></span><span class="tx">Sample Tag<small>1.5 × 2.5″ · ≈12/sheet</small></span></div>
+        <div class="titem"><span class="ck"></span><span class="sw2" style="width:15px;height:20px;"></span><span class="tx">Spec Card<small>3 × 4″ · ≈4/sheet</small></span></div>
+        <div class="titem"><span class="ck"></span><span class="sw2" style="width:16px;height:20px;"></span><span class="tx">Two-Size Tag<small>2 × 2.5″ · ≈12/sheet</small></span></div>
+        <div class="tsep"></div>
+        <div class="tact"><span style="width:14px;"></span>⚙ Edit “Sample Tag”…</div>
+        <div class="tact" style="margin-bottom:3px;"><span style="width:14px;"></span>＋ New template…</div>
+      </div>
+      <div class="note" style="max-width:360px;">
+        <p style="margin-top:0;"><b>Why here:</b> the chip already names the template, so editing it from the same place reads naturally, and the right side's header is just the chip and Print all.</p>
+        <p><b>While the editor is open</b> the chip reads <b>Editing “Sample Tag”</b> with an ✕ to close without saving. Update / Save as new stay in the editor itself.</p>
+        <p>It opens in the app's standard dropdown style: the menu grows out of the chip, like the price-level menu.</p>
+      </div>
+    </div>
   </section>
 
   <section class="take">
