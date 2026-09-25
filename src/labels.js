@@ -342,7 +342,10 @@ export const isKeimHeader = (h) => str(h || "Keim").toLowerCase() === "keim";
 export const surfaceColor = (s) => (s === "Wall" ? "#7d6a8a" : s === "Floor & Wall" ? "#B5654A" : "#5C6B73");
 // The Surface pill rides the header row, right of the logo, whatever the
 // Surface line's place in the list; its shown flag and size still come from
-// that line. Null when hidden or unpicked.
+// that line. Null when hidden or unpicked. The pill trims its line box to
+// cap height (all-caps text has no descenders to fill the space below the
+// baseline) and its right pad is short by the letter-spacing that trails the
+// last letter — both keep the text centered in the color.
 export const surfacePill = (label) => {
   const l = (label.lines || []).find((x) => x.key === "surface");
   const v = str(label.fields?.surface);
@@ -389,7 +392,7 @@ export const labelCardHTML = (label, { logoSrc } = {}) => {
   };
   const pinned = bottom.length ? `<div style="margin-top:auto;flex-shrink:0;display:flex;flex-direction:column;">${bottom.map(render).join("")}</div>` : "";
   return `<div class="lc" style="width:${label.w}in;height:${label.h}in;background:#1A1A1A;color:#fff;border-radius:3px;padding:.12in;font-family:'Inter',sans-serif;display:flex;flex-direction:column;box-sizing:border-box;overflow:hidden;">
-    <div class="lc-head" style="display:flex;flex-wrap:wrap;align-items:center;column-gap:6px;row-gap:3px;">${header}${pill ? `<span class="lc-surface" style="margin-left:auto;font-size:${pill.size}px;line-height:1.2;text-transform:uppercase;letter-spacing:.1em;font-weight:700;padding:.25em .85em;border-radius:4px;max-width:100%;box-sizing:border-box;text-align:center;color:#fff;background:${pill.color};">${escapeHtml(pill.text)}</span>` : ""}</div>
+    <div class="lc-head" style="display:flex;flex-wrap:wrap;align-items:center;column-gap:6px;row-gap:3px;">${header}${pill ? `<span class="lc-surface" style="margin-left:auto;font-size:${pill.size}px;line-height:1;text-box:trim-both cap alphabetic;text-transform:uppercase;letter-spacing:.1em;font-weight:700;padding:.45em .75em .45em .85em;border-radius:4px;max-width:100%;box-sizing:border-box;text-align:center;color:#fff;background:${pill.color};">${escapeHtml(pill.text)}</span>` : ""}</div>
     <div style="border-top:1px solid rgba(255,255,255,.2);margin:6px 0 2px;"></div>
     ${body.map(render).join("")}${pinned}
   </div>`;
