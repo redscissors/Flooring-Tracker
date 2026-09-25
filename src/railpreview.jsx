@@ -123,7 +123,7 @@ function Harness() {
             <div className={nav.pane?.kind === "app" ? "flex-1 min-h-0 flex flex-col" : "hidden"}>
               <AppsWorkspace app={nav.lastApp} visible={nav.pane?.kind === "app"} onClose={() => dispatch({ type: "closePane" })}
                 resume={nav.pane?.kind === "app" && !!nav.pane.resume} onResume={() => dispatch({ type: "resolveResume" })} progressRef={progress}
-                stock={[]} labels={[]} presets={[]} onAddLabel={noop} onAddLabelsBulk={noop} onUpdateLabel={noop} onDeleteLabel={noop} onSavePreset={noop}
+                stock={[]} labels={[]} presets={[]} onAddLabel={noop} onAddLabelsBulk={noop} bookStockReady onUpdateLabel={noop} onUpdateLabelsBulk={noop} onDeleteLabel={noop} onDeleteLabels={noop} onSavePreset={noop}
                 sheoga={{ markupDefault: 40, ventMarkupDefault: 50, ...bag }}
                 wedi={{ builderPct: 0, schluterBuilderPct: 0, stockRows: [], bookStockReady: true, books: [], loadBookItems: async () => [], mortars: [], mortarDefault: "", ...bag }}
                 schluter={{ builderPct: 0, wediBuilderPct: 0, stockRows: [], bookStockReady: true, books: [], loadBookItems: async () => [], mortars: [], mortarDefault: "", ...bag }} />
