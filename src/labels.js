@@ -333,6 +333,11 @@ const surfaceColor = (s) => (s === "Wall" ? "#B5654A" : s === "Floor & Wall" ? "
 
 const LABEL_OF = Object.fromEntries(LABEL_FIELDS.map((f) => [f.key, f.label]));
 
+// The grout line prints caption and color on one line, both at the line's
+// size; a color that doesn't fit drops to the next line whole (flex-wrap),
+// the caption keeping its dash.
+export const GROUT_CAPTION = "Grout –";
+
 // One card as a standalone HTML string (used by the print window). Kept as a
 // string — not React — so printing runs in a clean popup free of app CSS.
 // `logoSrc` is passed in (not imported) so this module stays asset-free and
@@ -359,6 +364,7 @@ export const labelCardHTML = (label, { logoSrc } = {}) => {
     if (l.key === "surface") return val("surface") ? `<span style="align-self:flex-start;margin-top:6px;font-size:8px;text-transform:uppercase;letter-spacing:.1em;font-weight:700;padding:2px 7px;border-radius:4px;color:#fff;background:${surfaceColor(label.fields?.surface)};">${val("surface")}</span>` : "";
     if (KIND_OF[l.key] === "custom") return val(l.key) ? `<div style="margin-top:6px;color:#fff;line-height:1.3;font-size:${l.size}px;word-break:break-word;">${val(l.key)}</div>` : "";
     if (label.twoVariant && VARIANT_KEYS.includes(l.key)) return l.key === firstVariant ? variantBlock : "";
+    if (l.key === "grout") return `<div class="lc-grout" style="margin-top:6px;display:flex;flex-wrap:wrap;align-items:baseline;column-gap:.35em;font-size:${l.size}px;line-height:1.3;"><span style="color:#9a9a9a;text-transform:uppercase;letter-spacing:.08em;font-weight:700;white-space:nowrap;">${GROUT_CAPTION}</span><span style="color:#fff;">${val("grout") || "—"}</span></div>`;
     const mono = l.key === "sku" ? "font-family:ui-monospace,monospace;" : "";
     return `<div style="margin-top:6px;"><div style="font-size:8px;text-transform:uppercase;letter-spacing:.08em;color:#9a9a9a;font-weight:700;line-height:1;">${escapeHtml(LABEL_OF[l.key])}</div><div style="color:#fff;line-height:1.3;font-size:${l.size}px;${mono}">${val(l.key) || "—"}</div></div>`;
   };

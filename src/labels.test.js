@@ -189,6 +189,22 @@ test("labelCardHTML renders a two-variant label as one split block", () => {
   assert.equal(html.split(">Size<").length - 1, 2);
 });
 
+test("labelCardHTML prints the grout line as one wrapping line, caption and color at the line's size", () => {
+  const l = _normLabel({ id: "l1", presetId: "sample-tag",
+    lines: [{ key: "name", show: true, size: 13 }, { key: "grout", show: true, size: 12 }],
+    fields: { name: "Carrara", grout: "Sterling Silver" } });
+  const html = labelCardHTML(l);
+  assert.doesNotMatch(html, /Grout Color/);
+  const m = html.match(/<div class="lc-grout" style="([^"]*)"><span[^>]*>Grout –<\/span><span[^>]*>Sterling Silver<\/span><\/div>/);
+  assert.ok(m, "caption and color share one block");
+  assert.match(m[1], /display:flex;flex-wrap:wrap;/);
+  assert.match(m[1], /font-size:12px;/);
+  // the caption never breaks away from its dash
+  assert.match(html, /<span style="[^"]*white-space:nowrap;[^"]*">Grout –<\/span>/);
+  // an empty grout prints the dash placeholder like the other lines
+  assert.match(labelCardHTML({ ...l, fields: { name: "Carrara" } }), /Grout –<\/span><span[^>]*>—<\/span>/);
+});
+
 test("labelCardHTML ignores fields2 when twoVariant is off", () => {
   const l = _normLabel({ id: "l1", presetId: "sample-tag",
     lines: [{ key: "name", show: true, size: 13 }, { key: "sku", show: true, size: 10 }],
@@ -332,7 +348,7 @@ test("labelCardHTML puts pinned lines in a bottom group and tags the name", () =
   const l = normLabel({ lines: [{ key: "name", show: true, size: 13 }, { key: "pin" }, { key: "grout", show: true, size: 9 }], fields: { name: "N", grout: "Bright White" } });
   const html = labelCardHTML(l);
   assert.match(html, /class="lc-name"/);
-  assert.match(html, /margin-top:auto[^>]*>.*Grout Color.*Bright White/s);
+  assert.match(html, /margin-top:auto[^>]*>.*Grout –.*Bright White/s);
 });
 
 test("labelCardHTML without a divider has no bottom group", () => {

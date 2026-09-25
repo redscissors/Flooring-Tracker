@@ -3,7 +3,7 @@ import { Search, Trash2, Printer, Eye, EyeOff, GripVertical, ChevronDown, Refres
 import {
   LABEL_FIELDS, KIND_OF, VARIANT_KEYS, newDraftFromPreset, normPreset, stockToLabelFields, perLetterSheet, sheetsForLabels,
   labelCardHTML, clampSize, isKeimHeader, isSpacer, clampSpace, newSpacerLine, isPin, PIN_KEY, splitPinned, fitNameSize,
-  faceArea, twoSizeDraft, restyleLabel, refreshPlan, builtinDefault, isBuiltinOverridden, BUILTIN_IDS,
+  faceArea, twoSizeDraft, restyleLabel, refreshPlan, builtinDefault, isBuiltinOverridden, BUILTIN_IDS, GROUT_CAPTION,
 } from "./labels.js";
 import { searchStock, groutColorOptions } from "./stock.js";
 import { skuKeys } from "./orderbook.js";
@@ -82,6 +82,12 @@ function LabelCard({ label, scale = 1, boxes = false, onFit }) {
         </div>
       );
     }
+    if (l.key === "grout") return (
+      <div key={l.key} style={{ marginTop: 6, display: "flex", flexWrap: "wrap", alignItems: "baseline", columnGap: ".35em", fontSize: l.size, lineHeight: 1.3, ...bx }}>
+        <span style={{ color: "#9a9a9a", textTransform: "uppercase", letterSpacing: ".08em", fontWeight: 700, whiteSpace: "nowrap" }}>{GROUT_CAPTION}</span>
+        <span>{v || "—"}</span>
+      </div>
+    );
     return (
       <div key={l.key} style={{ marginTop: 6, ...bx }}>
         <div style={{ fontSize: 8, textTransform: "uppercase", letterSpacing: ".08em", color: "#9a9a9a", fontWeight: 700, lineHeight: 1 }}>{LABEL_OF[l.key]}</div>
