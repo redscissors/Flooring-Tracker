@@ -19,6 +19,10 @@ const inp = "w-full min-w-0 border border-slate-200 rounded-md px-2 py-1 text-sm
 const eyebrow = "text-[10.5px] uppercase tracking-wider text-slate-400 font-bold";
 const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
 const priceNum = (s) => { const m = String(s || "").match(/-?\d+(?:\.\d+)?/); return m ? parseFloat(m[0]) : null; };
+// The set column's controls stop at a letter sheet's width (the page the
+// labels print on) so a wide screen doesn't strand the search at the far edge;
+// the cards themselves still use the full column.
+const SHEET_W = "8.5in";
 const SHORT = { name: "Name", grout: "Grout", custom1: "Line 1", custom2: "Line 2", custom3: "Line 3" };
 const overflows = (card) => card.scrollHeight > card.clientHeight + 1;
 
@@ -450,7 +454,7 @@ export function LabelMaker({ stock, bookStockReady = false, labels, presets, onA
 
   // ── right column bodies ──
   const editorPane = tplEdit && (
-    <div>
+    <div style={{ maxWidth: SHEET_W }}>
       <div className="flex items-center gap-2 mb-3">
         <div className="text-sm font-bold">{tplEdit.isNew ? "New template" : `Template: ${current.name}`}</div>
         <label className="ml-auto flex items-center gap-1 text-[11px] text-slate-500 cursor-pointer select-none" title="Outline each line on the preview to check spacing — never prints">
@@ -559,7 +563,7 @@ export function LabelMaker({ stock, bookStockReady = false, labels, presets, onA
     const { plan, del } = review;
     const setDel = (id, on) => setReview((r) => { const d = new Set(r.del); if (on) d.add(id); else d.delete(id); return { ...r, del: d }; });
     return (
-      <div>
+      <div style={{ maxWidth: SHEET_W }}>
         <div className="flex items-center gap-2 mb-3">
           <div className="text-[15px] font-bold">Update {plural(selectedLabels.length, "label")} from the stock book</div>
           <button onClick={() => setReview(null)} className="ml-auto text-slate-400 hover:text-slate-800" title="Cancel"><X size={16} /></button>
@@ -587,6 +591,7 @@ export function LabelMaker({ stock, bookStockReady = false, labels, presets, onA
   const doneLabels = doneBar ? labels.filter((l) => doneBar.ids.includes(l.id)) : [];
   const setPane = (
     <div>
+      <div style={{ maxWidth: SHEET_W }}>
       <div className="flex items-center gap-2 mb-2.5 flex-wrap">
         <div className="text-[13px] font-bold">Label set ({labels.length})</div>
         <div className="relative flex-1 min-w-[140px]">
@@ -631,6 +636,7 @@ export function LabelMaker({ stock, bookStockReady = false, labels, presets, onA
           </>)}
         </div>
       )}
+      </div>
 
       {view.length === 0 ? (
         <div className="border border-dashed border-slate-200 rounded-md p-8 text-center text-sm text-slate-400">{labels.length === 0 ? "No labels yet. Fill out the form and Save label." : "No labels match."}</div>
@@ -643,7 +649,7 @@ export function LabelMaker({ stock, bookStockReady = false, labels, presets, onA
                 <button onClick={(e) => (e.shiftKey ? toggleSel(l.id) : editLabel(l))} className={`block text-left rounded ${on || editingId === l.id ? "ring-2 ring-offset-2" : ""}`} style={on || editingId === l.id ? { "--tw-ring-color": on ? "var(--ft-brand)" : AMBER } : undefined} title="Click to edit · Shift-click to select">
                   <LabelCard label={l} scale={Math.min(0.6, 120 / (l.w * 96))} />
                 </button>
-                <button onClick={() => toggleSel(l.id)} className="absolute -top-2 -left-2 w-5 h-5 rounded-full border-[1.5px] flex items-center justify-center text-[10px] font-extrabold text-white" style={on ? { background: "var(--ft-brand)", borderColor: "var(--ft-brand)" } : { background: "#fff", borderColor: "var(--ft-border-strong)" }} title={on ? "Deselect" : "Select"}>{on ? "✓" : ""}</button>
+                <button onClick={() => toggleSel(l.id)} className={`absolute -top-2 -left-2 w-5 h-5 rounded-full border-[1.5px] flex items-center justify-center text-[10px] font-extrabold text-white transition-opacity ${on ? "" : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100"}`} style={on ? { background: "var(--ft-brand)", borderColor: "var(--ft-brand)" } : { background: "#fff", borderColor: "var(--ft-border-strong)" }} title={on ? "Deselect" : "Select"}>{on ? "✓" : ""}</button>
                 <button onClick={() => { if (editingId === l.id) startNewLabel(); onDeleteLabel(l.id); dropFromSelection([l.id]); }} className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-white border border-slate-200 text-red-500 opacity-0 group-hover:opacity-100 flex items-center justify-center" title="Delete"><Trash2 size={12} /></button>
               </div>
             );

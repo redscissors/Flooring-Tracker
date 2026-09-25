@@ -2233,6 +2233,10 @@ src/
                     # snapshot); Update asks before restyling saved labels.
                     # Update from stock book waits on `bookStockReady` and
                     # writes only through the bulk pair. The print popup
-                    # re-runs the name fit once its fonts load
+                    # re-runs the name fit once its fonts load. The set column's
+                    # controls (and the editor/review) stop at a letter
+                    # sheet's width (SHEET_W, owner 2026-09-25) while the cards
+                    # use the whole column; an unselected card shows no
+                    # circle — it fades in on hover
   lib/supabase.js   # Supabase client (reads VITE_ env vars)
 ```
