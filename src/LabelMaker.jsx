@@ -3,7 +3,7 @@ import { Search, Trash2, Printer, Eye, EyeOff, GripVertical, ChevronDown, Refres
 import {
   LABEL_FIELDS, KIND_OF, VARIANT_KEYS, newDraftFromPreset, normPreset, stockToLabelFields, perLetterSheet, sheetsForLabels,
   labelCardHTML, clampSize, isKeimHeader, isSpacer, clampSpace, newSpacerLine, isPin, PIN_KEY, splitPinned, fitNameSize,
-  faceArea, twoSizeDraft, restyleLabel, refreshPlan, builtinDefault, isBuiltinOverridden, BUILTIN_IDS,
+  faceArea, twoSizeDraft, restyleLabel, refreshPlan, builtinDefault, isBuiltinOverridden, BUILTIN_IDS, GROUT_CAPTION,
 } from "./labels.js";
 import { searchStock, groutColorOptions } from "./stock.js";
 import { skuKeys } from "./orderbook.js";
@@ -82,6 +82,12 @@ function LabelCard({ label, scale = 1, boxes = false, onFit }) {
         </div>
       );
     }
+    if (l.key === "grout") return (
+      <div key={l.key} style={{ marginTop: 6, display: "flex", flexWrap: "wrap", alignItems: "baseline", columnGap: ".35em", fontSize: l.size, lineHeight: 1.3, ...bx }}>
+        <span style={{ color: "#9a9a9a", textTransform: "uppercase", letterSpacing: ".08em", fontWeight: 700, whiteSpace: "nowrap" }}>{GROUT_CAPTION}</span>
+        <span>{v || "—"}</span>
+      </div>
+    );
     return (
       <div key={l.key} style={{ marginTop: 6, ...bx }}>
         <div style={{ fontSize: 8, textTransform: "uppercase", letterSpacing: ".08em", color: "#9a9a9a", fontWeight: 700, lineHeight: 1 }}>{LABEL_OF[l.key]}</div>
@@ -246,6 +252,7 @@ export function LabelMaker({ stock, bookStockReady = false, labels, grouts, pres
   const [review, setReview] = useState(null);
   const [doneBar, setDoneBar] = useState(null);
   const current = presets.find((p) => p.id === draft.presetId) || first;
+  const saveRef = useRef(null);
   // Which grout's palette the Grout line picks from. Per-device and never on
   // the label — the label keeps only the color name.
   const [groutFamily, setGroutFamilyRaw] = useState(() => { try { return localStorage.getItem(GROUT_FAMILY_KEY) || ""; } catch { return ""; } });
@@ -450,10 +457,12 @@ export function LabelMaker({ stock, bookStockReady = false, labels, grouts, pres
             <FitSelect full value={groutOpt.name} display={groutOpt.name} title="Grout family — sets which colors the list offers" onChange={(e) => setGroutFamily(e.target.value)}>
               {grouts.options.map((o) => <option key={o.name}>{o.name}</option>)}
             </FitSelect>
-            <FitSelect full value={draft.fields.grout} display={draft.fields.grout || "Color…"} onChange={(e) => setField("grout", e.target.value)}>
-              <option value="">Color…</option>
-              <GroutColorOptions groups={groutColorOptions(groutOpt.family, draft.fields.grout, groutOpt.fallback)} />
-            </FitSelect>
+            <div onKeyDown={(e) => { if (e.key === "Tab" && !e.shiftKey && saveRef.current) { e.preventDefault(); saveRef.current.focus(); } }}>
+              <FitSelect full liveType value={draft.fields.grout} display={draft.fields.grout || "Color…"} onChange={(e) => setField("grout", e.target.value)}>
+                <option value="">Color…</option>
+                <GroutColorOptions groups={groutColorOptions(groutOpt.family, draft.fields.grout, groutOpt.fallback)} />
+              </FitSelect>
+            </div>
           </div>
         ) : two ? (
           <div className="grid grid-cols-2 gap-1">
@@ -692,7 +701,7 @@ export function LabelMaker({ stock, bookStockReady = false, labels, grouts, pres
             <span className="truncate">{editingId ? "Editing" : "New label"}</span>
           </div>
           <button onClick={startNewLabel} className="ml-auto border border-slate-200 rounded-md px-3 py-1.5 text-sm font-semibold hover:bg-slate-50">New</button>
-          <button onClick={save} className="bg-slate-800 text-white rounded-md px-5 py-1.5 text-sm font-semibold hover:bg-slate-700 whitespace-nowrap">{editingId ? "Save changes" : "Save label"}</button>
+          <button ref={saveRef} onClick={save} className="bg-slate-800 text-white rounded-md px-5 py-1.5 text-sm font-semibold hover:bg-slate-700 whitespace-nowrap">{editingId ? "Save changes" : "Save label"}</button>
         </div>
         <div className="border-t border-slate-100 mt-3 mb-1.5" />
         {formBody.filter(formLine).map((l) => formRow(l, false))}
