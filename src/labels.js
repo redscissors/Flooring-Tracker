@@ -215,8 +215,9 @@ const money = (n) => `$${(Math.round(n * 100) / 100).toFixed(2)}`;
 
 // Stock-book names carry words a sample label doesn't want: "Tile", the
 // vendor's code ("Marazzi Rice Tile - RC03 Natural"), and the dash that set it
-// off (owner 2026-09-25). A code is any word mixing letters and digits, plus
-// the item's own mfg; sizes and measures (12x24, 2in, 8mm) stay.
+// off (owner 2026-09-25). A code is any word mixing letters and digits, an
+// all-digit word of 5+ digits ("Wow Skin Biscuit Matte 135296"), or the item's
+// own mfg; sizes, measures (12x24, 2in, 8mm) and short numbers stay.
 const MEASURE_RE = /^\d+(?:[./]\d+)?["']?(?:[x×]\d+(?:[./]\d+)?["']?|in|mm|cm|ft|mil)?$/i;
 const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 export const cleanLabelName = (name, mfg) => {
@@ -227,6 +228,7 @@ export const cleanLabelName = (name, mfg) => {
   const out = s.split(/\s+/).filter((w) => w
     && !/^tiles?$/i.test(w)
     && !/^[-–—]+$/.test(w)
+    && !/^\d{5,}$/.test(w)
     && !(/[a-z]/i.test(w) && /\d/.test(w) && !MEASURE_RE.test(w))).join(" ");
   return out || raw;
 };
