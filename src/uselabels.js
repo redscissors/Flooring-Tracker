@@ -40,20 +40,37 @@ export function useLabels({ user, profile, ping, flashSaved, settings, setSettin
     const l = next.find((x) => x.id === id);
     (async () => { try { const { error } = await supabase.from("labels").update({ position: l.position, data: labelData(l) }).eq("id", id); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — check connection"); } })();
   };
+  // One optimistic update and one upsert for a batch (stock-book refresh,
+  // template restyle) — never a write per label.
+  const updateLabelsBulk = (patches) => {
+    if (!patches.length) return;
+    const byId = new Map(patches.map((p) => [p.id, p.patch]));
+    const next = labels.map((l) => (byId.has(l.id) ? normLabel({ ...l, ...byId.get(l.id) }) : l));
+    setLabels(next);
+    const rows = next.filter((l) => byId.has(l.id)).map((l) => ({ id: l.id, position: l.position, data: labelData(l) }));
+    (async () => { try { const { error } = await supabase.from("labels").upsert(rows); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — check connection"); } })();
+  };
+  const delLabels = (ids) => {
+    if (!ids.length) return;
+    const gone = new Set(ids);
+    setLabels((prev) => prev.filter((l) => !gone.has(l.id)));
+    (async () => { try { const { error } = await supabase.from("labels").delete().in("id", ids); if (error) throw error; } catch (e) { ping("Delete failed"); } })();
+  };
   const delLabel = (id) => {
     setLabels((prev) => prev.filter((l) => l.id !== id));
     (async () => { try { const { error } = await supabase.from("labels").delete().eq("id", id); if (error) throw error; } catch (e) { ping("Delete failed"); } })();
   };
-  // Custom size presets live in shared settings; setSettings persists them
-  // (serializeSettings keeps only non-built-in presets).
+  // Presets live in shared settings; setSettings persists them (serializeApps
+  // keeps customs plus any built-in the team has edited). Replaced in place so
+  // an edited built-in keeps its spot in the list.
   const saveLabelPreset = (preset) => {
     const cur = settings.apps?.labels?.presets || [];
-    const presets = [...cur.filter((p) => p.id !== preset.id), preset];
+    const presets = cur.some((p) => p.id === preset.id) ? cur.map((p) => (p.id === preset.id ? preset : p)) : [...cur, preset];
     setSettings({ ...settings, apps: { ...settings.apps, labels: { presets } } });
   };
 
   return {
     labels, hydrateLabels: setLabels,
-    refreshLabels, addLabel, addLabelsBulk, updateLabel, delLabel, saveLabelPreset,
+    refreshLabels, addLabel, addLabelsBulk, updateLabel, updateLabelsBulk, delLabel, delLabels, saveLabelPreset,
   };
 }
