@@ -103,7 +103,7 @@ function LabelCard({ label, scale = 1, boxes = false, onFit }) {
           {isKeimHeader(label.header)
             ? <img src={keimLogo} alt="Keim" style={{ height: 14, width: "auto", alignSelf: "flex-start", filter: "brightness(0) invert(1)" }} />
             : <div style={{ fontFamily: "'Oswald',sans-serif", fontSize: 11, textTransform: "uppercase", letterSpacing: ".3em" }}>{label.header}</div>}
-          {pill && <span style={{ marginLeft: "auto", fontSize: pill.size, lineHeight: 1.2, textTransform: "uppercase", letterSpacing: ".1em", fontWeight: 700, padding: ".25em .85em", borderRadius: 4, maxWidth: "100%", boxSizing: "border-box", textAlign: "center", background: pill.color, ...bx }}>{pill.text}</span>}
+          {pill && <span style={{ marginLeft: "auto", fontSize: pill.size, lineHeight: 1, textBox: "trim-both cap alphabetic", textTransform: "uppercase", letterSpacing: ".1em", fontWeight: 700, padding: ".45em .75em .45em .85em", borderRadius: 4, maxWidth: "100%", boxSizing: "border-box", textAlign: "center", background: pill.color, ...bx }}>{pill.text}</span>}
         </div>
         <div style={{ borderTop: "1px solid rgba(255,255,255,.2)", margin: "6px 0 2px" }} />
         {body.map(render)}

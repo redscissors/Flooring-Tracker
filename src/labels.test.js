@@ -260,6 +260,16 @@ test("labelCardHTML puts the surface pill in the header row, at its line's size"
   assert.doesNotMatch(hidden, /lc-surface/);
 });
 
+test("labelCardHTML centers the surface pill's capitals in its color box", () => {
+  const lines = [{ key: "name", show: true, size: 13 }, { key: "surface", show: true, size: 11 }];
+  const html = labelCardHTML(_normLabel({ id: "l1", lines, fields: { name: "Carrara", surface: "Wall" } }));
+  const style = html.match(/class="lc-surface" style="([^"]*)"/)[1];
+  assert.match(style, /text-box:trim-both cap alphabetic;/);
+  // the right pad gives back the letter-spacing trailing the last letter
+  assert.match(style, /letter-spacing:\.1em;/);
+  assert.match(style, /padding:\.45em \.75em \.45em \.85em;/);
+});
+
 test("custom lines print as caption-less free text and vanish when blank", () => {
   const lines = [
     { key: "name", show: true, size: 13 },
