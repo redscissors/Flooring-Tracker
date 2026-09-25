@@ -81,12 +81,14 @@ function BrowserHarness() {
 function Harness() {
   const empty = new URLSearchParams(location.search).has("empty");
   const [reqs, setReqs] = useState(empty ? [] : SEED);
+  const [side, setSide] = useState(new URLSearchParams(location.search).get("side") || "right");
   return (
     <SamplesPanel name={PROJECT.name} requests={reqs}
       custInfo={{ custName: "Kathy Marsh", address: PROJECT.address, phone: PROJECT.phone }}
       contactFor={(g) => sampleContactFor(BOOKS.find((b) => b.id === g.bookId)?.data)}
       onOrdered={(ids, ordered) => setReqs((prev) => prev.map((r) => ids.includes(r.id) ? { ...r, status: ordered ? "ordered" : "need", orderedBy: ordered ? "Dana" : "", orderedAt: ordered ? Date.now() : null } : r))}
       onRemove={(id) => setReqs((prev) => prev.filter((r) => r.id !== id))}
+      side={side} onFlip={() => setSide((s) => s === "left" ? "right" : "left")}
       onClose={() => {}} />
   );
 }

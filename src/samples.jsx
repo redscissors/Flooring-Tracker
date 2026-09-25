@@ -8,7 +8,7 @@
 
 import { X, Layers, Mail } from "lucide-react";
 import { CopyBtn } from "./copybtn.jsx";
-import { HelpTip } from "./widgets.jsx";
+import { HelpTip, SideDock } from "./widgets.jsx";
 import { sampleGroups, repEmail, mailtoHref, contactLabel, SAMPLE_LABEL, SAMPLE_CHIP, SAMPLE_COLOR, SAMPLE_STATUSES } from "./samples.js";
 
 const SAMPLES_TIP = <>Samples ship straight to the customer - the email carries their name and the project address. After sending, <b>Mark all ordered</b>; statuses are shared, so the whole team sees what's in flight.</>;
@@ -80,33 +80,31 @@ function VendorGroup({ g, custInfo, onOrdered, onRemove }) {
   );
 }
 
-export function SamplesPanel({ name, requests, custInfo, contactFor, onOrdered, onRemove, onClose }) {
+export function SamplesPanel({ name, requests, custInfo, contactFor, onOrdered, onRemove, side, onFlip, onClose }) {
   const groups = sampleGroups(requests, contactFor);
   return (
-    <div className="print:hidden fixed inset-0 z-50 flex justify-end" style={{ background: "rgba(20,15,10,.4)" }} onClick={onClose}>
-      <div className="flex flex-col bg-white border-l border-slate-200 shadow-2xl w-full lg:w-[560px] max-w-full h-full" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 shrink-0">
-          <div className="min-w-0">
-            <div className="ft-serif text-xl leading-tight flex items-center gap-2"><Layers size={17} className="text-slate-400" /> Samples <HelpTip className="align-middle" w={280} tip={SAMPLES_TIP} /></div>
-            <div className="text-[12px] text-slate-400 truncate">{name}</div>
-          </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 shrink-0"><X size={18} /></button>
+    <SideDock side={side} onFlip={onFlip} onClose={onClose}>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 shrink-0">
+        <div className="min-w-0">
+          <div className="ft-serif text-xl leading-tight flex items-center gap-2"><Layers size={17} className="text-slate-400" /> Samples <HelpTip className="align-middle" w={280} tip={SAMPLES_TIP} /></div>
+          <div className="text-[12px] text-slate-400 truncate">{name}</div>
         </div>
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
-          {groups.length === 0 ? (
-            <p className="text-[13px] text-slate-400 rounded-lg border border-dashed border-slate-200 px-3 py-3">
-              No sample requests on this project yet. Mark a line from its ⋯ menu - <b>Request sample</b> - and it collects here, grouped by vendor and ready to email.
-            </p>
-          ) : (
-            <>
-              {!custInfo.address && (
-                <p className="text-[11px]" style={{ color: "#b45309" }}>No ship-to address on this project - the sample email will have nowhere to send the samples. Add the project (or customer) address first.</p>
-              )}
-              {groups.map((g) => <VendorGroup key={g.key} g={g} custInfo={custInfo} onOrdered={onOrdered} onRemove={onRemove} />)}
-            </>
-          )}
-        </div>
+        <button onClick={onClose} className="text-slate-400 hover:text-slate-600 shrink-0"><X size={18} /></button>
       </div>
-    </div>
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
+        {groups.length === 0 ? (
+          <p className="text-[13px] text-slate-400 rounded-lg border border-dashed border-slate-200 px-3 py-3">
+            No sample requests on this project yet. Mark a line from its ⋯ menu - <b>Request sample</b> - and it collects here, grouped by vendor and ready to email.
+          </p>
+        ) : (
+          <>
+            {!custInfo.address && (
+              <p className="text-[11px]" style={{ color: "#b45309" }}>No ship-to address on this project - the sample email will have nowhere to send the samples. Add the project (or customer) address first.</p>
+            )}
+            {groups.map((g) => <VendorGroup key={g.key} g={g} custInfo={custInfo} onOrdered={onOrdered} onRemove={onRemove} />)}
+          </>
+        )}
+      </div>
+    </SideDock>
   );
 }

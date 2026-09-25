@@ -144,7 +144,9 @@ src/
                     # never re-counts floor sq ft (ADR 0043)
   fileread.js       # `readXlsxSheets`/`readPdfPages` — lazy `import("xlsx")`/
                     # `import("pdfjs-dist")` preserved
-  widgets.jsx       # shared widgets: `Modal`, `LazyBoundary`, `FitSelect`, `DotMenu`,
+  widgets.jsx       # shared widgets: `Modal`, `SideDock` (the order entry /
+                    # Samples drawer; its edge tab flips it left⇄right, saved
+                    # per user as ui.dockSide), `LazyBoundary`, `FitSelect`, `DotMenu`,
                     # anchored-panel machinery, `ThemeSwitch`, popovers, bars,
                     # `HelpTip` (the hover/focus/tap ? for STANDING RULES only —
                     # state & warnings stay inline, hiding them hides the problem),
@@ -2067,7 +2069,7 @@ src/
                     # samples.jsx so `node --test` can cover it (samples.test.js)
   samples.jsx       # the Samples panel (spec 2026-08-28) — this project's
                     # sample_requests, grouped by vendor via `sampleGroups`,
-                    # in the same right-dock shell as order entry. Per-line
+                    # in the same `SideDock` drawer as order entry. Per-line
                     # two-way status toggle (To order ⇄ Ordered), per-vendor
                     # "Mark all ordered" and an "Email {contact}" mailto button
                     # built from `repEmail`/`mailtoHref` + `contactLabel` (falls

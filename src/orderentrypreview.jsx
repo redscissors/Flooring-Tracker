@@ -103,6 +103,7 @@ const seeded = () => {
 function Harness() {
   const [proj, setProj] = useState(() => ({ projectNo: STATE === "quick" ? null : 142, quick: STATE === "quick", ...seeded() }));
   const apply = (patch) => { if (patch) setProj((p) => ({ ...p, ...patch })); };
+  const [side, setSide] = useState(new URLSearchParams(location.search).get("side") || "right");
   return (
     <OrderEntryPanel
       name={STATE === "quick" ? "Q-Ragno Bianco Subway Matte-9/19" : "Hendricks Residence"}
@@ -116,6 +117,7 @@ function Harness() {
       onRemoveOrder={(no) => apply(removeErpOrder(proj, no))}
       onStamp={(ids, no) => apply(stampErpLines(proj, ids, no, "Preview"))}
       onClearStamp={(ids) => apply(clearErpStamps(proj, ids))}
+      side={side} onFlip={() => setSide((s) => s === "left" ? "right" : "left")}
       onClose={() => {}}
     />
   );

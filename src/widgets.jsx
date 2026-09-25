@@ -1,6 +1,6 @@
 import { Children, Component, Fragment, isValidElement, useState, useEffect, useLayoutEffect, useRef, useId } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, User, Paperclip, X, Lock, LockOpen, Eye, EyeOff, MapPin, ClipboardPaste, Check, ShoppingBasket } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, User, Paperclip, X, Lock, LockOpen, Eye, EyeOff, MapPin, ClipboardPaste, Check, ShoppingBasket } from "lucide-react";
 import { num } from "./catalog.js";
 import { money } from "./model.js";
 import { TIER_COLOR } from "./uiconst.js";
@@ -646,6 +646,27 @@ export function Modal({ title, children, onClose }) {
     <div className="print:hidden fixed inset-0 flex items-center justify-center p-4 z-50" style={{ background: "rgba(20,15,10,.4)" }} onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-xl max-h-[88vh] overflow-y-auto p-5 border border-slate-200" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4"><h3 className="ft-serif text-2xl">{title}</h3><button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button></div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// The full-height drawer Order entry and Samples open in. `side` is the
+// per-user ui.dockSide pref; the edge tab flips it. Below lg the drawer is
+// full-width, so there is no other side and the tab hides.
+export function SideDock({ side = "right", onFlip, onClose, children }) {
+  const left = side === "left";
+  const Chev = left ? ChevronRight : ChevronLeft;
+  return (
+    <div className={`print:hidden fixed inset-0 z-50 flex ${left ? "justify-start" : "justify-end"}`} style={{ background: "rgba(20,15,10,.4)" }} onClick={onClose}>
+      <div className={`relative flex flex-col bg-white ${left ? "border-r" : "border-l"} border-slate-200 shadow-2xl w-full lg:w-[560px] max-w-full h-full`} onClick={(e) => e.stopPropagation()}>
+        {onFlip && (
+          <button type="button" onClick={onFlip} title={left ? "Move to the right side" : "Move to the left side"} aria-label={left ? "Move to the right side" : "Move to the left side"}
+            className={`hidden lg:flex absolute top-1/2 -translate-y-1/2 ${left ? "left-full rounded-r-md border-l-0" : "right-full rounded-l-md border-r-0"} w-3 h-48 items-center justify-center bg-white border border-slate-200 text-slate-400 hover:text-slate-600`}>
+            <Chev size={12} strokeWidth={2.5} className="shrink-0" />
+          </button>
+        )}
         {children}
       </div>
     </div>
