@@ -655,9 +655,8 @@ export function Modal({ title, children, onClose }) {
 // The full-height drawer Order entry and Samples open in. `side` is the
 // per-user ui.dockSide pref; the edge tab flips it. Below lg the drawer is
 // full-width, so there is no other side and the tab hides. The tab is drawn
-// 6px wide with angled ends (owner: 1/16"), overlapping the drawer's 1px
-// border so it reads as one piece; the button around it is wider so it stays
-// easy to hit.
+// 1/16" wide, flush against the drawer's edge, with S-curved ends (owner);
+// the button around it is wider so it stays easy to hit.
 export function SideDock({ side = "right", onFlip, onClose, children }) {
   const left = side === "left";
   const tip = left ? "Move to the right side" : "Move to the left side";
@@ -667,10 +666,10 @@ export function SideDock({ side = "right", onFlip, onClose, children }) {
         {onFlip && (
           <button type="button" onClick={onFlip} title={tip} aria-label={tip}
             className={`hidden lg:flex absolute top-1/2 -translate-y-1/2 ${left ? "justify-start" : "justify-end"} w-4 h-48 text-slate-400 hover:text-slate-600`}
-            style={left ? { left: "calc(100% - 1px)" } : { right: "calc(100% - 1px)" }}>
-            <svg width="7" height="192" viewBox="0 0 7 192" className="block" style={left ? { transform: "scaleX(-1)" } : undefined} aria-hidden="true">
-              <path d="M7 0 L0.5 16 L0.5 176 L7 192 Z" fill="var(--ft-card)" />
-              <path d="M7 0 L0.5 16 L0.5 176 L7 192" fill="none" stroke="var(--ft-border)" strokeWidth="1" />
+            style={left ? { left: "100%" } : { right: "100%" }}>
+            <svg width="6" height="192" viewBox="0 0 6 192" className="block" style={left ? { transform: "scaleX(-1)" } : undefined} aria-hidden="true">
+              <path d="M6 0 C6 10 0.5 18 0.5 28 L0.5 164 C0.5 174 6 182 6 192 Z" fill="var(--ft-card)" />
+              <path d="M6 0 C6 10 0.5 18 0.5 28 L0.5 164 C0.5 174 6 182 6 192" fill="none" stroke="var(--ft-border)" strokeWidth="1" />
               <path d="M4 92.5 L2 96 L4 99.5" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
