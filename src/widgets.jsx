@@ -1,6 +1,6 @@
 import { Children, Component, Fragment, isValidElement, useState, useEffect, useLayoutEffect, useRef, useId } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, ChevronLeft, ChevronRight, User, Paperclip, X, Lock, LockOpen, Eye, EyeOff, MapPin, ClipboardPaste, Check, ShoppingBasket } from "lucide-react";
+import { ChevronDown, User, Paperclip, X, Lock, LockOpen, Eye, EyeOff, MapPin, ClipboardPaste, Check, ShoppingBasket } from "lucide-react";
 import { num } from "./catalog.js";
 import { money } from "./model.js";
 import { TIER_COLOR } from "./uiconst.js";
@@ -654,17 +654,25 @@ export function Modal({ title, children, onClose }) {
 
 // The full-height drawer Order entry and Samples open in. `side` is the
 // per-user ui.dockSide pref; the edge tab flips it. Below lg the drawer is
-// full-width, so there is no other side and the tab hides.
+// full-width, so there is no other side and the tab hides. The tab is drawn
+// 6px wide with angled ends (owner: 1/16"), overlapping the drawer's 1px
+// border so it reads as one piece; the button around it is wider so it stays
+// easy to hit.
 export function SideDock({ side = "right", onFlip, onClose, children }) {
   const left = side === "left";
-  const Chev = left ? ChevronRight : ChevronLeft;
+  const tip = left ? "Move to the right side" : "Move to the left side";
   return (
     <div className={`print:hidden fixed inset-0 z-50 flex ${left ? "justify-start" : "justify-end"}`} style={{ background: "rgba(20,15,10,.4)" }} onClick={onClose}>
       <div className={`relative flex flex-col bg-white ${left ? "border-r" : "border-l"} border-slate-200 shadow-2xl w-full lg:w-[560px] max-w-full h-full`} onClick={(e) => e.stopPropagation()}>
         {onFlip && (
-          <button type="button" onClick={onFlip} title={left ? "Move to the right side" : "Move to the left side"} aria-label={left ? "Move to the right side" : "Move to the left side"}
-            className={`hidden lg:flex absolute top-1/2 -translate-y-1/2 ${left ? "left-full rounded-r-md border-l-0" : "right-full rounded-l-md border-r-0"} w-3 h-48 items-center justify-center bg-white border border-slate-200 text-slate-400 hover:text-slate-600`}>
-            <Chev size={12} strokeWidth={2.5} className="shrink-0" />
+          <button type="button" onClick={onFlip} title={tip} aria-label={tip}
+            className={`hidden lg:flex absolute top-1/2 -translate-y-1/2 ${left ? "justify-start" : "justify-end"} w-4 h-48 text-slate-400 hover:text-slate-600`}
+            style={left ? { left: "calc(100% - 1px)" } : { right: "calc(100% - 1px)" }}>
+            <svg width="7" height="192" viewBox="0 0 7 192" className="block" style={left ? { transform: "scaleX(-1)" } : undefined} aria-hidden="true">
+              <path d="M7 0 L0.5 16 L0.5 176 L7 192 Z" fill="var(--ft-card)" />
+              <path d="M7 0 L0.5 16 L0.5 176 L7 192" fill="none" stroke="var(--ft-border)" strokeWidth="1" />
+              <path d="M4 92.5 L2 96 L4 99.5" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </button>
         )}
         {children}
