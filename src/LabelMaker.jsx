@@ -246,6 +246,7 @@ export function LabelMaker({ stock, bookStockReady = false, labels, grouts, pres
   const [review, setReview] = useState(null);
   const [doneBar, setDoneBar] = useState(null);
   const current = presets.find((p) => p.id === draft.presetId) || first;
+  const saveRef = useRef(null);
   // Which grout's palette the Grout line picks from. Per-device and never on
   // the label — the label keeps only the color name.
   const [groutFamily, setGroutFamilyRaw] = useState(() => { try { return localStorage.getItem(GROUT_FAMILY_KEY) || ""; } catch { return ""; } });
@@ -450,10 +451,12 @@ export function LabelMaker({ stock, bookStockReady = false, labels, grouts, pres
             <FitSelect full value={groutOpt.name} display={groutOpt.name} title="Grout family — sets which colors the list offers" onChange={(e) => setGroutFamily(e.target.value)}>
               {grouts.options.map((o) => <option key={o.name}>{o.name}</option>)}
             </FitSelect>
-            <FitSelect full value={draft.fields.grout} display={draft.fields.grout || "Color…"} onChange={(e) => setField("grout", e.target.value)}>
-              <option value="">Color…</option>
-              <GroutColorOptions groups={groutColorOptions(groutOpt.family, draft.fields.grout, groutOpt.fallback)} />
-            </FitSelect>
+            <div onKeyDown={(e) => { if (e.key === "Tab" && !e.shiftKey && saveRef.current) { e.preventDefault(); saveRef.current.focus(); } }}>
+              <FitSelect full liveType value={draft.fields.grout} display={draft.fields.grout || "Color…"} onChange={(e) => setField("grout", e.target.value)}>
+                <option value="">Color…</option>
+                <GroutColorOptions groups={groutColorOptions(groutOpt.family, draft.fields.grout, groutOpt.fallback)} />
+              </FitSelect>
+            </div>
           </div>
         ) : two ? (
           <div className="grid grid-cols-2 gap-1">
@@ -692,7 +695,7 @@ export function LabelMaker({ stock, bookStockReady = false, labels, grouts, pres
             <span className="truncate">{editingId ? "Editing" : "New label"}</span>
           </div>
           <button onClick={startNewLabel} className="ml-auto border border-slate-200 rounded-md px-3 py-1.5 text-sm font-semibold hover:bg-slate-50">New</button>
-          <button onClick={save} className="bg-slate-800 text-white rounded-md px-5 py-1.5 text-sm font-semibold hover:bg-slate-700 whitespace-nowrap">{editingId ? "Save changes" : "Save label"}</button>
+          <button ref={saveRef} onClick={save} className="bg-slate-800 text-white rounded-md px-5 py-1.5 text-sm font-semibold hover:bg-slate-700 whitespace-nowrap">{editingId ? "Save changes" : "Save label"}</button>
         </div>
         <div className="border-t border-slate-100 mt-3 mb-1.5" />
         {formBody.filter(formLine).map((l) => formRow(l, false))}

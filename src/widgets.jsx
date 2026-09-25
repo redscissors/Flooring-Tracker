@@ -48,8 +48,8 @@ export class LazyBoundary extends Component {
 // The drawer's dropdowns keep a <select>'s call shape — <option>/<optgroup>
 // children and onChange(e) reading e.target.value — so they read like the
 // markup they replaced; underneath each is a MorphSelect (ADR 0048).
-export const FitSelect = ({ display, className = "", sm, full, children, value, onChange, title, bg = "var(--ft-field)" }) => (
-  <MorphSelect size={sm ? "sm" : "md"} full={full} className={className} title={title} value={String(value ?? "")} display={display}
+export const FitSelect = ({ display, className = "", sm, full, liveType, children, value, onChange, title, bg = "var(--ft-field)" }) => (
+  <MorphSelect size={sm ? "sm" : "md"} full={full} liveType={liveType} className={className} title={title} value={String(value ?? "")} display={display}
     groups={selectGroups(children)} bg={bg} onChange={(v) => onChange?.({ target: { value: v } })} />
 );
 
@@ -690,7 +690,7 @@ const touchRows = () => window.matchMedia?.("(pointer: coarse)").matches || wind
 // scroll container can't clip it, wearing the trigger's zoom inside the
 // shrink-to-fit workspaces. Focus stays on the trigger (rows preventDefault on
 // mousedown) so it keeps a <select>'s keyboard contract.
-export function MorphSelect({ value, onChange, options, groups, placeholder = "Pick…", display, bg = "var(--ft-card)", size = "md", flat = false, tinted = false, bold = false, full = false, align = "left", minOpenW = 0, title, className = "", triggerClass, triggerStyle, renderRow, tabIndex, chevron = true }) {
+export function MorphSelect({ value, onChange, options, groups, placeholder = "Pick…", display, bg = "var(--ft-card)", size = "md", flat = false, tinted = false, bold = false, full = false, align = "left", minOpenW = 0, liveType = false, title, className = "", triggerClass, triggerStyle, renderRow, tabIndex, chevron = true }) {
   const { items, heads } = flatten({ options, groups });
   const [open, setOpen] = useState(false);
   const [shown, setShown] = useState(false);
@@ -768,7 +768,9 @@ export function MorphSelect({ value, onChange, options, groups, placeholder = "P
     else if (k === "Enter" || k === " ") { stop(); if (active >= 0 && !items[active]?.disabled) pick(active); }
     else if (k === "ArrowDown" || k === "ArrowUp") { stop(); setActive(moveIndex(items, active, k === "ArrowDown" ? 1 : -1)); }
     else if (k === "Home" || k === "End") { stop(); setActive(edgeIndex(items, k === "Home" ? "first" : "last")); }
-    else if (letter) { stop(); const i = typeahead(items, active, k); if (i >= 0) setActive(i); }
+    // liveType: a letter press with the list open also picks the row, so the
+    // field follows the cycling (grout colors) instead of only the highlight.
+    else if (letter) { stop(); const i = typeahead(items, active, k); if (i >= 0) { setActive(i); if (liveType && !items[i].disabled) onChange(items[i].v); } }
   };
 
   const headAt = new Map(heads.filter((h) => h.label).map((h) => [h.at, h.label]));
