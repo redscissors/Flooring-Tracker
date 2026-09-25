@@ -655,8 +655,8 @@ export function Modal({ title, children, onClose }) {
 // The full-height drawer Order entry and Samples open in. `side` is the
 // per-user ui.dockSide pref; the edge tab flips it. Below lg the drawer is
 // full-width, so there is no other side and the tab hides. The tab is drawn
-// 1/16" wide, flush against the drawer's edge, with S-curved ends (owner);
-// the button around it is wider so it stays easy to hit.
+// 1/16" wide (1/8" on hover), flush against the drawer's edge, with S-curved
+// ends (owner); the button around it is wider so it stays easy to hit.
 export function SideDock({ side = "right", onFlip, onClose, children }) {
   const left = side === "left";
   const tip = left ? "Move to the right side" : "Move to the left side";
@@ -665,12 +665,12 @@ export function SideDock({ side = "right", onFlip, onClose, children }) {
       <div className={`relative flex flex-col bg-white ${left ? "border-r" : "border-l"} border-slate-200 shadow-2xl w-full lg:w-[560px] max-w-full h-full`} onClick={(e) => e.stopPropagation()}>
         {onFlip && (
           <button type="button" onClick={onFlip} title={tip} aria-label={tip}
-            className={`hidden lg:flex absolute top-1/2 -translate-y-1/2 ${left ? "justify-start" : "justify-end"} w-4 h-48 text-slate-400 hover:text-slate-600`}
+            className={`group hidden lg:flex absolute top-1/2 -translate-y-1/2 ${left ? "justify-start" : "justify-end"} w-4 h-48 text-slate-400 hover:text-slate-600`}
             style={left ? { left: "100%" } : { right: "100%" }}>
-            <svg width="6" height="192" viewBox="0 0 6 192" className="block" style={left ? { transform: "scaleX(-1)" } : undefined} aria-hidden="true">
+            <svg height="192" viewBox="0 0 6 192" preserveAspectRatio="none" className="block w-[6px] group-hover:w-[12px] transition-[width] duration-150 ease-out" style={left ? { transform: "scaleX(-1)" } : undefined} aria-hidden="true">
               <path d="M6 0 C6 10 0.5 18 0.5 28 L0.5 164 C0.5 174 6 182 6 192 Z" fill="var(--ft-card)" />
-              <path d="M6 0 C6 10 0.5 18 0.5 28 L0.5 164 C0.5 174 6 182 6 192" fill="none" stroke="var(--ft-border)" strokeWidth="1" />
-              <path d="M4 92.5 L2 96 L4 99.5" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M6 0 C6 10 0.5 18 0.5 28 L0.5 164 C0.5 174 6 182 6 192" fill="none" stroke="var(--ft-border)" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+              <path d="M4 92.5 L2 96 L4 99.5" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
             </svg>
           </button>
         )}
