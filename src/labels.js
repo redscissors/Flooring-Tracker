@@ -213,6 +213,24 @@ export const faceSizeText = (size) => {
 
 const money = (n) => `$${(Math.round(n * 100) / 100).toFixed(2)}`;
 
+// Stock-book names carry words a sample label doesn't want: "Tile", the
+// vendor's code ("Marazzi Rice Tile - RC03 Natural"), and the dash that set it
+// off (owner 2026-09-25). A code is any word mixing letters and digits, plus
+// the item's own mfg; sizes and measures (12x24, 2in, 8mm) stay.
+const MEASURE_RE = /^\d+(?:[./]\d+)?["']?(?:[x×]\d+(?:[./]\d+)?["']?|in|mm|cm|ft|mil)?$/i;
+const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+export const cleanLabelName = (name, mfg) => {
+  const raw = str(name);
+  let s = raw;
+  const code = str(mfg);
+  if (code) s = s.replace(new RegExp(`(^|\\s)${escRe(code)}(?=\\s|$)`, "gi"), " ");
+  const out = s.split(/\s+/).filter((w) => w
+    && !/^tiles?$/i.test(w)
+    && !/^[-–—]+$/.test(w)
+    && !(/[a-z]/i.test(w) && /\d/.test(w) && !MEASURE_RE.test(w))).join(" ");
+  return out || raw;
+};
+
 // Map a normalized StockItem (see stock.js normStockItem) to editable label
 // fields. A prefill only — the user edits freely afterward, nothing re-reads.
 export const stockToLabelFields = (item) => {
@@ -220,7 +238,7 @@ export const stockToLabelFields = (item) => {
   const psf = item.priceSqft != null ? item.priceSqft
     : (item.price != null && item.sfPerUnit > 0 ? item.price / item.sfPerUnit : null);
   return {
-    name: str(item.description) || str(item.product),
+    name: cleanLabelName(str(item.description) || str(item.product), item.mfg),
     sku: str(item.sku),
     size: faceSizeText(item.size) || str(item.sheetSize),
     price: psf != null ? `${money(psf)}/sq ft` : (item.price != null ? money(item.price) : ""),
