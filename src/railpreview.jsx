@@ -60,8 +60,7 @@ function Harness() {
           <DrawerList title="Settings" items={SETTINGS_ITEMS} activeId={nav.pane?.kind === "settings" ? nav.pane.id : null}
             onPick={(id) => pick("settings", id)} baseClass={railItemBase} className="px-2.5 pt-2.5 pb-2.5" divider />
         </RailSlide>
-        <div className="p-2.5 pb-8 space-y-2">
-          <div className="relative"><Search size={16} className="absolute left-2.5 top-2.5 text-slate-400" /><input placeholder="Search" className={inp + " pl-8"} /></div>
+        <div className="p-2.5 pb-6 space-y-2">
           <button className="ft-spark-btn w-full flex items-center justify-center gap-1.5 text-sm font-semibold py-2"><Zap size={16} className="-ml-1" /> Quick Price</button>
           <div>
             <button data-customers onClick={() => dispatch({ type: "openCustomers" })}
@@ -71,6 +70,9 @@ function Harness() {
             <button onClick={() => pick("app", "wedi")} className={railItem}><ShowerHead size={15} className="w-4 shrink-0" /> wedi</button>
             <button onClick={() => pick("app", "sheoga")} className={railItem}><TreePine size={15} className="w-4 shrink-0" /> Sheoga</button>
           </div>
+        </div>
+        <div className="px-2.5 pb-1">
+          <div className="relative"><Search size={16} className="absolute left-2.5 top-2.5 text-slate-400" /><input placeholder="Search" className={inp + " pl-8"} /></div>
         </div>
         <div className="flex-1 overflow-y-auto px-1.5 pb-2">
           <div className="mt-1 mb-1 px-3.5 ft-eyebrow text-[9px]">Recent</div>
