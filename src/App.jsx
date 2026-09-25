@@ -311,6 +311,11 @@ export default function App({ user, onSignOut }) {
   // Samples panel — the project's sample requests, grouped by vendor for
   // ordering (marks live on the rows; src/samples.js).
   const [showSamples, setShowSamples] = useState(false);
+  // Order entry / Samples drawer side (ui.dockSide). The pref is read at
+  // render because appBlobRef fills after boot; this state only holds a flip.
+  const [dockFlip, setDockFlip] = useState(null);
+  const dockSide = dockFlip || appBlobRef.current?.ui?.dockSide || "right";
+  const flipDock = () => { const next = dockSide === "left" ? "right" : "left"; setDockFlip(next); saveUiPref({ dockSide: next }); };
   useEffect(() => { setViewTab("edit"); setShowMargin(false); setShowOrderCopy(false); setShowSamples(false); setPreviewScope("all"); setOrderScope(null); setScopeAsk(null); }, [selId]);
   // Active card drag: { pid, fromAid, to: { aid, index, y } | null }. The card
   // follows the pointer imperatively (no re-render per move); state only changes
@@ -3068,6 +3073,7 @@ export default function App({ user, onSignOut }) {
               onRemoveOrder={(no) => erpPatch(removeErpOrder(sel, no))}
               onStamp={(ids, no) => erpPatch(stampErpLines(sel, ids, no, erpWho))}
               onClearStamp={(ids) => erpPatch(clearErpStamps(sel, ids))}
+              side={dockSide} onFlip={flipDock}
               onClose={() => { setShowOrderCopy(false); setOrderScope(null); }} />
           </Suspense>
         );
@@ -3083,6 +3089,7 @@ export default function App({ user, onSignOut }) {
             custInfo={{ custName: cust?.name || sel.name || "", address: sel.address || cust?.address || "", phone: sel.phone || cust?.phone || "" }}
             contactFor={(g) => sampleContactFor(sampleBookFor(g, books)?.data)}
             onOrdered={setSampleOrdered} onRemove={delSampleRequest}
+            side={dockSide} onFlip={flipDock}
             onClose={() => setShowSamples(false)} />
         );
       })()}

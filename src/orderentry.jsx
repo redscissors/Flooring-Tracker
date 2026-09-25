@@ -62,7 +62,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Copy, Check, X, Plus } from "lucide-react";
 import { CopyBtn, DONE_MOSS, writeClipboard } from "./copybtn.jsx";
-import { HelpTip, useAnchoredPanel, vPos, useEscClose } from "./widgets.jsx";
+import { HelpTip, useAnchoredPanel, vPos, useEscClose, SideDock } from "./widgets.jsx";
 import { compactBands, areaVendorBands, sheetBands } from "./orderlines.js";
 import { deliverToRows, deliverToSequence, splitAddress } from "./deliverto.js";
 import { writeSequence } from "./clipseq.js";
@@ -537,7 +537,7 @@ const useViews = (rows) => useMemo(() => ({
   sheet: asView(sheetBands(rows).map((b) => ({ ...b, area: true }))),
 }), [rows]);
 
-export function OrderEntryPanel({ name, projectNo = null, quick = false, custInfo, special = [], stock = [], descLimit = 0, erpOrders = [], erpKeyed = {}, onAddOrder = () => {}, onRemoveOrder = () => {}, onStamp = () => {}, onClearStamp = () => {}, onClose }) {
+export function OrderEntryPanel({ name, projectNo = null, quick = false, custInfo, special = [], stock = [], descLimit = 0, erpOrders = [], erpKeyed = {}, onAddOrder = () => {}, onRemoveOrder = () => {}, onStamp = () => {}, onClearStamp = () => {}, side, onFlip, onClose }) {
   const [view, setView] = useState("area");
   const [active, setActive] = useState(() => erpOrders[erpOrders.length - 1]?.no || "");
   // A removed order can't stay active; a freshly added one becomes active.
@@ -564,62 +564,60 @@ export function OrderEntryPanel({ name, projectNo = null, quick = false, custInf
     : left === 0 ? `Copies stamp ${active} · every line is keyed`
     : `Copies stamp ${active} · ${total - left} of ${total} keyed · ${left} to go`;
   return (
-    <div className="print:hidden fixed inset-0 z-50 flex justify-end" style={{ background: "rgba(20,15,10,.4)" }} onClick={onClose}>
-      <div className="flex flex-col bg-white border-l border-slate-200 shadow-2xl w-full lg:w-[560px] max-w-full h-full" onClick={(e) => e.stopPropagation()}>
-        {/* The header bar (owner, rounds 3–5): the project header's idiom — a
-            band of bordered columns, nothing above it. */}
-        <div className="shrink-0 m-2 mb-0 rounded-lg border flex flex-wrap sm:flex-nowrap gap-1.5 p-[7px]" style={{ background: "var(--ft-band)", borderColor: "var(--ft-border)" }}>
-          <DeliverBox custInfo={custInfo} quick={quick} />
-          <ErpBox erpOrders={erpOrders} erpKeyed={erpKeyed} active={active} setActive={setActive} locked={locked} onAdd={addOrder} onRemove={onRemoveOrder} note={note} />
-          <div className="w-[150px] shrink-0 flex flex-col gap-1.5">
-            <ProjectBox name={name} projectNo={projectNo} onClose={onClose} />
-            <ViewBox view={view} setView={setView} />
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
-          <section>
-            <div className="flex items-baseline justify-between mb-2">
-              <Heading tip={<>A copied line stays a green check with the ERP order it was keyed on under it; click the check to copy it again or clear it. Copies stamp the active order. Cost &amp; Sell are per the buy/sell unit.{descLimit > 0 && <> Descriptions are fitted to {descLimit} characters; a “+” means the rest goes in the extended-text field.</>}</>}>
-                Special order · {specialRows.length}
-              </Heading>
-            </div>
-            {specialRows.length === 0 ? (
-              <p className="text-[13px] text-slate-400 rounded-lg border border-dashed border-slate-200 px-3 py-3">No special-order items in this project.</p>
-            ) : (
-              <div className="rounded-lg border border-slate-200 overflow-hidden">
-                <div style={{ ...GRID, padding: "5px 10px" }} className="bg-slate-100">
-                  <span />
-                  <span className="ft-eyebrow text-[9px] tracking-[.09em] text-slate-500">Item</span>
-                  <span className="ft-eyebrow text-[9px] tracking-[.09em] text-slate-500 text-right">Qty</span>
-                  <span className="ft-eyebrow text-[9px] tracking-[.09em] text-slate-500 text-right">Cost</span>
-                  <span className="ft-eyebrow text-[9px] tracking-[.09em] text-slate-500 text-right">Sell</span>
-                </div>
-                {spv.bands.map((b) => (
-                  <div key={b.label} className="contents">
-                    <Band label={b.label} area={b.area} />
-                    {b.rows.map((r) => <SpecialRow key={r.id} r={r} descLimit={descLimit} locked={locked} active={active} erpKeyed={erpKeyed} onStamp={(row) => stamp([row])} onClear={clear} />)}
-                  </div>
-                ))}
-                {(specialKeyed || specialNote || assumed > 0 || splits > 0) && (
-                  <div className="px-3 py-1.5 text-[11px] text-slate-400 border-t border-slate-100 space-x-1">
-                    {specialKeyed && <span className="font-semibold" style={{ color: "var(--ft-brand-deep)" }}>{specialKeyed}.</span>}
-                    {specialNote}
-                    {assumed > 0 && <span className="text-amber-700">{assumed === 1 ? "One amber line has" : `${assumed} amber lines have`} no quantity on the estimate — priced and keyed as <b>1</b>.</span>}
-                    {splits > 0 && <span className="text-amber-700">{splits === 1 ? "One line is" : `${splits} lines are`} too long to fit — the “+” means the rest is in <b>Ext</b>.</span>}
-                  </div>
-                )}
-              </div>
-            )}
-          </section>
-
-          <CopySection key={view} title="Stock" bands={stv.bands} count={stv.rows.length}
-            emptyText="No stock items in this project."
-            tip="Each line copies as SKU + tab + quantity, ready to paste. Copy remaining takes every unkeyed line with a SKU and stamps it on the active ERP order; check lines for Copy selected. Click a keyed line's badge to copy it again or clear it."
-            note={isMerged ? mergeNote(stv.rows) : null}
-            locked={locked} active={active} erpKeyed={erpKeyed} onStampRows={stamp} onClear={clear} />
+    <SideDock side={side} onFlip={onFlip} onClose={onClose}>
+      {/* The header bar (owner, rounds 3–5): the project header's idiom — a
+          band of bordered columns, nothing above it. */}
+      <div className="shrink-0 m-2 mb-0 rounded-lg border flex flex-wrap sm:flex-nowrap gap-1.5 p-[7px]" style={{ background: "var(--ft-band)", borderColor: "var(--ft-border)" }}>
+        <DeliverBox custInfo={custInfo} quick={quick} />
+        <ErpBox erpOrders={erpOrders} erpKeyed={erpKeyed} active={active} setActive={setActive} locked={locked} onAdd={addOrder} onRemove={onRemoveOrder} note={note} />
+        <div className="w-[150px] shrink-0 flex flex-col gap-1.5">
+          <ProjectBox name={name} projectNo={projectNo} onClose={onClose} />
+          <ViewBox view={view} setView={setView} />
         </div>
       </div>
-    </div>
+
+      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
+        <section>
+          <div className="flex items-baseline justify-between mb-2">
+            <Heading tip={<>A copied line stays a green check with the ERP order it was keyed on under it; click the check to copy it again or clear it. Copies stamp the active order. Cost &amp; Sell are per the buy/sell unit.{descLimit > 0 && <> Descriptions are fitted to {descLimit} characters; a “+” means the rest goes in the extended-text field.</>}</>}>
+              Special order · {specialRows.length}
+            </Heading>
+          </div>
+          {specialRows.length === 0 ? (
+            <p className="text-[13px] text-slate-400 rounded-lg border border-dashed border-slate-200 px-3 py-3">No special-order items in this project.</p>
+          ) : (
+            <div className="rounded-lg border border-slate-200 overflow-hidden">
+              <div style={{ ...GRID, padding: "5px 10px" }} className="bg-slate-100">
+                <span />
+                <span className="ft-eyebrow text-[9px] tracking-[.09em] text-slate-500">Item</span>
+                <span className="ft-eyebrow text-[9px] tracking-[.09em] text-slate-500 text-right">Qty</span>
+                <span className="ft-eyebrow text-[9px] tracking-[.09em] text-slate-500 text-right">Cost</span>
+                <span className="ft-eyebrow text-[9px] tracking-[.09em] text-slate-500 text-right">Sell</span>
+              </div>
+              {spv.bands.map((b) => (
+                <div key={b.label} className="contents">
+                  <Band label={b.label} area={b.area} />
+                  {b.rows.map((r) => <SpecialRow key={r.id} r={r} descLimit={descLimit} locked={locked} active={active} erpKeyed={erpKeyed} onStamp={(row) => stamp([row])} onClear={clear} />)}
+                </div>
+              ))}
+              {(specialKeyed || specialNote || assumed > 0 || splits > 0) && (
+                <div className="px-3 py-1.5 text-[11px] text-slate-400 border-t border-slate-100 space-x-1">
+                  {specialKeyed && <span className="font-semibold" style={{ color: "var(--ft-brand-deep)" }}>{specialKeyed}.</span>}
+                  {specialNote}
+                  {assumed > 0 && <span className="text-amber-700">{assumed === 1 ? "One amber line has" : `${assumed} amber lines have`} no quantity on the estimate — priced and keyed as <b>1</b>.</span>}
+                  {splits > 0 && <span className="text-amber-700">{splits === 1 ? "One line is" : `${splits} lines are`} too long to fit — the “+” means the rest is in <b>Ext</b>.</span>}
+                </div>
+              )}
+            </div>
+          )}
+        </section>
+
+        <CopySection key={view} title="Stock" bands={stv.bands} count={stv.rows.length}
+          emptyText="No stock items in this project."
+          tip="Each line copies as SKU + tab + quantity, ready to paste. Copy remaining takes every unkeyed line with a SKU and stamps it on the active ERP order; check lines for Copy selected. Click a keyed line's badge to copy it again or clear it."
+          note={isMerged ? mergeNote(stv.rows) : null}
+          locked={locked} active={active} erpKeyed={erpKeyed} onStampRows={stamp} onClear={clear} />
+      </div>
+    </SideDock>
   );
 }

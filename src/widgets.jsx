@@ -652,6 +652,35 @@ export function Modal({ title, children, onClose }) {
   );
 }
 
+// The full-height drawer Order entry and Samples open in. `side` is the
+// per-user ui.dockSide pref; the edge tab flips it. Below lg the drawer is
+// full-width, so there is no other side and the tab hides. The tab is drawn
+// 6px wide with angled ends (owner: 1/16"), overlapping the drawer's 1px
+// border so it reads as one piece; the button around it is wider so it stays
+// easy to hit.
+export function SideDock({ side = "right", onFlip, onClose, children }) {
+  const left = side === "left";
+  const tip = left ? "Move to the right side" : "Move to the left side";
+  return (
+    <div className={`print:hidden fixed inset-0 z-50 flex ${left ? "justify-start" : "justify-end"}`} style={{ background: "rgba(20,15,10,.4)" }} onClick={onClose}>
+      <div className={`relative flex flex-col bg-white ${left ? "border-r" : "border-l"} border-slate-200 shadow-2xl w-full lg:w-[560px] max-w-full h-full`} onClick={(e) => e.stopPropagation()}>
+        {onFlip && (
+          <button type="button" onClick={onFlip} title={tip} aria-label={tip}
+            className={`hidden lg:flex absolute top-1/2 -translate-y-1/2 ${left ? "justify-start" : "justify-end"} w-4 h-48 text-slate-400 hover:text-slate-600`}
+            style={left ? { left: "calc(100% - 1px)" } : { right: "calc(100% - 1px)" }}>
+            <svg width="7" height="192" viewBox="0 0 7 192" className="block" style={left ? { transform: "scaleX(-1)" } : undefined} aria-hidden="true">
+              <path d="M7 0 L0.5 16 L0.5 176 L7 192 Z" fill="var(--ft-card)" />
+              <path d="M7 0 L0.5 16 L0.5 176 L7 192" fill="none" stroke="var(--ft-border)" strokeWidth="1" />
+              <path d="M4 92.5 L2 96 L4 99.5" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        )}
+        {children}
+      </div>
+    </div>
+  );
+}
+
 // The vendor configurators' header controls (owner 2026-09-24,
 // app-header-options.html): flat on the header's own background, no outline,
 // a hover tint only — one row of Stock only · Clear design | price · basket.
