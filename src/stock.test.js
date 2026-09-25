@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { searchStock, hitRank, relaxSearchWords, findStock, parseTileSize, parseThickness, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, groutSnapshotPatch, deriveSquareDim, groutColorOptions, switchToSqftPatch, switchChipText } from "./stock.js";
+import { searchStock, hitRank, relaxSearchWords, findStock, parseTileSize, parseThickness, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, groutSnapshotPatch, deriveSquareDim, groutColorOptions, groutFamilyFor, switchToSqftPatch, switchChipText } from "./stock.js";
 import { normOrderItem } from "./orderbook.js";
 import { groutExact, mortarExact, mergeSettings, ceilQty } from "./catalog.js";
 
@@ -629,6 +629,18 @@ test("groutColorOptions splits a family's colors into stock and special-order gr
   // no family: the fallback list, no special group
   assert.deepEqual(groutColorOptions(null, "Bright White", ["Bright White", "Almond"]), { stock: ["Bright White", "Almond"], special: [] });
   assert.deepEqual(groutColorOptions(null, "Custom", ["Almond"]), { stock: ["Custom", "Almond"], special: [] });
+});
+
+test("groutFamilyFor resolves a catalog grout to its linked book family, case-insensitive", () => {
+  const fams = [{ product: "PermaColor Select", colors: [] }, { product: "TEC Power Grout", colors: [] }];
+  const grouts = { "PermaColor Select": { book: "permacolor select" }, "Tec Power Grout": { book: "TEC Power Grout" }, "CEG-Lite": {} };
+  assert.equal(groutFamilyFor("PermaColor Select", grouts, fams), fams[0]);
+  assert.equal(groutFamilyFor("Tec Power Grout", grouts, fams), fams[1]);
+  // unlinked, linked to a family that isn't loaded, or unknown grout: none
+  assert.equal(groutFamilyFor("CEG-Lite", grouts, fams), null);
+  assert.equal(groutFamilyFor("PermaColor Select", grouts, []), null);
+  assert.equal(groutFamilyFor("Nope", grouts, fams), null);
+  assert.equal(groutFamilyFor("PermaColor Select", undefined, fams), null);
 });
 
 // --- count line → sq ft switch (spec 2026-09-18) --------------------------------

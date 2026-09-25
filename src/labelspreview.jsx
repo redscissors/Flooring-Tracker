@@ -8,6 +8,7 @@ import "./index.css";
 import { LabelMaker } from "./LabelMaker.jsx";
 import { normOrderItem } from "./orderbook.js";
 import { normLabelPresets } from "./labels.js";
+import { colorsFor } from "./uiconst.js";
 
 const it = (f) => normOrderItem({ bookId: "stock", type: "tile", unit: "CT", ...f });
 const STOCK = [
@@ -17,6 +18,19 @@ const STOCK = [
   it({ sku: "20110.01", description: "Daltile Tiles – ULRA1224 Meadow Hex 2in", brand: "Daltile", size: '2" Hex', priceSqft: 12.9 }),
 ];
 
+// The App's labelGrouts shape: a book-linked Laticrete family (stock +
+// special-order colors) and TEC on its code color list.
+const fam = (product, stock, special = []) => ({ product, colors: [...stock.map((color) => ({ color })), ...special.map((color) => ({ color, special: true }))] });
+const LATICRETE = ["Almond", "Antique White", "Bright White", "Butter Cream", "Dusty Grey", "Hemp", "Latte", "Light Pewter", "Mocha", "Mushroom", "Natural Gray", "Raven", "Sauterne", "Silver Shadow", "Silk", "Slate Grey", "Smoke Grey", "Sterling Silver", "Toasted Almond"];
+const GROUTS = {
+  preferred: "PermaColor Select",
+  options: [
+    { name: "PermaColor Select", family: fam("PermaColor Select", LATICRETE, ["Midnight Black", "Twilight Blue"]), fallback: colorsFor("PermaColor Select") },
+    { name: "SpectraLOCK PRO", family: fam("SpectraLOCK PRO", LATICRETE), fallback: colorsFor("SpectraLOCK PRO") },
+    { name: "Tec Power Grout", family: null, fallback: colorsFor("Tec Power Grout") },
+  ],
+};
+
 let n = 0;
 function Harness() {
   const [labels, setLabels] = useState([]);
@@ -24,7 +38,7 @@ function Harness() {
   const add = (l) => setLabels((ls) => [...ls, { ...l, id: `l${++n}` }]);
   return (
     <div style={{ height: "100vh" }}>
-      <LabelMaker stock={STOCK} bookStockReady labels={labels} presets={presets}
+      <LabelMaker stock={STOCK} bookStockReady labels={labels} grouts={GROUTS} presets={presets}
         onAddLabel={add} onAddLabelsBulk={(ls) => ls.forEach(add)}
         onUpdateLabel={(id, l) => setLabels((ls) => ls.map((x) => (x.id === id ? { ...l, id } : x)))}
         onUpdateLabelsBulk={(ups) => setLabels((ls) => ls.map((x) => { const u = ups.find((y) => y.id === x.id); return u ? { ...x, ...u.patch, ...u } : x; }))}

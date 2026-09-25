@@ -5,9 +5,9 @@ import {
   labelCardHTML, clampSize, isKeimHeader, isSpacer, clampSpace, newSpacerLine, isPin, PIN_KEY, splitPinned, fitNameSize,
   faceArea, twoSizeDraft, restyleLabel, refreshPlan, builtinDefault, isBuiltinOverridden, BUILTIN_IDS,
 } from "./labels.js";
-import { searchStock } from "./stock.js";
+import { searchStock, groutColorOptions } from "./stock.js";
 import { skuKeys } from "./orderbook.js";
-import { HelpTip, FitSelect, SearchPop, useAnchoredPanel, PopMenu } from "./widgets.jsx";
+import { HelpTip, FitSelect, GroutColorOptions, SearchPop, useAnchoredPanel, PopMenu } from "./widgets.jsx";
 import keimLogo from "./assets/keim-logo-ink.png";
 
 const uid = () => "l" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
@@ -23,6 +23,7 @@ const priceNum = (s) => { const m = String(s || "").match(/-?\d+(?:\.\d+)?/); re
 // labels print on) so a wide screen doesn't strand the search at the far edge;
 // the cards themselves still use the full column.
 const SHEET_W = "8.5in";
+const GROUT_FAMILY_KEY = "ft-label-grout-family";
 const SHORT = { name: "Name", grout: "Grout", custom1: "Line 1", custom2: "Line 2", custom3: "Line 3" };
 const overflows = (card) => card.scrollHeight > card.clientHeight + 1;
 
@@ -230,7 +231,7 @@ function TemplateMenu({ presets, current, editing, onPick, onEdit, onNew, onClos
   );
 }
 
-export function LabelMaker({ stock, bookStockReady = false, labels, presets, onAddLabel, onAddLabelsBulk, onUpdateLabel, onUpdateLabelsBulk, onDeleteLabel, onDeleteLabels, onSavePreset }) {
+export function LabelMaker({ stock, bookStockReady = false, labels, grouts, presets, onAddLabel, onAddLabelsBulk, onUpdateLabel, onUpdateLabelsBulk, onDeleteLabel, onDeleteLabels, onSavePreset }) {
   const first = presets[0] || normPreset({ id: "sample-tag" });
   const [draft, setDraft] = useState(() => newDraftFromPreset(first));
   const [editingId, setEditingId] = useState(null);
@@ -245,6 +246,11 @@ export function LabelMaker({ stock, bookStockReady = false, labels, presets, onA
   const [review, setReview] = useState(null);
   const [doneBar, setDoneBar] = useState(null);
   const current = presets.find((p) => p.id === draft.presetId) || first;
+  // Which grout's palette the Grout line picks from. Per-device and never on
+  // the label — the label keeps only the color name.
+  const [groutFamily, setGroutFamilyRaw] = useState(() => { try { return localStorage.getItem(GROUT_FAMILY_KEY) || ""; } catch { return ""; } });
+  const setGroutFamily = (name) => { setGroutFamilyRaw(name); try { localStorage.setItem(GROUT_FAMILY_KEY, name); } catch {} };
+  const groutOpt = grouts?.options?.find((o) => o.name === groutFamily) || grouts?.options?.find((o) => o.name === grouts.preferred) || grouts?.options?.[0];
 
   // ── draft editing ──
   const patchDraft = (p) => setDraft((d) => ({ ...d, ...p }));
@@ -438,6 +444,16 @@ export function LabelMaker({ stock, bookStockReady = false, labels, presets, onA
               <button key={s} onClick={() => setField("surface", draft.fields.surface === s ? "" : s)} title="Optional — tap again to remove the pill"
                 className={`flex-1 text-xs font-semibold ${i ? "border-l border-slate-200" : ""} ${draft.fields.surface === s ? "bg-slate-800 text-white" : "text-slate-600 hover:bg-slate-50"}`}>{s}</button>
             ))}
+          </div>
+        ) : l.key === "grout" && groutOpt ? (
+          <div className="grid gap-1">
+            <FitSelect full value={groutOpt.name} display={groutOpt.name} title="Grout family — sets which colors the list offers" onChange={(e) => setGroutFamily(e.target.value)}>
+              {grouts.options.map((o) => <option key={o.name}>{o.name}</option>)}
+            </FitSelect>
+            <FitSelect full value={draft.fields.grout} display={draft.fields.grout || "Color…"} onChange={(e) => setField("grout", e.target.value)}>
+              <option value="">Color…</option>
+              <GroutColorOptions groups={groutColorOptions(groutOpt.family, draft.fields.grout, groutOpt.fallback)} />
+            </FitSelect>
           </div>
         ) : two ? (
           <div className="grid grid-cols-2 gap-1">
