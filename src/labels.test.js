@@ -46,6 +46,15 @@ test("customLabelPresets drops the built-ins (what we persist)", () => {
   assert.ok(!customs.some((p) => BUILTIN_IDS.has(p.id)));
 });
 
+test("the Surface line alone may go down to 4 (the pill's color carries it)", () => {
+  assert.equal(clampSize(4, "surface"), 4);
+  assert.equal(clampSize(2, "surface"), 4);
+  assert.equal(clampSize(4, "sku"), 6);
+  const l = normLabel({ id: "l1", lines: [{ key: "surface", show: true, size: 4 }, { key: "sku", show: true, size: 4 }] });
+  assert.equal(l.lines.find((x) => x.key === "surface").size, 4);
+  assert.equal(l.lines.find((x) => x.key === "sku").size, 6);
+});
+
 test("clampSize keeps sizes in the 6..40 range", () => {
   assert.equal(clampSize(2), 6);
   assert.equal(clampSize(100), 40);
@@ -231,6 +240,24 @@ test("labelCardHTML skips the surface pill when no surface is picked", () => {
   const wall = labelCardHTML(_normLabel({ id: "l2", lines, fields: { name: "Carrara", surface: "Wall" } }));
   assert.match(wall, /Wall/);
   assert.match(wall, /border-radius:4px/);
+});
+
+test("labelCardHTML puts the surface pill in the header row, at its line's size", () => {
+  const lines = [{ key: "name", show: true, size: 13 }, { key: "sku", show: true, size: 10 }, { key: "surface", show: true, size: 11 }];
+  const html = labelCardHTML(_normLabel({ id: "l1", lines, fields: { name: "Carrara", sku: "CM-1", surface: "Wall" } }));
+  const head = html.match(/<div class="lc-head"[^>]*>([\s\S]*?)<\/div>\s*<div style="border-top/);
+  assert.ok(head, "header row sits above the divider");
+  assert.match(head[1], /Keim/);
+  assert.match(head[1], /<span class="lc-surface" style="[^"]*font-size:11px;[^"]*">Wall<\/span>/);
+  // the pill no longer prints among the lines (once, in the header)
+  assert.equal(html.split(">Wall<").length - 1, 1);
+  // colors: Wall purple, Floor & Wall rust
+  assert.match(head[1], /background:#7d6a8a;/);
+  const fw = labelCardHTML(_normLabel({ id: "l2", lines, fields: { name: "Carrara", surface: "Floor & Wall" } }));
+  assert.match(fw, /class="lc-surface" style="[^"]*background:#B5654A;/);
+  // a hidden Surface line shows no pill even with a surface picked
+  const hidden = labelCardHTML(_normLabel({ id: "l3", lines: lines.map((l) => l.key === "surface" ? { ...l, show: false } : l), fields: { name: "Carrara", surface: "Wall" } }));
+  assert.doesNotMatch(hidden, /lc-surface/);
 });
 
 test("custom lines print as caption-less free text and vanish when blank", () => {

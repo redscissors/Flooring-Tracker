@@ -10,7 +10,13 @@ const num = (v, d = 0) => { const n = parseFloat(v); return Number.isFinite(n) ?
 
 export const MIN_SIZE = 6;
 export const MAX_SIZE = 40;
-export const clampSize = (n) => Math.min(MAX_SIZE, Math.max(MIN_SIZE, Math.round(num(n, MIN_SIZE))));
+// The Surface pill may go smaller than text lines: on a narrow tag its color
+// does the talking and a small pill still fits beside the logo.
+export const SURFACE_MIN_SIZE = 4;
+export const clampSize = (n, key) => {
+  const min = key === "surface" ? SURFACE_MIN_SIZE : MIN_SIZE;
+  return Math.min(MAX_SIZE, Math.max(min, Math.round(num(n, min))));
+};
 
 // The fields a label can carry. `kind` drives how the card renders the line:
 // title = the big name, surface = the optional Wall pill, text = a labelled
@@ -109,7 +115,7 @@ const normLines = (raw) => {
     }
     if (!isField(key)) continue;
     seen.add(key);
-    out.push(line(key, l?.show !== false, clampSize(l?.size ?? DEFAULT_SIZES[key])));
+    out.push(line(key, l?.show !== false, clampSize(l?.size ?? DEFAULT_SIZES[key], key)));
   }
   for (const key of FIELD_KEYS) if (!seen.has(key)) out.push(line(key, false, DEFAULT_SIZES[key]));
   return out;
@@ -333,7 +339,15 @@ export const escapeHtml = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "
 // header stays plain text.
 export const isKeimHeader = (h) => str(h || "Keim").toLowerCase() === "keim";
 
-const surfaceColor = (s) => (s === "Wall" ? "#B5654A" : s === "Floor & Wall" ? "#7d6a8a" : "#5C6B73");
+export const surfaceColor = (s) => (s === "Wall" ? "#7d6a8a" : s === "Floor & Wall" ? "#B5654A" : "#5C6B73");
+// The Surface pill rides the header row, right of the logo, whatever the
+// Surface line's place in the list; its shown flag and size still come from
+// that line. Null when hidden or unpicked.
+export const surfacePill = (label) => {
+  const l = (label.lines || []).find((x) => x.key === "surface");
+  const v = str(label.fields?.surface);
+  return l && l.show && v ? { text: v, size: l.size, color: surfaceColor(v) } : null;
+};
 
 const LABEL_OF = Object.fromEntries(LABEL_FIELDS.map((f) => [f.key, f.label]));
 
@@ -362,10 +376,11 @@ export const labelCardHTML = (label, { logoSrc } = {}) => {
   }).join("");
   const variantBlock = `<div style="display:flex;gap:8px;"><div style="flex:1;min-width:0;">${variantCol(val)}</div><div style="width:1px;background:rgba(255,255,255,.18);align-self:stretch;margin-top:6px;"></div><div style="flex:1;min-width:0;">${variantCol(val2)}</div></div>`;
   const { body, bottom } = splitPinned(label.lines);
+  const pill = surfacePill(label);
   const render = (l) => {
     if (isSpacer(l.key)) return `<div style="height:${l.size}px;flex:0 0 auto;"></div>`;
     if (l.key === "name") return `<div class="lc-name" style="font-family:'Oswald',sans-serif;font-size:${l.size}px;text-transform:uppercase;letter-spacing:.03em;line-height:1.12;color:#fff;word-break:break-word;">${val("name") || "Tile Name"}</div>`;
-    if (l.key === "surface") return val("surface") ? `<span style="align-self:flex-start;margin-top:6px;font-size:8px;text-transform:uppercase;letter-spacing:.1em;font-weight:700;padding:2px 7px;border-radius:4px;color:#fff;background:${surfaceColor(label.fields?.surface)};">${val("surface")}</span>` : "";
+    if (l.key === "surface") return "";
     if (KIND_OF[l.key] === "custom") return val(l.key) ? `<div style="margin-top:6px;color:#fff;line-height:1.3;font-size:${l.size}px;word-break:break-word;">${val(l.key)}</div>` : "";
     if (label.twoVariant && VARIANT_KEYS.includes(l.key)) return l.key === firstVariant ? variantBlock : "";
     if (l.key === "grout") return `<div class="lc-grout" style="margin-top:6px;display:flex;flex-wrap:wrap;align-items:baseline;column-gap:.35em;font-size:${l.size}px;line-height:1.3;"><span style="color:#9a9a9a;text-transform:uppercase;letter-spacing:.08em;font-weight:700;white-space:nowrap;">${GROUT_CAPTION}</span><span style="color:#fff;">${val("grout") || "—"}</span></div>`;
@@ -374,7 +389,7 @@ export const labelCardHTML = (label, { logoSrc } = {}) => {
   };
   const pinned = bottom.length ? `<div style="margin-top:auto;flex-shrink:0;display:flex;flex-direction:column;">${bottom.map(render).join("")}</div>` : "";
   return `<div class="lc" style="width:${label.w}in;height:${label.h}in;background:#1A1A1A;color:#fff;border-radius:3px;padding:.12in;font-family:'Inter',sans-serif;display:flex;flex-direction:column;box-sizing:border-box;overflow:hidden;">
-    ${header}
+    <div class="lc-head" style="display:flex;flex-wrap:wrap;align-items:center;column-gap:6px;row-gap:3px;">${header}${pill ? `<span class="lc-surface" style="margin-left:auto;font-size:${pill.size}px;line-height:1.2;text-transform:uppercase;letter-spacing:.1em;font-weight:700;padding:.25em .85em;border-radius:4px;max-width:100%;box-sizing:border-box;text-align:center;color:#fff;background:${pill.color};">${escapeHtml(pill.text)}</span>` : ""}</div>
     <div style="border-top:1px solid rgba(255,255,255,.2);margin:6px 0 2px;"></div>
     ${body.map(render).join("")}${pinned}
   </div>`;
