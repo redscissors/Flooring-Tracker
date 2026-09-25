@@ -1433,8 +1433,7 @@ export default function App({ user, onSignOut }) {
             <DrawerList title="Settings" items={SETTINGS_ITEMS} activeId={railNav.pane?.kind === "settings" ? railNav.pane.id : null}
               onPick={(id) => railPick("settings", id)} baseClass={railItemBase} className="px-2.5 pt-2.5 pb-2.5" divider />
           </RailSlide>
-          <div className="p-2.5 pb-8 space-y-2">
-            <div className="relative"><Search size={16} className="absolute left-2.5 top-2.5 text-slate-400" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search" className={inp + " pl-8"} /></div>
+          <div className="p-2.5 pb-6 space-y-2">
             {/* The rail's two starting points sit together: a throwaway quick
                 price (ADR 0022) or a named customer. Quick Price is the primary
                 — nearly every job starts as one and gets filed later — so it
@@ -1458,6 +1457,9 @@ export default function App({ user, onSignOut }) {
               <button onClick={() => railPick("app", "wedi")} title="wedi shower configurator" className={railItem}><ShowerHead size={15} className="w-4 shrink-0" /> wedi</button>
               <button onClick={() => railPick("app", "sheoga")} title="Sheoga hardwood configurator" className={railItem}><TreePine size={15} className="w-4 shrink-0" /> Sheoga</button>
             </div>
+          </div>
+          <div className="px-2.5 pb-1">
+            <div className="relative"><Search size={16} className="absolute left-2.5 top-2.5 text-slate-400" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search" className={inp + " pl-8"} /></div>
           </div>
           <div className="flex-1 overflow-y-auto px-1.5 pb-2">
             {data.people.length === 0 && unassigned.length === 0 && quickPrices.length === 0 && <div className="text-center text-sm text-slate-400 mt-8 px-4">No customers yet</div>}
