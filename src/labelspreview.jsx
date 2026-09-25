@@ -16,6 +16,7 @@ const STOCK = [
   it({ sku: "15042.08", description: "Marazzi Rice Tile - RC04 Natural", brand: "Marazzi", mfg: "RC04", size: "3x12", priceSqft: 8.25 }),
   it({ sku: "31877.02", description: "Wow Skin Biscuit Matte 135296", brand: "Wow", size: "2.5x10", priceSqft: 14.75 }),
   it({ sku: "20110.01", description: "Daltile Tiles – ULRA1224 Meadow Hex 2in", brand: "Daltile", size: '2" Hex', priceSqft: 12.9 }),
+  it({ sku: "1520417", description: "VT Anatolia Soho Hexagon 4501-0467-0 Ret Blk M", brand: "Anatolia", size: '2" Hex', priceSqft: 18.5 }),
 ];
 
 // The App's labelGrouts shape: a book-linked Laticrete family (stock +

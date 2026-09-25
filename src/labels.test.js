@@ -132,6 +132,15 @@ test("cleanLabelName drops all-digit codes of 5+ digits, keeps shorter numbers",
   assert.equal(cleanLabelName("Hex 2 Series 1900 White"), "Hex 2 Series 1900 White");
 });
 
+test("cleanLabelName drops Virginia Tile's VT prefix and dash-joined number codes", () => {
+  assert.equal(cleanLabelName("VT Anatolia Soho Hexagon 4501-0467-0 Ret Blk M"), "Anatolia Soho Hexagon Ret Blk M");
+  assert.equal(cleanLabelName("Anatolia Soho Hexagon 4501-0467-0 Ret Blk M"), "Anatolia Soho Hexagon Ret Blk M");
+  assert.equal(cleanLabelName("VT Quartz Essence Nest"), "Quartz Essence Nest");
+  // only the word on its own; short dash numbers and fractional measures stay
+  assert.equal(cleanLabelName("VTC Vtg Oak"), "VTC Vtg Oak");
+  assert.equal(cleanLabelName("Plank 2-1 Mix 3-1/2 Oak 12-24"), "Plank 2-1 Mix 3-1/2 Oak 12-24");
+});
+
 test("cleanLabelName drops the item's own mfg code even when it is all letters or digits", () => {
   assert.equal(cleanLabelName("Marazzi Rice Tile - MZRC Natural", "MZRC"), "Marazzi Rice Natural");
   assert.equal(cleanLabelName("Rice 44120 Natural", "44120"), "Rice Natural");
