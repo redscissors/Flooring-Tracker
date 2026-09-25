@@ -3,7 +3,7 @@ import { Search, Trash2, Printer, Eye, EyeOff, GripVertical, ChevronDown, Refres
 import {
   LABEL_FIELDS, KIND_OF, VARIANT_KEYS, newDraftFromPreset, normPreset, stockToLabelFields, perLetterSheet, sheetsForLabels,
   labelCardHTML, clampSize, isKeimHeader, isSpacer, clampSpace, newSpacerLine, isPin, PIN_KEY, splitPinned, fitNameSize,
-  faceArea, twoSizeDraft, restyleLabel, refreshPlan, builtinDefault, isBuiltinOverridden, BUILTIN_IDS, GROUT_CAPTION,
+  faceArea, twoSizeDraft, restyleLabel, refreshPlan, builtinDefault, isBuiltinOverridden, BUILTIN_IDS, GROUT_CAPTION, surfacePill,
 } from "./labels.js";
 import { searchStock, groutColorOptions } from "./stock.js";
 import { skuKeys } from "./orderbook.js";
@@ -11,7 +11,6 @@ import { HelpTip, FitSelect, GroutColorOptions, SearchPop, useAnchoredPanel, Pop
 import keimLogo from "./assets/keim-logo-ink.png";
 
 const uid = () => "l" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
-const surfaceColor = (s) => (s === "Wall" ? "#B5654A" : s === "Floor & Wall" ? "#7d6a8a" : "#5C6B73");
 const LABEL_OF = Object.fromEntries(LABEL_FIELDS.map((f) => [f.key, f.label]));
 const RUST = "#B5654A";
 const AMBER = "#C8912E";
@@ -70,7 +69,7 @@ function LabelCard({ label, scale = 1, boxes = false, onFit }) {
     const v = label.fields?.[l.key] || "";
     if (isSpacer(l.key)) return <div key={l.key} style={{ height: l.size, flex: "0 0 auto", ...bx }} />;
     if (l.key === "name") return <div key={l.key} ref={nameRef} style={{ fontFamily: "'Oswald',sans-serif", fontSize: fit, textTransform: "uppercase", letterSpacing: ".03em", lineHeight: 1.12, wordBreak: "break-word", ...bx }}>{v || "Tile Name"}</div>;
-    if (l.key === "surface") return v ? <span key={l.key} style={{ alignSelf: "flex-start", marginTop: 6, fontSize: 8, textTransform: "uppercase", letterSpacing: ".1em", fontWeight: 700, padding: "2px 7px", borderRadius: 4, background: surfaceColor(v), ...bx }}>{v}</span> : null;
+    if (l.key === "surface") return null;
     if (KIND_OF[l.key] === "custom") return v ? <div key={l.key} style={{ marginTop: 6, lineHeight: 1.3, fontSize: l.size, wordBreak: "break-word", ...bx }}>{v}</div> : null;
     if (label.twoVariant && VARIANT_KEYS.includes(l.key)) {
       if (l.key !== firstVariant) return null;
@@ -96,12 +95,16 @@ function LabelCard({ label, scale = 1, boxes = false, onFit }) {
     );
   };
   const { body, bottom } = splitPinned(label.lines);
+  const pill = surfacePill(label);
   return (
     <div style={{ width: label.w * px * scale, height: label.h * px * scale }}>
       <div ref={cardRef} style={{ width: `${label.w}in`, height: `${label.h}in`, transform: `scale(${scale})`, transformOrigin: "top left", background: "#1A1A1A", color: "#fff", borderRadius: 3, padding: "0.12in", fontFamily: "'Inter',sans-serif", display: "flex", flexDirection: "column", boxSizing: "border-box", overflow: "hidden", textAlign: "left" }}>
-        {isKeimHeader(label.header)
-          ? <img src={keimLogo} alt="Keim" style={{ height: 14, width: "auto", alignSelf: "flex-start", filter: "brightness(0) invert(1)" }} />
-          : <div style={{ fontFamily: "'Oswald',sans-serif", fontSize: 11, textTransform: "uppercase", letterSpacing: ".3em" }}>{label.header}</div>}
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: 6, rowGap: 3 }}>
+          {isKeimHeader(label.header)
+            ? <img src={keimLogo} alt="Keim" style={{ height: 14, width: "auto", alignSelf: "flex-start", filter: "brightness(0) invert(1)" }} />
+            : <div style={{ fontFamily: "'Oswald',sans-serif", fontSize: 11, textTransform: "uppercase", letterSpacing: ".3em" }}>{label.header}</div>}
+          {pill && <span style={{ marginLeft: "auto", fontSize: pill.size, lineHeight: 1.2, textTransform: "uppercase", letterSpacing: ".1em", fontWeight: 700, padding: ".25em .85em", borderRadius: 4, maxWidth: "100%", boxSizing: "border-box", textAlign: "center", background: pill.color, ...bx }}>{pill.text}</span>}
+        </div>
         <div style={{ borderTop: "1px solid rgba(255,255,255,.2)", margin: "6px 0 2px" }} />
         {body.map(render)}
         {bottom.length > 0 && (
@@ -272,7 +275,7 @@ export function LabelMaker({ stock, bookStockReady = false, labels, grouts, pres
   const setTwoVariant = (on) => setDraft((d) => ({ ...d, ...widen(d, on) }));
   const setW = (v) => setDraft((d) => (d.twoVariant ? { ...d, wBefore: v, w: Math.max(v, 2) } : { ...d, w: v }));
   const setLine = (key, p) => setDraft((d) => ({ ...d, lines: d.lines.map((l) => (l.key === key ? { ...l, ...p } : l)) }));
-  const bumpSize = (key, dir) => setDraft((d) => ({ ...d, lines: d.lines.map((l) => (l.key === key ? { ...l, size: isSpacer(key) ? clampSpace(l.size + dir * 2) : clampSize(l.size + dir) } : l)) }));
+  const bumpSize = (key, dir) => setDraft((d) => ({ ...d, lines: d.lines.map((l) => (l.key === key ? { ...l, size: isSpacer(key) ? clampSpace(l.size + dir * 2) : clampSize(l.size + dir, key) } : l)) }));
   const addSpacer = () => setDraft((d) => ({ ...d, lines: [...d.lines, newSpacerLine()] }));
   const addPin = () => setDraft((d) => ({ ...d, lines: [...d.lines, { key: PIN_KEY, show: true, size: 0 }] }));
   const removeLine = (key) => setDraft((d) => ({ ...d, lines: d.lines.filter((l) => l.key !== key) }));
@@ -472,7 +475,7 @@ export function LabelMaker({ stock, bookStockReady = false, labels, grouts, pres
         ) : (
           <input value={draft.fields[l.key]} onChange={(e) => setField(l.key, e.target.value)} placeholder={meta.kind === "custom" ? "Free text" : undefined} className={inp} style={edge} />
         )}
-        {meta.kind === "surface" ? <div /> : <Nudge value={l.size} onStep={(dir) => bumpSize(l.key, dir)} />}
+        <Nudge value={l.size} onStep={(dir) => bumpSize(l.key, dir)} />
       </div>
     );
   };
@@ -531,7 +534,7 @@ export function LabelMaker({ stock, bookStockReady = false, labels, grouts, pres
                   <div key={l.key} {...rowDnD(l)} className={rowCls}>
                     {dragHandle(l)}{eye}
                     <div className="flex-1 min-w-0 text-sm font-semibold truncate">{LABEL_OF[l.key]}</div>
-                    {KIND_OF[l.key] !== "surface" && <Nudge value={l.size} onStep={(dir) => bumpSize(l.key, dir)} />}
+                    <Nudge value={l.size} onStep={(dir) => bumpSize(l.key, dir)} />
                   </div>
                 );
               })}
