@@ -404,7 +404,12 @@ src/
   usetodos.js       # `useTodos` — team to-do/issue list state + write paths (issue 006);
                     # the central Claude bucket lives beside it in useclaudeissues.js
   uselabels.js      # `useLabels` — Label Generator label-set state (loaded
-                    # when the Label Generator opens) + write paths
+                    # when the Label Generator opens) + write paths; the bulk
+                    # pair `updateLabelsBulk`/`delLabels` (spec 2026-09-25) is
+                    # ONE upsert / ONE delete for a stock-book refresh or a
+                    # template restyle, never a write per label.
+                    # `saveLabelPreset` replaces in place, so an edited
+                    # built-in keeps its spot
   useordersearch.js # `useOrderSearch` — fuzzy/synonym order-book search (ADR 0009 §6) + on-demand
                     # order-row drift fetch
   usetrims.js       # `useTrims` — session cache of a floor's trims (the ADR 0012
@@ -2182,14 +2187,26 @@ src/
                     # built-in size presets, preset/label normalization
                     # (incl. "sp_" filler spacer lines — user-added blanks
                     # whose size is a height in px, holding a gap open),
-                    # stock->field mapping, per-letter-sheet math, print HTML
+                    # stock->field mapping, per-letter-sheet math, print HTML.
+                    # Overhaul (spec 2026-09-25): one "pin" divider in `lines`
+                    # — lines after it ride the card's bottom group
+                    # (`splitPinned`); a list without one pins nothing, so
+                    # every label saved before it renders unchanged; the
+                    # built-ins pin Grout. A saved built-in id now OVERRIDES
+                    # the code default (owner-approved reversal — code used to
+                    # always win); only an entry differing from the default
+                    # persists (`isBuiltinOverridden`, `builtinDefault` = Reset).
+                    # `fitNameSize` is the ONE shrink rule the screen card and
+                    # the print popup both run over their own DOM measure;
+                    # `twoSizeDraft` (bigger face first, size trimmed off the
+                    # name), `restyleLabel` (template layout, text kept),
+                    # `refreshPlan` (price only; retired/disabled items count
+                    # as gone; skuKeys injected so this file stays import-free)
   AppsWorkspace.jsx # the Apps work-area pane (ADR 0047: no shell or app list
                     # of its own — the rail's Apps tray picks; configurators
                     # stay mounted after first pick, track in-progress, show
-                    # the Continue / Start new prompt) +
-                    # the Label Generator UI (preset strip, SKU fill,
-                    # drag-to-reorder lines + filler spacers, preview with
-                    # line-boxes toggle, label set, print). Also hosts the
+                    # the Continue / Start new prompt) and
+                    # mounts LabelMaker.jsx for the Label Generator. Also hosts the
                     # embedded vendor configurators, each fed by App.jsx's
                     # `sheoga`/`wedi`/`schluter` prop bag — both shower bags now
                     # carry the OTHER engine's builder knob (and the wedi bag
@@ -2200,5 +2217,22 @@ src/
                     # passes each configurator `escActive={visible &&
                     # shown(k)}` (ADR 0047) so a hidden, still-mounted
                     # configurator's Escape handler stays off
+  LabelMaker.jsx    # the Label Generator UI (spec 2026-09-25, mockups in
+                    # .scratch/157): three columns like the configurators —
+                    # find & fill (stock search with multi-pick: tick two →
+                    # "One label, 2 sizes" via twoSizeDraft, or "Add N
+                    # labels"; New/Save under it; a label | box | quiet −n+
+                    # form grid showing only the template's shown lines, the
+                    # pinned ones under a moss "Bottom of label" divider) ·
+                    # template + preview (TemplateMenu: every template, Edit…,
+                    # New…; the preview reports fitNameSize's shrink) · the
+                    # label set (corner-circle selection → Print / Update from
+                    # stock book / Delete). The template editor and the
+                    # update review take the set's column while open. The
+                    # editor edits the DRAFT's layout live (✕ restores the
+                    # snapshot); Update asks before restyling saved labels.
+                    # Update from stock book waits on `bookStockReady` and
+                    # writes only through the bulk pair. The print popup
+                    # re-runs the name fit once its fonts load
   lib/supabase.js   # Supabase client (reads VITE_ env vars)
 ```
