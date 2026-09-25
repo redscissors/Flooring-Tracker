@@ -532,6 +532,14 @@ export function groutSnapshotPatch(stock, family, color) {
   return { sku: it ? it.sku : "", caulkSku: ck ? ck.sku : "", caulkPrice: ck && ck.price != null ? String(ck.price) : "", caulkCost: ck && ck.cost != null ? String(ck.cost) : "", bookId: it ? str(it.bookId) : "" };
 }
 
+// The book family a catalog grout is linked to (settings.grouts[name].book),
+// or null when it's unlinked or the family isn't loaded — callers then fall
+// back to the code color list.
+export function groutFamilyFor(name, grouts, families) {
+  const book = str(grouts?.[name]?.book).toLowerCase();
+  return book ? (families || []).find((f) => f.product.toLowerCase() === book) || null : null;
+}
+
 // The job's color dropdown, grouped: the family's stocked colors, then its
 // special-order ones (an order-book source on the family). A stored color the
 // family no longer offers is injected back first so the row still shows it.

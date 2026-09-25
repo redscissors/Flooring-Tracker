@@ -4,7 +4,7 @@ import { supabase } from "./lib/supabase.js";
 import { listSelect, lightRow, loadProjects, loadPeople, loadBuilders, loadTodos, loadClaudeIssues, loadBooks, loadSettingsRow, resolveSharedSettings, loadSampleRequests } from "./bootload.js";
 import { bootTrace, traceRows } from "./boottrace.js";
 import { num, wasteFor, wasteVaries, withProjWaste, normalizeSettings, serializeSettings, groutExact, mortarExact, getGrout, getMortar, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, offeredAttached, offeredCategories, getAttached, qtyDrift, underlaymentForSku } from "./catalog.js";
-import { findStock, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant, groutFamilies, groutSnapshotPatch, groutColorOptions, switchToSqftPatch, switchChipText } from "./stock.js";
+import { findStock, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant, groutFamilies, groutFamilyFor, groutSnapshotPatch, groutColorOptions, switchToSqftPatch, switchChipText } from "./stock.js";
 import { pricedItem, orderPatch, orderDrift, rowCostSqft, skuKeys } from "./orderbook.js";
 import { isSpecialOrder, isSpecialMat, nameBudget, orderQty } from "./orderentry.js";
 import { SamplesPanel } from "./samples.jsx";
@@ -736,6 +736,12 @@ export default function App({ user, onSignOut }) {
   // dropdowns, Settings linking), never at calc time.
   const groutStock = useMemo(() => projectFamilies(settings.catalog.bookFamilies, familyItems), [settings.catalog.bookFamilies, familyItems]);
   const gFamilies = useMemo(() => groutFamilies(groutStock), [groutStock]);
+  // The label maker's grout color picker offers the same grouts and palettes
+  // as the materials drawer, opening on the team's default grout.
+  const labelGrouts = useMemo(() => {
+    const names = offeredGrouts(settings.catalog);
+    return { preferred: resolveMaterialDefault(names, "", settings.catalog.defaults?.grout), options: names.map((name) => ({ name, family: groutFamilyFor(name, settings.grouts, gFamilies), fallback: colorsFor(name) })) };
+  }, [settings.catalog, settings.grouts, gFamilies]);
   // A grout linked to a book-backed family (ADR 0009/0027) waits on the
   // stock-book cache before a pick may snapshot (stockBusy below).
   const isBookFam = (book) => !!book && (settings.catalog.bookFamilies || []).some((f) => f.name.toLowerCase() === book.toLowerCase());
@@ -1812,7 +1818,7 @@ export default function App({ user, onSignOut }) {
                         // family's colors; picking one snapshots the color's SKU onto
                         // the row. Unlinked grouts keep the standard code list.
                         const gBook = settings.grouts[p.grout.product]?.book || "";
-                        const gFam = gBook ? gFamilies.find((f) => f.product.toLowerCase() === gBook.toLowerCase()) : null;
+                        const gFam = groutFamilyFor(p.grout.product, settings.grouts, gFamilies);
                         const colorGroups = groutColorOptions(gFam, p.grout.color, colorsFor(p.grout.product));
                         const groutSpecial = isSpecialMat(p.grout, stockBookIds);
                         // A book-linked pick snapshots from the stock-book cache at
@@ -2667,6 +2673,7 @@ export default function App({ user, onSignOut }) {
                 progressRef={appsProgress}
                 stock={stockItems}
                 labels={labels}
+                labelGrouts={labelGrouts}
                 presets={settings.apps?.labels?.presets || []}
                 onAddLabel={addLabel}
                 onAddLabelsBulk={addLabelsBulk}
