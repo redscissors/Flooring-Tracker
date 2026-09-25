@@ -127,6 +127,11 @@ test("cleanLabelName drops the word Tile, dashes and manufacturer codes", () => 
   assert.equal(cleanLabelName("Oak-Grey Plank"), "Oak-Grey Plank");
 });
 
+test("cleanLabelName drops all-digit codes of 5+ digits, keeps shorter numbers", () => {
+  assert.equal(cleanLabelName("Wow Skin Biscuit Matte 135296"), "Wow Skin Biscuit Matte");
+  assert.equal(cleanLabelName("Hex 2 Series 1900 White"), "Hex 2 Series 1900 White");
+});
+
 test("cleanLabelName drops the item's own mfg code even when it is all letters or digits", () => {
   assert.equal(cleanLabelName("Marazzi Rice Tile - MZRC Natural", "MZRC"), "Marazzi Rice Natural");
   assert.equal(cleanLabelName("Rice 44120 Natural", "44120"), "Rice Natural");

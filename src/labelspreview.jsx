@@ -13,6 +13,7 @@ const it = (f) => normOrderItem({ bookId: "stock", type: "tile", unit: "CT", ...
 const STOCK = [
   it({ sku: "15042.07", description: "Marazzi Rice Tile - RC03 Natural", brand: "Marazzi", mfg: "RC03", size: "12x24", thickness: "9mm", priceSqft: 6.49 }),
   it({ sku: "15042.08", description: "Marazzi Rice Tile - RC04 Natural", brand: "Marazzi", mfg: "RC04", size: "3x12", priceSqft: 8.25 }),
+  it({ sku: "31877.02", description: "Wow Skin Biscuit Matte 135296", brand: "Wow", size: "2.5x10", priceSqft: 14.75 }),
   it({ sku: "20110.01", description: "Daltile Tiles – ULRA1224 Meadow Hex 2in", brand: "Daltile", size: '2" Hex', priceSqft: 12.9 }),
 ];
 
