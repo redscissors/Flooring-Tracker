@@ -1110,3 +1110,12 @@ test("buildKit bills the chosen drain and reports drainFit; no choice bills as b
   assert.deepEqual(fixed.drainFit, { family: "fixed", len: 52, gap: 3 });
   assert.equal(buildKit(cfg({}), KLCAT, { source: "all" }).drainFit, null);
 });
+
+test("a drain choice survives the marker: buildFromMarker bills the same drain", () => {
+  const room = { ...cfg({ w: 55, d: 55, drain: "linear" }), drainPick: { family: "fixed", style: "solid", finish: "EB" } };
+  const live = buildKit(room, KLCAT, { source: "all" });
+  const back = buildFromMarker({ mode: "custom", cfg: { ...room, source: "all" } }, KLCAT);
+  assert.deepEqual(back.lines.filter((l) => l.g === "Drain").map((l) => l.item.sku), live.lines.filter((l) => l.g === "Drain").map((l) => l.item.sku));
+  const old = buildFromMarker({ mode: "custom", cfg: { ...cfg({ w: 55, d: 55, drain: "linear" }), source: "all" } }, KLCAT);
+  assert.equal(old.drainFit.family, "vario");
+});

@@ -16,8 +16,10 @@ import { PaneBack, PaneClose } from "./raildrawer.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
   trayCandidates, pickRolls, buildKit, tierPrice, coverageOf, lineItems, orderCopyLines, normBench, benchTrayRoom,
-  boardPlan, expandBoardFaces, wallArea, halfBoardPool, buildFromMarker, ovKey, sessionFromRows, slotOf,
+  boardPlan, expandBoardFaces, wallArea, halfBoardPool, buildFromMarker, ovKey, sessionFromRows, slotOf, drainOptions,
+  resolveDrain, FINISH_LABEL, VARIO_DESIGN,
 } from "./schluter.js";
+import { DrainSwapPop } from "./drainswap.jsx";
 import { mortarItemFrom, MORTAR_BED_SF_PER_BAG } from "./schluteradapter.js";
 import { useSchluterCatalog } from "./useschlutercatalog.js";
 import { normKitBasketEntry } from "./model.js";
@@ -361,7 +363,7 @@ function seedState(seed) {
     drainX: "", drainY: "", drainRef: "left",
     // Stock only by default (owner 2026-09-02); a saved marker reopens under
     // the catalog it was built from (below).
-    manual: [], q: "", source: "stock", kitPick: false, pick: null, swaps: {},
+    manual: [], q: "", source: "stock", kitPick: false, pick: null, swaps: {}, drainPick: null,
     // Nothing builds until a kit, an option card or a room edit asks for
     // one (the wedi Kits-tab behavior, owner 2026-09-23).
     started: false,
@@ -417,6 +419,7 @@ function seedState(seed) {
         : cfg.bench === "buildup" ? [{ id: 1, kind: "wall", side: "back", build: "site" }] : [];
     s.mortarName = cfg.mortarItem?.name || "";
     s.swaps = cfg.swaps && typeof cfg.swaps === "object" ? { ...cfg.swaps } : {};
+    s.drainPick = cfg.drainPick && typeof cfg.drainPick === "object" ? { ...cfg.drainPick } : null;
     s.manual = Array.isArray(cfg.manual) ? cfg.manual.map((m) => ({ ...m })) : [];
     s.source = cfg.source === "stock" ? "stock" : "all";
     s.pick = typeof cfg.pick === "string" ? cfg.pick : null;
@@ -474,7 +477,8 @@ export default function SchluterConfigurator({
   const [mortarName, setMortarName] = useState(s0.mortarName);
   const [ramp, setRamp] = useState(!!s0.ramp);
   const [swaps, setSwaps] = useState(s0.swaps);
-  const [swap, setSwap] = useState(null);           // { key, rect } — a line's ⇄ popover
+  const [drainPick, setDrainPick] = useState(s0.drainPick);
+  const [swap, setSwap] = useState(null);           // { key, rect, anchor, drain?, draft? } — a line's ⇄ popover
   const [confirmKit, setConfirmKit] = useState(null); // tray clicked over a customized build
   const [manual, setManual] = useState(s0.manual);
   const [qtyOv, setQtyOv] = useState({}); // hand-stepped line quantities (the wedi idiom) — session only, never in the marker
@@ -673,13 +677,14 @@ export default function SchluterConfigurator({
       ...(drain !== "linear" && +drainY > 0 ? { drainY: +drainY } : {}),
       ...(mortarItem ? { mortarItem } : {}),
       ...(Object.keys(swaps).length ? { swaps } : {}),
+      ...(drainPick ? { drainPick } : {}),
     };
     // only OPEN corners carry a cut — a corner re-boxed by a wall drops its
     // stale cut everywhere (bill, drawings, marker) at once
     const open = schluterOpenCorners(base);
     const cut = Object.keys(corners).filter((k) => corners[k] && open[k]).sort();
     return cut.length ? { ...base, corners: cut } : base;
-  }, [w, d, curbed, drain, wallSys, cfgBenchRows, walls, liveXwalls, drainX, drainY, drainRef, mortarItem, maxIn, tileNum, wallHNum, corners, ramp, swaps]);
+  }, [w, d, curbed, drain, wallSys, cfgBenchRows, walls, liveXwalls, drainX, drainY, drainRef, mortarItem, maxIn, tileNum, wallHNum, corners, ramp, swaps, drainPick]);
 
   // a blanked size input mid-edit means "no room yet" — no candidates, no
   // build, no drawings (topGeom would divide by the room dims)
@@ -759,7 +764,7 @@ export default function SchluterConfigurator({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [catReady, cat]);
   const mode = kitPick && !manual.length && !benches.length && !liveXwalls.length && !cfg.drainX && !cfg.drainY
-    && !(cfg.corners || []).length && !cfg.maxIn && !cfg.ramp && !cfg.swaps ? "kit" : "custom";
+    && !(cfg.corners || []).length && !cfg.maxIn && !cfg.ramp && !cfg.swaps && !cfg.drainPick ? "kit" : "custom";
   // the saved marker records the PICKED tray too — Reconfigure must reopen on
   // the candidate that was quoted, not whatever ranks first that day
   const markCfg = useMemo(() => ({ ...cfg, manual, source, pick: pickCand?.tray?.sku || null }), [cfg, manual, source, pickCand]);
@@ -970,17 +975,12 @@ export default function SchluterConfigurator({
   const byShelf = (a, b2) => (b2.stock ? 1 : 0) - (a.stock ? 1 : 0) || tierPrice(a, "retail", {}) - tierPrice(b2, "retail", {});
 
   // The wedi ⇄ swap popovers (round 9): a line whose role has real
-  // alternatives takes a hand pick — the grate finish, the curb, the
-  // One-size wall board (under Fit the PLAN chooses the sheets, so the
-  // board line doesn't swap — the wedi rule).
+  // alternatives takes a hand pick — the curb and the One-size wall board
+  // (under Fit the PLAN chooses the sheets, so the board line doesn't swap —
+  // the wedi rule). Drain lines open the stepped drain popover instead.
   const swapChoices = (l) => {
     const e = l.item;
     if (l.noteOnly) return null;
-    if (e.g === "drain" && e.part === "grate") return {
-      title: "Drain grate — finish",
-      list: pool(cat.filter((i) => i.g === "drain" && i.part === "grate")).sort(byShelf),
-      set: (sku) => setSwaps((o) => ({ ...o, grate: sku })),
-    };
     if (l.g === "Curb" && e.g === "curb" && e.len) return {
       title: "Curb",
       list: pool(cat.filter((i) => i.g === "curb" && i.len)).slice().sort((a, b2) => a.len - b2.len),
@@ -994,11 +994,28 @@ export default function SchluterConfigurator({
     return null;
   };
 
+  // Every drain line's ⇄ opens the stepped drain popover (ticket 158 Phase
+  // 1a): linear builds choose family → grate → frame → finish, point builds
+  // only the grate (the tray fixes the drain family).
+  const pointGrates = () => pool(cat.filter((i) => i.g === "drain" && i.part === "grate")).sort(byShelf);
+  const drainKind = (l) => (l.g !== "Drain" || l.noteOnly || !build ? null
+    : build.drainFit ? "linear" : pointGrates().length ? "point" : null);
+  const panW = benchTrayRoom(normBenches, cfg).w;
+  const openSwap = (l, ev) => {
+    const kind = drainKind(l);
+    const grate = kind === "point" && build.lines.find((x) => x.g === "Drain" && x.item.part === "grate");
+    setSwap({
+      key: l.item.sku || l.item.name, rect: ev.currentTarget.getBoundingClientRect(), anchor: ev.currentTarget.closest(".bline"),
+      ...(kind === "linear" ? { drain: kind, draft: { ...(drainPick || { family: "vario" }) } }
+        : kind === "point" ? { drain: kind, draft: grate ? grate.item.sku : pointGrates()[0].sku } : {}),
+    });
+  };
+
   // A kit click over customized work asks before wiping it (the wedi
   // overwrite rule) — an untouched kit-to-kit hop stays one click.
   const kitDirty = manual.length > 0 || benches.length > 0 || liveXwalls.length > 0
     || (cfg.corners || []).length > 0 || !!cfg.maxIn || !!cfg.ramp || !!cfg.drainX || !!cfg.drainY
-    || Object.keys(qtyOv).length > 0 || Object.keys(swaps).length > 0
+    || Object.keys(qtyOv).length > 0 || Object.keys(swaps).length > 0 || !!drainPick
     || walls.some((x) => x.len !== "" || x.h !== "" || !x.on || !!x.faces)
     || tileNum > 0 || (!kitPick && pick != null);
   const tryKit = (t) => { if (kitDirty) setConfirmKit(t); else pickKit(t); };
@@ -1084,7 +1101,7 @@ export default function SchluterConfigurator({
     setCorners({}); setMaxIn(false); setTileT("");
     setDrainX(""); setDrainY(""); setDrainRef("left");
     setBenches([]); setBenchMenu(null); setWallMenu(null); setPicker(null);
-    setMortarName(""); setRamp(false); setSwaps({}); setSwap(null); setManual([]); setQtyOv({});
+    setMortarName(""); setRamp(false); setSwaps({}); setDrainPick(null); setSwap(null); setManual([]); setQtyOv({});
     setPick(null); setKitPick(false); setStarted(false);
   };
 
@@ -1548,9 +1565,9 @@ export default function SchluterConfigurator({
                           {!l.noteOnly && !e.stock && <span className="sotag">special order</span>}</div>
                         <div className="m" title={meta.join(" · ") || undefined}>{meta.map((s2, k) => (k ? " · " + s2 : <b key="k">{s2}</b>))}</div>
                       </div>
-                      {swapChoices(l) && (
+                      {(drainKind(l) || swapChoices(l)) && (
                         <button className="swapb" title="swap" data-schluter-swapb={e.sku}
-                          onClick={(ev) => setSwap({ key: e.sku || e.name, rect: ev.currentTarget.getBoundingClientRect(), anchor: ev.currentTarget.closest(".bline") })}>⇄</button>
+                          onClick={(ev) => openSwap(l, ev)}>⇄</button>
                       )}
                       {!l.noteOnly && (
                         <div className="stepper">
@@ -2101,10 +2118,105 @@ export default function SchluterConfigurator({
     );
   })();
 
+  // The stepped drain popover edits a DRAFT held on `swap`, so Esc / an
+  // outside click discard it with the popover; only Use this commits, and
+  // the Δ reads the draft against the drain the bill carries now.
+  const drainPanel = () => {
+    const drainTotal = (lines) => round2(lines.reduce((t, l) => t + tierOf(l.item) * l.qty, 0));
+    const cur = build.lines.filter((l) => l.g === "Drain" && !l.noteOnly);
+    const curTotal = drainTotal(cur);
+    const setDraft = (draft) => setSwap((sw) => (sw ? { ...sw, draft } : sw));
+    const clearDrainQty = () => setQtyOv((q) => Object.fromEntries(Object.entries(q).filter(([k]) => !k.startsWith("Drain|"))));
+    const summaryOf = (what, why, next) => {
+      const d = round2(next - curTotal);
+      return { what, why, delta: (d > 0 ? "+" : d < 0 ? "−" : "±") + (d ? fm(Math.abs(d)) : "0"), total: fm(next), up: d > 0 };
+    };
+    const r = swap.rect;
+    const at = { anchor: swap.anchor, x: r.right - 470, y: r.bottom + 6 };
+
+    if (swap.drain === "point") {
+      if (build.drainFit) return null;
+      const list = pointGrates();
+      const pick = list.find((e) => e.sku === swap.draft) || cat.find((e) => e.sku === swap.draft);
+      if (!pick) return null;
+      const rest = cur.filter((l) => l.item.part !== "grate").map((l) => ({ ...l, qty: l.autoQty ?? l.qty }));
+      const chips = list.map((e) => ({
+        key: e.sku, label: shown(e.name).replace(/^kerdi-drain\s+grate\s*/i, "") || shown(e.name),
+        ok: true, on: e.sku === swap.draft, onPick: () => setDraft(e.sku),
+        title: [e.sku, e.stock ? "stock" : "special order", fm(tierOf(e))].join(" · "),
+      }));
+      return (
+        <DrainSwapPop at={at} className="sch-swappanel" title="Swap the drain grate" rows={[{ label: "Grate", chips }]}
+          summary={summaryOf(shown(pick.name), [pick.sku, pick.stock ? "stock" : "special order"].join(" · "), drainTotal(rest) + tierOf(pick))}
+          onUse={() => { setSwaps((o) => ({ ...o, grate: pick.sku })); clearDrainQty(); setSwap(null); }}
+          onClose={() => setSwap(null)} />
+      );
+    }
+
+    if (!build.drainFit) return null;
+    const draft = swap.draft;
+    const o = drainOptions(draft, panW, cat, { source });
+    const fam = o.family, res = o.result;
+    // unchosen steps light the chip of what actually resolved
+    const got = res.family === fam ? res.lines[fam === "vario" ? 0 : 1]?.item : null;
+    const gotStyle = got && fam === "fixed" ? (got.lock ? "lock" : got.style) : null;
+    // a finish that the new design / frame doesn't come in drops, rather
+    // than dragging the whole choice onto a substitute or the Vario fallback
+    const keepFinish = (next) => {
+      if (!next.finish) return next;
+      const t = resolveDrain(next, panW, cat, { source });
+      if (!t.fallback && !t.subst) return next;
+      const { finish, ...bare } = next;
+      return bare;
+    };
+    const rows = [
+      { label: "Family", chips: o.families.map((f) => ({ key: f.key, label: f.label, ok: f.ok, on: f.key === fam,
+        title: f.ok ? "" : `can't be made for a ${panW}″ pan`, onPick: () => setDraft({ family: f.key }) })) },
+      { label: fam === "frameless" ? "Body" : "Grate", chips: o.styles.map((st) => ({ key: st.key, ok: st.ok,
+        label: st.label + (st.max && st.max < o.fit ? ` · to ${st.max}″` : ""),
+        on: fam === "vario" ? st.key === (draft.design || got?.design)
+          : fam === "frameless" ? (st.key === "offset") === !!draft.offset : st.key === (draft.style || gotStyle),
+        title: st.ok ? "" : "not made at this length",
+        onPick: () => setDraft(fam === "vario" ? keepFinish({ ...draft, design: st.key })
+          : fam === "frameless" ? { family: fam, offset: st.key === "offset" } : { family: fam, style: st.key }) })) },
+      { label: "Frame", chips: o.frames.map((f) => ({ key: f.key, label: f.key.replace(/"/g, "″"), ok: f.ok,
+        on: f.key === (draft.frame || got?.frame), title: f.ok ? "" : "not made in this style / length",
+        onPick: () => setDraft(keepFinish({ ...draft, frame: f.key })) })) },
+      { label: "Finish", chips: o.finishes.map((f) => ({ key: f.key, label: f.label, ok: f.ok,
+        on: f.key === (draft.finish || got?.finish), title: f.ok ? "" : "not made in this style / length",
+        onPick: () => setDraft({ ...draft, finish: f.key }) })) },
+    ];
+    const low = (t) => String(t || "").toLowerCase();
+    const [l0, l1] = res.lines;
+    let what, why;
+    if (res.family === "vario") {
+      const ch = l0?.item;
+      what = ch ? `Vario ${low(VARIO_DESIGN[ch.design] || "")} channel${ch.finish ? ", " + low(FINISH_LABEL[ch.finish] || ch.finish) : ""}${l1 ? " + flange kit" : ""}` : "No Vario channel in the books";
+      why = res.fallback || l0?.note || "";
+    } else {
+      const g = l1.item;
+      what = res.family === "frameless"
+        ? `${res.len}″ ${g.offset ? "offset " : ""}body + frameless tileable grate`
+        : `${res.len}″ body + ${res.len}″ ${low(o.styles.find((st) => st.key === (g.lock ? "lock" : g.style))?.label || g.style)} grate`
+          + (g.frame ? `, ${g.frame.replace(/"/g, "″")} frame` : "") + (g.finish ? ", " + low(FINISH_LABEL[g.finish] || g.finish) : "");
+      why = [l0.note, l1.note].filter(Boolean).join(" · ");
+    }
+    return (
+      <DrainSwapPop at={at} className="sch-swappanel" title={`Swap the drain — ${panW}″ pan`} rows={rows}
+        summary={summaryOf(what, why, drainTotal(res.lines))}
+        onUse={() => {
+          setDrainPick(draft.family === "vario" && !draft.design && !draft.finish ? null : draft);
+          clearDrainQty(); setKitPick(false); setSwap(null);
+        }}
+        onClose={() => setSwap(null)} />
+    );
+  };
+
   // The ⇄ swap popover — the wedi anchored panel: the line's alternatives,
   // stock tinted, the standing pick highlighted.
   const swapPanel = (() => {
     if (!swap || !build) return null;
+    if (swap.drain) return drainPanel();
     const line = build.lines.find((l) => !l.noteOnly && (l.item.sku || l.item.name) === swap.key);
     if (!line) return null;
     const ch = swapChoices(line);
