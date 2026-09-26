@@ -86,7 +86,7 @@ per group → 1d shared names / Compare alignment (owner). **1a DONE
 - **Handoff:** `.scratch/handoffs/shower-config-phase1a-2026-09-26.md`
 - **ADR:** `docs/adr/0049-configurator-swaps-remember-the-choice.md`
 - **Proof:** `.scratch/158_shower-config-roadmap/p1a/`
-- **PR:** pending
+- **PR:** [redscissors/Flooring-Tracker#437](https://github.com/redscissors/Flooring-Tracker/pull/437)
 
 The Vario pan-width rule shipped early in PR #436.
 
