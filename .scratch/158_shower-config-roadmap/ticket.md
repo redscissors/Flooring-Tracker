@@ -90,6 +90,21 @@ per group → 1d shared names / Compare alignment (owner). **1a DONE
 
 The Vario pan-width rule shipped early in PR #436.
 
+**Carry into 1b (review minors deferred from 1a):**
+- Move the Δ formatter duplicated in both popups into `drainswap.jsx`.
+- An inert carried pick (Schluter `drainPick` on a point build; a wedi pick
+  on the wrong pan type) still forces custom/kitDirty and rides the marker —
+  gate on whether it bills.
+- Point-grate chip labels ("kit 4″ floral brushed SS") and no SO marker on
+  chips; frame chips "3/4″" vs "¾″"; wedi finish chips repeat the style.
+- Schluter kit-card thumbnails draw Vario at full width under a fixed pick.
+- Tests: families at 36″; stocked vs SO at the same length; `fit === 0`;
+  a point `{key}` through `kitFor`; wedi frame re-sizes with cover length;
+  the wedi round-trip asserting the SKU, not just the finish.
+- Wording: Vario substitution note on a finish-only miss; fixed-fallback
+  reason (double space, offset case); Vario design swap on >96″ pans has no
+  note; `schluterDiag` doc comment.
+
 Every build line belongs to a named slot, identical for both brands: Tray ·
 Drain body · Grate/cover · Flange · Wall board · Wall membrane · Seam/band ·
 Corners · Niche · Bench · Curb · Setting material.
