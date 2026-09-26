@@ -45,12 +45,12 @@ test("cut tray: cut dims ride the piece and the off-centre drain warns", () => {
   assert.match(o.warnings[0], /off the room centre/);
 });
 
-test("linear room: the drain runs at the back wall, w-8 long", () => {
+test("linear room: the Vario channel runs the pan's full width at the back wall", () => {
   const c = cfg({ w: 48, d: 48, drain: "linear" });
   const o = schluterDiag(c, candFor(c));
   assert.equal(o.drain.type, "linear");
   assert.equal(o.drain.axis, "w");
-  assert.equal(o.drain.len, 40);
+  assert.equal(o.drain.len, 48);
   assert.equal(o.drain.x, 24);
 });
 

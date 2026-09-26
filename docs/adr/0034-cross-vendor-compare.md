@@ -58,6 +58,10 @@ others", Schluter's "cement board / drywall substrate — by others") and
 excluded from the totals. Together they *are* the walls difference, which the
 delta line's caveat then names in words.
 
+> **Amendment 2026-09-26 (ticket 158 P0-5):** wedi's house kit now bills one
+> bag of PRO-SET (owner rule), filed under Setting, so the wedi thin-set note
+> is gone. Schluter's substrate-by-others row stays the only `noteOnly` row.
+
 ### 3. Host column = the live build; the other column = that engine's house kit
 
 The popup you opened shows what you have on screen — add-ons, swaps, the

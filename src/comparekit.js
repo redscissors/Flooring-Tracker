@@ -9,7 +9,7 @@
 //   { w, d, curbed, drain: "point"|"offset"|"linear",
 //     walls: [{ side: "back"|"left"|"right", on, len, h }] }
 
-import { solve, kitFor, item, tierPrice as wediTierPrice, round2 } from "./wedi.js";
+import { solve, kitFor, item, tierPrice as wediTierPrice, round2, SKU } from "./wedi.js";
 import { trayCandidates, buildKit, tierPrice as schluterTierPrice } from "./schluter.js";
 
 export const COMPARE_CATS = ["Base", "Drain", "Walls", "Seams", "Curb", "Setting", "Extras"];
@@ -105,11 +105,10 @@ export function schluterBuildFor(room, cat, { source, mortarItem } = {}) {
 }
 
 export function wediCompareRows(build, { builderPct } = {}) {
-  const hasBuild = !!(build && build.lines);
   const rows = ((build && build.lines) || []).map((l) => {
     const e = l.item;
     return {
-      cat: WEDI_CAT[e.group] || "Extras",
+      cat: e.key === SKU.proSet ? "Setting" : WEDI_CAT[e.group] || "Extras",
       name: e.name,
       sub: sub(e.us, l.note),
       qty: l.qty,
@@ -125,15 +124,6 @@ export function wediCompareRows(build, { builderPct } = {}) {
       cost: round2((+e.cost || 0) * l.qty),
     };
   });
-  // wedi's house kit has no thin-set line, and a blank Setting cell beside
-  // Schluter's ALL-SET reads as a missing part rather than a different system.
-  // Only append the note beside a real build — wediCompareRows(null) is [].
-  if (hasBuild) {
-    rows.push({
-      cat: "Setting", name: "Thin-set for pan bed", sub: "by others / shop stock",
-      qty: 1, stock: true, noteOnly: true, est: false, retail: 0, builder: 0, cost: 0,
-    });
-  }
   return rows;
 }
 

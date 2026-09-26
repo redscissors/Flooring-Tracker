@@ -19,7 +19,7 @@ import { TIER_COLOR } from "./uiconst.js";
 import {
   item, group, pans, curbs, kitFor, solve, figureConsumables, panelPlan,
   expandWallFaces, WALL_THICK, curbWidth, curbInsets, applyCurbInset, openCorners, curbRuns, BROWSE_SECTIONS, sectionHit,
-  tierPrice, lineItems, coverFrames, inch, round2, SKU, MODULE_DEPTH, MODEXT_DEPTH,
+  tierPrice, lineItems, coverFrames, inch, round2, SKU, coverageOf, MODULE_DEPTH, MODEXT_DEPTH,
   FINISHES, GROUP_LABEL, BUILDER_MULT, SO_MIN_NET,
   normBench, benchPremades, benchPanRoom, benchPanPlan, smallerPanFor,
   BENCH_CORNER_LBL, buildFromMarker, sessionFromRows,
@@ -251,18 +251,18 @@ const CSS = `
 /* Two stacked lines: the description owns the full column width, the SKU,
    price and quantity sit under it. On one line the name got whatever the fixed
    tracks left over — about 170px once the columns went equal. */
-.wedi-pop .brow{display:flex;flex-direction:column;gap:1px;padding:5px 8px 6px;border-top:1px solid var(--ft-row-line)}
+.wedi-pop .brow{display:flex;flex-direction:column;gap:0;padding:3px 8px 3px;border-top:1px solid var(--ft-row-line)}
 .wedi-pop .brow:last-child{border-bottom:1px solid var(--ft-row-line)}
 .wedi-pop .brow.stk,.wedi-pop .srow.stk{background:var(--w-stock)}
 .wedi-pop .sdot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--ft-brand)}
 .wedi-pop .sdot.so{background:transparent;border:1.4px solid var(--ft-faint)}
 .wedi-pop .brow .bn{display:flex;align-items:center;gap:8px;min-width:0}
-.wedi-pop .brow .bn .n{font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.wedi-pop .brow .bmeta{display:flex;align-items:center;gap:8px;padding-left:15px}
+.wedi-pop .brow .bn .n{flex:1;min-width:0;font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wedi-pop .brow .stepper button{height:20px}
+.wedi-pop .brow .bmeta{display:flex;align-items:center;gap:8px;padding-left:15px;margin-top:-1px}
 .wedi-pop .brow .bmeta .s{flex:1;min-width:0;font-size:10.5px;color:var(--ft-faint);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .wedi-pop .brow .sku{flex:none;font-size:10.5px;color:var(--ft-muted);font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
 .wedi-pop .brow .pr{flex:none;width:74px;text-align:right;font-size:12.5px;font-weight:800;font-variant-numeric:tabular-nums}
-.wedi-pop .brow .pr small{display:block;font-size:9px;color:var(--ft-faint);font-weight:600}
 .wedi-pop .stepper{flex:none;display:inline-flex;align-items:center;border:1px solid var(--ft-border-strong);border-radius:6px;overflow:hidden}
 .wedi-pop .stepper button{border:none;background:var(--ft-card);width:24px;height:24px;font-size:13px;font-weight:800;color:var(--ft-muted);cursor:pointer;line-height:1}
 .wedi-pop .stepper .q{width:28px;text-align:center;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums}
@@ -762,6 +762,13 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   const bMult = bPct === 18 ? BUILDER_MULT : 1 - bPct / 100;
   const tierColor = TIER_COLOR[tierId]?.main || "var(--ft-text)";
   const tierOf = (e) => tierPrice(e, tierId, tierId === "builder" ? bPct : tierId === "sale" ? salePct : tierId === "custom" ? clampPct(customPct) : null);
+  // "323 sf · $1.53/sf" — coverage beside the unit price at the current tier
+  // (ticket 158 P0-3); withN false drops the count
+  const perUnit = (e, withN = true) => {
+    const c = coverageOf(e), p = tierOf(e);
+    if (!c || !(p > 0)) return "";
+    return (withN ? c.n + " " + c.unit + " · " : "") + fm(p / c.n) + "/" + c.unit;
+  };
 
   const toastT = useRef(null);
   const say = (msg) => {
@@ -1872,10 +1879,9 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
           // line (owner ask 2026-07-30). Covers themselves say all three in
           // their catalog name now (owner 2026-08-06), so they read generic.
           const cf = e.group === "coverFrame" && finName(e);
-          // Two lines, not one (owner 2026-08-02): the description owns the full
-          // column width and the SKU / price / quantity sit under it. Sharing one
-          // line with them left ~170px for a name once the columns went equal,
-          // which truncated nearly everything to "Subli…".
+          // Price and quantity ride the name's line (owner 2026-09-26, ticket 158
+          // P0-4 — reverses the 2026-08-02 two-line split): the SKU stays on the
+          // second line, which is what cut names to "Subli…" back then.
           return (
             <div className={"brow" + (e.stock ? " stk" : "")} key={e.key}>
               <div className="bn" title={[unwedi(e.name), e.sizeText, e.stock ? e.erp : e.us].filter(Boolean).join(" · ")}>
@@ -1883,19 +1889,19 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
                 {cf
                   ? <div className="n"><FinDot e={e} />{e.sizeText} · {e.sub === "linear" ? "Linear" : "Square"} · <b style={{ fontWeight: 800 }}>{finName(e)}</b></div>
                   : <div className="n"><FinDot e={e} />{sizeLed(e) ? unwedi(e.name) : [e.sizeText, browseName(e)].filter(Boolean).join(" · ")}</div>}
-              </div>
-              <div className="bmeta">
-                <div className="s">{cf ? unwedi(e.name) + (e.stock ? " · stock" : " · special order") : browseSub(e)}</div>
-                <div className="sku">{e.stock ? e.erp : e.us}</div>
                 <button className={"starb" + (starred.has(e.key) ? " on" : "")}
                   title={starred.has(e.key) ? "unpin from Starred" : "pin to Starred"}
                   onClick={() => toggleStar(e.key)}>{starred.has(e.key) ? "★" : "☆"}</button>
-                <div className="pr" style={{ color: tierColor }}>{fm(tierOf(e))}<small>{tierId !== "retail" ? "retail " + fm(e.retail) : " "}</small></div>
+                <div className="pr" style={{ color: tierColor }}>{fm(tierOf(e))}</div>
                 <div className="stepper">
                   <button onClick={() => step(e.key, -1)}>−</button>
                   <span className={"q" + (n ? "" : " zero")}>{n}</span>
                   <button onClick={() => step(e.key, 1)}>+</button>
                 </div>
+              </div>
+              <div className="bmeta">
+                <div className="s">{[perUnit(e), cf ? unwedi(e.name) + (e.stock ? " · stock" : " · special order") : browseSub(e)].filter(Boolean).join(" · ")}</div>
+                <div className="sku">{e.stock ? e.erp : e.us}{tierId !== "retail" ? " · retail " + fm(e.retail) : ""}</div>
               </div>
             </div>
           );
@@ -1960,7 +1966,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
                         {(() => {
                           // Contents lead, the auto note follows — the line truncates from
                           // the right, and "100 ct" is the part that must survive it.
-                          const meta = [finName(e) || e.sizeText, l.note].filter(Boolean);
+                          const meta = [finName(e) || e.sizeText, l.note, perUnit(e, false)].filter(Boolean);
                           return (
                             <div className="m" title={meta.join(" · ") || undefined}><b>{e.stock ? e.erp : "SO " + e.us}</b>
                               {meta.map((s) => " · " + s).join("")}</div>

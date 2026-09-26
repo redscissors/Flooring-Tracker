@@ -12,6 +12,7 @@ import { isEmserIspl } from "./emserbook.js";
 import { isInterfacePriceList } from "./interfacebook.js";
 import { isSomersetPriceList } from "./somersetbook.js";
 import { isWediPricelist } from "./wedibook.js";
+import { isKeimWediSheet } from "./keimwedibook.js";
 
 // The strongest format tag we can read straight off the file. Priority follows
 // the spec: VTC EFT → OVF books → Emser ISPL → Mannington PDF → generic. The
@@ -37,6 +38,9 @@ export function fileFormat({ sheets, pages, isPdf }) {
   // workbook with its own parser, tested before the ERP export like every
   // vendor tag.
   if (isWediPricelist(sheets || [])) return "wedi-pricelist";
+  // Keim's own wedi retail sheet (ticket 158 P0-6): a price update for the
+  // wedi STOCK book, never a book of its own.
+  if (isKeimWediSheet(sheets || [])) return "keim-wedi";
   if (detectVendorSkuAnalysis(sheets || [])) return "vendor-sku";
   return "generic";
 }
@@ -44,7 +48,7 @@ export function fileFormat({ sheets, pages, isPdf }) {
 // What kind of book a file of this format creates: the ERP's Vendor SKU
 // Analysis exports are the shop's own STOCK lists (retail prices, no markup);
 // every vendor price list is special-order.
-export const bookKindFor = (format) => (format === "vendor-sku" ? "stock" : "order");
+export const bookKindFor = (format) => (format === "vendor-sku" || format === "keim-wedi" ? "stock" : "order");
 
 // A vendor whose files must be parsed TOGETHER rather than one after another
 // (ADR 0025 rule 7). Mirage is the first: its chart carries identity with no
@@ -117,7 +121,7 @@ export function mappingMatchesFile(mapping, sheets) {
   catch { return false; }
 }
 
-const FORMAT_NAMES = { mannington: "Mannington cartons", "ovf-truetouch": "OVF TrueTouch", "ovf-hallmark": "OVF Hallmark wood", "ovf-tarkett": "OVF Tarkett LVT", "ovf-sundries": "OVF sundries", "emser-ispl": "Emser ISPL", "mirage-chart": "Mirage product chart", "mirage-flooring": "Mirage flooring list", "mirage-trim": "Mirage trim list", interface: "Interface price list", somerset: "Somerset price sheet", "wedi-pricelist": "wedi pricelist", "vendor-sku": "ERP stock list" };
+const FORMAT_NAMES = { mannington: "Mannington cartons", "ovf-truetouch": "OVF TrueTouch", "ovf-hallmark": "OVF Hallmark wood", "ovf-tarkett": "OVF Tarkett LVT", "ovf-sundries": "OVF sundries", "emser-ispl": "Emser ISPL", "mirage-chart": "Mirage product chart", "mirage-flooring": "Mirage flooring list", "mirage-trim": "Mirage trim list", interface: "Interface price list", somerset: "Somerset price sheet", "wedi-pricelist": "wedi pricelist", "keim-wedi": "Keim wedi price sheet", "vendor-sku": "ERP stock list" };
 const labelFor = (format, b, title) =>
   format === "vtc-eft" ? `Virginia Tile EFT${title ? ` · ${title}` : ""} → ${b?.name || "book"}`
     : FORMAT_NAMES[format] ? `${FORMAT_NAMES[format]} → ${b?.name || "book"}`
@@ -139,6 +143,16 @@ const reasonFor = (format, title) =>
 // book's mapping. Books stamped before titles existed keep matching by format
 // alone until their next import stamps one.
 export function routeFile({ format, headerSig, titleSig, title, sheets }, books) {
+  // The Keim sheet updates a book stamped with ANOTHER format (the ERP export
+  // stays its whole-book source and keeps the fingerprint), so it routes by
+  // what the book is — the active wedi stock book, the usewedicatalog rule
+  // (\b-anchored: "Swedish" is not wedi) — never by fingerprint.
+  if (format === "keim-wedi") {
+    const hits = (books || []).filter((b) => b.kind === "stock" && b.active !== false
+      && /\bwedi\b/i.test((b.name || "") + " " + ((b.data && b.data.brandLabel) || "")));
+    if (hits.length === 1) return { target: hits[0].id, candidates: [hits[0].id], reason: labelFor(format, hits[0], title) };
+    return { target: null, candidates: hits.map((b) => b.id), reason: hits.length ? "More than one book could take this file" : reasonFor(format, title) };
+  }
   const byTitle = new Set(), cand = new Set();
   for (const b of books || []) {
     const fp = b.data?.importFingerprint;

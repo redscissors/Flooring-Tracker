@@ -1353,3 +1353,36 @@ test("mergedRungs: a stock exact hit shows while the order query is still pendin
   assert.deepEqual(out.results.map((it) => it.sku), ["S-1"]);
   assert.equal(out.near, false);
 });
+
+// --- Price-update drops (ticket 158 P0-6: the Keim wedi sheet) ---
+
+test("priceUpdateBundle: only price moves on live rows, new SKUs add, nothing retires, retired rows stay retired", async () => {
+  const { priceUpdateBundle } = await import("./orderbook.js");
+  const existing = [
+    { sku: "A", active: true, description: "Pan 3x5", price: 10, cost: 5, vendorSkus: ["US1"] },
+    { sku: "B", active: true, description: "Not on the sheet", price: 7, cost: 3 },
+    { sku: "C", active: false, description: "Retired", price: 1, cost: 1 },
+  ];
+  const parsed = [
+    { sku: "A", active: true, description: "3'x5' pan", price: 12, cost: null, vendorSkus: ["US9"] },
+    { sku: "C", active: true, description: "Retired", price: 9, cost: null },
+    { sku: "D", active: true, description: "New item", price: 4, cost: null },
+  ];
+  const { items, retired } = priceUpdateBundle(existing, parsed);
+  assert.deepEqual(retired, ["C"]);
+  const diff = diffBookItems(existing, items);
+  assert.deepEqual(diff.changed.map((c) => [c.item.sku, c.fields]), [["A", ["price"]]]);
+  const a = diff.changed[0].item;
+  assert.deepEqual([a.price, a.cost, a.description, a.vendorSkus], [12, 5, "Pan 3x5", ["US1"]]);
+  assert.deepEqual(diff.added.map((it) => it.sku), ["D"]);
+  assert.deepEqual(diff.missing, []);
+  assert.deepEqual(diff.unchanged.map((it) => it.sku).sort(), ["B"]);
+});
+
+test("priceUpdateBundle: a price the sheet already matches is unchanged", async () => {
+  const { priceUpdateBundle } = await import("./orderbook.js");
+  const existing = [{ sku: "A", active: true, description: "x", price: 378.19, cost: 229.2 }];
+  const { items } = priceUpdateBundle(existing, [{ sku: "A", description: "y", price: 378.19 }]);
+  const diff = diffBookItems(existing, items);
+  assert.equal(diff.changed.length + diff.added.length + diff.missing.length, 0);
+});

@@ -122,15 +122,15 @@ test("wedi rows price through the engine's own tier lens, extended by qty", () =
   assert.deepEqual([panel.retail, panel.builder, panel.cost], [327.96, 268.92, 198.78]);
 });
 
-test("wedi rows end with the $0 thin-set note — wedi has no setting line of its own", () => {
+test("wedi's PRO-SET bag files under Setting — no by-others thin-set note", () => {
   const rows = wediCompareRows(wediBuildFor(room60x38()));
-  const note = rows[rows.length - 1];
-  assert.deepEqual(
-    (({ cat, name, sub, noteOnly, retail, builder, cost }) => ({ cat, name, sub, noteOnly, retail, builder, cost }))(note),
-    { cat: "Setting", name: "Thin-set for pan bed", sub: "by others / shop stock", noteOnly: true, retail: 0, builder: 0, cost: 0 });
+  const ps = rows.filter((r) => /PRO-SET/.test(r.name));
+  assert.equal(ps.length, 1);
+  assert.deepEqual([ps[0].cat, ps[0].qty, ps[0].noteOnly], ["Setting", 1, false]);
+  assert.equal(rows.some((r) => r.noteOnly), false);
 });
 
-test("wediCompareRows(null) is empty — no lone thin-set note on a null build", () => {
+test("wediCompareRows(null) is empty", () => {
   assert.deepEqual(wediCompareRows(null), []);
 });
 

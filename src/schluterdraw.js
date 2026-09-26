@@ -192,7 +192,7 @@ export function schluterDiag(cfg, cand, benches) {
   // the tray region's own centre — with a framed bench it is NOT the room's
   const cx = troom.x0 + rw / 2, cy = troom.y0 + rd / 2;
   if (dk === "linear") {
-    drain = { type: "linear", x: round2(cx), y: round2(troom.y0 + 2.75), len: Math.max(10, rw - 8), axis: "w", note: "" };
+    drain = { type: "linear", x: round2(cx), y: round2(troom.y0 + 2.75), len: Math.max(10, rw), axis: "w", note: "" };
   } else {
     // the candidate's achieved position (trayCandidates splits the cut to
     // chase a pinned drain, already in room coords); the old anchored formula

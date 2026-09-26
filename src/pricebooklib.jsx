@@ -16,7 +16,8 @@ import { parseOvf } from "./ovfbook.js";
 import { parseEmser } from "./emserbook.js";
 import { parseMirage } from "./miragebook.js";
 import { parseWediPricelist } from "./wedibook.js";
-import { normBookItem, bookItemData, bookRowPreview, diffBookItems, forceDiff, changedFieldBits, markupGroups, editedInDiff, bookStaleness, bookFreshAt, bookNoMarkup, bookPublishesPrice, DEFAULT_STALE_DAYS, itemProblems, supersedePairs, itemFlags, flagReviewBySku } from "./orderbook.js";
+import { parseKeimWedi } from "./keimwedibook.js";
+import { normBookItem, bookItemData, bookRowPreview, diffBookItems, priceUpdateBundle, forceDiff, changedFieldBits, markupGroups, editedInDiff, bookStaleness, bookFreshAt, bookNoMarkup, bookPublishesPrice, DEFAULT_STALE_DAYS, itemProblems, supersedePairs, itemFlags, flagReviewBySku } from "./orderbook.js";
 import { normPricing } from "./pricing.js";
 import { BOOK_VERSION_KEEP } from "./uiconst.js";
 import { money } from "./model.js";
@@ -1809,6 +1810,7 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
   // find, and what it dropped. ADR 0025's rule is that a partial import is loud,
   // so these sit with the mapping warnings rather than being swallowed.
   const [srcWarn, setSrcWarn] = useState([]);
+  const [priceUpdate, setPriceUpdate] = useState(false);
   const [ignored, setIgnored] = useState(() => new Set());   // SKUs the user chose to ignore (→ disabled)
   const [keepOld, setKeepOld] = useState(() => new Set());   // superseded oldSkus the user opted to KEEP active
   const [keepArea, setKeepArea] = useState(() => new Set()); // reclassified trims the user opted to KEEP as sqft
@@ -1829,7 +1831,7 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
   // parsed — into the wizard's sheet list + auto-mapping, and remember the
   // detected format for the book's import fingerprint.
   const ingest = async ({ file, sheets: preSheets, pages: prePages, isPdf, payloads, format }) => {
-    setReading(true); setErr("");
+    setReading(true); setErr(""); setPriceUpdate(false);
     if (file?.name) setSrcName(file.name);
     try {
       // A vendor whose documents must be JOINED rather than concatenated gets
@@ -1891,6 +1893,17 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
       if (emser) {
         setSheets([{ name: emser.name, rows: emser.rows }]);
         applyDetected({ sheet: emser.name, ...emser.mapping });
+        setReading(false);
+        return;
+      }
+      // Keim's wedi retail sheet (ticket 158 P0-6): a PRICE UPDATE for the
+      // wedi stock book — see priceUpdateBundle below.
+      const keim = parseKeimWedi(parsed, (file?.name || book.name || "book").replace(/\.xlsx?$/i, ""));
+      if (keim) {
+        setSheets([{ name: keim.name, rows: keim.rows }]);
+        setSrcWarn(keim.warnings || []);
+        setPriceUpdate(true);
+        applyDetected({ sheet: keim.name, ...keim.mapping });
         setReading(false);
         return;
       }
@@ -1970,7 +1983,7 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
   const { items: parsedItems, warnings: mapWarn } = sheet ? parseMapped(rows, mapping, review) : { items: [], warnings: [] };
   // The source parser's own warnings lead: "the chart is missing" outranks any
   // per-row mapping complaint, because it changes what the import MEANS.
-  const warnings = srcWarn.length ? [...srcWarn, ...mapWarn] : mapWarn;
+  const mapWarnShown = priceUpdate ? mapWarn.filter((w) => !/^No cost column is mapped/.test(w)) : mapWarn;
   // Rows the classifier reclassified to per-piece trims (ADR 0013 amendment),
   // listed for review below; un-ticking one keeps it a square-foot line.
   const reclassified = parsedItems.filter((it) => it.trimSignal);
@@ -1979,8 +1992,16 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
   // the bundle has produced so far, not just this file — otherwise each file
   // would read the previous file's rows as "missing" and retire them. A later
   // file wins a SKU collision, so the sheets are layered in the order routed.
-  const carried = addMode ? existingItems : carryItems;
-  const bundleItems = carried.length ? [...new Map([...carried, ...items].map((it) => [it.sku, it])).values()] : items;
+  // Only LIVE rows layer under an added file: retired ones carried along would
+  // diff as changed and come back active.
+  const carried = addMode ? existingItems.filter((it) => it.active) : carryItems;
+  const layered = carried.length ? [...new Map([...carried, ...items].map((it) => [it.sku, it])).values()] : items;
+  // A price-update sheet (the Keim wedi list) moves only prices on live rows,
+  // adds new SKUs and retires nothing — the ERP export stays the whole-book source.
+  const pu = priceUpdate ? priceUpdateBundle(existingItems, layered) : null;
+  const bundleItems = pu ? pu.items : layered;
+  const retiredNote = pu && pu.retired.length ? [`${pu.retired.length} SKU${pu.retired.length === 1 ? " is" : "s are"} retired in this book and stay${pu.retired.length === 1 ? "s" : ""} retired: ${pu.retired.slice(0, 6).join(", ")}${pu.retired.length > 6 ? ", …" : ""}`] : [];
+  const warnings = [...srcWarn, ...retiredNote, ...mapWarnShown];
   const diff = sheet ? diffBookItems(existingItems, bundleItems) : { added: [], changed: [], missing: [], unchanged: [] };
   const editedOverwritten = sheet ? editedInDiff(existingItems, bundleItems) : [];
   const flagCol = Object.entries(columns).find(([, f]) => f === "flag")?.[0];
@@ -2016,11 +2037,13 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
   // Stamp the book with what this file looks like so the drop router matches the
   // next drop of the same vendor sheet (format tag + header signature + the EFT
   // brand-title line, which is what tells Virginia Tile's sibling files apart).
-  const fingerprint = sheet ? (({ headerSig, titleSig }) => ({ format: fmt, headerSig, titleSig }))(computeFingerprint({ sheets: sheets || [], name: srcName })) : null;
+  // A price update never re-stamps the book: its ERP fingerprint and mapping
+  // are what route and parse the next whole-book export.
+  const fingerprint = sheet && !priceUpdate ? (({ headerSig, titleSig }) => ({ format: fmt, headerSig, titleSig }))(computeFingerprint({ sheets: sheets || [], name: srcName })) : null;
   // Adding a file names it as one of the book's sources. Matched on content, not
   // filename — re-adding next quarter's re-dated copy is the same slot, not a new
   // one (ADR 0025).
-  const addSlot = addMode && sheet ? sourceSlot({ fingerprint, name: srcName }) : null;
+  const addSlot = addMode && sheet && fingerprint ? sourceSlot({ fingerprint, name: srcName }) : null;
   const knownSlot = addSlot ? (book.data?.sources || []).find((s) => s.id === addSlot.id) : null;
   const importCount = diff.added.length + diff.changed.length + diff.missing.length;
   // Disabling SKUs is a valid apply even when the re-import is otherwise a no-op
@@ -2191,6 +2214,11 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
                   </span>
                 </label>
               )}
+              {priceUpdate && (
+                <p className="mt-1.5 text-[11px] text-indigo-700 bg-indigo-50 border border-indigo-100 rounded px-2 py-1 inline-block" data-price-update>
+                  Price update — only retail prices change on rows this book already has; cost, descriptions and codes stay, new SKUs are added, nothing retires.
+                </p>
+              )}
               {editedOverwritten.length > 0 && (
                 <p className="mt-1.5 text-[11px] text-indigo-700 bg-indigo-50 border border-indigo-100 rounded px-2 py-1 inline-block" title={editedOverwritten.map((i) => i.sku).join(", ")}>
                   <Pencil size={11} className="inline -mt-0.5 mr-1" />{editedOverwritten.length} item{editedOverwritten.length === 1 ? " you" : "s you"} hand-edited will be overwritten by this import.
@@ -2291,7 +2319,7 @@ export function BookImportWizard({ book, existingItems, onClose, onApply, saveMa
               <button onClick={() => saveMapping(mapping)} className="text-sm text-slate-500 hover:text-slate-700 underline">Save mapping only</button>
               <div className="flex gap-2">
                 <button onClick={onClose} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button>
-                <button onClick={() => onApply(forcing ? forceDiff(diff, existingItems) : diff, { disableSkus, superseded: appliedSupersede, fingerprint, slot: addSlot, forced: forcing, claudeSkus: [...claudeFlags], mapping }, bundleItems)} disabled={emptyRetire || (lastOfBundle && importCount + disableSkus.length === 0 && !forcing)} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 disabled:opacity-50">{applyLabel}</button>
+                <button onClick={() => onApply(forcing ? forceDiff(diff, existingItems) : diff, { disableSkus, superseded: appliedSupersede, fingerprint, slot: addSlot, forced: forcing, claudeSkus: [...claudeFlags], mapping: priceUpdate ? undefined : mapping }, bundleItems)} disabled={emptyRetire || (lastOfBundle && importCount + disableSkus.length === 0 && !forcing)} className="text-sm rounded-lg bg-indigo-600 text-white px-4 py-2 hover:bg-indigo-700 disabled:opacity-50">{applyLabel}</button>
               </div>
             </div>
           </div>

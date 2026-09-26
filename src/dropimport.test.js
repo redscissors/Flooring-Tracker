@@ -428,3 +428,27 @@ test("routeFile: a pricelist drop names itself when no book matches, and routes 
   assert.equal(hit.target, "so", "the stock book named wedi is not a candidate — format, not name, routes");
   assert.equal(hit.reason, "wedi pricelist → wedi");
 });
+
+// --- Keim wedi price sheet (ticket 158 P0-6) ---
+
+const KEIM = [
+  { name: "Retail", rows: [["V3926", "Keim Lumber 4465 State Rte. 557  Charm, OH"], [], [null, "WEDI SHOWER SYSTEM- RETAIL PRICING***"],
+    [null, "SKU", "Description", "Mfg SKU", "U/M", "Retail Price"], [null, 1504153, "3'x3' Wedi Fundo Shower Pan", "US9100001", "EA", 378.18]] },
+  { name: "Contractor", rows: [["V3926", "Keim Lumber"]] },
+];
+
+test("fileFormat: the Keim wedi sheet is its own tag, and a stock-book format", () => {
+  assert.equal(fileFormat({ sheets: KEIM }), "keim-wedi");
+  assert.equal(bookKindFor("keim-wedi"), "stock");
+});
+
+test("routeFile: the Keim wedi sheet goes to the one active wedi STOCK book, whatever its stamped format", () => {
+  const stock = { id: "ws", kind: "stock", name: "Wedi", active: true, data: { importFingerprint: { format: "vendor-sku", titleSig: "wedi 1" } } };
+  const pl = { id: "wp", kind: "order", name: "wedi pricelist", active: true, data: { importFingerprint: { format: "wedi-pricelist" } } };
+  const other = { id: "sw", kind: "stock", name: "Swedish tile", active: true, data: {} };
+  const r = routeFile({ format: "keim-wedi", headerSig: "", sheets: KEIM }, [stock, pl, other]);
+  assert.equal(r.target, "ws");
+  assert.match(r.reason, /Keim wedi price sheet/);
+  const none = routeFile({ format: "keim-wedi", headerSig: "", sheets: KEIM }, [pl, other]);
+  assert.equal(none.target, null);
+});

@@ -50,6 +50,58 @@ eftRows.push(normOrderItem({
   description: "Schluter Kerdi-Shower-Kit Kerdi-Shower TT 38 X 32", leadTime: "READY SHIP",
 }));
 
+// The 76"-side twin of the stocked KSLT965/1930S (38" side) from the
+// 2025-10-01 EFT — same price, channel on the other edge. With both in the
+// catalog the Kits tab must show two distinct linear rows, and the Walls ⇄
+// rotate must swap one for the other.
+eftRows.push(normOrderItem({
+  sku: "SLRKSLT1930965S", bookId: "bk_eft", unit: "PC", cost: 211.74, price: 317.61, size: "76x38",
+  description: 'Schluter Kerdi-Shower-LTS Tray Perimeter Drain 76" Side', leadTime: "READY SHIP",
+}));
+
+// A slice of the EFT's fixed KERDI-LINE range (ticket 158 P0-2) — every
+// straight channel length, one grate family, a few frameless grates, an FC
+// cover, a sloping profile and the adaptor ring — so Browse shows the new
+// KERDI-LINE section over real codes and costs. [sku, description, size, cost]
+[
+  ["SLRKL1AR19EB50","Kerdi-Line 3/4\" Frame Solid Grate","20\"",199.69],
+  ["SLRKL1AR19EB60","Kerdi-Line 3/4\" Frame Solid Grate","24\"",205.42],
+  ["SLRKL1AR19EB70","Kerdi-Line 3/4\" Frame Solid Grate","28\"",213.85],
+  ["SLRKL1AR19EB80","Kerdi-Line 3/4\" Frame Solid Grate","32\"",219.37],
+  ["SLRKL1AR19EB90","Kerdi-Line 3/4\" Frame Solid Grate","36\"",229.7],
+  ["SLRKL1AR19EB100","Kerdi-Line 3/4\" Frame Solid Grate","40\"",243.43],
+  ["SLRKL1AR19EB110","Kerdi-Line 3/4\" Frame Solid Grate","44\"",249.42],
+  ["SLRKL1AR19EB120","Kerdi-Line 3/4\" Frame Solid Grate","48\"",253.92],
+  ["SLRKL1AR19EB130","Kerdi-Line 3/4\" Frame Solid Grate","52\"",331.06],
+  ["SLRKL1AR19EB140","Kerdi-Line 3/4\" Frame Solid Grate","56\"",347.66],
+  ["SLRKL1AR19EB150","Kerdi-Line 3/4\" Frame Solid Grate","60\"",365.88],
+  ["SLRKL1AR19EB160","Kerdi-Line 3/4\" Frame Solid Grate","64\"",389.54],
+  ["SLRKL1AR19EB170","Kerdi-Line 3/4\" Frame Solid Grate","68\"",406.12],
+  ["SLRKL1AR19EB180","Kerdi-Line 3/4\" Frame Solid Grate","72\"",429.39],
+  ["SLRKL1DRE100","Kerdi-Line Frameless Tileable Grate","40\"",126.33],
+  ["SLRKL1DRE120","Kerdi-Line Frameless Tileable Grate","48\"",135.27],
+  ["SLRKL1DRE150","Kerdi-Line Frameless Tileable Grate","60\"",166.19],
+  ["SLRKL1V60E50","Kerdi-Line Channel Body","20\"",214.8],
+  ["SLRKL1V60E60","Kerdi-Line Channel Body","24\"",221.62],
+  ["SLRKL1V60E70","Kerdi-Line Channel Body","28\"",240.72],
+  ["SLRKL1V60E80","Kerdi-Line Channel Body","32\"",243.05],
+  ["SLRKL1V60E90","Kerdi-Line Channel Body","36\"",253.84],
+  ["SLRKL1V60E100","Kerdi-Line Channel Body","40\"",260.92],
+  ["SLRKL1V60E110","Kerdi-Line Channel Body","44\"",266.37],
+  ["SLRKL1V60E120","Kerdi-Line Channel Body","48\"",278.78],
+  ["SLRKL1V60E130","Kerdi-Line Channel Body","52\"",337.81],
+  ["SLRKL1V60E140","Kerdi-Line Channel Body","56\"",346.39],
+  ["SLRKL1V60E150","Kerdi-Line Channel Body","60\"",354.68],
+  ["SLRKL1V60E160","Kerdi-Line Channel Body","64\"",361.56],
+  ["SLRKL1V60E170","Kerdi-Line Channel Body","68\"",367.21],
+  ["SLRKL1V60E180","Kerdi-Line Channel Body","72\"",373.55],
+  ["SLRKLAM5K","Kerdi-Line-A 5-1/2\" Adaptor Ring","",26.82],
+  ["SLRSPSA50EB120","Kerdi-Line Sloping Shower Profile H=3/16\" L=47-1/4\"","",45.36],
+  ["SLRVKLEB35","Kerdi-Line-FC Grate Connector Brushed Stainless Steel","",10.75],
+].forEach(([sku, description, size, cost]) => eftRows.push(normOrderItem({
+  sku, bookId: "bk_eft", unit: "PC", cost, size, description: lead(description), leadTime: "READY SHIP",
+})));
+
 // The harness "sheet" — the placed rows as the job sheet holds them, with a
 // qty box per row and Reconfigure on each anchor, so the drive can prove a
 // sheet-edited quantity reopens as the popup's override (owner 2026-09-02).
