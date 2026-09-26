@@ -171,7 +171,7 @@ export function schluterCurb(cfg, benches) {
  * centre a warning says how far), a linear room's Vario channel along the
  * back wall at cfg.w − 8. A mortar-bed candidate draws the bare room.
  */
-export function schluterDiag(cfg, cand, benches) {
+export function schluterDiag(cfg, cand, benches, drainFit) {
   const w = +cfg.w || 0, d = +cfg.d || 0;
   // a framed bench shrinks the room the tray fills (benchTrayRoom, the same
   // reduction trayCandidates fit against) — the piece draws offset at x0/y0
@@ -192,7 +192,8 @@ export function schluterDiag(cfg, cand, benches) {
   // the tray region's own centre — with a framed bench it is NOT the room's
   const cx = troom.x0 + rw / 2, cy = troom.y0 + rd / 2;
   if (dk === "linear") {
-    drain = { type: "linear", x: round2(cx), y: round2(troom.y0 + 2.75), len: Math.max(10, rw), axis: "w", note: "" };
+    const fixedLen = drainFit && drainFit.family !== "vario" && drainFit.len > 0 ? drainFit.len : 0;
+    drain = { type: "linear", x: round2(cx), y: round2(troom.y0 + 2.75), len: fixedLen || Math.max(10, rw), axis: "w", note: "" };
   } else {
     // the candidate's achieved position (trayCandidates splits the cut to
     // chase a pinned drain, already in room coords); the old anchored formula

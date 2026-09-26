@@ -916,7 +916,7 @@ export default function SchluterConfigurator({
   // --- drawings --------------------------------------------------------------
   const normBenches = useMemo(() => benches.map((b) => normBench(b, cfg, cat)), [benches, cfg, cat]);
   const itemBySku = (sku) => cat.find((i) => i.sku === sku);
-  const diag = useMemo(() => (pickCand ? schluterDiag(cfg, pickCand, normBenches) : null), [cfg, pickCand, normBenches]);
+  const diag = useMemo(() => (pickCand ? schluterDiag(cfg, pickCand, normBenches, build ? build.drainFit : null) : null), [cfg, pickCand, normBenches, build]);
   const dWalls = useMemo(() => schluterWalls(cfg, plan), [cfg, plan]);
   const wallOn = useMemo(() => schluterWallOn(cfg), [cfg]);
   const curb = useMemo(() => schluterCurb(cfg, normBenches), [cfg, normBenches]);
@@ -947,6 +947,8 @@ export default function SchluterConfigurator({
     const ch = build.lines.find((l) => l.item.part === "channel");
     const chCut = ch && (ch.note || "").match(/cut to [\d.]+"/);
     if (chCut) out.push(`✂ Trim the Vario channel + grate ${chCut[0].replace("cut to ", "to ")} — end caps supplied, min 10"`);
+    if (build?.drainFit && build.drainFit.family !== "vario" && build.drainFit.len)
+      out.push(`▭ KERDI-LINE ${build.drainFit.len}" channel + grate${build.drainFit.gap ? ` — fill ${build.drainFit.gap}" at the ends` : ""}`);
     const cl = build.lines.find((l) => l.g === "Curb" && l.item.len);
     if (cl && /cut/.test(cl.note || "")) out.push(`✂ ${cl.qty > 1 ? cl.qty + "× " : ""}${shown(cl.item.name)} — ${(cl.note || "").split(" — ")[0]}`);
     cornerCuts.forEach((c) => {
