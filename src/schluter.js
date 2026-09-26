@@ -60,8 +60,8 @@ function mmExactTokens(digits) {
 // Tray/kit width×depth: every digit in the code that isn't part of the
 // mm-pair is a letter (prefix, suffix flags), so stripping non-digits and
 // running the same greedy scan works whether the SKU separates the pair
-// with "/" or not. w = the longer dimension, d = the shorter (matches the
-// reference tagging: KST965/1525 -> w:60,d:38; KSLT965/1930S -> w:76,d:38).
+// with "/" or not. w = the longer dimension, d = the shorter (KST965/1525 ->
+// w:60,d:38). Linear LTS trays don't use this — see classifyCode.
 function trayDims(code) {
   const vals = mmExactTokens(code.replace(/\D/g, ""));
   if (!vals.length) return {};
@@ -95,7 +95,7 @@ function curbLen(code) {
 // table by /<n>M suffix (or the plain/unsuffixed full roll) when it's absent.
 function membraneSf(item, code) {
   const text = item.size || item.name || item.description || "";
-  const explicit = /=\s*([\d.]+)\s*sf/i.exec(text);
+  const explicit = /=\s*([\d.]+)\s*sf/i.exec(text) || /\(\s*([\d.]+)\s*sf\s*\)/i.exec(text);
   if (explicit) return parseFloat(explicit[1]);
   const suffix = /\/(\d+)M/.exec(code);
   if (suffix && ROLL_SF[suffix[1]] !== undefined) return ROLL_SF[suffix[1]];
@@ -121,7 +121,7 @@ function boardDims(item) {
   // the sheet's sides ride along as bw (short) × bl (long) wherever a real
   // pair shows — the course planner (round 7) needs dimensions, not just area
   const pair = (a, b2) => { out.bw = Math.min(a, b2); out.bl = Math.max(a, b2); };
-  const explicit = /=\s*([\d.]+)\s*sf/i.exec(text);
+  const explicit = /=\s*([\d.]+)\s*sf/i.exec(text) || /\(\s*([\d.]+)\s*sf\s*\)/i.exec(text);
   if (explicit) out.sf = parseFloat(explicit[1]);
   const nums = [...text.matchAll(/([\d.]+)\s*"/g)].map((m) => parseFloat(m[1]));
   if (nums.length === 3) {
@@ -149,6 +149,19 @@ function boardDims(item) {
 }
 
 /**
+ * What one unit of a classified item covers — { n, unit: "sf" | "lf" } for
+ * membrane rolls, seam bands and boards, null for everything else. The
+ * popups print it beside the unit price (ticket 158 P0-3).
+ */
+export function coverageOf(i) {
+  if (!i) return null;
+  if (i.g === "membrane" && i.sf > 0) return { n: i.sf, unit: "sf" };
+  if (i.g === "seam" && i.lf > 0) return { n: i.lf, unit: "lf" };
+  if (i.g === "board" && i.sf > 0) return { n: round2(i.sf), unit: "sf" };
+  return null;
+}
+
+/**
  * Classify a Schluter stock-book/EFT row into its shower-system role.
  * Returns the item spread plus { g, w?, d?, drain?, part?, sf?, lf?, len?,
  * sfPerBag?, ramp?, thin? }, or null for non-shower Schluter items (profiles,
@@ -165,15 +178,49 @@ export function classify(item) {
     (item.vendorSkus && item.vendorSkus[0] ? classifyCode(item, item.vendorSkus[0]) : null);
 }
 
+// Fixed-length KERDI-LINE (ticket 158 P0-2) — channel bodies, their
+// grates, FC grate connectors, shower profiles and loose accessories. Its own
+// group, "line", so no g:"drain" pick in buildKit can reach it: the linear
+// recipe stays on Vario until the slot swap lands. Length codes are
+// centimetres (50…180 → 20″…72″ in 4″ steps, Schluter's own rounding).
+const LINE_FRAME = { 6: '1/4"', 12: '1/2"', 19: '3/4"', 22: '7/8"', 23: '29/32"', 30: '1-1/8"' };
+const LINE_STYLE = { AR: "solid", B: "perforated", BL: "perforated", IFE: "floral", IFF: "curve", IFG: "pure" };
+const cmIn = (cm) => Math.round(Number(cm) * 0.4);
+
+function kerdiLine(item, code) {
+  let m = /^KL1V(O?)60E(\d{2,3})$/.exec(code);
+  if (m) return { ...item, g: "line", part: "body", len: cmIn(m[2]), offset: !!m[1] };
+  m = /^KL1DR(O?)E(\d{2,3})$/.exec(code);
+  if (m) return { ...item, g: "line", part: "grate", len: cmIn(m[2]), offset: !!m[1], frameless: true, style: "tileable" };
+  m = /^KL1(AR|BL|B|IF[EFG])(19|23|30)([A-Z]+?)(\d{2,3})$/.exec(code);
+  if (m) {
+    const entry = { ...item, g: "line", part: "grate", len: cmIn(m[4]), style: LINE_STYLE[m[1]], frame: LINE_FRAME[m[2]], finish: m[3] };
+    if (m[1] === "BL") entry.lock = true;
+    return entry;
+  }
+  m = /^KLTFH(6|12|22)E(\d{2,3})$/.exec(code);
+  if (m) return { ...item, g: "line", part: "grate", len: cmIn(m[2]), style: "tile", frame: LINE_FRAME[m[1]] };
+  if (/^V\/?KL[A-Z]+35$/.test(code)) return { ...item, g: "line", part: "cover" };
+  if (/^SP[RS][AB]\d+[A-Z]+\d+$/.test(code)) return { ...item, g: "line", part: "profile" };
+  if (/^KLAM5K|^KLVZSF|^KLVRGG|^KLVSTR/.test(code)) return { ...item, g: "line", part: "acc" };
+  return null;
+}
+
 function classifyCode(item, rawSku) {
   const raw = rawSku || "";
   // Distributor rows carry an "SLR" reseller prefix the mfg code doesn't have.
   const code = raw.trim().replace(/^SLR/, "");
 
   // KERDI-SHOWER-LTS: linear-drain tray. The trailing S here is part of the
-  // "LTS" line name, not the offset-drain flag KST-line SKUs use.
+  // "LTS" line name, not the offset-drain flag KST-line SKUs use. Unlike
+  // every other tray, w is the CHANNEL edge, not the longer side: Schluter's
+  // first dimension is the drain side (KSLT965/1930S is 38″×76″ drained on
+  // the 38″ edge, KSLT1930/965S its 76″-edge twin), and the channel sits at
+  // the room's back wall (w).
   if (/^KSLT.*S$/.test(code)) {
-    return { ...item, g: "tray", ...trayDims(code.replace(/^KSLT/, "").replace(/S$/, "")), drain: "linear" };
+    const vals = mmExactTokens(code.replace(/^KSLT/, "").replace(/S$/, "").replace(/\D/g, ""));
+    if (!vals.length) return { ...item, g: "tray", drain: "linear" };
+    return { ...item, g: "tray", w: vals[0], d: vals.length > 1 ? vals[1] : vals[0], drain: "linear" };
   }
 
   // KERDI-SHOWER-T(T)(S): KST<a>[/<b>][S][BF] — S = offset drain, BF = the
@@ -186,6 +233,9 @@ function classifyCode(item, rawSku) {
     if (m && m[3]) entry.thin = true;
     return entry;
   }
+
+  const line = kerdiLine(item, code);
+  if (line) return line;
 
   // KERDI-LINE-VARIO linear-drain channel/flange.
   if (/^KLVR2FLK/.test(code)) {
@@ -833,7 +883,7 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
   } else {
     add("Drain", pickFrom(cat, (i) => i.g === "drain" && i.part === "flange" && i.drain === "point", { source }), 1,
       'bonded flange, 2" PVC — incl. 4+2 corners, pipe + valve seals');
-    add("Drain", swapped(swaps.grate, (i) => i.part === "grate")
+    add("Drain", swapped(swaps.grate, (i) => i.g === "drain" && i.part === "grate")
       || pickFrom(cat, (i) => i.g === "drain" && i.part === "grate", { source }), 1,
       "finish pick — tileable & floral stocked too");
   }

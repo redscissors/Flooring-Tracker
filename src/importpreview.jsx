@@ -11,6 +11,9 @@ import { parseMapped } from "./pricebook.js";
 import { TYPES, TLBL } from "./uiconst.js";
 import { issueRef } from "./claudeissues.js";
 import { SOMERSET_PAGES } from "./somersetfixture.js";
+import { KEIM_SHEETS } from "./keimwedifixture.js";
+import { FIXTURE_ROWS as WEDI_STOCK_ROWS } from "./wedifixture.js";
+import { normBookItem } from "./orderbook.js";
 
 const inp = "ft-field w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent";
 const lbl = "ft-eyebrow text-[10px] mb-1 block";
@@ -62,6 +65,13 @@ const BOOK = { id: "vt", kind: "order", name: "Virginia Tile — Anatolia", acti
 const SOMERSET = new URLSearchParams(location.search).has("somerset");
 const SOMERSET_BOOK = { id: "somerset", kind: "order", name: "Somerset", active: true, data: { markups: { default: 45 } } };
 
+// ?keim drops Keim's real wedi price sheet onto the 2026-09-01 wedi stock
+// snapshot — the price-update mode (ticket 158 P0-6): one price moves, one SKU
+// adds, nothing retires.
+const KEIM = new URLSearchParams(location.search).has("keim");
+const KEIM_BOOK = { id: "ws", kind: "stock", name: "Wedi", active: true, data: { importFingerprint: { format: "vendor-sku" } } };
+const KEIM_EXISTING = WEDI_STOCK_ROWS.map((r) => normBookItem(r, "ws"));
+
 const { items: prevItems } = parseMapped(PREV_ROWS, MAPPING);
 const EXISTING = prevItems.map((it) =>
   it.sku === "VT1006" ? { ...it, active: false }
@@ -76,11 +86,11 @@ function App() {
       <div className="max-w-xl mb-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">
         Central Claude issues landed from this review: {issues.length === 0 ? "none yet" : ""}
         {issues.map((i, n) => <span key={n} className="block font-medium text-slate-700">{issueRef(i)} — {i.text || "(context only)"}</span>)}
-        {applied && <span className="block mt-1 text-emerald-700">Applied · claudeSkus: [{applied.opts.claudeSkus.join(", ")}]</span>}
+        {applied && <span className="block mt-1 text-emerald-700" data-applied>Applied · added {applied.diff.added.length} · changed {applied.diff.changed.length} · retired {applied.diff.missing.length} · fingerprint {applied.opts.fingerprint ? applied.opts.fingerprint.format : "kept"} · mapping {applied.opts.mapping ? "saved" : "kept"} · claudeSkus: [{applied.opts.claudeSkus.join(", ")}]</span>}
       </div>
       <BookImportWizard
-        book={SOMERSET ? SOMERSET_BOOK : BOOK} existingItems={SOMERSET ? [] : EXISTING}
-        preParsed={SOMERSET ? { pages: SOMERSET_PAGES, isPdf: true } : { sheets: [{ name: "Price list", rows: NEXT_ROWS }] }}
+        book={KEIM ? KEIM_BOOK : SOMERSET ? SOMERSET_BOOK : BOOK} existingItems={KEIM ? KEIM_EXISTING : SOMERSET ? [] : EXISTING}
+        preParsed={KEIM ? { sheets: KEIM_SHEETS, format: "keim-wedi" } : SOMERSET ? { pages: SOMERSET_PAGES, isPdf: true } : { sheets: [{ name: "Price list", rows: NEXT_ROWS }] }}
         onClose={() => {}}
         onApply={(diff, opts) => setApplied({ diff, opts })}
         saveMapping={() => {}}

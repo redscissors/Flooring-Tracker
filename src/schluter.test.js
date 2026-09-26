@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
-import { ovKey, rowItemEntry, sessionFromRows, classify, catalogOf, trayCandidates, pickRolls, pickFrom, buildKit, buildFromMarker, linesTotal, tierPrice, lineItems, orderCopyLines, entryOpening, openRuns, boardPlan, boardSheets, expandBoardFaces, normBench, benchTrayRoom } from "./schluter.js";
+import { ovKey, rowItemEntry, sessionFromRows, classify, catalogOf, coverageOf, trayCandidates, pickRolls, pickFrom, buildKit, buildFromMarker, linesTotal, tierPrice, lineItems, orderCopyLines, entryOpening, openRuns, boardPlan, boardSheets, expandBoardFaces, normBench, benchTrayRoom } from "./schluter.js";
 
 const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -16,9 +16,30 @@ test("tray mm-pair grammar", () => {
     { g: "tray", w: 60, d: 38, drain: "point" });
   assert.equal(by("KST965/1525S").drain, "offset");
   assert.equal(by("KST965BF").thin, true);            // TT = curbless play
+  // a linear tray's w is its CHANNEL edge — Schluter's first dimension
   assert.deepEqual(
     (({ g, w, d, drain }) => ({ g, w, d, drain }))(by("KSLT965/1930S")),
-    { g: "tray", w: 76, d: 38, drain: "linear" });
+    { g: "tray", w: 38, d: 76, drain: "linear" });
+});
+
+test("linear trays read the drain side from the SKU's first dimension", () => {
+  const dims = (sku) => (({ w, d }) => ({ w, d }))(classify({ sku, name: "" }));
+  assert.deepEqual(dims("SLRKSLT9651930S"), { w: 38, d: 76 });   // drain 38" side
+  assert.deepEqual(dims("SLRKSLT1930965S"), { w: 76, d: 38 });   // drain 76" side
+  assert.deepEqual(dims("SLRKSLT9151830S"), { w: 36, d: 72 });
+  assert.deepEqual(dims("SLRKSLT9151395S"), { w: 36, d: 55 });
+  assert.deepEqual(dims("SLRKSLT1220S"), { w: 48, d: 48 });
+});
+
+test("each linear twin lands in the room whose back wall is its drain side", () => {
+  const twin = { sku: "SLRKSLT1930965S", name: "KERDI-SHOWER-LTS Tray 76\"×38\"", price: 317.61, cost: 211.74, stock: false };
+  const cat = catalogOf([...FIXTURE_ITEMS, twin]);
+  const wide = trayCandidates(cfg({ w: 76, d: 38, drain: "linear" }), cat, { source: "all" })[0];
+  assert.equal(wide.tray.sku, "SLRKSLT1930965S");
+  assert.deepEqual({ kind: wide.kind, tw: wide.tw, td: wide.td, rot: wide.rot }, { kind: "exact", tw: 76, td: 38, rot: false });
+  const deep = trayCandidates(cfg({ w: 38, d: 76, drain: "linear" }), cat, { source: "all" })[0];
+  assert.equal(deep.tray.sku, "KSLT965/1930S");
+  assert.deepEqual({ kind: deep.kind, tw: deep.tw, td: deep.td, rot: deep.rot }, { kind: "exact", tw: 38, td: 76, rot: false });
 });
 test("drains", () => {
   assert.deepEqual((({ g, drain, part }) => ({ g, drain, part }))(by("KD2FLKPVC")),
@@ -297,10 +318,12 @@ test("a room deeper than wide fits a rotated point tray (linear trays never rota
   assert.equal(cands[0].tray.sku, "KST965/1525");
   assert.equal(cands[0].rot, true);
   assert.deepEqual({ tw: cands[0].tw, td: cands[0].td }, { tw: 38, td: 60 });
-  // a linear tray's channel edge is directional — a 36×55 room must not
-  // reach the 55×36 LTS by rotation
+  // a linear tray's channel edge is directional: the 36×55 LTS (drain on the
+  // 36" side) drops into a 36-wide room as-is, never by rotation
   const lin = trayCandidates(cfg({ w: 36, d: 55, drain: "linear" }), CAT, { source: "all" });
   assert.ok(lin.every((x) => !x.rot));
+  assert.equal(lin[0].tray.sku, "SLRKSLT9151395S");
+  assert.equal(lin[0].kind, "exact");
 });
 
 test("board thickness rides the KB<mm> SKU prefix; the ½\" panel wins the wall pick over a thicker, bigger board", () => {
@@ -887,4 +910,77 @@ test("sessionFromRows: a sheet-edited quantity reopens as the override; a missin
   assert.deepEqual(s.manual, [{ sku: strayKey, qty: 2 }]);
   assert.deepEqual(sessionFromRows(bill, [{ schluter: { part: true }, sku: "", qty: "1" }], CAT), { qtyOv: {}, manual: [] });
   assert.deepEqual(sessionFromRows(bill, rows.map((r) => ({ ...r, qty: "" })), CAT), { qtyOv: {}, manual: [] });
+});
+
+// --- Fixed KERDI-LINE (ticket 158 P0-2): shapes from the 2025-10-01 EFT ---
+
+test("fixed KERDI-LINE parts classify into their own group, lengths off the cm code", () => {
+  const c = (sku) => classify({ sku, name: "" });
+  const pick = (o, ks) => Object.fromEntries(ks.map((k) => [k, o[k]]));
+  assert.deepEqual(pick(c("SLRKL1V60E100"), ["g", "part", "len", "offset"]), { g: "line", part: "body", len: 40, offset: false });
+  assert.deepEqual(pick(c("SLRKL1VO60E90"), ["g", "part", "len", "offset"]), { g: "line", part: "body", len: 36, offset: true });
+  assert.deepEqual(pick(c("SLRKL1V60E50"), ["len"]), { len: 20 });
+  assert.deepEqual(pick(c("SLRKL1V60E180"), ["len"]), { len: 72 });
+  assert.deepEqual(pick(c("SLRKL1AR19EB100"), ["g", "part", "len", "style", "frame", "finish"]),
+    { g: "line", part: "grate", len: 40, style: "solid", frame: '3/4"', finish: "EB" });
+  assert.deepEqual(pick(c("SLRKL1B30EB120"), ["style", "frame", "len"]), { style: "perforated", frame: '1-1/8"', len: 48 });
+  assert.deepEqual(pick(c("SLRKL1BL19EB60"), ["style", "lock"]), { style: "perforated", lock: true });
+  assert.deepEqual(pick(c("SLRKL1B19TSOB140"), ["finish", "len"]), { finish: "TSOB", len: 56 });
+  assert.deepEqual(pick(c("SLRKL1IFE23EB100"), ["style", "frame"]), { style: "floral", frame: '29/32"' });
+  assert.equal(c("SLRKL1IFF23EB100").style, "curve");
+  assert.equal(c("SLRKL1IFG23EB100").style, "pure");
+  assert.deepEqual(pick(c("SLRKLTFH12E100"), ["part", "style", "frame", "len"]), { part: "grate", style: "tile", frame: '1/2"', len: 40 });
+  assert.deepEqual(pick(c("SLRKL1DRE80"), ["part", "frameless", "offset", "len"]), { part: "grate", frameless: true, offset: false, len: 32 });
+  assert.deepEqual(pick(c("SLRKL1DROE100"), ["frameless", "offset"]), { frameless: true, offset: true });
+  assert.deepEqual(pick(c("SLRVKLEP35"), ["g", "part"]), { g: "line", part: "cover" });
+  assert.deepEqual(pick(c("V/KLTSBG35"), ["g", "part"]), { g: "line", part: "cover" });
+  assert.deepEqual(pick(c("SLRKLAM5K"), ["g", "part"]), { g: "line", part: "acc" });
+  assert.deepEqual(pick(c("SLRKLVZSF"), ["g", "part"]), { g: "line", part: "acc" });
+  assert.deepEqual(pick(c("SLRSPSA50EB120"), ["g", "part"]), { g: "line", part: "profile" });
+  assert.deepEqual(pick(c("SLRSPRA23EB100"), ["g", "part"]), { g: "line", part: "profile" });
+});
+
+test("Vario accessories are not channels", () => {
+  assert.deepEqual((({ g, part }) => ({ g, part }))(classify({ sku: "SLRKLVRGG2", name: "" })), { g: "line", part: "acc" });
+  assert.deepEqual((({ g, part }) => ({ g, part }))(classify({ sku: "SLRKLVSTR1", name: "" })), { g: "line", part: "acc" });
+  assert.equal(classify({ sku: "SLRKLVRID3EB122", name: "" }).part, "channel");
+});
+
+test("fixed KERDI-LINE rows in the catalog leave every bill untouched", () => {
+  const extra = ["SLRKL1V60E100", "SLRKL1V60E180", "SLRKL1AR19EB100", "SLRKL1DRE180", "SLRKLVRGG2", "SLRKLVSTR1"]
+    .map((sku) => ({ sku, name: sku, price: 1, cost: 1, stock: true }));
+  const withLine = catalogOf([...FIXTURE_ITEMS, ...extra]);
+  for (const c of [cfg({}), cfg({ w: 48, d: 48, drain: "linear" }), cfg({ w: 72, d: 48, drain: "linear" })]) {
+    for (const source of ["all", "stock"]) {
+      const skus = (b) => b.lines.map((l) => (l.item.sku || l.item.name) + "×" + l.qty);
+      assert.deepEqual(skus(buildKit(c, withLine, { source })), skus(buildKit(c, CAT, { source })));
+    }
+  }
+});
+
+// --- Coverage (ticket 158 P0-3) ---
+
+test("coverageOf: KERDI rolls in sf, bands in lf, boards in sf, everything else none", () => {
+  assert.deepEqual(coverageOf(by("KERDI200/10M")), { n: 108, unit: "sf" });
+  assert.deepEqual(coverageOf(classify({ sku: "KEBA100/125", name: "" })), { n: 98, unit: "lf" });
+  const board = classify({ sku: "KB1212202440", name: "", size: '1/2"x48"x96"' });
+  assert.equal(coverageOf(board).unit, "sf");
+  assert.equal(coverageOf(board).n, 32);
+  assert.equal(coverageOf(by("KST965/1525")), null);
+  assert.equal(coverageOf(classify({ sku: "KERECK/FI", name: "" })), null);
+});
+
+test('membrane coverage reads the "(54 SF)" spelling too', () => {
+  assert.equal(classify({ sku: "KERDI200/5M", name: "KERDI membrane roll 3 FT 3 X 16 FT 5 (54 SF)" }).sf, 54);
+  assert.equal(classify({ sku: "KERDI200/7M", name: "KERDI 3 FT 3 X 23 FT (75 SF)" }).sf, 75);
+});
+
+test("a point-drain grate swap never takes a KERDI-LINE grate (they share part:grate)", () => {
+  const line = { sku: "SLRKL1AR19EB100", name: "Kerdi-Line grate", price: 300, cost: 200, stock: true };
+  const cat = catalogOf([...FIXTURE_ITEMS, line]);
+  const base = buildKit(cfg({}), cat, { source: "all" });
+  const swapped = buildKit(cfg({ swaps: { grate: "SLRKL1AR19EB100" } }), cat, { source: "all" });
+  const grate = (b) => b.lines.find((l) => l.g === "Drain" && l.item.part === "grate").item.sku;
+  assert.equal(grate(swapped), grate(base));
+  assert.notEqual(grate(swapped), "SLRKL1AR19EB100");
 });

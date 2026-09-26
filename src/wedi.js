@@ -3767,6 +3767,7 @@ export const SKU = {
   subCornerIn: "US5000007",
   sdrySeal: "US5076011",
   sdrySealTrowel: "US5076010",
+  proSet: "US5076012",
   recessKit: "US5000085",
   ramp: "073736517",
   extFundo24: "073783528",
@@ -5052,6 +5053,20 @@ export function coverFrameFor(cover, finish) {
   return match[0] || null;
 }
 
+/**
+ * What one unit covers — { n, unit: "sf" | "lf" } for rolls, membranes and
+ * panels (sf) and tapes (lf), null otherwise (ticket 158 P0-3). S-DRY
+ * membranes carry no sf field; their sheet names state it ("104sf").
+ */
+export function coverageOf(e) {
+  if (!e) return null;
+  if (e.sf > 0) return { n: e.sf, unit: "sf" };
+  const named = /(\d+(?:\.\d+)?)\s*sf\b/i.exec(e.name || "");
+  if (named) return { n: +named[1], unit: "sf" };
+  if (/tape/i.test(e.name || "") && e.w > 0 && e.d > 0) return { n: round2(Math.round((e.d / 12) * 10) / 10), unit: "lf" };
+  return null;
+}
+
 function push(lines, key, qty, grp, note, auto) {
   const it = typeof key === "string" ? item(key) : key;
   if (!it || !(qty > 0)) return;
@@ -5211,6 +5226,9 @@ export function kitFor(panKey, opts) {
   push(lines, SKU.collarValve, 1, "install", "mixing valve", true);
   push(lines, SKU.collarPipe, 1, "install", "shower arm / pipe", true);
   push(lines, SKU.trowel, 1, "install", "", true);
+  // Owner rule 2026-09-26 (ticket 158): one bag of PRO-SET sets the pan —
+  // flat, not figured by area, mirroring Schluter's ALL-SET line.
+  push(lines, SKU.proSet, 1, "install", "sets the pan — 1 bag", true);
 
   // --- add-ons ---------------------------------------------------------------
   (opts.addons || []).forEach((a) => {

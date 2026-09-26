@@ -615,6 +615,28 @@ const sameField = (a, b) => {
   return (a ?? null) === (b ?? null);
 };
 
+/**
+ * A price-update drop (ticket 158 P0-6 — the Keim wedi sheet onto the wedi
+ * stock book): the file carries retail only, so it must not stand in for the
+ * whole book. A live row takes ONLY the file's price (cost, description and
+ * codes stay the ERP export's); a SKU the book lacks is added as parsed; every
+ * other live row rides along unchanged so nothing reads as missing; a SKU the
+ * book has RETIRED stays retired and is returned in `retired` for a warning.
+ * Feed `items` to diffBookItems.
+ */
+export function priceUpdateBundle(existing, parsed) {
+  const live = new Map(), gone = new Set();
+  for (const it of existing || []) (it.active ? live.set(it.sku, it) : gone.add(it.sku));
+  const out = new Map(live), retired = [];
+  for (const it of parsed || []) {
+    const prev = live.get(it.sku);
+    if (prev) out.set(it.sku, { ...prev, price: it.price });
+    else if (gone.has(it.sku)) retired.push(it.sku);
+    else out.set(it.sku, it);
+  }
+  return { items: [...out.values()], retired };
+}
+
 // Compare freshly parsed items against the book's current rows — same contract
 // as diffStock: added / changed / missing (marked inactive on apply, never
 // deleted, so selections referencing a dropped SKU keep resolving).

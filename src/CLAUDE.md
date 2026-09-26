@@ -316,6 +316,8 @@ src/
                     # retiring lists + per-line Flag for Claude (2026-08-17);
                     # `?somerset` feeds the real Somerset sheet's pages through
                     # the wizard's PDF path as a new book;
+                    # `?keim` drops Keim's real wedi sheet onto the wedi stock
+                    # snapshot (the price-update mode, ticket 158 P0-6);
                     # not part of the app build
   orderentrypreview.jsx  # dev-only harness (order-entry-preview.html): the REAL
                     # OrderEntryPanel over rows built through the REAL
@@ -616,7 +618,10 @@ src/
                     # none is missing), pick snapshot, drift, import diff
                     # (BOOK_FIELDS — tracking stock-kind `price` too, so a
                     # retail-only re-export still upserts — with changedFieldBits
-                    # for the wizard's what-moved lines), and the
+                    # for the wizard's what-moved lines; `priceUpdateBundle` —
+                    # a price-update drop moves only prices on live rows, adds
+                    # new SKUs, retires nothing, leaves retired rows retired —
+                    # ADR 0025 amendment 2026-09-26), and the
                     # import-review classifiers `itemProblems` (per-row pricing/unit
                     # hazards; `unitComboWarnings` aggregates it) + `supersedePairs`
                     # — plus the search collapse: `skuKeys` (the exact-membership
@@ -813,6 +818,10 @@ src/
                     # only its slab drawn (`thick` — 4" seats, 3 1/8" bench);
                     # corner benches measure from the corner out along each wall,
                     # 18" to the top, never framed),
+                    # one flat bag of PRO-SET (SKU.proSet) on every pan
+                    # kit, owner 2026-09-26 (ticket 158 P0-5),
+                    # `coverageOf` (sf for rolls/membranes/panels — S-DRY's
+                    # read off its name — lf for tapes; ticket 158 P0-3),
                     # `figureConsumables` (1 screw+washer and
                     # 1.2 oz sealant per ft² of panel), `coverFrames`/
                     # `coverFrameFor` (issue 072: the channel frame a LINEAR
@@ -891,6 +900,23 @@ src/
                     # part priced on two sheets (US5076012). Detector
                     # isWediPricelist → fileFormat tag "wedi-pricelist" →
                     # an order-kind book (wedibook.test.js)
+  keimwedibook.js   # Keim's own wedi retail sheet (ticket 158 P0-6, ADR 0025
+                    # amendment 2026-09-26): `isKeimWediSheet` (account line +
+                    # a WEDI title on a Retail tab) → fileFormat "keim-wedi",
+                    # routed to the one active wedi STOCK book; `parseKeimWedi`
+                    # reads the Retail + S-Dry Retail tabs only (Contractor
+                    # skipped by name, owner) to canonical rows keyed by shop
+                    # SKU, retail rounded UP to the cent (`ceilCents` — the
+                    # ERP's rounding; nearest-cent read 48 rows as changed),
+                    # and flags `priceUpdate` so the wizard runs
+                    # orderbook.js `priceUpdateBundle` (price only, nothing
+                    # retires, fingerprint/mapping untouched)
+                    # (keimwedibook.test.js)
+  keimwedifixture.js  # the Keim sheet's two Retail tabs as the raw grid the
+                    # wizard sees (Contractor tabs named, rows omitted) —
+                    # parser INPUT for keimwedibook.test.js and the
+                    # import-preview `?keim` harness. GENERATED —
+                    # .scratch/158_shower-config-roadmap/tools/gen-keim-fixture.mjs
   wedifixture.js    # the 2026-09-01 wedi stock-export snapshot, as
                     # `price_book_items` rows (sku + active + the jsonb data
                     # payload) — schluterfixture.js's opposite number, but
@@ -1232,7 +1258,16 @@ src/
                     # table every tray/curb/board/kit SKU is built from
                     # (`MM_IN`, greedy-longest-key digit scan so a fused code
                     # like 9151395 resolves to [915,1395] and not any other
-                    # split) — no per-item lookup table, so a caller feeds it
+                    # split; a KSLT linear tray's w is its CHANNEL edge —
+                    # Schluter's first dimension — not the longer side, so
+                    # the 38″- and 76″-drain twins land in different rooms,
+                    # ticket 158 P0-1; the fixed KERDI-LINE range — channel
+                    # bodies, grates, FC connectors, profiles, accessories —
+                    # classifies as its own g:"line" so no buildKit drain
+                    # pick can reach it, P0-2; `coverageOf` — sf per roll/
+                    # board, lf per band — feeds both popups' "108 sf ·
+                    # $1.92/sf" Browse line and the build lines' $/unit,
+                    # P0-3) — no per-item lookup table, so a caller feeds it
                     # LIVE registry-book rows (`catalogOf`) and a re-import
                     # reprices/re-ranges the configurator with no code change
                     # (ADR 0032, the deliberate divergence from wedi.js's own
@@ -1767,11 +1802,11 @@ src/
                     # `item.group`) as EXTENDED amounts, every price coming
                     # back out of the engine that made the line — nothing is
                     # re-derived here. `noteOnly` rows are KEPT at $0: the
-                    # wedi column appends the "Thin-set for pan bed — by
-                    # others" note and the Schluter column carries its
-                    # substrate-by-others line, which together are the
-                    # walls-difference story (the wedi panel IS the
-                    # substrate); `compareTotals` then excludes them
+                    # Schluter column carries its substrate-by-others line,
+                    # the walls-difference story (the wedi panel IS the
+                    # substrate); wedi's own PRO-SET bag files under
+                    # Setting (ticket 158 — it replaced the old "Thin-set
+                    # for pan bed — by others" note); `compareTotals` then excludes them
                     # (comparekit.test.js, over the frozen schluterfixture)
   CompareTab.jsx    # the Compare surface (phase 5, ADR 0034, prototype P3):
                     # the fourth tab in EITHER vendor popup — the category rail
