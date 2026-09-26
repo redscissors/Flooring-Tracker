@@ -984,3 +984,15 @@ test("a point-drain grate swap never takes a KERDI-LINE grate (they share part:g
   assert.equal(grate(swapped), grate(base));
   assert.notEqual(grate(swapped), "SLRKL1AR19EB100");
 });
+
+// --- Vario sizing (owner 2026-09-26): as wide as the pan or wider, cut to it ---
+
+test("Vario channel: the shortest channel at least the pan's width, cut to the pan width", () => {
+  const chan = (c) => buildKit(c, CAT, { source: "all" }).lines.find((l) => l.item.part === "channel");
+  const wide = chan(cfg({ w: 55, d: 55, drain: "linear" }));
+  assert.equal(wide.item.len, 96);
+  assert.match(wide.note, /^cut to 55"/);
+  const exact = chan(cfg({ w: 48, d: 48, drain: "linear" }));
+  assert.equal(exact.item.len, 48);
+  assert.match(exact.note, /^full pan width/);
+});

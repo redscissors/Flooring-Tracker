@@ -872,12 +872,15 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
     const chansAll = cat.filter((i) => i.g === "drain" && i.part === "channel")
       .sort((a, b) => a.len - b.len || a.price - b.price);
     const chansStocked = stockPool(chansAll, source);
-    const need = cfg.w - 8;
+    // Vario is made to be cut to the pan's width (owner 2026-09-26): the
+    // shortest channel as wide or wider, cut to the tray as installed (a
+    // framed bench can hold it short) — never an allowance off the wall
+    const need = benchTrayRoom(benches, cfg).w;
     const ch = chansStocked.find((c) => c.len >= need) || chansAll.find((c) => c.len >= need)
       || chansStocked[chansStocked.length - 1] || chansAll[chansAll.length - 1];
     add("Drain", ch, 1, (ch && ch.len > need ? `cut to ${need}"`
       : ch && ch.len < need ? `${need}" run — the ${ch.len}" channel is the longest available, runs short`
-        : "at the wall") + ' — min cut 10", IPC 2.5 gpm');
+        : "full pan width") + ' — min cut 10", IPC 2.5 gpm');
     add("Drain", pickFrom(cat, (i) => i.g === "drain" && i.part === "flange" && i.drain === "linear", { source }), 1,
       "incl. 4+2 corners, pipe + valve seals, couplings");
   } else {

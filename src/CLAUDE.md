@@ -1478,7 +1478,7 @@ src/
                     # where a pinned drain's cut split lands it (issue 100) —
                     # keeping the off-centre warning for unpinned cuts and
                     # warning an unreachable pin's miss instead;
-                    # the Vario channel at cfg.w−8 along the back wall),
+                    # the Vario channel at the pan's full width along the back wall — cut to the pan, owner 2026-09-26),
                     # `schluterWalls` (the three fixed walls as dWalls, plus
                     # cfg.xwalls appended in the wedi extra-wall shape,
                     # anchored at whichever end their `at` says;
