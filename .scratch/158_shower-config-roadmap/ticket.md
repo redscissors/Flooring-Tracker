@@ -36,7 +36,7 @@ answer (listed under the row) · **DONE** — landed, round noted.
 - **Membrane coverage is already parsed, just not shown.** `ROLL_SF`,
   `PLAIN_SF`, `BAND_LF` and the "= N sf" description read give each KERDI
   roll/band its coverage; the Browse rows and bill lines never print it.
-- **ALL-SET:** `/SETA/` classifies every ALL-SET row as `g:"set"`
+- **ALL-SET:** the EFT carries only ALL-SET white (`SETA50W`). `/SETA/` classifies every ALL-SET row as `g:"set"`
   (55 sf/bag). Owner, 2026-09-26: **only ALL-SET white, the in-stock one** —
   grey and FAST-SET stay out.
 - **wedi setting mortar** is **PRO-SET Tile Adhesive 25 lb, US5076012** —
@@ -60,22 +60,17 @@ answer (listed under the row) · **DONE** — landed, round noted.
 | # | item | status | notes |
 |---|---|---|---|
 | P0-1 | Linear-tray drain follows the SKU | OPEN | Parse the drain side from the SKU's FIRST dimension (keep `w`/`d` as long/short, add the drain-side length). Draw the channel on that wall in TopDown/print; rank orientation by it. The orientation flip becomes a **swap** to the twin SKU (KSLT965/1930S ⇄ KSLT1930/965S), not a rotation of the same tray. Fixture rows for both twins; pin the drawing. |
-| P0-2 | Full KERDI-LINE range | NEEDS-INFO | Extend `classify` to fixed-length, frameless, sloping, offset and FC channels + their grates/frames (length, family, finish parsed from the SKU). The bill still picks Vario until Phase 1's slot swap; this row only makes the parts **exist** in Browse and the pool. |
+| P0-2 | Full KERDI-LINE range | OPEN | Data in hand (owner, 2026-09-26: VTC EFT `SLR_EFT_25_10_01.xls` — 523 KERDI-LINE rows, 82 recognized today, all Vario — and Schluter's USA list 2026-04-01). Families: channel bodies `KL1V60E<len>` / offset `KL1VO60E<len>` (len code = cm: 50…180 → 20″…72″); framed grates `KL1{AR19,B19,BL19,AR30,B30,IFE23,IFF23,IFG23}<finish><len>`; thin-frame tile grates `KLTFH{6,12,22}E<len>`; frameless tileable `KL1DRE` / offset `KL1DROE`; FC cover plates `V/KL<finish>35`; sloping/adjustable shower profiles `SPS…`/`SPR…`. **Trap:** the linear recipe's channel pick (`chansAll`, schluter.js ~822) takes ANY `part:"channel"` — tag every channel with its family and keep the recipe on Vario. Extend `classify` to fixed-length, frameless, sloping, offset and FC channels + their grates/frames (length, family, finish parsed from the SKU). The bill still picks Vario until Phase 1's slot swap; this row only makes the parts **exist** in Browse and the pool. |
 | P0-3 | Show membrane / band coverage | OPEN | Second line on Browse rows and bill lines: "323 sf · $1.09/sf", bands "98 lf · $x/lf". Optional "need N sf → qty" figurer on the row (the Underlayment row type, issue 144, is the precedent for the sf → rolls math). `membraneSf` reads only "= N sf"; teach it the "(54 SF)" form too rather than leaning on the `ROLL_SF` fallback. |
 | P0-4 | Tighter Browse layout | OPEN | Less padding between and within rows; price and +/− move up to the first line. Schluter Browse first; wedi Browse gets the same pass if the owner wants it (ask at proof time). |
-| P0-5 | PRO-SET on wedi builds | NEEDS-INFO | Bill wedi PRO-SET (US5076012) on wedi pan/kit builds as the ALL-SET line does on Schluter's. |
+| P0-5 | PRO-SET on wedi builds | OPEN | Owner, 2026-09-26: **flat 1 bag.** Bill wedi PRO-SET (US5076012) on wedi pan/kit builds as the ALL-SET line does on Schluter's. |
 | P0-6 | Keim wedi sheet drops in | NEEDS-INFO | Owner, 2026-09-26: "this should be able to be dropped in the wedi price book to update pricing and items like before." The distribution pricelist already does. The Keim sheet needs a detector + parser (Retail / Contractor / S-Dry Retail / S-Dry Contractor tabs, shop SKU + mfg SKU + price). |
 
 ### Open questions
 
-- **P0-2:** the VTC book's KERDI-LINE rows are needed as a test fixture —
-  the SKU grammar can't be written blind. Either the VTC book export file,
-  or an OK to pin a fixture from the owner's copy.
-- **P0-5:** quantity. Schluter figures ALL-SET as `ceil(sf / 55)`, not one
-  bag. Mirror that (needs PRO-SET's sf-per-25-lb coverage — not on either
-  sheet), or a flat 1 bag per pan/kit? Does it ride every wedi build or only
-  pan/kit builds? Does S-DRY get S-DRY SEAL instead (its kit notes say
-  "S-DRY SEAL needs purchased separately")?
+- ~~P0-2 data~~ — answered 2026-09-26 (EFT + USA list uploaded).
+- ~~P0-5 quantity~~ — answered 2026-09-26: flat 1 bag. The wedi configurator
+  builds no S-DRY today, so S-DRY SEAL is a Phase 2 question.
 - **P0-6:** which book should the Keim sheet update — the wedi **stock**
   book (today fed by the ERP Vendor SKU Analysis export; the two agree on
   125/126 rows), or a new book? Should its Contractor tab land anywhere
