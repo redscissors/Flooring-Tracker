@@ -316,6 +316,8 @@ src/
                     # retiring lists + per-line Flag for Claude (2026-08-17);
                     # `?somerset` feeds the real Somerset sheet's pages through
                     # the wizard's PDF path as a new book;
+                    # `?keim` drops Keim's real wedi sheet onto the wedi stock
+                    # snapshot (the price-update mode, ticket 158 P0-6);
                     # not part of the app build
   orderentrypreview.jsx  # dev-only harness (order-entry-preview.html): the REAL
                     # OrderEntryPanel over rows built through the REAL
@@ -616,7 +618,10 @@ src/
                     # none is missing), pick snapshot, drift, import diff
                     # (BOOK_FIELDS — tracking stock-kind `price` too, so a
                     # retail-only re-export still upserts — with changedFieldBits
-                    # for the wizard's what-moved lines), and the
+                    # for the wizard's what-moved lines; `priceUpdateBundle` —
+                    # a price-update drop moves only prices on live rows, adds
+                    # new SKUs, retires nothing, leaves retired rows retired —
+                    # ADR 0025 amendment 2026-09-26), and the
                     # import-review classifiers `itemProblems` (per-row pricing/unit
                     # hazards; `unitComboWarnings` aggregates it) + `supersedePairs`
                     # — plus the search collapse: `skuKeys` (the exact-membership
@@ -895,6 +900,23 @@ src/
                     # part priced on two sheets (US5076012). Detector
                     # isWediPricelist → fileFormat tag "wedi-pricelist" →
                     # an order-kind book (wedibook.test.js)
+  keimwedibook.js   # Keim's own wedi retail sheet (ticket 158 P0-6, ADR 0025
+                    # amendment 2026-09-26): `isKeimWediSheet` (account line +
+                    # a WEDI title on a Retail tab) → fileFormat "keim-wedi",
+                    # routed to the one active wedi STOCK book; `parseKeimWedi`
+                    # reads the Retail + S-Dry Retail tabs only (Contractor
+                    # skipped by name, owner) to canonical rows keyed by shop
+                    # SKU, retail rounded UP to the cent (`ceilCents` — the
+                    # ERP's rounding; nearest-cent read 48 rows as changed),
+                    # and flags `priceUpdate` so the wizard runs
+                    # orderbook.js `priceUpdateBundle` (price only, nothing
+                    # retires, fingerprint/mapping untouched)
+                    # (keimwedibook.test.js)
+  keimwedifixture.js  # the Keim sheet's two Retail tabs as the raw grid the
+                    # wizard sees (Contractor tabs named, rows omitted) —
+                    # parser INPUT for keimwedibook.test.js and the
+                    # import-preview `?keim` harness. GENERATED —
+                    # .scratch/158_shower-config-roadmap/tools/gen-keim-fixture.mjs
   wedifixture.js    # the 2026-09-01 wedi stock-export snapshot, as
                     # `price_book_items` rows (sku + active + the jsonb data
                     # payload) — schluterfixture.js's opposite number, but

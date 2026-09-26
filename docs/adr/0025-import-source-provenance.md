@@ -269,3 +269,28 @@ force a mass-retire.
 This is the whole-book "rewrite everything" counterpart to the still-unbuilt
 targeted per-file replace (rule 6) — it does not need per-item provenance because
 it rewrites the entire book, not one file's slice.
+
+## Amendment 2026-09-26 — price-update drops (ticket 158 P0-6)
+
+Owner, 2026-09-26: Keim's own wedi retail sheet should "be able to be dropped in
+the wedi price book to update pricing and items like before" — onto the wedi
+**stock** book, whose whole-book source stays the ERP Vendor SKU Analysis export.
+The sheet carries retail only (no cost) and lists 126 of the book's ~150 rows, so
+as an ordinary import it would blank every cost it touched and retire the rest.
+
+It lands as a new, narrow import mode — a **price update** — not as the targeted
+per-file replace rule 6 still defers:
+
+- Recognized by its own format tag (`keim-wedi`, `keimwedibook.js`), routed to the
+  one active wedi stock book by what the book IS, never by its fingerprint.
+- `priceUpdateBundle` (`orderbook.js`): a live row takes ONLY the file's price;
+  a SKU the book lacks is added; every other live row rides along, so nothing
+  retires; a SKU the book has retired stays retired (named in a warning).
+- The apply never re-stamps `importFingerprint` or `mapping`, so the next ERP
+  export still routes and parses as before. The file is not declared as a source
+  slot — it is an overlay on the book, not one of the files it is made of.
+- No per-row keep: a wrong price on the sheet is fixed on the sheet (owner, same
+  day — the niche glass shelf case).
+
+Same day, the "Add a file…" path stopped layering RETIRED rows under the new file
+(they diffed as changed and came back active); only live rows carry.
