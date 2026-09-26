@@ -974,9 +974,9 @@ export default function SchluterConfigurator({
   const swapChoices = (l) => {
     const e = l.item;
     if (l.noteOnly) return null;
-    if (e.part === "grate") return {
+    if (e.g === "drain" && e.part === "grate") return {
       title: "Drain grate — finish",
-      list: pool(cat.filter((i) => i.part === "grate")).sort(byShelf),
+      list: pool(cat.filter((i) => i.g === "drain" && i.part === "grate")).sort(byShelf),
       set: (sku) => setSwaps((o) => ({ ...o, grate: sku })),
     };
     if (l.g === "Curb" && e.g === "curb" && e.len) return {

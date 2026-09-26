@@ -883,7 +883,7 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
   } else {
     add("Drain", pickFrom(cat, (i) => i.g === "drain" && i.part === "flange" && i.drain === "point", { source }), 1,
       'bonded flange, 2" PVC — incl. 4+2 corners, pipe + valve seals');
-    add("Drain", swapped(swaps.grate, (i) => i.part === "grate")
+    add("Drain", swapped(swaps.grate, (i) => i.g === "drain" && i.part === "grate")
       || pickFrom(cat, (i) => i.g === "drain" && i.part === "grate", { source }), 1,
       "finish pick — tileable & floral stocked too");
   }

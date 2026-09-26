@@ -974,3 +974,13 @@ test('membrane coverage reads the "(54 SF)" spelling too', () => {
   assert.equal(classify({ sku: "KERDI200/5M", name: "KERDI membrane roll 3 FT 3 X 16 FT 5 (54 SF)" }).sf, 54);
   assert.equal(classify({ sku: "KERDI200/7M", name: "KERDI 3 FT 3 X 23 FT (75 SF)" }).sf, 75);
 });
+
+test("a point-drain grate swap never takes a KERDI-LINE grate (they share part:grate)", () => {
+  const line = { sku: "SLRKL1AR19EB100", name: "Kerdi-Line grate", price: 300, cost: 200, stock: true };
+  const cat = catalogOf([...FIXTURE_ITEMS, line]);
+  const base = buildKit(cfg({}), cat, { source: "all" });
+  const swapped = buildKit(cfg({ swaps: { grate: "SLRKL1AR19EB100" } }), cat, { source: "all" });
+  const grate = (b) => b.lines.find((l) => l.g === "Drain" && l.item.part === "grate").item.sku;
+  assert.equal(grate(swapped), grate(base));
+  assert.notEqual(grate(swapped), "SLRKL1AR19EB100");
+});
