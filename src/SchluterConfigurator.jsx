@@ -1052,10 +1052,13 @@ export default function SchluterConfigurator({
     ["offset", "Offset drain — TS", (t) => t.drain === "offset"],
     ["linear", "Linear drain — LTS", (t) => t.drain === "linear"],
   ];
-  const bySize = (a, b) => (a.d - b.d) || (a.w - b.w) || a.sku.localeCompare(b.sku);
+  const lo = (t) => Math.min(t.w, t.d), hi = (t) => Math.max(t.w, t.d);
+  const bySize = (a, b) => (lo(a) - lo(b)) || (hi(a) - hi(b)) || (b.w - a.w) || a.sku.localeCompare(b.sku);
   // the row leads with the SMALL side (the wedi convention) so the
-  // smallest-side sort reads as ascending down the family
-  const rowSz = (t) => `${inches(t.d)}×${inches(t.w)}`;
+  // smallest-side sort reads as ascending down the family; a rectangular
+  // linear tray also names its channel edge — the twins differ only there
+  const rowSz = (t) => `${inches(lo(t))}×${inches(hi(t))}` +
+    (t.drain === "linear" && t.w !== t.d ? ` · drain on ${inches(t.w)}` : "");
 
   // "Clear design" (the wedi header action): wipe the whole build — room back
   // to the default, walls, benches, add-ons, hand-set quantities — on any tab.

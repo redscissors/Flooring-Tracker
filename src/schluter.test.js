@@ -16,9 +16,30 @@ test("tray mm-pair grammar", () => {
     { g: "tray", w: 60, d: 38, drain: "point" });
   assert.equal(by("KST965/1525S").drain, "offset");
   assert.equal(by("KST965BF").thin, true);            // TT = curbless play
+  // a linear tray's w is its CHANNEL edge — Schluter's first dimension
   assert.deepEqual(
     (({ g, w, d, drain }) => ({ g, w, d, drain }))(by("KSLT965/1930S")),
-    { g: "tray", w: 76, d: 38, drain: "linear" });
+    { g: "tray", w: 38, d: 76, drain: "linear" });
+});
+
+test("linear trays read the drain side from the SKU's first dimension", () => {
+  const dims = (sku) => (({ w, d }) => ({ w, d }))(classify({ sku, name: "" }));
+  assert.deepEqual(dims("SLRKSLT9651930S"), { w: 38, d: 76 });   // drain 38" side
+  assert.deepEqual(dims("SLRKSLT1930965S"), { w: 76, d: 38 });   // drain 76" side
+  assert.deepEqual(dims("SLRKSLT9151830S"), { w: 36, d: 72 });
+  assert.deepEqual(dims("SLRKSLT9151395S"), { w: 36, d: 55 });
+  assert.deepEqual(dims("SLRKSLT1220S"), { w: 48, d: 48 });
+});
+
+test("each linear twin lands in the room whose back wall is its drain side", () => {
+  const twin = { sku: "SLRKSLT1930965S", name: "KERDI-SHOWER-LTS Tray 76\"×38\"", price: 317.61, cost: 211.74, stock: false };
+  const cat = catalogOf([...FIXTURE_ITEMS, twin]);
+  const wide = trayCandidates(cfg({ w: 76, d: 38, drain: "linear" }), cat, { source: "all" })[0];
+  assert.equal(wide.tray.sku, "SLRKSLT1930965S");
+  assert.deepEqual({ kind: wide.kind, tw: wide.tw, td: wide.td, rot: wide.rot }, { kind: "exact", tw: 76, td: 38, rot: false });
+  const deep = trayCandidates(cfg({ w: 38, d: 76, drain: "linear" }), cat, { source: "all" })[0];
+  assert.equal(deep.tray.sku, "KSLT965/1930S");
+  assert.deepEqual({ kind: deep.kind, tw: deep.tw, td: deep.td, rot: deep.rot }, { kind: "exact", tw: 38, td: 76, rot: false });
 });
 test("drains", () => {
   assert.deepEqual((({ g, drain, part }) => ({ g, drain, part }))(by("KD2FLKPVC")),
@@ -297,10 +318,12 @@ test("a room deeper than wide fits a rotated point tray (linear trays never rota
   assert.equal(cands[0].tray.sku, "KST965/1525");
   assert.equal(cands[0].rot, true);
   assert.deepEqual({ tw: cands[0].tw, td: cands[0].td }, { tw: 38, td: 60 });
-  // a linear tray's channel edge is directional — a 36×55 room must not
-  // reach the 55×36 LTS by rotation
+  // a linear tray's channel edge is directional: the 36×55 LTS (drain on the
+  // 36" side) drops into a 36-wide room as-is, never by rotation
   const lin = trayCandidates(cfg({ w: 36, d: 55, drain: "linear" }), CAT, { source: "all" });
   assert.ok(lin.every((x) => !x.rot));
+  assert.equal(lin[0].tray.sku, "SLRKSLT9151395S");
+  assert.equal(lin[0].kind, "exact");
 });
 
 test("board thickness rides the KB<mm> SKU prefix; the ½\" panel wins the wall pick over a thicker, bigger board", () => {

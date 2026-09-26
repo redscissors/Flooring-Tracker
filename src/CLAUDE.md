@@ -1232,7 +1232,10 @@ src/
                     # table every tray/curb/board/kit SKU is built from
                     # (`MM_IN`, greedy-longest-key digit scan so a fused code
                     # like 9151395 resolves to [915,1395] and not any other
-                    # split) — no per-item lookup table, so a caller feeds it
+                    # split; a KSLT linear tray's w is its CHANNEL edge —
+                    # Schluter's first dimension — not the longer side, so
+                    # the 38″- and 76″-drain twins land in different rooms,
+                    # ticket 158 P0-1) — no per-item lookup table, so a caller feeds it
                     # LIVE registry-book rows (`catalogOf`) and a re-import
                     # reprices/re-ranges the configurator with no code change
                     # (ADR 0032, the deliberate divergence from wedi.js's own

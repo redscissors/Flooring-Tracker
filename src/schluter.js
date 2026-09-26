@@ -60,8 +60,8 @@ function mmExactTokens(digits) {
 // Tray/kit width×depth: every digit in the code that isn't part of the
 // mm-pair is a letter (prefix, suffix flags), so stripping non-digits and
 // running the same greedy scan works whether the SKU separates the pair
-// with "/" or not. w = the longer dimension, d = the shorter (matches the
-// reference tagging: KST965/1525 -> w:60,d:38; KSLT965/1930S -> w:76,d:38).
+// with "/" or not. w = the longer dimension, d = the shorter (KST965/1525 ->
+// w:60,d:38). Linear LTS trays don't use this — see classifyCode.
 function trayDims(code) {
   const vals = mmExactTokens(code.replace(/\D/g, ""));
   if (!vals.length) return {};
@@ -171,9 +171,15 @@ function classifyCode(item, rawSku) {
   const code = raw.trim().replace(/^SLR/, "");
 
   // KERDI-SHOWER-LTS: linear-drain tray. The trailing S here is part of the
-  // "LTS" line name, not the offset-drain flag KST-line SKUs use.
+  // "LTS" line name, not the offset-drain flag KST-line SKUs use. Unlike
+  // every other tray, w is the CHANNEL edge, not the longer side: Schluter's
+  // first dimension is the drain side (KSLT965/1930S is 38″×76″ drained on
+  // the 38″ edge, KSLT1930/965S its 76″-edge twin), and the channel sits at
+  // the room's back wall (w).
   if (/^KSLT.*S$/.test(code)) {
-    return { ...item, g: "tray", ...trayDims(code.replace(/^KSLT/, "").replace(/S$/, "")), drain: "linear" };
+    const vals = mmExactTokens(code.replace(/^KSLT/, "").replace(/S$/, "").replace(/\D/g, ""));
+    if (!vals.length) return { ...item, g: "tray", drain: "linear" };
+    return { ...item, g: "tray", w: vals[0], d: vals.length > 1 ? vals[1] : vals[0], drain: "linear" };
   }
 
   // KERDI-SHOWER-T(T)(S): KST<a>[/<b>][S][BF] — S = offset drain, BF = the

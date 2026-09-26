@@ -50,6 +50,15 @@ eftRows.push(normOrderItem({
   description: "Schluter Kerdi-Shower-Kit Kerdi-Shower TT 38 X 32", leadTime: "READY SHIP",
 }));
 
+// The 76"-side twin of the stocked KSLT965/1930S (38" side) from the
+// 2025-10-01 EFT — same price, channel on the other edge. With both in the
+// catalog the Kits tab must show two distinct linear rows, and the Walls ⇄
+// rotate must swap one for the other.
+eftRows.push(normOrderItem({
+  sku: "SLRKSLT1930965S", bookId: "bk_eft", unit: "PC", cost: 211.74, price: 317.61, size: "76x38",
+  description: 'Schluter Kerdi-Shower-LTS Tray Perimeter Drain 76" Side', leadTime: "READY SHIP",
+}));
+
 // The harness "sheet" — the placed rows as the job sheet holds them, with a
 // qty box per row and Reconfigure on each anchor, so the drive can prove a
 // sheet-edited quantity reopens as the popup's override (owner 2026-09-02).
