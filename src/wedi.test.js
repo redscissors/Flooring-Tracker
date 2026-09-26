@@ -10,7 +10,9 @@ import { rowItemKey, sessionFromRows,
   BENCH_H, BENCH_DEPTH, BENCH_CORNER_LEG,
   curbWidth, curbInsets, applyCurbInset,
   setStockSource, clearStockSource, stockSourceIsBook,
+  wediSlotOf,
 } from "./wedi.js";
+import { isSlot } from "./slots.js";
 
 // Ported whole from the prototype's self-test
 // (.scratch/066_wedi-configurator/proto-engine.js) — 135 assertions, section
@@ -1351,4 +1353,16 @@ test("coverageOf: rolls and panels in sf, tapes in lf (ticket 158 P0-3)", () => 
   assert.equal(coverageOf(item("US5000084")), null);
   assert.equal(coverageOf(item("US9100004")), null);
   assert.equal(coverageOf(item("US5000013")), null);
+});
+
+// --- shared slot vocabulary (ticket 158 Phase 1a) --------------------------
+
+test("every kitFor line carries a slot from the shared vocabulary", () => {
+  for (const pan of ["US9100004", "US9200003", "US9310001", "US9320002"]) {
+    for (const l of kitFor(pan).lines) assert.ok(isSlot(l.slot), `${pan} ${l.item.key} → ${l.slot}`);
+  }
+  const k = kitFor("US9100004");
+  assert.equal(k.lines.find((l) => l.item.group === "cover").slot, "grate");
+  assert.equal(k.lines.find((l) => l.item.key === SKU.proSet).slot, "setting");
+  assert.equal(wediSlotOf({ item: { group: "pan" }, group: "floor" }), "tray");
 });

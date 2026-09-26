@@ -22,7 +22,7 @@ import {
   tierPrice, lineItems, coverFrames, inch, round2, SKU, coverageOf, MODULE_DEPTH, MODEXT_DEPTH,
   FINISHES, GROUP_LABEL, BUILDER_MULT, SO_MIN_NET,
   normBench, benchPremades, benchPanRoom, benchPanPlan, smallerPanFor,
-  BENCH_CORNER_LBL, buildFromMarker, sessionFromRows,
+  BENCH_CORNER_LBL, buildFromMarker, sessionFromRows, wediSlotOf,
 } from "./wedi.js";
 import { TopDown, Iso, railSplit, RAIL_DESIGN_W, curbHeight } from "./showerdraw.jsx";
 import { normKitBasketEntry } from "./model.js";
@@ -904,7 +904,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
       if (!it || !(m.qty > 0)) return;
       const hit = lines.find((l) => l.item.key === m.key);
       if (hit) hit.qty += m.qty;
-      else lines.push({ item: it, qty: m.qty, group: bucketOf(it), note: "", auto: false });
+      else lines.push({ item: it, qty: m.qty, group: bucketOf(it), note: "", auto: false, slot: wediSlotOf({ item: it, group: bucketOf(it) }) });
     });
     return lines;
   };

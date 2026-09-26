@@ -241,3 +241,10 @@ test("source stock threads into the wedi solve — every base is stocked", () =>
   const b = wediBuildFor(room60x38(), { source: "stock" });
   assert.equal(b.pan.stock, true);
 });
+
+// --- shared slot vocabulary (ticket 158 Phase 1a) --------------------------
+
+test("compare rows carry each line's shared slot", () => {
+  const rows = wediCompareRows(wediBuildFor(room60x38()));
+  assert.ok(rows.length && rows.every((r) => typeof r.slot === "string"));
+});

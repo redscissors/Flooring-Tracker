@@ -16,7 +16,7 @@ import { PaneBack, PaneClose } from "./raildrawer.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
   trayCandidates, pickRolls, buildKit, tierPrice, coverageOf, lineItems, orderCopyLines, normBench, benchTrayRoom,
-  boardPlan, expandBoardFaces, wallArea, halfBoardPool, buildFromMarker, ovKey, sessionFromRows,
+  boardPlan, expandBoardFaces, wallArea, halfBoardPool, buildFromMarker, ovKey, sessionFromRows, slotOf,
 } from "./schluter.js";
 import { mortarItemFrom, MORTAR_BED_SF_PER_BAG } from "./schluteradapter.js";
 import { useSchluterCatalog } from "./useschlutercatalog.js";
@@ -707,7 +707,7 @@ export default function SchluterConfigurator({
     const planLines = p.lines.map((pl, i) => {
       const e = cat.find((x) => x.sku === pl.sku);
       return e && {
-        g: "Walls", item: e, qty: pl.qty, so: !e.stock,
+        g: "Walls", item: e, qty: pl.qty, so: !e.stock, slot: "wallBoard",
         note: i === 0
           ? sf.toFixed(0) + " sf — " + p.vSeams + " vertical seam" + (p.vSeams === 1 ? "" : "s")
             + (vWalls ? " · " + vWalls + " wall" + (vWalls === 1 ? "" : "s") + " stood vertical" : "")
@@ -735,7 +735,7 @@ export default function SchluterConfigurator({
     b.lines = applyQtyOv(applyBoardPlan(b.lines, cfg, plan), qtyOv);
     manual.forEach((m) => {
       const e = cat.find((i) => i.sku === m.sku);
-      if (e) b.lines.push({ g: "Extras", item: e, qty: m.qty, so: !e.stock, manual: true });
+      if (e) b.lines.push({ g: "Extras", item: e, qty: m.qty, so: !e.stock, manual: true, slot: slotOf("Extras", e) });
     });
     return b;
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -5073,6 +5073,21 @@ function push(lines, key, qty, grp, note, auto) {
   lines.push({ item: it, qty: qty, group: grp, auto: auto !== false, note: note || "" });
 }
 
+const WEDI_SLOT = {
+  pan: "tray", module: "tray", modExt: "tray", extension: "tray", cornerExt: "tray", kit: "tray", recess: "tray",
+  curb: "curb", ramp: "curb", panel: "wallBoard", cover: "grate", coverFrame: "grate", drainKit: "drainBody",
+  collar: "corners", sealant: "seam", fastener: "seam", subliner: "seam", sdry: "seam", tool: "setting",
+  niche: "niche", shelf: "niche", seat: "bench", bench: "bench",
+};
+
+/** The shared slot (slots.js) a kitFor line fills. */
+export function wediSlotOf(line) {
+  const it = (line && line.item) || {};
+  if (it.key === SKU.proSet) return "setting";
+  if (line.group === "bench" && it.group === "panel") return "bench";
+  return WEDI_SLOT[it.group] || "extra";
+}
+
 export const panRoomDims = (pan) => (pan.group === "module"
   ? { w: pan.len, d: MODULE_DEPTH + MODEXT_DEPTH }
   : { w: Math.max(pan.w, pan.d), d: Math.min(pan.w, pan.d) });
@@ -5252,6 +5267,7 @@ export function kitFor(panKey, opts) {
     if (w.faces && w.faces !== "in") o.faces = w.faces;
     return o;
   });
+  lines.forEach((l) => { l.slot = wediSlotOf(l); });
   const cfg = {
     panKey: pan.key, walls: cfgWalls, panelKey: panel ? panel.key : null,
     curbKey: curbKey || null, coverKey: cover ? cover.key : null,

@@ -817,6 +817,25 @@ export function boardPlan(faces, cat, { source } = {}) {
  * back to cfg.mortarItem at its own rate plus KERDI over the cured bed
  * (decision 2 — never a $0 by-installer line).
  */
+const G_SLOT = { Base: "tray", Drain: "drainBody", Walls: "wallBoard", Seams: "seam", Curb: "curb", Setting: "setting", Extras: "extra" };
+
+/** The shared slot (slots.js) a buildKit line fills: its catalog facts first, the bill group as the fallback. */
+export function slotOf(g, i) {
+  if (!i) return G_SLOT[g] || "extra";
+  if (i.part === "flange") return "flange";
+  if (i.part === "grate" || i.part === "cover") return "grate";
+  if (i.part === "channel" || i.part === "body") return "drainBody";
+  if (i.g === "membrane") return g === "Base" ? "tray" : "wallMembrane";
+  if (i.g === "board") return g === "Extras" ? "bench" : "wallBoard";
+  if (i.g === "seam") return i.corner || i.seal ? "corners" : "seam";
+  if (i.g === "tray") return "tray";
+  if (i.g === "curb") return "curb";
+  if (i.g === "set") return "setting";
+  if (i.extra === "niche") return "niche";
+  if (i.extra === "bench" || i.extra === "benchkit") return "bench";
+  return G_SLOT[g] || "extra";
+}
+
 export function buildKit(cfg, cat, { source, pick } = {}) {
   const L = [];
   const add = (g, item, qty, note) => {
@@ -968,6 +987,7 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
   // KERDI-FIX left the standing recipe (owner 2026-08-24): it rides the tub
   // kit, not every shower — the popup offers it as an add-on chip instead
 
+  for (const l of L) l.slot = slotOf(l.g, l.item);
   return { lines: L, cand };
 }
 
@@ -988,7 +1008,7 @@ export function buildFromMarker(marker, cat) {
   const b = buildKit(cfg, cat, { source, pick });
   (cfg.manual || []).forEach((m) => {
     const e = cat.find((i) => i.sku === m.sku);
-    if (e && m.qty > 0) b.lines.push({ g: "Extras", item: e, qty: m.qty, so: !e.stock, manual: true });
+    if (e && m.qty > 0) b.lines.push({ g: "Extras", item: e, qty: m.qty, so: !e.stock, manual: true, slot: slotOf("Extras", e) });
   });
   return { ...b, pick };
 }

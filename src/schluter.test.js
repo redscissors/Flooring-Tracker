@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
-import { ovKey, rowItemEntry, sessionFromRows, classify, catalogOf, coverageOf, trayCandidates, pickRolls, pickFrom, buildKit, buildFromMarker, linesTotal, tierPrice, lineItems, orderCopyLines, entryOpening, openRuns, boardPlan, boardSheets, expandBoardFaces, normBench, benchTrayRoom } from "./schluter.js";
+import { ovKey, rowItemEntry, sessionFromRows, classify, catalogOf, coverageOf, trayCandidates, pickRolls, pickFrom, buildKit, buildFromMarker, linesTotal, tierPrice, lineItems, orderCopyLines, entryOpening, openRuns, boardPlan, boardSheets, expandBoardFaces, normBench, benchTrayRoom, slotOf } from "./schluter.js";
+import { isSlot } from "./slots.js";
 
 const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -995,4 +996,18 @@ test("Vario channel: the shortest channel at least the pan's width, cut to the p
   const exact = chan(cfg({ w: 48, d: 48, drain: "linear" }));
   assert.equal(exact.item.len, 48);
   assert.match(exact.note, /^full pan width/);
+});
+
+// --- shared slot vocabulary (ticket 158 Phase 1a) --------------------------
+
+test("every buildKit line carries a slot from the shared vocabulary", () => {
+  for (const c of [cfg({}), cfg({ w: 48, d: 48, drain: "linear" }), cfg({ wallSys: "board", bench: "buildup" })]) {
+    const b = buildKit(c, CAT, { source: "all" });
+    for (const l of b.lines) assert.ok(isSlot(l.slot), `${l.g} ${l.item.sku || l.item.name} → ${l.slot}`);
+  }
+  const lin = buildKit(cfg({ w: 48, d: 48, drain: "linear" }), CAT, { source: "all" });
+  assert.deepEqual(lin.lines.filter((l) => l.g === "Drain").map((l) => l.slot), ["drainBody", "flange"]);
+  const pt = buildKit(cfg({}), CAT, { source: "all" });
+  assert.deepEqual(pt.lines.filter((l) => l.g === "Drain").map((l) => l.slot), ["flange", "grate"]);
+  assert.equal(slotOf("Setting", { g: "set" }), "setting");
 });
