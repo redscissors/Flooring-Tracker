@@ -863,15 +863,23 @@ function resolveVario(c, panW, cat, source) {
 
 const STYLE_WORD = { solid: "Solid", perforated: "Perforated", lock: "Perforated with lock", floral: "Floral", curve: "Curve", pure: "Pure", tile: "Tile" };
 
+// The candidate KERDI-LINE bodies (and their usable lengths) for one offset
+// leg at a pan width — shared by resolveFixed and drainOptions' `fit` so the
+// popover's "to N″" hint can never disagree with what actually bills.
+function fixedBodies(offset, panW, cat) {
+  const bodies = cat.filter((i) => i.g === "line" && i.part === "body" && !!i.offset === offset);
+  const lens = [...new Set(bodies.map((b) => b.len))].filter((l) => l <= panW).sort((a, b) => b - a);
+  return { bodies, lens };
+}
+
 function resolveFixed(c, panW, cat, source) {
   const offset = !!c.offset;
   const frameless = c.family === "frameless";
-  const bodies = cat.filter((i) => i.g === "line" && i.part === "body" && !!i.offset === offset);
+  const { bodies, lens } = fixedBodies(offset, panW, cat);
   const styleOk = (g) => (c.style === "lock" ? !!g.lock : !c.style || (g.style === c.style && !g.lock));
   const grates = cat.filter((g) => g.g === "line" && g.part === "grate" && (frameless
     ? g.frameless && !!g.offset === offset
     : !g.frameless && !offset && styleOk(g) && (!c.frame || g.frame === c.frame) && (!c.finish || (g.finish || "") === c.finish)));
-  const lens = [...new Set(bodies.map((b) => b.len))].filter((l) => l <= panW).sort((a, b) => b - a);
   const pick = (list) => stockPool(list.slice().sort((a, b) => a.price - b.price), source)[0] || null;
   for (const L of lens) {
     const b = pick(bodies.filter((x) => x.len === L));
@@ -910,6 +918,47 @@ export function resolveDrain(choice, panW, cat, { source } = {}) {
     return { ...v, fallback };
   }
   return resolveVario(c, panW, cat, source);
+}
+
+export const FINISH_LABEL = { EB: "Brushed stainless", EP: "Polished stainless", MBW: "Matte black" };
+
+/**
+ * The drain popover's rows for a pan of width `panW`: every chip's `ok`
+ * comes from resolving it through resolveDrain, so the popover can never
+ * offer something the engine would then refuse. `fit` (ticket 158 R3) is the
+ * longest KERDI-LINE body that fits the pan at the choice's offset leg — the
+ * popup shows "to N″" on a style chip only when that style's own max is
+ * shorter than it.
+ */
+export function drainOptions(choice, panW, cat, { source } = {}) {
+  const c = choice && typeof choice === "object" ? choice : { family: "vario" };
+  const family = c.family === "fixed" || c.family === "frameless" ? c.family : "vario";
+  const works = (ch) => { const r = resolveDrain(ch, panW, cat, { source }); return !r.fallback && !r.subst; };
+  const families = [["vario", "Vario"], ["fixed", "Fixed"], ["frameless", "Frameless"]]
+    .map(([key, label]) => ({ key, label, ok: works({ family: key }) }));
+  let styles = [], frames = [], finishes = [];
+  if (family === "vario") {
+    const chans = cat.filter((i) => i.g === "drain" && i.part === "channel" && i.design);
+    styles = [...new Set(chans.map((i) => i.design))].map((d) => ({ key: d, label: VARIO_DESIGN[d] || d, ok: works({ family, design: d }) }));
+    finishes = [...new Set(chans.filter((i) => !c.design || i.design === c.design).map((i) => i.finish))]
+      .map((f) => ({ key: f, label: FINISH_LABEL[f] || f, ok: works({ ...c, family, finish: f }) }));
+  } else if (family === "fixed") {
+    const grates = cat.filter((g) => g.g === "line" && g.part === "grate" && !g.frameless);
+    const styleOf = (g) => (g.lock ? "lock" : g.style);
+    styles = [...new Set(grates.map(styleOf))].map((s) => ({
+      key: s, label: STYLE_WORD[s] || s, ok: works({ family, style: s }),
+      max: Math.max(...grates.filter((g) => styleOf(g) === s).map((g) => g.len)),
+    }));
+    const inStyle = grates.filter((g) => !c.style || styleOf(g) === c.style);
+    frames = [...new Set(inStyle.map((g) => g.frame).filter(Boolean))].map((f) => ({ key: f, ok: works({ ...c, family, frame: f }) }));
+    finishes = [...new Set(inStyle.filter((g) => !c.frame || g.frame === c.frame).map((g) => g.finish).filter(Boolean))]
+      .map((f) => ({ key: f, label: FINISH_LABEL[f] || f, ok: works({ ...c, family, finish: f }) }));
+  } else {
+    styles = [{ key: "straight", label: "Straight", ok: works({ family, offset: false }) },
+      { key: "offset", label: "Offset", ok: works({ family, offset: true }) }];
+  }
+  const fit = fixedBodies(!!c.offset, panW, cat).lens[0] || 0;
+  return { family, families, styles, frames, finishes, fit, result: resolveDrain(c, panW, cat, { source }) };
 }
 
 export function buildKit(cfg, cat, { source, pick } = {}) {

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
-import { ovKey, rowItemEntry, sessionFromRows, classify, catalogOf, coverageOf, trayCandidates, pickRolls, pickFrom, buildKit, buildFromMarker, linesTotal, tierPrice, lineItems, orderCopyLines, entryOpening, openRuns, boardPlan, boardSheets, expandBoardFaces, normBench, benchTrayRoom, slotOf, resolveDrain } from "./schluter.js";
+import { ovKey, rowItemEntry, sessionFromRows, classify, catalogOf, coverageOf, trayCandidates, pickRolls, pickFrom, buildKit, buildFromMarker, linesTotal, tierPrice, lineItems, orderCopyLines, entryOpening, openRuns, boardPlan, boardSheets, expandBoardFaces, normBench, benchTrayRoom, slotOf, resolveDrain, drainOptions } from "./schluter.js";
 import { isSlot } from "./slots.js";
 
 const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
@@ -1084,6 +1084,21 @@ test("resolveDrain: stock only prefers a stocked match and flags a special-order
   const r = resolveDrain({ family: "fixed", style: "solid", finish: "EB" }, 55, cat, { source: "stock" });
   assert.equal(r.len, 52);
   assert.equal(r.lines[1].item.stock, false);
+});
+
+test("drainOptions: availability comes from resolveDrain, never a second rule", () => {
+  const o = drainOptions({ family: "fixed", style: "solid", finish: "EB" }, 55, KLCAT, { source: "all" });
+  assert.equal(o.family, "fixed");
+  assert.deepEqual(o.families.map((f) => [f.key, f.ok]), [["vario", true], ["fixed", true], ["frameless", true]]);
+  const floral = o.styles.find((s) => s.key === "floral");
+  assert.equal(floral.ok, true);
+  assert.equal(floral.max, 48);
+  assert.equal(o.finishes.find((f) => f.key === "MBW").ok, true);
+  assert.equal(o.result.len, 52);
+  assert.equal(o.fit, 52);
+  const v = drainOptions(null, 55, KLCAT, { source: "all" });
+  assert.equal(v.family, "vario");
+  assert.ok(v.styles.some((s) => s.key === "5" && s.label === "Floral"));
 });
 
 test("buildKit bills the chosen drain and reports drainFit; no choice bills as before", () => {
