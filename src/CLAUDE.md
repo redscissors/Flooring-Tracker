@@ -1193,7 +1193,8 @@ src/
                     # chip — seeded from the committed `coverPick` as a DRAFT;
                     # Use this commits it (plain stainless commits no pick, as
                     # `legacyCoverPick` already reads that as the default) and
-                    # flips mode to custom; Esc/outside click discards.
+                    # arms the kit-card overwrite confirm (kitDirty); Esc/
+                    # outside click discards.
                     # `escActive` (default true) gates its Escape handler —
                     # the Apps pane passes false while it is hidden (ADR
                     # 0047).

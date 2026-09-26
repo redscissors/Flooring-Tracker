@@ -841,6 +841,10 @@ export function slotOf(g, i) {
 export const VARIO_DESIGN = { 3: "Square", 5: "Floral", 13: "Herringbone", 14: "Slant" };
 const cheapestFirst = (list) => list.slice().sort((a, b) => a.len - b.len || a.price - b.price);
 
+// Vario is cut to the pan's installed width (owner 2026-09-26), never an
+// allowance off the wall; a channel can't be doubled like a curb, so a
+// covering channel wins and a shorter one lands only when nothing covers,
+// saying it runs short.
 function resolveVario(c, panW, cat, source) {
   const all = cheapestFirst(cat.filter((i) => i.g === "drain" && i.part === "channel" && i.len));
   const want = all.filter((i) => (!c.design || i.design === c.design) && (!c.finish || i.finish === c.finish));
@@ -935,7 +939,12 @@ export function drainOptions(choice, panW, cat, { source } = {}) {
   const family = c.family === "fixed" || c.family === "frameless" ? c.family : "vario";
   const works = (ch) => { const r = resolveDrain(ch, panW, cat, { source }); return !r.fallback && !r.subst; };
   const families = [["vario", "Vario"], ["fixed", "Fixed"], ["frameless", "Frameless"]]
-    .map(([key, label]) => ({ key, label, ok: works({ family: key }) }));
+    .map(([key, label]) => ({
+      key, label,
+      // frameless can fit only through the offset body pair — the straight
+      // body alone tells the chip nothing about that
+      ok: key === "frameless" ? works({ family: key }) || works({ family: key, offset: true }) : works({ family: key }),
+    }));
   let styles = [], frames = [], finishes = [];
   if (family === "vario") {
     const chans = cat.filter((i) => i.g === "drain" && i.part === "channel" && i.design);

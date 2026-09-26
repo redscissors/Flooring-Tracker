@@ -880,7 +880,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     const out = lines.filter((l) => !(l.group === "walls" && l.auto !== false));
     const vWalls = plan.detail.filter((d) => d.vertical).length;
     plan.lines.forEach((pl, i) => out.push({
-      item: item(pl.key), qty: pl.qty, group: "walls", auto: true,
+      item: item(pl.key), qty: pl.qty, group: "walls", auto: true, slot: "wallBoard",
       note: i === 0
         ? round2(panelSf) + " sf — " + plan.vSeams + " vertical seam" + (plan.vSeams === 1 ? "" : "s")
           + (vWalls ? " · " + vWalls + " wall" + (vWalls === 1 ? "" : "s") + " stood vertical" : "")
@@ -893,7 +893,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   // quantities, hand-added extras. The basket drawer runs it too, so a staged
   // entry prices the build that was staged and not just its marker.
   const applySession = (b, wl, s) => {
-    let lines = b.lines.map((l) => ({ item: l.item, qty: l.qty, group: l.group, note: l.note, auto: l.auto }));
+    let lines = b.lines.map((l) => ({ item: l.item, qty: l.qty, group: l.group, note: l.note, auto: l.auto, slot: l.slot }));
     if (s.panelFit) lines = applyPanelFit(lines, wl, b.panelSf);
     lines.forEach((l) => {
       const ov = s.qtyOv[l.item.key];
@@ -2112,8 +2112,20 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     const styleOf = (c) => (c.finish === "T" ? "tileable" : /P$/.test(c.finish) ? "perforated" : "solid");
     const styles = lin ? coverStyles(committed.len) : null;
     const pool = lin ? styles[styleOf(draft)] : group("cover").filter((c) => c.sub === "point");
-    const fins = bySource(pool);
-    if (!fins.some((c) => c.key === draft.key)) fins.unshift(draft);
+    let fins = bySource(pool);
+    // The choice is a finish, not a SKU — a linear pan's two catalog twins of
+    // one finish would otherwise show as two chips that both resolve (stock
+    // first, same as linearCoverFor) to the same bill, one of them lying
+    // about "special order". Point covers keep one chip per key.
+    if (lin) {
+      const byFinish = new Map();
+      fins.forEach((c) => {
+        const cur = byFinish.get(c.finish);
+        if (!cur || (c.stock && !cur.stock) || (c.stock === cur.stock && c.retail < cur.retail)) byFinish.set(c.finish, c);
+      });
+      fins = Array.from(byFinish.values());
+      if (!fins.some((c) => c.finish === draft.finish)) fins.unshift(draft);
+    } else if (!fins.some((c) => c.key === draft.key)) fins.unshift(draft);
     const rows = [
       ...(lin ? [{ label: "Style", chips: ["solid", "perforated", "tileable"].map((st) => ({
         key: st, label: st[0].toUpperCase() + st.slice(1), ok: styles[st].length > 0, on: st === styleOf(draft),
@@ -2121,7 +2133,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
         onPick: () => { const l = bySource(styles[st]); setDraft(l.find((c) => c.stock) || l[0]); },
       })) }] : []),
       { label: "Finish", chips: fins.map((c) => ({
-        key: c.key, label: FINISHES[c.finish] || c.finish, ok: true, on: c.key === draft.key, onPick: () => setDraft(c),
+        key: c.key, label: FINISHES[c.finish] || c.finish, ok: true, on: lin ? c.finish === draft.finish : c.key === draft.key, onPick: () => setDraft(c),
         title: [c.stock ? c.erp : "SO " + c.us, fm(tierOf(c))].filter(Boolean).join(" · "),
       })) },
     ];

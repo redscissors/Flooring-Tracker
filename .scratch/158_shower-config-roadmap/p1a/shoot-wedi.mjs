@@ -57,6 +57,20 @@ console.log("after 48\" room:", refit);
 if (!/31" Linear Drain Cover.*perforated/i.test(refit)) fail("the cover choice did not follow the new channel");
 await shot("w4-room-48-still-perforated");
 
+// finding 3 (final review): a 27" linear pan's two same-finish stainless
+// twins (676797048 stock, US1000084 SO) must dedupe to one Finish chip
+await pg.goto("http://localhost:5199/wedi-preview.html");
+await pg.waitForSelector("[data-wedi-pan]", { timeout: 20000 }); await pg.waitForTimeout(600);
+await pg.locator("[data-source-toggle]").click(); await pg.waitForTimeout(500); // Full catalog
+await pg.locator("[data-wedi-pan='US9310002']").click(); await pg.waitForTimeout(800);
+await open();
+const stainlessChips = pg.locator('[data-drain-chip^="Finish:"]', { hasText: "Stainless, brushed natural" });
+const stainlessCount = await stainlessChips.count();
+console.log("27\" pan stainless finish chips:", stainlessCount);
+if (stainlessCount !== 1) fail(`27" pan shows ${stainlessCount} stainless chips, expected 1`);
+await shot("w6-27-dedupe");
+await pg.keyboard.press("Escape"); await pg.waitForTimeout(300);
+
 // a point-drain pan: Finish row only
 await pg.goto("http://localhost:5199/wedi-preview.html");
 await pg.waitForSelector("[data-wedi-pan]", { timeout: 20000 }); await pg.waitForTimeout(600);

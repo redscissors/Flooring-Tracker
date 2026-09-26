@@ -43,15 +43,15 @@ one recipe.
 
 1. **A swap saves a choice, never a part.** The marker records what the
    customer wants — family, style, frame, finish (Schluter `cfg.drainPick`);
-   style and finish (wedi linear `coverPick`); a key for a point pick with no
-   length to follow (wedi `coverPick.key`, Schluter's point-drain
-   `cfg.swaps.grate`, which already had no length to lose). It never records
-   a resolved SKU as the choice.
+   finish (wedi linear `coverPick` — the finish code carries the style); a
+   key for a point pick with no length to follow (wedi `coverPick.key`,
+   Schluter's point-drain `cfg.swaps.grate`, which already had no length to
+   lose). It never records a resolved SKU as the choice.
 2. **Engines resolve a choice into parts on every build**, so a length
    choice re-fits when the room does. `resolveDrain(choice, panW, cat,
    opts)` is the Schluter half; wedi's `kitFor` resolves `opts.coverPick`
-   through `linearCoverFor`/`coverStyles` at the channel's current length.
-   Nothing caches a resolved part across a re-fit.
+   through `linearCoverFor` at the channel's current length. Nothing caches
+   a resolved part across a re-fit.
 3. **`SLOTS` (`src/slots.js`) is the one shared line vocabulary.** Both
    engines tag every bill line with one of its thirteen slots (`slotOf` in
    schluter.js, `wediSlotOf` in wedi.js), so a Schluter line and a wedi line
@@ -60,7 +60,7 @@ one recipe.
    Compare (ADR 0034). Only the drain slots change behaviour in 1a; the rest
    are data for 1b–1d.
 4. **Old markers translate on read, never on write.** No saved kit's bill
-   moves because of this change. No `cfg.drain[Pick]` reads as Vario, exactly
+   moves because of this change. No `cfg.drainPick` reads as Vario, exactly
    as today. An old wedi `coverKey` reads as a `coverPick` (`legacyCoverPick`)
    — `{ finish }` on a linear pan, so the cover starts following the channel
    length; `{ key }` on a point pan, unchanged. The read side does the

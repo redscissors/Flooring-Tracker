@@ -1101,6 +1101,16 @@ test("drainOptions: availability comes from resolveDrain, never a second rule", 
   assert.ok(v.styles.some((s) => s.key === "5" && s.label === "Floral"));
 });
 
+test("drainOptions: the Frameless family chip is ok when only the offset pair fits", () => {
+  const cat = catalogOf([...FIXTURE_ITEMS,
+    KL("SLRKL1V60E120", 450), // straight body, no straight frameless grate anywhere in this catalog
+    KL("SLRKL1VO60E120", 420), // offset body, len 48
+    KL("SLRKL1DROE120", 202.91), // offset frameless grate, len 48 — the only working frameless pair
+  ]);
+  const o = drainOptions({ family: "frameless", offset: true }, 55, cat, { source: "all" });
+  assert.equal(o.families.find((f) => f.key === "frameless").ok, true);
+});
+
 test("buildKit bills the chosen drain and reports drainFit; no choice bills as before", () => {
   const room = cfg({ w: 55, d: 55, drain: "linear" });
   const plain = buildKit(room, KLCAT, { source: "all" });
