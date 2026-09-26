@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
-import { ovKey, rowItemEntry, sessionFromRows, classify, catalogOf, coverageOf, trayCandidates, pickRolls, pickFrom, buildKit, buildFromMarker, linesTotal, tierPrice, lineItems, orderCopyLines, entryOpening, openRuns, boardPlan, boardSheets, expandBoardFaces, normBench, benchTrayRoom, slotOf } from "./schluter.js";
+import { ovKey, rowItemEntry, sessionFromRows, classify, catalogOf, coverageOf, trayCandidates, pickRolls, pickFrom, buildKit, buildFromMarker, linesTotal, tierPrice, lineItems, orderCopyLines, entryOpening, openRuns, boardPlan, boardSheets, expandBoardFaces, normBench, benchTrayRoom, slotOf, resolveDrain } from "./schluter.js";
 import { isSlot } from "./slots.js";
 
 const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
@@ -1010,4 +1010,88 @@ test("every buildKit line carries a slot from the shared vocabulary", () => {
   const pt = buildKit(cfg({}), CAT, { source: "all" });
   assert.deepEqual(pt.lines.filter((l) => l.g === "Drain").map((l) => l.slot), ["flange", "grate"]);
   assert.equal(slotOf("Setting", { g: "set" }), "setting");
+});
+
+// --- resolveDrain: a saved drain choice -> drain lines (ticket 158 Phase 1a) -
+
+const KL = (sku, price, stock = false) => ({ sku, name: sku, price, cost: price / 1.5, stock });
+const KL_ROWS = [
+  ...[50, 60, 100, 120, 130, 180].map((cm) => KL(`SLRKL1V60E${cm}`, 300 + cm)),
+  ...[100, 120].map((cm) => KL(`SLRKL1VO60E${cm}`, 420 + cm)),
+  ...[50, 100, 120, 130, 180].map((cm) => KL(`SLRKL1AR19EB${cm}`, 280 + cm)),
+  KL("SLRKL1AR19MBW130", 574.77),
+  ...[100, 120].map((cm) => KL(`SLRKL1IFE23EB${cm}`, 400 + cm)),
+  ...[100, 130].map((cm) => KL(`SLRKL1DRE${cm}`, 200 + cm)),
+  KL("SLRKL1DROE120", 202.91),
+  KL("SLRKL1BL19EB130", 535.5),
+  KL("SLRKL1B19EB130", 496.59),
+  KL("SLRKLVRID5EB244", 420.3),
+];
+const KLCAT = catalogOf([...FIXTURE_ITEMS, ...KL_ROWS]);
+const skus = (r) => r.lines.map((l) => l.item.sku);
+
+test("resolveDrain: no choice is today's Vario — shortest covering channel, cut to the pan", () => {
+  const r = resolveDrain(null, 55, KLCAT, { source: "all" });
+  assert.equal(r.family, "vario");
+  assert.equal(r.lines[0].item.len, 96);
+  assert.match(r.lines[0].note, /^cut to 55"/);
+  assert.deepEqual(r.lines.map((l) => l.slot), ["drainBody", "flange"]);
+});
+
+test("resolveDrain: Vario design choice, and a design not made long enough substitutes with a note", () => {
+  const r = resolveDrain({ family: "vario", design: "5", finish: "EB" }, 55, KLCAT, { source: "all" });
+  assert.equal(r.lines[0].item.sku, "SLRKLVRID5EB244");
+  const s = resolveDrain({ family: "vario", design: "14", finish: "EB" }, 55, KLCAT, { source: "all" });
+  assert.ok(s.subst);
+  assert.match(s.lines[0].note, /Slant not made/);
+});
+
+test("resolveDrain: fixed = body + grate at the longest length <= pan with both", () => {
+  const r = resolveDrain({ family: "fixed", style: "solid", frame: '3/4"', finish: "EB" }, 55, KLCAT, { source: "all" });
+  assert.deepEqual(skus(r), ["SLRKL1V60E130", "SLRKL1AR19EB130"]);
+  assert.deepEqual([r.len, r.gap], [52, 3]);
+  assert.deepEqual(r.lines.map((l) => l.slot), ["drainBody", "grate"]);
+  assert.match(r.lines[1].note, /fill 3" at the ends/);
+  const full = resolveDrain({ family: "fixed", style: "solid", finish: "EB" }, 72, KLCAT, { source: "all" });
+  assert.deepEqual([full.len, full.gap], [72, 0]);
+});
+
+test("resolveDrain: floral steps down to 48 and says so; lock and perforated stay apart", () => {
+  const r = resolveDrain({ family: "fixed", style: "floral", finish: "EB" }, 55, KLCAT, { source: "all" });
+  assert.deepEqual([r.len, r.gap], [48, 7]);
+  assert.match(r.lines[0].note, /stepped down from 52"/);
+  assert.equal(resolveDrain({ family: "fixed", style: "lock" }, 55, KLCAT, { source: "all" }).lines[1].item.sku, "SLRKL1BL19EB130");
+  assert.equal(resolveDrain({ family: "fixed", style: "perforated" }, 55, KLCAT, { source: "all" }).lines[1].item.sku, "SLRKL1B19EB130");
+});
+
+test("resolveDrain: frameless straight and offset; offset takes only the offset frameless grate", () => {
+  assert.deepEqual(skus(resolveDrain({ family: "frameless" }, 55, KLCAT, { source: "all" })), ["SLRKL1V60E130", "SLRKL1DRE130"]);
+  assert.deepEqual(skus(resolveDrain({ family: "frameless", offset: true }, 55, KLCAT, { source: "all" })), ["SLRKL1VO60E120", "SLRKL1DROE120"]);
+  const noFramed = resolveDrain({ family: "fixed", offset: true, style: "solid" }, 55, KLCAT, { source: "all" });
+  assert.equal(noFramed.family, "vario");
+  assert.ok(noFramed.fallback);
+});
+
+test("resolveDrain: an impossible fixed choice falls back to Vario and names why", () => {
+  const r = resolveDrain({ family: "fixed", style: "solid" }, 18, KLCAT, { source: "all" });
+  assert.equal(r.family, "vario");
+  assert.match(r.fallback, /under 20"/);
+  assert.match(r.lines[0].note, /Vario used/);
+});
+
+test("resolveDrain: stock only prefers a stocked match and flags a special-order one", () => {
+  const cat = catalogOf([...FIXTURE_ITEMS, ...KL_ROWS.map((r) => (r.sku === "SLRKL1AR19EB120" ? { ...r, stock: true } : r))]);
+  const r = resolveDrain({ family: "fixed", style: "solid", finish: "EB" }, 55, cat, { source: "stock" });
+  assert.equal(r.len, 52);
+  assert.equal(r.lines[1].item.stock, false);
+});
+
+test("buildKit bills the chosen drain and reports drainFit; no choice bills as before", () => {
+  const room = cfg({ w: 55, d: 55, drain: "linear" });
+  const plain = buildKit(room, KLCAT, { source: "all" });
+  assert.equal(plain.drainFit.family, "vario");
+  const fixed = buildKit({ ...room, drainPick: { family: "fixed", style: "solid", finish: "EB" } }, KLCAT, { source: "all" });
+  assert.deepEqual(fixed.lines.filter((l) => l.g === "Drain").map((l) => l.item.sku), ["SLRKL1V60E130", "SLRKL1AR19EB130"]);
+  assert.deepEqual(fixed.drainFit, { family: "fixed", len: 52, gap: 3 });
+  assert.equal(buildKit(cfg({}), KLCAT, { source: "all" }).drainFit, null);
 });

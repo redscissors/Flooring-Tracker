@@ -245,6 +245,8 @@ function classifyCode(item, rawSku) {
     const entry = { ...item, g: "drain", drain: "linear", part: "channel" };
     if (/122$/.test(code)) entry.len = 48;
     else if (/244$/.test(code)) entry.len = 96;
+    const m = /^KLVRID(\d+)([A-Z]+?)(122|244)$/.exec(code);
+    if (m) { entry.design = m[1]; entry.finish = m[2]; }
     return entry;
   }
 
@@ -836,6 +838,80 @@ export function slotOf(g, i) {
   return G_SLOT[g] || "extra";
 }
 
+export const VARIO_DESIGN = { 3: "Square", 5: "Floral", 13: "Herringbone", 14: "Slant" };
+const cheapestFirst = (list) => list.slice().sort((a, b) => a.len - b.len || a.price - b.price);
+
+function resolveVario(c, panW, cat, source) {
+  const all = cheapestFirst(cat.filter((i) => i.g === "drain" && i.part === "channel" && i.len));
+  const want = all.filter((i) => (!c.design || i.design === c.design) && (!c.finish || i.finish === c.finish));
+  const covering = (list) => stockPool(list.filter((i) => i.len >= panW), source)[0] || null;
+  let ch = covering(want), subst = "";
+  if (!ch && (c.design || c.finish)) {
+    ch = covering(all);
+    if (ch) subst = `${VARIO_DESIGN[c.design] || "that design"} not made at ${panW}" — ${VARIO_DESIGN[ch.design] || "another design"} used`;
+  }
+  if (!ch) ch = stockPool(all, source).slice(-1)[0] || null;
+  const cut = ch && ch.len > panW ? `cut to ${panW}"`
+    : ch && ch.len < panW ? `${panW}" run — the ${ch.len}" channel is the longest available, runs short`
+      : "full pan width";
+  const lines = [];
+  if (ch) lines.push({ slot: "drainBody", item: ch, qty: 1, note: (subst ? subst + " · " : "") + cut + ' — min cut 10", IPC 2.5 gpm' });
+  const fl = pickFrom(cat, (i) => i.g === "drain" && i.part === "flange" && i.drain === "linear", { source });
+  if (fl) lines.push({ slot: "flange", item: fl, qty: 1, note: "incl. 4+2 corners, pipe + valve seals, couplings" });
+  return { family: "vario", len: ch ? ch.len : 0, cut: panW, gap: 0, lines, ...(subst ? { subst } : {}) };
+}
+
+const STYLE_WORD = { solid: "Solid", perforated: "Perforated", lock: "Perforated with lock", floral: "Floral", curve: "Curve", pure: "Pure", tile: "Tile" };
+
+function resolveFixed(c, panW, cat, source) {
+  const offset = !!c.offset;
+  const frameless = c.family === "frameless";
+  const bodies = cat.filter((i) => i.g === "line" && i.part === "body" && !!i.offset === offset);
+  const styleOk = (g) => (c.style === "lock" ? !!g.lock : !c.style || (g.style === c.style && !g.lock));
+  const grates = cat.filter((g) => g.g === "line" && g.part === "grate" && (frameless
+    ? g.frameless && !!g.offset === offset
+    : !g.frameless && !offset && styleOk(g) && (!c.frame || g.frame === c.frame) && (!c.finish || (g.finish || "") === c.finish)));
+  const lens = [...new Set(bodies.map((b) => b.len))].filter((l) => l <= panW).sort((a, b) => b - a);
+  const pick = (list) => stockPool(list.slice().sort((a, b) => a.price - b.price), source)[0] || null;
+  for (const L of lens) {
+    const b = pick(bodies.filter((x) => x.len === L));
+    const g = pick(grates.filter((x) => x.len === L));
+    if (!b || !g) continue;
+    const gap = panW - L;
+    const why = L === lens[0] ? `longest that fits the ${panW}" pan`
+      : `stepped down from ${lens[0]}" — ${frameless ? "frameless" : STYLE_WORD[c.style] || "this grate"} made to ${L}"`;
+    return {
+      family: c.family, len: L, gap, cut: 0,
+      lines: [
+        { slot: "drainBody", item: b, qty: 1, note: why },
+        { slot: "grate", item: g, qty: 1, note: gap > 0 ? `fill ${gap}" at the ends` : "full pan width" },
+      ],
+    };
+  }
+  if (panW < 20) return { reason: `pan under 20"` };
+  if (!bodies.length) return { reason: "no KERDI-LINE bodies in the books" };
+  return { reason: `no ${frameless ? "frameless" : STYLE_WORD[c.style] || ""} grate matches a body length that fits` };
+}
+
+/**
+ * A drain choice (the saved `cfg.drainPick`) → the drain lines for a pan of
+ * width `panW`. No choice is Vario, today's default. A fixed or frameless
+ * choice that can't be built falls back to Vario with the reason in `fallback`
+ * and on the first line — never silently dropped.
+ */
+export function resolveDrain(choice, panW, cat, { source } = {}) {
+  const c = choice && typeof choice === "object" ? choice : { family: "vario" };
+  if (c.family === "fixed" || c.family === "frameless") {
+    const r = resolveFixed(c, panW, cat, source);
+    if (r.lines) return r;
+    const v = resolveVario({}, panW, cat, source);
+    const fallback = `${c.family === "frameless" ? "frameless" : "fixed KERDI-LINE"} can't be made here: ${r.reason}`;
+    if (v.lines[0]) v.lines[0] = { ...v.lines[0], note: `${fallback} — Vario used · ${v.lines[0].note}` };
+    return { ...v, fallback };
+  }
+  return resolveVario(c, panW, cat, source);
+}
+
 export function buildKit(cfg, cat, { source, pick } = {}) {
   const L = [];
   const add = (g, item, qty, note) => {
@@ -884,24 +960,11 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
   const drain = cand.kind === "mortar"
     ? (cfg.drain === "any" ? "point" : cfg.drain)
     : cand.tray.drain;
+  let drainFit = null;
   if (drain === "linear") {
-    // a channel can't be doubled like a curb: a stocked covering channel
-    // wins, then a covering SO one (flagged), and only when nothing made
-    // covers the run does a shorter channel land — saying it runs short
-    const chansAll = cat.filter((i) => i.g === "drain" && i.part === "channel")
-      .sort((a, b) => a.len - b.len || a.price - b.price);
-    const chansStocked = stockPool(chansAll, source);
-    // Vario is made to be cut to the pan's width (owner 2026-09-26): the
-    // shortest channel as wide or wider, cut to the tray as installed (a
-    // framed bench can hold it short) — never an allowance off the wall
-    const need = benchTrayRoom(benches, cfg).w;
-    const ch = chansStocked.find((c) => c.len >= need) || chansAll.find((c) => c.len >= need)
-      || chansStocked[chansStocked.length - 1] || chansAll[chansAll.length - 1];
-    add("Drain", ch, 1, (ch && ch.len > need ? `cut to ${need}"`
-      : ch && ch.len < need ? `${need}" run — the ${ch.len}" channel is the longest available, runs short`
-        : "full pan width") + ' — min cut 10", IPC 2.5 gpm');
-    add("Drain", pickFrom(cat, (i) => i.g === "drain" && i.part === "flange" && i.drain === "linear", { source }), 1,
-      "incl. 4+2 corners, pipe + valve seals, couplings");
+    const r = resolveDrain(cfg.drainPick, benchTrayRoom(benches, cfg).w, cat, { source });
+    for (const l of r.lines) add("Drain", l.item, l.qty, l.note);
+    drainFit = { family: r.family, len: r.len, gap: r.gap };
   } else {
     add("Drain", pickFrom(cat, (i) => i.g === "drain" && i.part === "flange" && i.drain === "point", { source }), 1,
       'bonded flange, 2" PVC — incl. 4+2 corners, pipe + valve seals');
@@ -988,7 +1051,7 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
   // kit, not every shower — the popup offers it as an add-on chip instead
 
   for (const l of L) l.slot = slotOf(l.g, l.item);
-  return { lines: L, cand };
+  return { lines: L, cand, drainFit };
 }
 
 // Re-derive the billed kit from a saved marker / staged basket entry
