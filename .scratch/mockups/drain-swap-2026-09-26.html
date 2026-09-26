@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Drain Swap Mockups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--cream:#F6F3EC;--card:#FFFFFF;--border:rgba(28,26,23,.10);--border-s:rgba(28,26,23,.25);--text:#1C1A17;--muted:#57534C;--faint:#8A8378;--brand:#57703A;--sand:#EDE9DD;--tint:#F4F6F0;--line:#ECE8DC;--rust:#B4552D;--up:#8A4A1F}
+*{box-sizing:border-box}
+body{margin:0;background:var(--cream);color:var(--text);font-family:Manrope,system-ui,sans-serif;font-size:13px;line-height:1.4}
+.wrap{max-width:1180px;margin:0 auto;padding:20px 16px 60px}
+h1{font-size:20px;margin:0 0 4px}
+.lede{color:var(--muted);margin:0 0 18px;max-width:760px}
+.opt{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:22px}
+.opt h2{font-size:15px;margin:0 0 2px}
+.opt .why{color:var(--muted);margin:0 0 12px;font-size:12px}
+.letter{display:inline-flex;width:22px;height:22px;border-radius:50%;background:var(--brand);color:#fff;font-weight:800;font-size:12px;align-items:center;justify-content:center;margin-right:6px;vertical-align:1px}
+.stage{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start}
+.build{flex:0 0 400px;max-width:100%;background:var(--cream);border:1px solid var(--border);border-radius:10px;padding:10px 12px}
+.bg-h{font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border-s);padding-bottom:3px;margin:6px 0 4px}
+.bline{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)}
+.bline .bn{flex:1;min-width:0}.bline .n{font-weight:700;font-size:12.5px}.bline .m{font-size:10.5px;color:var(--faint);font-weight:600}
+.bline .lp{width:70px;text-align:right;font-weight:800;font-variant-numeric:tabular-nums}
+.swapb{border:1px solid var(--border-s);background:var(--card);border-radius:6px;width:24px;height:22px;font-size:12px;cursor:pointer}
+.swapb.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+.pop{flex:1 1 440px;max-width:560px;background:var(--card);border:1.5px solid var(--text);border-radius:10px;padding:12px 14px;box-shadow:0 8px 28px rgba(0,0,0,.12)}
+.pop h3{margin:0 0 8px;font-size:13px}
+.row{display:flex;align-items:center;gap:10px;margin:8px 0;flex-wrap:wrap}
+.row .k{width:74px;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.seg{display:inline-flex;border:1px solid var(--border-s);border-radius:7px;overflow:hidden}
+.seg button{border:none;background:var(--card);padding:5px 11px;font:inherit;font-weight:700;font-size:12px;cursor:pointer;border-right:1px solid var(--border)}
+.seg button:last-child{border-right:none}
+.seg button.on{background:var(--brand);color:#fff}
+.chip{border:1px solid var(--border-s);background:var(--card);border-radius:999px;padding:3px 10px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+.chip.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.chip.dim{color:var(--faint);border-style:dashed}
+.chip small{font-weight:600;opacity:.8}
+.sw{display:inline-flex;align-items:center;gap:5px}
+.dot{width:12px;height:12px;border-radius:50%;border:1px solid var(--border-s);display:inline-block}
+.sum{margin-top:10px;background:var(--tint);border:1px solid var(--border);border-radius:8px;padding:8px 10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.sum .t{flex:1;min-width:200px}.sum .t b{font-weight:800}.sum .t .note{display:block;font-size:11px;color:var(--muted);font-weight:600}
+.delta{font-weight:800;font-variant-numeric:tabular-nums}.delta.up{color:var(--up)}.delta.dn{color:var(--brand)}
+.use{background:var(--brand);color:#fff;border:none;border-radius:7px;padding:6px 14px;font:inherit;font-weight:800;cursor:pointer}
+.list .fam{font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:10px 0 3px;display:flex;justify-content:space-between}
+.list .it{display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:6px;cursor:pointer}
+.list .it:hover{background:var(--tint)}.list .it.cur{background:var(--tint);outline:1px solid var(--brand)}
+.list .it .nm{flex:1;font-weight:700;font-size:12.5px}.list .it .ln{font-size:10.5px;color:var(--faint);font-weight:600;width:120px}
+.list .it .p{width:74px;text-align:right;font-variant-numeric:tabular-nums;font-weight:800}
+.stk{font-size:9px;font-weight:800;color:var(--brand);background:#E6ECDD;border-radius:4px;padding:0 4px;margin-left:5px}
+.so{font-size:9px;font-weight:800;color:var(--rust);background:#F7E8E1;border-radius:4px;padding:0 4px;margin-left:5px}
+.inline{border:1.5px solid var(--brand);border-radius:8px;background:var(--card);padding:8px 10px;margin:4px 0 6px}
+.inline select{font:inherit;font-weight:700;font-size:12px;border:1px solid var(--border-s);border-radius:6px;padding:4px 6px;background:var(--card);max-width:100%}
+.inline .row .k{width:60px}
+.callout{font-size:11.5px;color:var(--muted);margin-top:10px;border-left:3px solid var(--border-s);padding-left:8px}
+.pick{margin-top:12px;font-size:12px;color:var(--muted)}
+@media (max-width:620px){.build{flex-basis:100%}.row .k{width:100%}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Drain swap — three layouts</h1>
+  <p class="lede">A 55″ × 55″ KERDI-SHOWER-LTS build. Today's drain is the default Vario 8′ square, brushed, cut to 55″ + flange kit ($506.60). Each option shows how you'd swap it. Prices are real (the EFT, retail = cost × 1.5); the Δ is against what's on the bill now. Option A is clickable.</p>
+
+  <!-- ======================= A ======================= -->
+  <div class="opt" id="A">
+    <h2><span class="letter">A</span>Stepped popover — family, then style, then finish</h2>
+    <p class="why">⇄ on the drain line opens one popover. Pick a family, then the grate style and frame, then the finish; the summary says exactly what lands and what it costs. Combos not made at this length step down or grey out, with the reason.</p>
+    <div class="stage">
+      <div class="build">
+        <div class="bg-h">Drain</div>
+        <div class="bline"><div class="bn"><div class="n" id="aLine1">KERDI-LINE-VARIO 8′ square, brushed</div><div class="m" id="aMeta1">KLVRID3EB244 · cut to 55″ — min cut 10″</div></div><button class="swapb on">⇄</button><div class="lp" id="aP1">$403.09</div></div>
+        <div class="bline"><div class="bn"><div class="n" id="aLine2">KERDI-LINE-VARIO flange kit 2″</div><div class="m" id="aMeta2">KLVR2FLK · incl. 4+2 corners, seals</div></div><div class="lp" id="aP2">$103.51</div></div>
+      </div>
+      <div class="pop">
+        <h3>Swap the drain — 55″ pan</h3>
+        <div class="row"><span class="k">Family</span>
+          <span class="seg" id="aFam"><button data-f="vario" class="on">Vario</button><button data-f="fixed">Fixed</button><button data-f="frameless">Frameless</button></span></div>
+        <div class="row" id="aStyleRow"><span class="k">Grate</span><span id="aStyles"></span></div>
+        <div class="row" id="aFrameRow"><span class="k">Frame</span><span id="aFrames"></span></div>
+        <div class="row" id="aFinRow"><span class="k">Finish</span><span id="aFins"></span></div>
+        <div class="sum"><div class="t" id="aSum"></div><div class="delta" id="aDelta"></div><button class="use" onclick="aUse()">Use this</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================= B ======================= -->
+  <div class="opt" id="B">
+    <h2><span class="letter">B</span>Grouped list — every valid drain, one click</h2>
+    <p class="why">The ⇄ popover is today's list, just longer: grouped by family, one row per style × finish at the length this pan takes, each with its price and Δ. One click lands it. Scannable, but long once every finish is listed.</p>
+    <div class="stage">
+      <div class="build">
+        <div class="bg-h">Drain</div>
+        <div class="bline"><div class="bn"><div class="n">KERDI-LINE-VARIO 8′ square, brushed</div><div class="m">KLVRID3EB244 · cut to 55″</div></div><button class="swapb on">⇄</button><div class="lp">$403.09</div></div>
+        <div class="bline"><div class="bn"><div class="n">KERDI-LINE-VARIO flange kit 2″</div><div class="m">KLVR2FLK</div></div><div class="lp">$103.51</div></div>
+      </div>
+      <div class="pop list">
+        <h3>Swap the drain — 55″ pan</h3>
+        <div class="fam"><span>Vario · cut to 55″ · + flange kit</span><span>drain total</span></div>
+        <div class="it cur"><span class="nm">Square · brushed</span><span class="ln">8′ cut to 55″</span><span class="stk">stock</span><span class="p">$506.60</span><span class="delta">±0</span></div>
+        <div class="it"><span class="nm">Floral · brushed</span><span class="ln">8′ cut to 55″</span><span class="so">SO</span><span class="p">$523.81</span><span class="delta up">+$17.21</span></div>
+        <div class="it"><span class="nm">Herringbone · brushed</span><span class="ln">8′ cut to 55″</span><span class="so">SO</span><span class="p">$523.81</span><span class="delta up">+$17.21</span></div>
+        <div class="it"><span class="nm">Square · matte black</span><span class="ln">8′ cut to 55″</span><span class="so">SO</span><span class="p">$642.84</span><span class="delta up">+$136.24</span></div>
+        <div class="fam"><span>Fixed KERDI-LINE · body + grate</span><span></span></div>
+        <div class="it"><span class="nm">Solid ¾″ · brushed</span><span class="ln">52″ · fill 3″</span><span class="so">SO</span><span class="p">$1,003.31</span><span class="delta up">+$496.71</span></div>
+        <div class="it"><span class="nm">Perforated ¾″ · matte black</span><span class="ln">52″ · fill 3″</span><span class="so">SO</span><span class="p">$1,081.49</span><span class="delta up">+$574.89</span></div>
+        <div class="it"><span class="nm">Floral 29/32″ · brushed</span><span class="ln">48″ · fill 7″ (floral tops out at 48″)</span><span class="so">SO</span><span class="p">$886.70</span><span class="delta up">+$380.10</span></div>
+        <div class="fam"><span>Frameless · tileable grate</span><span></span></div>
+        <div class="it"><span class="nm">Straight</span><span class="ln">52″ · fill 3″</span><span class="so">SO</span><span class="p">$751.37</span><span class="delta up">+$244.77</span></div>
+        <div class="it"><span class="nm">Offset</span><span class="ln">48″ · fill 7″</span><span class="so">SO</span><span class="p">$650.72</span><span class="delta up">+$144.12</span></div>
+        <div class="callout">…plus every other finish (graphite, polished, Trendline colours) — about 40 rows for a 55″ pan.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================= C ======================= -->
+  <div class="opt" id="C">
+    <h2><span class="letter">C</span>Inline — the Drain group opens in place</h2>
+    <p class="why">No popover: ⇄ expands the Drain group into three dropdowns right in the build column, and the lines under it update live. Keeps the drawing visible beside it; less room for explanations.</p>
+    <div class="stage">
+      <div class="build">
+        <div class="bg-h">Drain</div>
+        <div class="inline">
+          <div class="row"><span class="k">Family</span><select><option>Fixed KERDI-LINE</option><option>Vario (cut to pan)</option><option>Frameless</option></select></div>
+          <div class="row"><span class="k">Grate</span><select><option>Solid · ¾″ frame</option><option>Perforated · ¾″</option><option>Perforated w/ lock · ¾″</option><option>Solid · 1⅛″</option><option>Floral · 29/32″ (to 48″)</option><option>Tile · ½″ thin frame</option></select></div>
+          <div class="row"><span class="k">Finish</span><select><option>Brushed stainless (EB)</option><option>Matte black (MBW)</option><option>Graphite (MGS)</option><option>Trendline copper (TSC)</option></select></div>
+          <div class="m" style="font-size:11px;color:var(--muted);font-weight:600;margin-top:4px">52″ — the longest step that fits 55″ · fill 3″ · <span class="delta up">+$496.71</span> vs Vario</div>
+        </div>
+        <div class="bline"><div class="bn"><div class="n">KERDI-LINE channel body 52″</div><div class="m">KL1V60E130 · longest that fits 55″</div></div><div class="lp">$506.72</div></div>
+        <div class="bline"><div class="bn"><div class="n">KERDI-LINE grate 52″ solid, brushed</div><div class="m">KL1AR19EB130 · ¾″ frame</div></div><div class="lp">$496.59</div></div>
+      </div>
+    </div>
+  </div>
+
+  <p class="pick">Tell me in chat which one (or a mix — e.g. A's steps with B's price column).</p>
+</div>
+
+<script>
+// Option A's clickable model: real EFT retail (cost × 1.5) for a 55″ pan.
+const CUR = 506.60;
+const FIN = { EB: ["Brushed", "#b9bcbf"], MBW: ["Matte black", "#222"], MGS: ["Graphite", "#55595d"], TSC: ["Copper", "#b87333"] };
+const V = { square: { EB: 403.09, MBW: 539.33, MGS: 539.33, TSC: 539.33 }, floral: { EB: 420.30, MBW: 539.33, MGS: 539.33, TSC: 539.33 }, herringbone: { EB: 420.30 }, slant: { EB: 420.30 } };
+const FIXED = {
+  solid: { frames: { "¾″": { EB: 496.59, MBW: 574.77, MGS: 574.77, TSC: 615.69 }, "1⅛″": { EB: 496.59 } }, max: 72 },
+  perforated: { frames: { "¾″": { EB: 496.59, MBW: 574.77, MGS: 574.77, TSC: 615.69 }, "1⅛″": { EB: 496.59 } }, max: 72 },
+  lock: { frames: { "¾″": { EB: 535.50 } }, max: 72 },
+  floral: { frames: { "29/32″": { EB: 468.53 } }, max: 48 },
+  pure: { frames: { "29/32″": { EB: 474.59 } }, max: 48 },
+};
+const BODY = { 52: 506.72, 48: 418.17 }, FL = 103.51;
+const st = { fam: "vario", style: "square", frame: "¾″", fin: "EB" };
+const fm = (n) => "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const el = (id) => document.getElementById(id);
+const chip = (label, on, onclick, dim, title) => `<button class="chip${on ? " on" : ""}${dim ? " dim" : ""}" title="${title || ""}" onclick="${onclick}">${label}</button> `;
+function render() {
+  document.querySelectorAll("#aFam button").forEach((b) => b.classList.toggle("on", b.dataset.f === st.fam));
+  let styles = "", frames = "", fins = "", sum = "", total = 0, lines = [];
+  if (st.fam === "vario") {
+    if (!V[st.style]) st.style = "square";
+    styles = Object.keys(V).map((s) => chip(s[0].toUpperCase() + s.slice(1), s === st.style, `st.style='${s}';render()`)).join("");
+    if (!V[st.style][st.fin]) st.fin = "EB";
+    fins = Object.keys(FIN).map((f) => chip(`<span class="sw"><span class="dot" style="background:${FIN[f][1]}"></span>${FIN[f][0]}</span>`, f === st.fin, V[st.style][f] ? `st.fin='${f}';render()` : "", !V[st.style][f], V[st.style][f] ? "" : "not made in this design")).join("");
+    el("aFrameRow").style.display = "none";
+    const ch = V[st.style][st.fin];
+    total = ch + FL;
+    sum = `<b>Vario 8′ ${st.style}, ${FIN[st.fin][0].toLowerCase()}</b> cut to 55″ + flange kit<span class="note">shortest channel ≥ the 55″ pan · ${fm(ch)} + ${fm(FL)}</span>`;
+    lines = [[`KERDI-LINE-VARIO 8′ ${st.style}, ${FIN[st.fin][0].toLowerCase()}`, "cut to 55″ — min cut 10″", ch], ["KERDI-LINE-VARIO flange kit 2″", "incl. 4+2 corners, seals", FL]];
+  } else if (st.fam === "fixed") {
+    if (!FIXED[st.style]) st.style = "solid";
+    const S = FIXED[st.style];
+    if (!S.frames[st.frame]) st.frame = Object.keys(S.frames)[0];
+    if (!S.frames[st.frame][st.fin]) st.fin = "EB";
+    styles = Object.keys(FIXED).map((s) => chip(s[0].toUpperCase() + s.slice(1) + (FIXED[s].max < 52 ? " <small>to 48″</small>" : ""), s === st.style, `st.style='${s}';render()`)).join("");
+    frames = Object.keys(S.frames).map((f) => chip(f, f === st.frame, `st.frame='${f}';render()`)).join("");
+    el("aFrameRow").style.display = "";
+    fins = Object.keys(FIN).map((f) => chip(`<span class="sw"><span class="dot" style="background:${FIN[f][1]}"></span>${FIN[f][0]}</span>`, f === st.fin, S.frames[st.frame][f] ? `st.fin='${f}';render()` : "", !S.frames[st.frame][f], S.frames[st.frame][f] ? "" : "not made in this style/frame")).join("");
+    const len = S.max < 52 ? 48 : 52, g = S.frames[st.frame][st.fin];
+    total = BODY[len] + g;
+    sum = `<b>${len}″ body + ${len}″ ${st.style} grate</b>, ${st.frame} frame, ${FIN[st.fin][0].toLowerCase()}<span class="note">${len === 52 ? "longest 4″ step that fits the 55″ pan" : st.style + " is made up to 48″ — stepped down from 52″"} · fill ${55 - len}″ at the ends</span>`;
+    lines = [[`KERDI-LINE channel body ${len}″`, `KL1V60E${len === 52 ? 130 : 120} · longest that fits 55″`, BODY[len]], [`KERDI-LINE grate ${len}″ ${st.style}, ${FIN[st.fin][0].toLowerCase()}`, `${st.frame} frame`, g]];
+  } else {
+    styles = chip("Straight", st.style !== "offset", "st.style='straight';render()") + chip("Offset <small>to 48″</small>", st.style === "offset", "st.style='offset';render()");
+    el("aFrameRow").style.display = "none";
+    fins = `<span style="color:var(--faint);font-weight:600">tileable — takes the floor tile</span>`;
+    const off = st.style === "offset", len = off ? 48 : 52, body = off ? 447.81 : 506.72, g = off ? 202.91 : 244.65;
+    total = body + g;
+    sum = `<b>${len}″ ${off ? "offset " : ""}body + frameless tileable grate</b><span class="note">fill ${55 - len}″ at the ends${off ? " · offset bodies are made up to 48″" : ""}</span>`;
+    lines = [[`KERDI-LINE channel body ${len}″${off ? " offset" : ""}`, `KL1V${off ? "O" : ""}60E${len === 52 ? 130 : 120}`, body], [`KERDI-LINE frameless grate ${len}″${off ? " offset" : ""}`, "tileable", g]];
+  }
+  el("aStyles").innerHTML = styles; el("aFrames").innerHTML = frames; el("aFins").innerHTML = fins; el("aSum").innerHTML = sum;
+  const d = Math.round((total - CUR) * 100) / 100;
+  el("aDelta").className = "delta " + (d > 0 ? "up" : d < 0 ? "dn" : "");
+  el("aDelta").textContent = (d > 0 ? "+" : d < 0 ? "−" : "±") + (d ? fm(Math.abs(d)) : "0") + "  ·  " + fm(total);
+  window._lines = lines;
+}
+function aUse() {
+  const [l1, l2] = window._lines;
+  el("aLine1").textContent = l1[0]; el("aMeta1").textContent = l1[1]; el("aP1").textContent = fm(l1[2]);
+  el("aLine2").textContent = l2[0]; el("aMeta2").textContent = l2[1]; el("aP2").textContent = fm(l2[2]);
+}
+document.querySelectorAll("#aFam button").forEach((b) => b.addEventListener("click", () => {
+  st.fam = b.dataset.f; st.style = b.dataset.f === "vario" ? "square" : b.dataset.f === "fixed" ? "solid" : "straight"; st.fin = "EB"; render();
+}));
+render();
+</script>
+</body>
+</html>
