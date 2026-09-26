@@ -911,3 +911,49 @@ test("sessionFromRows: a sheet-edited quantity reopens as the override; a missin
   assert.deepEqual(sessionFromRows(bill, [{ schluter: { part: true }, sku: "", qty: "1" }], CAT), { qtyOv: {}, manual: [] });
   assert.deepEqual(sessionFromRows(bill, rows.map((r) => ({ ...r, qty: "" })), CAT), { qtyOv: {}, manual: [] });
 });
+
+// --- Fixed KERDI-LINE (ticket 158 P0-2): shapes from the 2025-10-01 EFT ---
+
+test("fixed KERDI-LINE parts classify into their own group, lengths off the cm code", () => {
+  const c = (sku) => classify({ sku, name: "" });
+  const pick = (o, ks) => Object.fromEntries(ks.map((k) => [k, o[k]]));
+  assert.deepEqual(pick(c("SLRKL1V60E100"), ["g", "part", "len", "offset"]), { g: "line", part: "body", len: 40, offset: false });
+  assert.deepEqual(pick(c("SLRKL1VO60E90"), ["g", "part", "len", "offset"]), { g: "line", part: "body", len: 36, offset: true });
+  assert.deepEqual(pick(c("SLRKL1V60E50"), ["len"]), { len: 20 });
+  assert.deepEqual(pick(c("SLRKL1V60E180"), ["len"]), { len: 72 });
+  assert.deepEqual(pick(c("SLRKL1AR19EB100"), ["g", "part", "len", "style", "frame", "finish"]),
+    { g: "line", part: "grate", len: 40, style: "solid", frame: '3/4"', finish: "EB" });
+  assert.deepEqual(pick(c("SLRKL1B30EB120"), ["style", "frame", "len"]), { style: "perforated", frame: '1-1/8"', len: 48 });
+  assert.deepEqual(pick(c("SLRKL1BL19EB60"), ["style", "lock"]), { style: "perforated", lock: true });
+  assert.deepEqual(pick(c("SLRKL1B19TSOB140"), ["finish", "len"]), { finish: "TSOB", len: 56 });
+  assert.deepEqual(pick(c("SLRKL1IFE23EB100"), ["style", "frame"]), { style: "floral", frame: '29/32"' });
+  assert.equal(c("SLRKL1IFF23EB100").style, "curve");
+  assert.equal(c("SLRKL1IFG23EB100").style, "pure");
+  assert.deepEqual(pick(c("SLRKLTFH12E100"), ["part", "style", "frame", "len"]), { part: "grate", style: "tile", frame: '1/2"', len: 40 });
+  assert.deepEqual(pick(c("SLRKL1DRE80"), ["part", "frameless", "offset", "len"]), { part: "grate", frameless: true, offset: false, len: 32 });
+  assert.deepEqual(pick(c("SLRKL1DROE100"), ["frameless", "offset"]), { frameless: true, offset: true });
+  assert.deepEqual(pick(c("SLRVKLEP35"), ["g", "part"]), { g: "line", part: "cover" });
+  assert.deepEqual(pick(c("V/KLTSBG35"), ["g", "part"]), { g: "line", part: "cover" });
+  assert.deepEqual(pick(c("SLRKLAM5K"), ["g", "part"]), { g: "line", part: "acc" });
+  assert.deepEqual(pick(c("SLRKLVZSF"), ["g", "part"]), { g: "line", part: "acc" });
+  assert.deepEqual(pick(c("SLRSPSA50EB120"), ["g", "part"]), { g: "line", part: "profile" });
+  assert.deepEqual(pick(c("SLRSPRA23EB100"), ["g", "part"]), { g: "line", part: "profile" });
+});
+
+test("Vario accessories are not channels", () => {
+  assert.deepEqual((({ g, part }) => ({ g, part }))(classify({ sku: "SLRKLVRGG2", name: "" })), { g: "line", part: "acc" });
+  assert.deepEqual((({ g, part }) => ({ g, part }))(classify({ sku: "SLRKLVSTR1", name: "" })), { g: "line", part: "acc" });
+  assert.equal(classify({ sku: "SLRKLVRID3EB122", name: "" }).part, "channel");
+});
+
+test("fixed KERDI-LINE rows in the catalog leave every bill untouched", () => {
+  const extra = ["SLRKL1V60E100", "SLRKL1V60E180", "SLRKL1AR19EB100", "SLRKL1DRE180", "SLRKLVRGG2", "SLRKLVSTR1"]
+    .map((sku) => ({ sku, name: sku, price: 1, cost: 1, stock: true }));
+  const withLine = catalogOf([...FIXTURE_ITEMS, ...extra]);
+  for (const c of [cfg({}), cfg({ w: 48, d: 48, drain: "linear" }), cfg({ w: 72, d: 48, drain: "linear" })]) {
+    for (const source of ["all", "stock"]) {
+      const skus = (b) => b.lines.map((l) => (l.item.sku || l.item.name) + "×" + l.qty);
+      assert.deepEqual(skus(buildKit(c, withLine, { source })), skus(buildKit(c, CAT, { source })));
+    }
+  }
+});

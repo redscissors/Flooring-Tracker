@@ -1235,7 +1235,10 @@ src/
                     # split; a KSLT linear tray's w is its CHANNEL edge —
                     # Schluter's first dimension — not the longer side, so
                     # the 38″- and 76″-drain twins land in different rooms,
-                    # ticket 158 P0-1) — no per-item lookup table, so a caller feeds it
+                    # ticket 158 P0-1; the fixed KERDI-LINE range — channel
+                    # bodies, grates, FC connectors, profiles, accessories —
+                    # classifies as its own g:"line" so no buildKit drain
+                    # pick can reach it, P0-2) — no per-item lookup table, so a caller feeds it
                     # LIVE registry-book rows (`catalogOf`) and a re-import
                     # reprices/re-ranges the configurator with no code change
                     # (ADR 0032, the deliberate divergence from wedi.js's own

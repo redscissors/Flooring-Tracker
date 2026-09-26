@@ -86,7 +86,7 @@ const WEDI_GROUPS = [
   ["S-Dry", ["sdry"]],
 ];
 const SCHLUTER_FAMILIES = [
-  ["Boards", "board"], ["Trays", "tray"], ["Drains", "drain"], ["Curbs", "curb"], ["Membrane", "membrane"],
+  ["Boards", "board"], ["Trays", "tray"], ["Drains", "drain"], ["KERDI-LINE", "line"], ["Curbs", "curb"], ["Membrane", "membrane"],
   ["Seams & corners", "seam"], ["Niches & benches", "extra"], ["Sets", "set"], ["Kits", "kit"],
 ];
 const V = { wedi: 0, schluter: 1, sheoga: 2, brand: 3, other: 4, materials: 5, freight: 6 };

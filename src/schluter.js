@@ -165,6 +165,34 @@ export function classify(item) {
     (item.vendorSkus && item.vendorSkus[0] ? classifyCode(item, item.vendorSkus[0]) : null);
 }
 
+// Fixed-length KERDI-LINE (ticket 158 P0-2) — channel bodies, their
+// grates, FC grate connectors, shower profiles and loose accessories. Its own
+// group, "line", so no g:"drain" pick in buildKit can reach it: the linear
+// recipe stays on Vario until the slot swap lands. Length codes are
+// centimetres (50…180 → 20″…72″ in 4″ steps, Schluter's own rounding).
+const LINE_FRAME = { 6: '1/4"', 12: '1/2"', 19: '3/4"', 22: '7/8"', 23: '29/32"', 30: '1-1/8"' };
+const LINE_STYLE = { AR: "solid", B: "perforated", BL: "perforated", IFE: "floral", IFF: "curve", IFG: "pure" };
+const cmIn = (cm) => Math.round(Number(cm) * 0.4);
+
+function kerdiLine(item, code) {
+  let m = /^KL1V(O?)60E(\d{2,3})$/.exec(code);
+  if (m) return { ...item, g: "line", part: "body", len: cmIn(m[2]), offset: !!m[1] };
+  m = /^KL1DR(O?)E(\d{2,3})$/.exec(code);
+  if (m) return { ...item, g: "line", part: "grate", len: cmIn(m[2]), offset: !!m[1], frameless: true, style: "tileable" };
+  m = /^KL1(AR|BL|B|IF[EFG])(19|23|30)([A-Z]+?)(\d{2,3})$/.exec(code);
+  if (m) {
+    const entry = { ...item, g: "line", part: "grate", len: cmIn(m[4]), style: LINE_STYLE[m[1]], frame: LINE_FRAME[m[2]], finish: m[3] };
+    if (m[1] === "BL") entry.lock = true;
+    return entry;
+  }
+  m = /^KLTFH(6|12|22)E(\d{2,3})$/.exec(code);
+  if (m) return { ...item, g: "line", part: "grate", len: cmIn(m[2]), style: "tile", frame: LINE_FRAME[m[1]] };
+  if (/^V\/?KL[A-Z]+35$/.test(code)) return { ...item, g: "line", part: "cover" };
+  if (/^SP[RS][AB]\d+[A-Z]+\d+$/.test(code)) return { ...item, g: "line", part: "profile" };
+  if (/^KLAM5K|^KLVZSF|^KLVRGG|^KLVSTR/.test(code)) return { ...item, g: "line", part: "acc" };
+  return null;
+}
+
 function classifyCode(item, rawSku) {
   const raw = rawSku || "";
   // Distributor rows carry an "SLR" reseller prefix the mfg code doesn't have.
@@ -192,6 +220,9 @@ function classifyCode(item, rawSku) {
     if (m && m[3]) entry.thin = true;
     return entry;
   }
+
+  const line = kerdiLine(item, code);
+  if (line) return line;
 
   // KERDI-LINE-VARIO linear-drain channel/flange.
   if (/^KLVR2FLK/.test(code)) {

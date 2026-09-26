@@ -52,6 +52,10 @@ const SECTIONS = [
     { key: "flanges", label: "Flanges", hit: (i) => i.g === "drain" && i.part === "flange" },
     { key: "grates", label: "Grates", hit: (i) => i.g === "drain" && i.part === "grate" },
     { key: "vario", label: "Line-Vario", hit: (i) => i.g === "drain" && i.drain === "linear" }] },
+  { key: "line", label: "KERDI-LINE", subs: [
+    { key: "bodies", label: "Channel bodies", hit: (i) => i.g === "line" && i.part === "body" },
+    { key: "lgrates", label: "Grates", hit: (i) => i.g === "line" && i.part === "grate" },
+    { key: "lparts", label: "Covers & parts", hit: (i) => i.g === "line" && i.part !== "body" && i.part !== "grate" }] },
   { key: "wp", label: "Waterproofing", subs: [
     { key: "membrane", label: "KERDI rolls", hit: (i) => i.g === "membrane" },
     { key: "band", label: "Band", hit: (i) => i.g === "seam" && i.lf },
