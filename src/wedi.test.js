@@ -1380,6 +1380,12 @@ test("wedi cover choice: a linear pick keeps its finish and follows the channel 
   assert.equal(k.cfg.coverKey, undefined);
 });
 
+test("wedi cover: a point pick carried onto a linear pan is ignored — the channel's own cover lands", () => {
+  const pt = group("cover").find((c) => c.sub === "point" && c.key !== SKU.coverSS);
+  const cov = kitFor("US9310001", { coverPick: { key: pt.key } }).lines.find((l) => l.item.group === "cover").item;
+  assert.deepEqual([cov.sub, cov.len], ["linear", 43]);
+});
+
 test("wedi cover: no pick writes no coverPick; the default cover still lands", () => {
   const k = kitFor("US9100004");
   assert.equal(k.cfg.coverPick, undefined);

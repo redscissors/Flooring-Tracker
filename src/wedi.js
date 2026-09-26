@@ -5225,11 +5225,10 @@ export function kitFor(panKey, opts) {
   // --- drain finish ----------------------------------------------------------
   const coverPick = opts.coverPick || legacyCoverPick(opts.coverKey);
   let cover = null;
-  if (coverPick && coverPick.key) cover = item(coverPick.key);
-  else if (fam === "linear") {
+  if (fam === "linear") {
     const ch = pan.channel || (option && option.drain && option.drain.len) || 0;
     cover = linearCoverFor(ch, (coverPick && coverPick.finish) || opts.coverFinish || "SS");
-  } else cover = item(SKU.coverSS);
+  } else cover = item((coverPick && coverPick.key) || SKU.coverSS);
   if (cover) push(lines, cover, 1, "drain", "", true);
   else hints.push("no-cover");
   const frame = cover && opts.coverFrame ? coverFrameFor(cover, opts.coverFrame === true ? null : opts.coverFrame) : null;

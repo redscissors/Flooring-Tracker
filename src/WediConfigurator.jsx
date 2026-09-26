@@ -22,8 +22,9 @@ import {
   tierPrice, lineItems, coverFrames, inch, round2, SKU, coverageOf, MODULE_DEPTH, MODEXT_DEPTH,
   FINISHES, GROUP_LABEL, BUILDER_MULT, SO_MIN_NET,
   normBench, benchPremades, benchPanRoom, benchPanPlan, smallerPanFor,
-  BENCH_CORNER_LBL, buildFromMarker, sessionFromRows, wediSlotOf,
+  BENCH_CORNER_LBL, buildFromMarker, sessionFromRows, wediSlotOf, coverStyles, legacyCoverPick,
 } from "./wedi.js";
+import { DrainSwapPop } from "./drainswap.jsx";
 import { TopDown, Iso, railSplit, RAIL_DESIGN_W, curbHeight } from "./showerdraw.jsx";
 import { normKitBasketEntry } from "./model.js";
 import { useWediCatalog } from "./usewedicatalog.js";
@@ -485,7 +486,7 @@ const DEF_WALLS = [
   { id: "left", label: "Left", on: true, len: "", h: "", faces: "in" },
   { id: "right", label: "Right", on: true, len: "", h: "", faces: "in" },
 ];
-const DEF_OPTS = { panelKey: undefined, curbKey: undefined, coverKey: undefined, coverFrame: undefined, sealantForm: "tube", recess: undefined };
+const DEF_OPTS = { panelKey: undefined, curbKey: undefined, coverPick: undefined, coverFrame: undefined, sealantForm: "tube", recess: undefined };
 const DEF_INP = { w: 48, d: 66, curb: "curbed", drain: "any", drainX: "", drainY: "", anchor: "left" };
 
 // The seed is either a search parse (seedFromQuery: { tab, input, search }) or a
@@ -511,7 +512,7 @@ function seedState(seed) {
     s.opts = {
       panelKey: cfg.panelKey || undefined,
       curbKey: cfg.curbKey === undefined ? undefined : cfg.curbKey,
-      coverKey: cfg.coverKey || undefined,
+      coverPick: cfg.coverPick || legacyCoverPick(cfg.coverKey),
       coverFrame: cfg.coverFrame || undefined,
       sealantForm: cfg.sealantForm === "sausage" ? "sausage" : "tube",
       recess: cfg.recess || undefined,
@@ -926,7 +927,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   const geomDirty = wallsTouched || extraWalls.length > 0 || Object.values(corners).some(Boolean) || wallFlip || +wallH !== 96;
   const kitDirty = !!panKey && (geomDirty || Object.keys(qtyOv).length > 0 || manual.length > 0 || addons.length > 0
     || benches.length > 0
-    || opts.panelKey !== undefined || opts.curbKey !== undefined || opts.coverKey !== undefined
+    || opts.panelKey !== undefined || opts.curbKey !== undefined || opts.coverPick !== undefined
     || opts.coverFrame !== undefined
     || opts.sealantForm !== "tube" || opts.recess !== undefined);
 
@@ -940,7 +941,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
         option: option || undefined,
         room: option ? option.room : { w: auto.back, d: auto.left },
         walls: buildWalls, wallHeight: +wallH || 80,
-        panelKey: opts.panelKey, curbKey: opts.curbKey, coverKey: opts.coverKey,
+        panelKey: opts.panelKey, curbKey: opts.curbKey, coverPick: opts.coverPick,
         coverFrame: opts.coverFrame, sealantForm: opts.sealantForm, recess: opts.recess,
         addons: addons.slice(), benches: benches.slice(), tier: tierId,
         corners: ["bl", "br", "fl", "fr"].filter((k) => corners[k]),
@@ -1008,7 +1009,12 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     if (delta < 0 && addons.includes(key) && !next.some((x) => x.key === key && x.qty > 0)) setAddons((a) => a.filter((k) => k !== key));
   };
 
-  const resetBuild = () => { setQtyOv({}); setAddons([]); setBenches([]); setBenchMenu(null); setManual([]); setOpts({ ...DEF_OPTS }); };
+  // A re-solved room keeps the cover choice: it names a finish, not a part,
+  // so it re-fits the new channel (ticket 158 Phase 1a).
+  const resetBuild = (keepCover) => {
+    setQtyOv({}); setAddons([]); setBenches([]); setBenchMenu(null); setManual([]);
+    setOpts((o) => ({ ...DEF_OPTS, coverPick: keepCover ? o.coverPick : undefined }));
+  };
   // Only a genuinely modified wall survives a room/option change (owner rule):
   // a typed length that just equals the OUTGOING geometry's auto length was
   // only tracking the kit, so it clears back to auto and follows the new one.
@@ -1108,10 +1114,10 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     retuneWalls();
     setResults(res);
     if (res.length) { setOption(res[0]); setPanKey(res[0].pan.key); } else { setOption(null); setPanKey(null); }
-    resetBuild();
+    resetBuild(true);
   };
   const setInput = (patch) => { const next = { ...inp, ...patch }; setInp(next); runSolve(next); };
-  const selectOption = (k) => { const o = results[k]; if (!o) return; retuneWalls(); setOption(o); setPanKey(o.pan.key); resetBuild(); };
+  const selectOption = (k) => { const o = results[k]; if (!o) return; retuneWalls(); setOption(o); setPanKey(o.pan.key); resetBuild(true); };
 
   // One-shot at mount: the room always arrives solved, so the Custom tab is
   // never a bare form claiming "no option fits" for a size it hasn't tried.
@@ -1328,11 +1334,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   const swapChoices = (line) => {
     const g = line.item.group;
     if (g === "panel") return { title: "Wall panel", list: bySource(group("panel").filter((p) => p.sf)), set: (k) => setOpts((o) => ({ ...o, panelKey: k || undefined })) };
-    if (g === "cover" && line.item.sub === "point") return { title: "Drain cover — 4×4 finish", list: bySource(group("cover").filter((c) => c.sub === "point")), set: (k) => setOpts((o) => ({ ...o, coverKey: k || undefined })) };
-    if (g === "cover" && line.item.sub === "linear") {
-      const nom = line.item.len;
-      return { title: "Linear cover — " + nom + '" channel', list: bySource(group("cover").filter((c) => c.sub === "linear" && c.len === nom)), set: (k) => setOpts((o) => ({ ...o, coverKey: k || undefined })) };
-    }
+    if (g === "cover") return { drain: true };
     if (g === "coverFrame") {
       return {
         title: "Cover frame — " + line.item.len + '" channel',
@@ -1973,7 +1975,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
                           );
                         })()}
                       </div>
-                      {can && <button className="swapb" title="swap" onClick={(ev) => setSwap({ key: e.key, rect: ev.currentTarget.getBoundingClientRect(), anchor: ev.currentTarget.closest(".bline") })}>⇄</button>}
+                      {can && <button className="swapb" title="swap" onClick={(ev) => setSwap({ key: e.key, rect: ev.currentTarget.getBoundingClientRect(), anchor: ev.currentTarget.closest(".bline"), ...(e.group === "cover" ? { draft: e.key } : {}) })}>⇄</button>}
                       <div className="stepper">
                         <button onClick={() => step(e.key, -1)}>−</button>
                         <span className={"q" + (l.ov ? " ov" : "")} title={l.ov ? "hand-set — auto is " + l.autoQty : undefined}>{l.qty}</span>
@@ -2100,6 +2102,50 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     </div>
   );
 
+  // The cover popover edits a DRAFT held on `swap` (a cover key), so Esc / an
+  // outside press discard it; only Use this commits the choice to opts.
+  const coverPanel = (line, r) => {
+    const committed = line.item;
+    const lin = committed.sub === "linear";
+    const draft = item(swap.draft) || committed;
+    const setDraft = (c) => setSwap((sw) => (sw ? { ...sw, draft: c.key } : sw));
+    const styleOf = (c) => (c.finish === "T" ? "tileable" : /P$/.test(c.finish) ? "perforated" : "solid");
+    const styles = lin ? coverStyles(committed.len) : null;
+    const pool = lin ? styles[styleOf(draft)] : group("cover").filter((c) => c.sub === "point");
+    const fins = bySource(pool);
+    if (!fins.some((c) => c.key === draft.key)) fins.unshift(draft);
+    const rows = [
+      ...(lin ? [{ label: "Style", chips: ["solid", "perforated", "tileable"].map((st) => ({
+        key: st, label: st[0].toUpperCase() + st.slice(1), ok: styles[st].length > 0, on: st === styleOf(draft),
+        title: styles[st].length ? "" : `not made at ${committed.len}″`,
+        onPick: () => { const l = bySource(styles[st]); setDraft(l.find((c) => c.stock) || l[0]); },
+      })) }] : []),
+      { label: "Finish", chips: fins.map((c) => ({
+        key: c.key, label: FINISHES[c.finish] || c.finish, ok: true, on: c.key === draft.key, onPick: () => setDraft(c),
+        title: [c.stock ? c.erp : "SO " + c.us, fm(tierOf(c))].filter(Boolean).join(" · "),
+      })) },
+    ];
+    const d = round2(tierOf(draft) - tierOf(committed));
+    // the recipe default (SS) stores as no choice, as legacyCoverPick reads it
+    const pick = lin ? (draft.finish && draft.finish !== "SS" ? { finish: draft.finish } : undefined)
+      : draft.key === SKU.coverSS ? undefined : { key: draft.key };
+    return (
+      <DrainSwapPop at={{ anchor: swap.anchor, x: r.right - 470, y: r.bottom + 6 }} className="wedi-swap wedi-grown"
+        title={lin ? `Linear cover — ${committed.len}″ channel` : "Drain cover — 4×4"} rows={rows}
+        summary={{
+          what: unwedi(draft.name) + (draft.stock ? "" : " · special order"),
+          why: lin ? "follows the channel length if the room changes" : "",
+          delta: (d > 0 ? "+" : d < 0 ? "−" : "±") + (d ? fm(Math.abs(d)) : "0"), total: fm(tierOf(draft)), up: d > 0,
+        }}
+        onUse={() => {
+          setOpts((o) => ({ ...o, coverPick: pick }));
+          setQtyOv((o) => { const n = { ...o }; delete n[committed.key]; delete n[draft.key]; return n; });
+          setSwap(null);
+        }}
+        onClose={() => setSwap(null)} />
+    );
+  };
+
   const swapPanel = (() => {
     if (!swap || !build) return null;
     const line = build.lines.find((l) => l.item.key === swap.key);
@@ -2107,6 +2153,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     const ch = swapChoices(line);
     if (!ch) return null;
     const r = swap.rect;
+    if (ch.drain) return coverPanel(line, r);
     const choose = (k) => {
       setQtyOv((o) => { const n = { ...o }; delete n[line.item.key]; return n; });
       ch.set(k);
