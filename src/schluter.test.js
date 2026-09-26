@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
-import { ovKey, rowItemEntry, sessionFromRows, classify, catalogOf, trayCandidates, pickRolls, pickFrom, buildKit, buildFromMarker, linesTotal, tierPrice, lineItems, orderCopyLines, entryOpening, openRuns, boardPlan, boardSheets, expandBoardFaces, normBench, benchTrayRoom } from "./schluter.js";
+import { ovKey, rowItemEntry, sessionFromRows, classify, catalogOf, coverageOf, trayCandidates, pickRolls, pickFrom, buildKit, buildFromMarker, linesTotal, tierPrice, lineItems, orderCopyLines, entryOpening, openRuns, boardPlan, boardSheets, expandBoardFaces, normBench, benchTrayRoom } from "./schluter.js";
 
 const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -956,4 +956,21 @@ test("fixed KERDI-LINE rows in the catalog leave every bill untouched", () => {
       assert.deepEqual(skus(buildKit(c, withLine, { source })), skus(buildKit(c, CAT, { source })));
     }
   }
+});
+
+// --- Coverage (ticket 158 P0-3) ---
+
+test("coverageOf: KERDI rolls in sf, bands in lf, boards in sf, everything else none", () => {
+  assert.deepEqual(coverageOf(by("KERDI200/10M")), { n: 108, unit: "sf" });
+  assert.deepEqual(coverageOf(classify({ sku: "KEBA100/125", name: "" })), { n: 98, unit: "lf" });
+  const board = classify({ sku: "KB1212202440", name: "", size: '1/2"x48"x96"' });
+  assert.equal(coverageOf(board).unit, "sf");
+  assert.equal(coverageOf(board).n, 32);
+  assert.equal(coverageOf(by("KST965/1525")), null);
+  assert.equal(coverageOf(classify({ sku: "KERECK/FI", name: "" })), null);
+});
+
+test('membrane coverage reads the "(54 SF)" spelling too', () => {
+  assert.equal(classify({ sku: "KERDI200/5M", name: "KERDI membrane roll 3 FT 3 X 16 FT 5 (54 SF)" }).sf, 54);
+  assert.equal(classify({ sku: "KERDI200/7M", name: "KERDI 3 FT 3 X 23 FT (75 SF)" }).sf, 75);
 });

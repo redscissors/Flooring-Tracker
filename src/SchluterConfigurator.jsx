@@ -15,7 +15,7 @@ import { useEscClose, SourceSwitch, NumIn, KitBasketPanel, KitOverwriteConfirm, 
 import { PaneBack, PaneClose } from "./raildrawer.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
-  trayCandidates, pickRolls, buildKit, tierPrice, lineItems, orderCopyLines, normBench, benchTrayRoom,
+  trayCandidates, pickRolls, buildKit, tierPrice, coverageOf, lineItems, orderCopyLines, normBench, benchTrayRoom,
   boardPlan, expandBoardFaces, wallArea, halfBoardPool, buildFromMarker, ovKey, sessionFromRows,
 } from "./schluter.js";
 import { mortarItemFrom, MORTAR_BED_SF_PER_BAG } from "./schluteradapter.js";
@@ -199,14 +199,16 @@ const CSS = `
 .sch-pop .figcard b{color:var(--ft-text);font-variant-numeric:tabular-nums}
 .sch-pop .figcard .inp{width:64px;padding:3px 6px;font-size:12px}
 .sch-pop .figfoot{font-size:10px;color:var(--ft-faint);margin-top:5px;line-height:1.4}
-.sch-pop .brow{display:flex;flex-direction:column;gap:1px;padding:5px 8px 6px;border-top:1px solid var(--ft-row-line)}
+.sch-pop .brow{display:flex;flex-direction:column;gap:0;padding:3px 8px 3px;border-top:1px solid var(--ft-row-line)}
 .sch-pop .brow:last-child{border-bottom:1px solid var(--ft-row-line)}
 .sch-pop .brow.stk{background:var(--s-stock)}
 .sch-pop .sdot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--ft-brand)}
 .sch-pop .sdot.so{background:transparent;border:1.4px solid var(--ft-faint)}
 .sch-pop .brow .bn{display:flex;align-items:center;gap:8px;min-width:0}
-.sch-pop .brow .bn .n{font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sch-pop .brow .bmeta{display:flex;align-items:center;gap:8px;padding-left:15px}
+.sch-pop .brow .bn .n{flex:1;min-width:0;font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sch-pop .brow .stepper button{height:20px}
+.sch-pop .brow .bmeta .imp{color:var(--s-rust);font-weight:800}
+.sch-pop .brow .bmeta{display:flex;align-items:center;gap:8px;padding-left:15px;margin-top:-1px}
 .sch-pop .brow .bmeta .s{flex:1;min-width:0;font-size:10.5px;color:var(--ft-faint);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sch-pop .brow .sku{flex:none;font-size:10.5px;color:var(--ft-muted);font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
 .sch-pop .brow .pr{flex:none;width:74px;text-align:right;font-size:12.5px;font-weight:800;font-variant-numeric:tabular-nums}
@@ -565,6 +567,13 @@ export default function SchluterConfigurator({
       case "custom": return round2(retail * (1 - clampPct(customPct) / 100));
       default: return retail;
     }
+  };
+  // "108 sf · $1.92/sf" — the roll/board/band's coverage beside its unit
+  // price at the current tier (ticket 158 P0-3); withN false drops the count
+  const perUnit = (e, withN = true) => {
+    const c = coverageOf(e), p = tierOf(e);
+    if (!c || !(p > 0)) return "";
+    return (withN ? c.n + " " + c.unit + " · " : "") + fm(p / c.n) + "/" + c.unit;
   };
 
   useEscClose(escActive, () => {
@@ -1460,11 +1469,7 @@ export default function SchluterConfigurator({
           <div className={"brow" + (i.stock ? " stk" : "")} key={i.sku}>
             <div className="bn">
               <span className={"sdot" + (i.stock ? "" : " so")} />
-              <span className="n">{i.size && !/cut to length/.test(i.size) ? i.size + " · " : ""}{i.name}</span>
-            </div>
-            <div className="bmeta">
-              <div className="s">{i.g}{i.stock ? " · on the shelf" : " · special order" + (i.lead ? " · " + i.lead : "")}</div>
-              <div className="sku">{i.sku}</div>
+              <span className="n" title={i.name}>{i.size && !/cut to length/.test(i.size) ? i.size + " · " : ""}{shown(i.name)}</span>
               <button className={"starb" + (starred.has(i.sku) ? " on" : "")} data-schluter-star={i.sku}
                 title={starred.has(i.sku) ? "unpin from Starred" : "pin to Starred"}
                 onClick={() => toggleStar(i.sku)}>{starred.has(i.sku) ? "★" : "☆"}</button>
@@ -1474,6 +1479,11 @@ export default function SchluterConfigurator({
                 <span className={"q" + (n ? "" : " zero")}>{n}</span>
                 <button onClick={() => setQty(i.sku, n + 1)}>+</button>
               </div>
+            </div>
+            <div className="bmeta">
+              <div className="s">{[perUnit(i), i.g, i.stock ? "on the shelf" : "special order"].filter(Boolean).join(" · ")}
+                {/import/i.test(i.lead || "") && <span className="imp"> · IMPORT</span>}</div>
+              <div className="sku">{i.sku}</div>
             </div>
           </div>
         );
@@ -1528,7 +1538,7 @@ export default function SchluterConfigurator({
                 {gl.map((l, li) => {
                   const e = l.item;
                   const price = tierOf(e);
-                  const meta = [e.sku, e.size, l.note].filter(Boolean);
+                  const meta = [e.sku, e.size, l.note, l.noteOnly ? "" : perUnit(e, false)].filter(Boolean);
                   return (
                     <div className={"bline" + (l.noteOnly ? " note" : "")} key={g + (e.sku || e.name) + li}>
                       <div className="bn">

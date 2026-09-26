@@ -815,6 +815,8 @@ src/
                     # 18" to the top, never framed),
                     # one flat bag of PRO-SET (SKU.proSet) on every pan
                     # kit, owner 2026-09-26 (ticket 158 P0-5),
+                    # `coverageOf` (sf for rolls/membranes/panels — S-DRY's
+                    # read off its name — lf for tapes; ticket 158 P0-3),
                     # `figureConsumables` (1 screw+washer and
                     # 1.2 oz sealant per ft² of panel), `coverFrames`/
                     # `coverFrameFor` (issue 072: the channel frame a LINEAR
@@ -1240,7 +1242,10 @@ src/
                     # ticket 158 P0-1; the fixed KERDI-LINE range — channel
                     # bodies, grates, FC connectors, profiles, accessories —
                     # classifies as its own g:"line" so no buildKit drain
-                    # pick can reach it, P0-2) — no per-item lookup table, so a caller feeds it
+                    # pick can reach it, P0-2; `coverageOf` — sf per roll/
+                    # board, lf per band — feeds both popups' "108 sf ·
+                    # $1.92/sf" Browse line and the build lines' $/unit,
+                    # P0-3) — no per-item lookup table, so a caller feeds it
                     # LIVE registry-book rows (`catalogOf`) and a re-import
                     # reprices/re-ranges the configurator with no code change
                     # (ADR 0032, the deliberate divergence from wedi.js's own

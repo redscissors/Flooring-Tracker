@@ -5053,6 +5053,20 @@ export function coverFrameFor(cover, finish) {
   return match[0] || null;
 }
 
+/**
+ * What one unit covers — { n, unit: "sf" | "lf" } for rolls, membranes and
+ * panels (sf) and tapes (lf), null otherwise (ticket 158 P0-3). S-DRY
+ * membranes carry no sf field; their sheet names state it ("104sf").
+ */
+export function coverageOf(e) {
+  if (!e) return null;
+  if (e.sf > 0) return { n: e.sf, unit: "sf" };
+  const named = /(\d+(?:\.\d+)?)\s*sf\b/i.exec(e.name || "");
+  if (named) return { n: +named[1], unit: "sf" };
+  if (/tape/i.test(e.name || "") && e.w > 0 && e.d > 0) return { n: round2(Math.round((e.d / 12) * 10) / 10), unit: "lf" };
+  return null;
+}
+
 function push(lines, key, qty, grp, note, auto) {
   const it = typeof key === "string" ? item(key) : key;
   if (!it || !(qty > 0)) return;

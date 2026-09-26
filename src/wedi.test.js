@@ -4,7 +4,7 @@ import { rowItemKey, sessionFromRows,
   catalog, item, group, pans, curbs, kitFor, buildFromMarker, solve, figureConsumables, panelPlan,
   openEdges, openCorners, curbRuns, wallSpans, expandWallFaces, WALL_THICK, panThick, BROWSE_SECTIONS, sectionHit,
   tierPrice, lineItems, factoryKit, linearCoverFor, coverFrames, coverFrameFor, dims, round2, inch,
-  TIERS, SKU, BUILDER_MULT, SO_MIN_NET, CONSUMABLES, FINISHES, GROUP_LABEL, MODULE_CHANNEL,
+  TIERS, SKU, BUILDER_MULT, coverageOf, SO_MIN_NET, CONSUMABLES, FINISHES, GROUP_LABEL, MODULE_CHANNEL,
   queryHit, parseQuery, querySummary, seedFromQuery,
   normBench, benchFootprint, benchLines, benchPanRoom, benchPanPlan, smallerPanFor, benchPremades,
   BENCH_H, BENCH_DEPTH, BENCH_CORNER_LEG,
@@ -1339,4 +1339,16 @@ test("every pan kit bills one bag of PRO-SET to set the pan (ticket 158 P0-5)", 
     assert.equal(ps[0].qty, 1, pan);
     assert.equal(ps[0].group, "install", pan);
   }
+});
+
+test("coverageOf: rolls and panels in sf, tapes in lf (ticket 158 P0-3)", () => {
+  assert.deepEqual(coverageOf(item("US5000005")), { n: 323, unit: "sf" });
+  assert.deepEqual(coverageOf(item("US8000015")), { n: 32, unit: "sf" });
+  assert.deepEqual(coverageOf(item("US5076009")), { n: 104, unit: "sf" });
+  assert.deepEqual(coverageOf(item("US5076008")), { n: 106, unit: "sf" });
+  assert.deepEqual(coverageOf(item("US5076007")), { n: 32, unit: "lf" });
+  assert.deepEqual(coverageOf(item("US5000002")), { n: 32.8, unit: "lf" });
+  assert.equal(coverageOf(item("US5000084")), null);
+  assert.equal(coverageOf(item("US9100004")), null);
+  assert.equal(coverageOf(item("US5000013")), null);
 });

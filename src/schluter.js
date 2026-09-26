@@ -95,7 +95,7 @@ function curbLen(code) {
 // table by /<n>M suffix (or the plain/unsuffixed full roll) when it's absent.
 function membraneSf(item, code) {
   const text = item.size || item.name || item.description || "";
-  const explicit = /=\s*([\d.]+)\s*sf/i.exec(text);
+  const explicit = /=\s*([\d.]+)\s*sf/i.exec(text) || /\(\s*([\d.]+)\s*sf\s*\)/i.exec(text);
   if (explicit) return parseFloat(explicit[1]);
   const suffix = /\/(\d+)M/.exec(code);
   if (suffix && ROLL_SF[suffix[1]] !== undefined) return ROLL_SF[suffix[1]];
@@ -121,7 +121,7 @@ function boardDims(item) {
   // the sheet's sides ride along as bw (short) × bl (long) wherever a real
   // pair shows — the course planner (round 7) needs dimensions, not just area
   const pair = (a, b2) => { out.bw = Math.min(a, b2); out.bl = Math.max(a, b2); };
-  const explicit = /=\s*([\d.]+)\s*sf/i.exec(text);
+  const explicit = /=\s*([\d.]+)\s*sf/i.exec(text) || /\(\s*([\d.]+)\s*sf\s*\)/i.exec(text);
   if (explicit) out.sf = parseFloat(explicit[1]);
   const nums = [...text.matchAll(/([\d.]+)\s*"/g)].map((m) => parseFloat(m[1]));
   if (nums.length === 3) {
@@ -146,6 +146,19 @@ function boardDims(item) {
     }
   }
   return out;
+}
+
+/**
+ * What one unit of a classified item covers — { n, unit: "sf" | "lf" } for
+ * membrane rolls, seam bands and boards, null for everything else. The
+ * popups print it beside the unit price (ticket 158 P0-3).
+ */
+export function coverageOf(i) {
+  if (!i) return null;
+  if (i.g === "membrane" && i.sf > 0) return { n: i.sf, unit: "sf" };
+  if (i.g === "seam" && i.lf > 0) return { n: i.lf, unit: "lf" };
+  if (i.g === "board" && i.sf > 0) return { n: round2(i.sf), unit: "sf" };
+  return null;
 }
 
 /**
