@@ -3,14 +3,16 @@ import assert from "node:assert/strict";
 import { rowItemKey, sessionFromRows,
   catalog, item, group, pans, curbs, kitFor, buildFromMarker, solve, figureConsumables, panelPlan,
   openEdges, openCorners, curbRuns, wallSpans, expandWallFaces, WALL_THICK, panThick, BROWSE_SECTIONS, sectionHit,
-  tierPrice, lineItems, factoryKit, linearCoverFor, coverFrames, coverFrameFor, dims, round2, inch,
+  tierPrice, lineItems, factoryKit, linearCoverFor, legacyCoverPick, coverStyles, coverFrames, coverFrameFor, dims, round2, inch,
   TIERS, SKU, BUILDER_MULT, coverageOf, SO_MIN_NET, CONSUMABLES, FINISHES, GROUP_LABEL, MODULE_CHANNEL,
   queryHit, parseQuery, querySummary, seedFromQuery,
   normBench, benchFootprint, benchLines, benchPanRoom, benchPanPlan, smallerPanFor, benchPremades,
   BENCH_H, BENCH_DEPTH, BENCH_CORNER_LEG,
   curbWidth, curbInsets, applyCurbInset,
   setStockSource, clearStockSource, stockSourceIsBook,
+  wediSlotOf,
 } from "./wedi.js";
+import { isSlot } from "./slots.js";
 
 // Ported whole from the prototype's self-test
 // (.scratch/066_wedi-configurator/proto-engine.js) — 135 assertions, section
@@ -359,9 +361,12 @@ test("wedi cover frames: the linear drain's matching trim ring, opt-in", () => {
   assert.ok(fl && fl.group === "drain" && fl.qty === 1, "coverFrame:true lands the matching frame beside the cover");
   assert.equal(framed.cfg.coverFrame, "SS", "the cfg round-trips the finish, not the part");
   assert.equal(lineFor(kitFor("US9310001", { coverFrame: "MB" }), "US1000089").qty, 1, "an explicit finish lands its own frame");
-  // The frame follows a cover swap: same build, a matte-black 27" cover.
-  assert.equal(lineFor(kitFor("US9310001", { coverKey: "US1000082", coverFrame: true }), "US1000088").qty, 1,
-    "swapping to the MB27 cover re-metals AND re-sizes the frame");
+  // An old-style coverKey (a specific SKU) now re-reads as a finish (ticket
+  // 158, legacyCoverPick) and follows the pan's OWN channel — the 27" pick
+  // re-metals to matte black but lands the 43" MB cover/frame, not its own
+  // 27" size, since the pan's channel is 43" and the choice re-fits to it.
+  assert.equal(lineFor(kitFor("US9310001", { coverKey: "US1000082", coverFrame: true }), "US1000089").qty, 1,
+    "an old MB27 coverKey re-metals AND re-fits to the pan's 43\" channel");
 });
 
 // --- open edges, corners and the curb run -------------------------------------
@@ -1351,4 +1356,62 @@ test("coverageOf: rolls and panels in sf, tapes in lf (ticket 158 P0-3)", () => 
   assert.equal(coverageOf(item("US5000084")), null);
   assert.equal(coverageOf(item("US9100004")), null);
   assert.equal(coverageOf(item("US5000013")), null);
+});
+
+// --- shared slot vocabulary (ticket 158 Phase 1a) --------------------------
+
+test("every kitFor line carries a slot from the shared vocabulary", () => {
+  for (const pan of ["US9100004", "US9200003", "US9310001", "US9320002"]) {
+    for (const l of kitFor(pan).lines) assert.ok(isSlot(l.slot), `${pan} ${l.item.key} → ${l.slot}`);
+  }
+  const k = kitFor("US9100004");
+  assert.equal(k.lines.find((l) => l.item.group === "cover").slot, "grate");
+  assert.equal(k.lines.find((l) => l.item.key === SKU.proSet).slot, "setting");
+  assert.equal(wediSlotOf({ item: { group: "pan" }, group: "floor" }), "tray");
+});
+
+// --- cover choice + old-marker translation (ticket 158 Phase 1a) -----------
+
+test("wedi cover choice: a linear pick keeps its finish and follows the channel length", () => {
+  const k = kitFor("US9310001", { coverPick: { finish: "MB" } });
+  const cov = k.lines.find((l) => l.item.group === "cover").item;
+  assert.deepEqual([cov.finish, cov.len], ["MB", 43]);
+  assert.equal(k.cfg.coverPick.finish, "MB");
+  assert.equal(k.cfg.coverKey, undefined);
+});
+
+test("wedi cover: a point pick carried onto a linear pan is ignored — the channel's own cover lands", () => {
+  const pt = group("cover").find((c) => c.sub === "point" && c.key !== SKU.coverSS);
+  const cov = kitFor("US9310001", { coverPick: { key: pt.key } }).lines.find((l) => l.item.group === "cover").item;
+  assert.deepEqual([cov.sub, cov.len], ["linear", 43]);
+});
+
+test("wedi cover: no pick writes no coverPick; the default cover still lands", () => {
+  const k = kitFor("US9100004");
+  assert.equal(k.cfg.coverPick, undefined);
+  assert.ok(k.lines.some((l) => l.item.group === "cover"));
+});
+
+test("legacyCoverPick: an old default cover reads as no pick; a real pick keeps its finish or key", () => {
+  assert.equal(legacyCoverPick(SKU.coverSS), undefined);
+  const lin = group("cover").find((c) => c.sub === "linear" && c.finish === "MB");
+  assert.deepEqual(legacyCoverPick(lin.key), { finish: "MB" });
+  const linSS = group("cover").find((c) => c.sub === "linear" && c.finish === "SS");
+  assert.equal(legacyCoverPick(linSS.key), undefined);
+  const pt = group("cover").find((c) => c.sub === "point" && c.key !== SKU.coverSS);
+  assert.deepEqual(legacyCoverPick(pt.key), { key: pt.key });
+});
+
+test("an old marker's coverKey reopens through buildFromMarker as the same cover", () => {
+  const lin = group("cover").find((c) => c.sub === "linear" && c.finish === "MB" && c.len === 43);
+  const k = kitFor("US9310001", { coverKey: lin.key });
+  const back = buildFromMarker({ mode: "kit", cfg: { ...k.cfg, coverKey: lin.key, coverPick: undefined } });
+  assert.equal(back.lines.find((l) => l.item.group === "cover").item.finish, "MB");
+});
+
+test("coverStyles groups a length's linear covers by style", () => {
+  const s = coverStyles(43);
+  assert.ok(s.solid.some((c) => c.finish === "SS"));
+  assert.ok(s.perforated.some((c) => c.finish === "SSP"));
+  assert.ok(s.tileable.some((c) => c.finish === "T"));
 });

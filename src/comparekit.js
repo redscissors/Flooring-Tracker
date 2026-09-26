@@ -109,6 +109,7 @@ export function wediCompareRows(build, { builderPct } = {}) {
     const e = l.item;
     return {
       cat: e.key === SKU.proSet ? "Setting" : WEDI_CAT[e.group] || "Extras",
+      slot: l.slot || null,
       name: e.name,
       sub: sub(e.us, l.note),
       qty: l.qty,
@@ -132,6 +133,7 @@ export function schluterCompareRows(build, { builderPct } = {}) {
     const e = l.item;
     return {
       cat: COMPARE_CATS.includes(l.g) ? l.g : "Extras",
+      slot: l.slot || null,
       name: e.name,
       sub: sub(e.sku, l.note),
       qty: l.qty,

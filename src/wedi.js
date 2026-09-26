@@ -5025,6 +5025,24 @@ export function linearCoverFor(channel, finish) {
   return hits[0] || null;
 }
 
+/** An old marker's resolved coverKey → the choice it stands for; the recipe's own default reads as no choice. */
+export function legacyCoverPick(key) {
+  const it = key ? item(key) : null;
+  if (!it || key === SKU.coverSS) return undefined;
+  if (it.sub === "linear") return it.finish && it.finish !== "SS" ? { finish: it.finish } : undefined;
+  return { key };
+}
+
+/** A channel length's linear covers by style — wedi's finish codes carry it (P = perforated, T = tileable). */
+export function coverStyles(len) {
+  const out = { solid: [], perforated: [], tileable: [] };
+  for (const c of group("cover")) {
+    if (c.sub !== "linear" || c.len !== len) continue;
+    (c.finish === "T" ? out.tileable : /P$/.test(c.finish) ? out.perforated : out.solid).push(c);
+  }
+  return out;
+}
+
 // wedi's channel frame is a trim ring the linear cover drops into — a design
 // pick, never part of the house kit, so it rides in as an add-on. wedi lists
 // no perforated frame: a perforated cover wears the plain frame of its own
@@ -5071,6 +5089,21 @@ function push(lines, key, qty, grp, note, auto) {
   const it = typeof key === "string" ? item(key) : key;
   if (!it || !(qty > 0)) return;
   lines.push({ item: it, qty: qty, group: grp, auto: auto !== false, note: note || "" });
+}
+
+const WEDI_SLOT = {
+  pan: "tray", module: "tray", modExt: "tray", extension: "tray", cornerExt: "tray", kit: "tray", recess: "tray",
+  curb: "curb", ramp: "curb", panel: "wallBoard", cover: "grate", coverFrame: "grate", drainKit: "drainBody",
+  collar: "corners", sealant: "seam", fastener: "seam", subliner: "seam", sdry: "seam", tool: "setting",
+  niche: "niche", shelf: "niche", seat: "bench", bench: "bench",
+};
+
+/** The shared slot (slots.js) a kitFor line fills. */
+export function wediSlotOf(line) {
+  const it = (line && line.item) || {};
+  if (it.key === SKU.proSet) return "setting";
+  if (line.group === "bench" && it.group === "panel") return "bench";
+  return WEDI_SLOT[it.group] || "extra";
 }
 
 export const panRoomDims = (pan) => (pan.group === "module"
@@ -5190,13 +5223,12 @@ export function kitFor(panKey, opts) {
   }
 
   // --- drain finish ----------------------------------------------------------
-  const coverKey = opts.coverKey;
+  const coverPick = opts.coverPick || legacyCoverPick(opts.coverKey);
   let cover = null;
-  if (coverKey) cover = item(coverKey);
-  else if (fam === "linear") {
+  if (fam === "linear") {
     const ch = pan.channel || (option && option.drain && option.drain.len) || 0;
-    cover = linearCoverFor(ch, opts.coverFinish || "SS");
-  } else cover = item(SKU.coverSS);
+    cover = linearCoverFor(ch, (coverPick && coverPick.finish) || opts.coverFinish || "SS");
+  } else cover = item((coverPick && coverPick.key) || SKU.coverSS);
   if (cover) push(lines, cover, 1, "drain", "", true);
   else hints.push("no-cover");
   const frame = cover && opts.coverFrame ? coverFrameFor(cover, opts.coverFrame === true ? null : opts.coverFrame) : null;
@@ -5252,9 +5284,11 @@ export function kitFor(panKey, opts) {
     if (w.faces && w.faces !== "in") o.faces = w.faces;
     return o;
   });
+  lines.forEach((l) => { l.slot = wediSlotOf(l); });
   const cfg = {
     panKey: pan.key, walls: cfgWalls, panelKey: panel ? panel.key : null,
-    curbKey: curbKey || null, coverKey: cover ? cover.key : null,
+    curbKey: curbKey || null,
+    ...(coverPick ? { coverPick } : {}),
     coverFrame: frame ? frame.finish : null,
     sealantForm: form, recess: recess,
     addons: (opts.addons || []).map((a) => (typeof a === "string" ? a : a.key)),
@@ -5297,7 +5331,8 @@ export function buildFromMarker(marker) {
     walls: cfg.walls && cfg.walls.length ? cfg.walls.map((w) => ({ ...w })) : undefined,
     wallHeight: cfg.walls && cfg.walls[0] ? +cfg.walls[0].h : undefined,
     panelKey: cfg.panelKey || undefined,
-    curbKey: cfg.curbKey, coverKey: cfg.coverKey || undefined,
+    curbKey: cfg.curbKey,
+    coverPick: cfg.coverPick || legacyCoverPick(cfg.coverKey),
     coverFrame: cfg.coverFrame || undefined,
     sealantForm: cfg.sealantForm, recess: cfg.recess,
     addons: (cfg.addons || []).slice(), benches: (cfg.benches || []).map((b) => ({ ...b })),

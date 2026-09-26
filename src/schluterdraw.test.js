@@ -264,6 +264,14 @@ test("schluterWalls passes per-wall faces through to the drawings", () => {
 
 // --- round 7: the Fit plan's courses reach the drawings ---------------------
 
+test("a fixed KERDI-LINE channel draws at its real length, centred", () => {
+  const c = cfg({ w: 55, d: 55, drain: "linear" });
+  const o = schluterDiag(c, candFor(c), [], { family: "fixed", len: 52, gap: 3 });
+  assert.equal(o.drain.len, 52);
+  assert.equal(o.drain.x, 27.5);
+  assert.equal(schluterDiag(c, candFor(c), []).drain.len, 55);
+});
+
 test("schluterWalls takes the plan's per-wall courses; without a plan the 48\" ticks stand in", () => {
   const c = cfg({ wallSys: "board" });
   const plan = boardPlan(expandBoardFaces(c), CAT, { source: "all" });
