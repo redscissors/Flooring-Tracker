@@ -77,13 +77,16 @@ answer (listed under the row) · **DONE** — landed, round noted.
 ## Phase 1 — shared slot model (design spec first)
 
 **Status 2026-09-26:** split into 1a drain slot → 1b ⇄ on every line → 1c "+"
-per group → 1d shared names / Compare alignment (owner). **1a is designed and
-planned, not built:**
+per group → 1d shared names / Compare alignment (owner). **1a DONE
+(2026-09-26):**
 
 - **Spec:** `docs/superpowers/specs/2026-09-26-drain-slot-design.md`
 - **Plan:** `docs/superpowers/plans/2026-09-26-drain-slot.md`
 - **Mockup:** `.scratch/mockups/drain-swap-2026-09-26.html` (layout A)
 - **Handoff:** `.scratch/handoffs/shower-config-phase1a-2026-09-26.md`
+- **ADR:** `docs/adr/0049-configurator-swaps-remember-the-choice.md`
+- **Proof:** `.scratch/158_shower-config-roadmap/p1a/`
+- **PR:** pending
 
 The Vario pan-width rule shipped early in PR #436.
 

@@ -829,8 +829,21 @@ src/
                     # kit, so `opts.coverFrame` stores a FINISH and the length
                     # follows the cover; a perforated cover wears the plain
                     # frame of its metal, a tileable one can take any of the
-                    # four so the chip opens a picker), `tierPrice`, `factoryKit`,
-                    # and `lineItems` (build -> product rows; the pan anchors and
+                    # four so the chip opens a picker). Ticket 158 Phase 1a (ADR
+                    # 0049): `kitFor` resolves a cover through `opts.coverPick`
+                    # first, then the legacy `opts.coverKey`, then the recipe
+                    # default — a linear `coverPick` is `{ finish }` (wedi's own
+                    # finish codes already carry the style, so `linearCoverFor`
+                    # takes no style argument) resolved at the CURRENT channel
+                    # length, a point one `{ key }`. `legacyCoverPick(key)` reads
+                    # an old resolved `coverKey` back into that same choice shape
+                    # (plain SS = no choice) so a reopened kit nobody swapped
+                    # starts following the room again. `coverStyles(len)` groups
+                    # that length's covers by style (solid/perforated/tileable,
+                    # off the finish code's trailing `P`/`T`) for the swap
+                    # popover (drainswap.jsx). `wediSlotOf(line)` tags every
+                    # `kitFor` line with its shared slots.js slot. `tierPrice`,
+                    # `factoryKit`, and `lineItems` (build -> product rows; the pan anchors and
                     # carries `product.wedi`, companions `wedi.part`).
                     # `buildFromMarker` re-derives the billed kit from a saved
                     # marker/staged entry (re-solving a custom cfg and
@@ -1173,6 +1186,14 @@ src/
                     # on mount (sessionFromRows over the marker rebuilt with
                     # the default session), so a quantity typed on the sheet
                     # reopens as the override, not the recipe's figure.
+                    # Ticket 158 Phase 1a (ADR 0049): ⇄ on the cover line
+                    # opens `DrainSwapPop` (drainswap.jsx) — a linear pan's
+                    # style/finish chips at the channel's current length, a
+                    # point pan's finishes only, the frame keeping its own
+                    # chip — seeded from the committed `coverPick` as a DRAFT;
+                    # Use this commits it (plain stainless commits no pick, as
+                    # `legacyCoverPick` already reads that as the default) and
+                    # flips mode to custom; Esc/outside click discards.
                     # `escActive` (default true) gates its Escape handler —
                     # the Apps pane passes false while it is hidden (ADR
                     # 0047).
@@ -1248,6 +1269,22 @@ src/
   showersf.js       # tile sq ft per piece of a placed wedi/Schluter shower
                     # from its saved cfg. LAZY-CHUNK-ONLY (imports both
                     # engines); loaded only by usejobshowers.js.
+  slots.js          # the shared bill-line slot vocabulary (ticket 158 Phase 1,
+                    # ADR 0049): `SLOTS`/`SLOT_LABEL`/`isSlot`, a pure,
+                    # import-free 14-line module both engines and Compare read
+                    # so a Schluter line and a wedi line for the same role
+                    # (drain body, grate, flange, wall board, curb, …) read as
+                    # the same kind of thing — never re-derive the list from a
+                    # bill's own group names
+  drainswap.jsx     # `DrainSwapPop` — the shared stepped drain-swap popover
+                    # (ticket 158 Phase 1a, mockup layout A) both configurators
+                    # mount over `PopMenu` (widgets.jsx): rows of chips plus a
+                    # summary strip (what will land, why, the Δ against the
+                    # committed drain, Use this). It renders a draft only —
+                    # each popup owns what a chip means and what Use this
+                    # commits (`cfg.drainPick`/`cfg.swaps.grate` for Schluter,
+                    # `coverPick` for wedi); Esc / an outside click discards
+                    # the draft on the existing swap step of the Esc ladder
   schluter.js       # Schluter shower-system engine (issue 097 prototype ->
                     # production, tasks 1-6) — wedi's sibling, deliberately
                     # built the opposite way: TABLE-FREE. `classify()` is a
@@ -1335,6 +1372,14 @@ src/
                     # cand.tray.drain, the mortar fallback on the stated
                     # preference; under a pin a linear tray's miss scores
                     # against its fixed channel run, never a free zero.
+                    # `cfg.drain` stays that TYPE preference ("linear"/"point"/"any"); ticket 158 Phase 1a (ADR 0049)
+                    # adds `cfg.drainPick` — the swapped drain CHOICE (family/design/style/frame/finish/offset),
+                    # resolved fresh into lines every build by `resolveDrain(choice, panW, cat, opts)` (no choice =
+                    # Vario, unchanged default), whose `{family,len,gap}` rides `buildKit`'s return as `drainFit` for
+                    # schluterdraw.js and the cut list. `drainOptions` re-runs `resolveDrain` per candidate chip so the
+                    # popover (drainswap.jsx) can never offer what the engine would refuse. `slotOf(g, item)` tags
+                    # every buildKit line with its shared slots.js slot (catalog facts first, the bill group as
+                    # fallback) — Compare (comparekit.js) and 1b-1d's swap/picker UI read it, not the bill group name.
                     # cfg.corners (45° cut corners, the wedi CORNER_CUT
                     # 12" legs) grow the curb need by each cut FRONT
                     # corner's diagonal extra — back corners never touch
@@ -1478,7 +1523,9 @@ src/
                     # where a pinned drain's cut split lands it (issue 100) —
                     # keeping the off-centre warning for unpinned cuts and
                     # warning an unreachable pin's miss instead;
-                    # the Vario channel at the pan's full width along the back wall — cut to the pan, owner 2026-09-26),
+                    # the Vario channel at the pan's full width along the back wall — cut to the pan, owner 2026-09-26;
+                    # a 4th `drainFit` arg (ticket 158 Phase 1a, ADR 0049 — buildKit's `resolveDrain` result) draws a
+                    # fixed/frameless channel at its real length, centred, instead of the Vario full-width run),
                     # `schluterWalls` (the three fixed walls as dWalls, plus
                     # cfg.xwalls appended in the wedi extra-wall shape,
                     # anchored at whichever end their `at` says;
@@ -1492,7 +1539,7 @@ src/
                     # the run reaches turns the curb DIAGONALLY across it
                     # in the wedi diag shape, the run giving up the leg),
                     # (round 3: normalized benches thread through —
-                    # `schluterDiag(cfg, cand, benches)` draws the tray piece
+                    # `schluterDiag(cfg, cand, benches, drainFit)` draws the tray piece
                     # offset/reduced where a framed bench holds it short, and
                     # `schluterCurb(cfg, benches)` butts the entry run against
                     # a framed bench footprint that reaches the entry edge —
@@ -1733,7 +1780,15 @@ src/
                     # one click); option cards carry the mini TopDown plan
                     # thumbnail; Browse gets the wedi ★ starred pin list
                     # (localStorage ft-schluter-starred, per-device) with
-                    # its filter chip. Esc ladder rungs: payload →
+                    # its filter chip. Ticket 158 Phase 1a (ADR 0049): ⇄ on
+                    # any drain/channel/grate/flange line opens `DrainSwapPop`
+                    # (drainswap.jsx) — a linear pan's family → grate → frame
+                    # → finish chips, or a point pan's single Grate row —
+                    # seeded from the committed `cfg.drainPick`/`swaps.grate`
+                    # as a DRAFT (drainOptions gates each chip's `ok`); Use
+                    # this commits the draft (drainPick, or swaps.grate on a
+                    # point pan) and flips mode to custom like any other swap;
+                    # Esc/outside click discards it. Esc ladder rungs: payload →
                     # confirmKit → swap → picker → bench → wall → placing.
                     # Same basket drawer (project.schluterBasket) — entries
                     # wait FAINT on catReady before pricing (ADR 0032); a
@@ -1801,7 +1856,10 @@ src/
                     # the token in `l.g`; wedi maps from the catalog
                     # `item.group`) as EXTENDED amounts, every price coming
                     # back out of the engine that made the line — nothing is
-                    # re-derived here. `noteOnly` rows are KEPT at $0: the
+                    # re-derived here. Each row also carries its engine-tagged
+                    # `slot` (slots.js, ticket 158 Phase 1a, ADR 0049) alongside
+                    # `l.g`/`item.group` — unused here, for 1d's row alignment.
+                    # `noteOnly` rows are KEPT at $0: the
                     # Schluter column carries its substrate-by-others line,
                     # the walls-difference story (the wedi panel IS the
                     # substrate); wedi's own PRO-SET bag files under

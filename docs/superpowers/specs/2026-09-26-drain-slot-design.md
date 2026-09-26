@@ -219,6 +219,43 @@ The basket, `buildFromMarker`, Compare, order entry and print already take their
 lines from the engines, so a swap reaches all of them with no change there.
 Compare carries each row's `slot`, which 1d uses.
 
+### Amendments during planning and build (2026-09-26)
+
+- The Schluter choice lives in `cfg.drainPick`; `cfg.drain` stays the drain
+  TYPE (`"linear"`/`"point"`/`"any"`) it already was.
+- wedi's linear `coverPick` is `{ finish }`, not `{ style, finish }` — wedi's
+  finish codes already carry the style (`…P` perforated, `T` tileable, plain
+  = solid), so `linearCoverFor` gains no style argument.
+- Both popovers hold a draft, seeded from the committed pick: chips edit the
+  draft only, the summary's Δ is the draft's result against the committed
+  drain's current lines at the tier price, and **Use this** commits it. Esc
+  or a click outside discards the draft, on the existing swap step of the Esc
+  ladder.
+- Schluter's point drain: ⇄ on the point grate or flange line opens the same
+  popover shape with one Grate row (today's point grates); **Use this** sets
+  `cfg.swaps.grate`, not `drainPick` — a point grate has no length to follow,
+  so pinning the part was already the choice.
+- A style chip's "to N″" hint shows only when that style's own longest length
+  is below the longest KERDI-LINE body that fits the pan at the current
+  offset (`drainOptions().fit`) — not below the pan width itself, which would
+  wrongly tag the style that IS the longest fit.
+- A room-width change keeps the wedi `coverPick` (a kit-card pick still wipes
+  it, like any other customization); a point `{ key }` pick carried onto a
+  linear pan is ignored by `kitFor` (and a linear `{ finish }` pick carried
+  onto a point pan falls back to the default cover) rather than billing the
+  wrong shape; committing plain stainless with no style/finish stores no
+  `coverPick` at all, mirroring `legacyCoverPick`'s reading of the recipe
+  default.
+- One accepted exception to "no saved kit's bill moves": an old wedi marker
+  holding the non-stocked 27″ stainless twin `US1000084` reads as no pick and
+  reopens on the stocked twin `676797048` ($0.01 less) — same product, the
+  stock-first rule (ADR 0032/0037) outranks pinning that one key.
+- Schluter's `keepAdded` kit hop (keeps added work across a kit change) keeps
+  `drainPick` — a drain choice is customization like the kept extras, and
+  re-fits the new pan by design; **Use this** on plain Vario (no design or
+  finish picked) commits `null`, not `{family:"vario"}`, keeping the marker
+  clean since it is the same bill either way.
+
 ## Testing
 
 - **Unchanged defaults.** Every existing pinned bill stays unchanged: default
