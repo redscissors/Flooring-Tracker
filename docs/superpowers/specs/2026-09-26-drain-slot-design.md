@@ -248,7 +248,7 @@ Compare carries each row's `slot`, which 1d uses.
   default.
 - One accepted exception to "no saved kit's bill moves": an old wedi marker
   holding the non-stocked 27″ stainless twin `US1000084` reads as no pick and
-  reopens on the stocked twin `676797048` ($0.01 less) — same product, the
+  reopens on the stocked twin `676797048` ($0.01 more) — same product, the
   stock-first rule (ADR 0032/0037) outranks pinning that one key.
 - Schluter's `keepAdded` kit hop (keeps added work across a kit change) keeps
   `drainPick` — a drain choice is customization like the kept extras, and

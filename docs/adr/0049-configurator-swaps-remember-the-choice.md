@@ -86,6 +86,6 @@ one recipe.
   already established for stock-only picks.
 - The one accepted exception to "no saved kit's bill moves": an old wedi
   marker holding the non-stocked 27″ stainless twin (`US1000084`) reads as no
-  pick and reopens on the stocked twin (`676797048`, $0.01 less) — the
+  pick and reopens on the stocked twin (`676797048`, $0.01 more) — the
   stock-first rule (ADR 0032/0037) outranks pinning that one key, and the
   amount is a rounding-scale cent, not a bill change.
