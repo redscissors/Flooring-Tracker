@@ -813,6 +813,8 @@ src/
                     # only its slab drawn (`thick` — 4" seats, 3 1/8" bench);
                     # corner benches measure from the corner out along each wall,
                     # 18" to the top, never framed),
+                    # one flat bag of PRO-SET (SKU.proSet) on every pan
+                    # kit, owner 2026-09-26 (ticket 158 P0-5),
                     # `figureConsumables` (1 screw+washer and
                     # 1.2 oz sealant per ft² of panel), `coverFrames`/
                     # `coverFrameFor` (issue 072: the channel frame a LINEAR
@@ -1773,11 +1775,11 @@ src/
                     # `item.group`) as EXTENDED amounts, every price coming
                     # back out of the engine that made the line — nothing is
                     # re-derived here. `noteOnly` rows are KEPT at $0: the
-                    # wedi column appends the "Thin-set for pan bed — by
-                    # others" note and the Schluter column carries its
-                    # substrate-by-others line, which together are the
-                    # walls-difference story (the wedi panel IS the
-                    # substrate); `compareTotals` then excludes them
+                    # Schluter column carries its substrate-by-others line,
+                    # the walls-difference story (the wedi panel IS the
+                    # substrate); wedi's own PRO-SET bag files under
+                    # Setting (ticket 158 — it replaced the old "Thin-set
+                    # for pan bed — by others" note); `compareTotals` then excludes them
                     # (comparekit.test.js, over the frozen schluterfixture)
   CompareTab.jsx    # the Compare surface (phase 5, ADR 0034, prototype P3):
                     # the fourth tab in EITHER vendor popup — the category rail

@@ -1330,3 +1330,13 @@ test("sessionFromRows: rows that resolve to nothing leave the session empty rath
   const rows = lineItems(kit).map((r) => ({ ...r, qty: "" }));
   assert.deepEqual(sessionFromRows(kit.lines, rows), { qtyOv: {}, manual: [] });
 });
+
+test("every pan kit bills one bag of PRO-SET to set the pan (ticket 158 P0-5)", () => {
+  for (const pan of ["US9100004", "US9100006", "US9200003", "US9310001", "US9320002"]) {
+    const kit = kitFor(pan);
+    const ps = kit.lines.filter((l) => l.item.key === SKU.proSet);
+    assert.equal(ps.length, 1, pan);
+    assert.equal(ps[0].qty, 1, pan);
+    assert.equal(ps[0].group, "install", pan);
+  }
+});

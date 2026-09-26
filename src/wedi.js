@@ -3767,6 +3767,7 @@ export const SKU = {
   subCornerIn: "US5000007",
   sdrySeal: "US5076011",
   sdrySealTrowel: "US5076010",
+  proSet: "US5076012",
   recessKit: "US5000085",
   ramp: "073736517",
   extFundo24: "073783528",
@@ -5211,6 +5212,9 @@ export function kitFor(panKey, opts) {
   push(lines, SKU.collarValve, 1, "install", "mixing valve", true);
   push(lines, SKU.collarPipe, 1, "install", "shower arm / pipe", true);
   push(lines, SKU.trowel, 1, "install", "", true);
+  // Owner rule 2026-09-26 (ticket 158): one bag of PRO-SET sets the pan —
+  // flat, not figured by area, mirroring Schluter's ALL-SET line.
+  push(lines, SKU.proSet, 1, "install", "sets the pan — 1 bag", true);
 
   // --- add-ons ---------------------------------------------------------------
   (opts.addons || []).forEach((a) => {
