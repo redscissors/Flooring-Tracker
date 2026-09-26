@@ -241,7 +241,7 @@ Compare carries each row's `slot`, which 1d uses.
     follows a new channel length.
   - A point `coverKey` is unchanged.
 - **Slot tags.** Every line in both engines carries a `slot` from `SLOTS`.
-- **Preview proof** (`.scratch/158…/p1a/`):
+- **Preview proof** (`.scratch/158_shower-config-roadmap/p1a/`):
   - the popover on each family
   - a step-down summary
   - a fixed channel drawn with its fill gap
