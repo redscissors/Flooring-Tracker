@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { salesNameOf, salesRoster, defaultSalesFilter, browserRows, quickRows, draftRows, filterRows, filterBySales, sortRows, groupBySales, NO_SALES, shortDate, BROWSER_COLS, normColOrder, moveCol, projNoHit, projNos, erpNos, custSamples, filterBySamples, normPanelH, clampPanelH, stripOpenDefault, PANEL_MIN, STRIP_H, LINES_H } from "./custbrowser.js";
+import { salesNameOf, salesRoster, defaultSalesFilter, browserRows, quickRows, draftRows, filterRows, filterBySales, sortRows, shortDate, BROWSER_COLS, normColOrder, moveCol, projNoHit, projNos, erpNos, custSamples, filterBySamples, normPanelH, clampPanelH, stripOpenDefault, PANEL_MIN, STRIP_H, LINES_H } from "./custbrowser.js";
 
 const people = [
   { id: "c1", name: "Sarah Jones", phone: "(330) 555-0101", address: "4905 Harris Rd", builderId: "b1", createdAt: 100, updatedAt: 150 },
@@ -163,13 +163,6 @@ test("sortRows: created/modified newest-first, name A–Z case-blind", () => {
   assert.deepEqual(sortRows(rows(), "created").map((r) => r.id), ["c2", "c3", "c1"]);
   assert.deepEqual(sortRows(rows(), "modified").map((r) => r.id), ["c3", "c1", "c2"]);
   assert.deepEqual(sortRows(rows(), "name").map((r) => r.id), ["c3", "c1", "c2"]);
-});
-
-test("groupBySales: salespeople A–Z, no-salesperson group last, row order kept", () => {
-  const groups = groupBySales(sortRows(rows(), "name"));
-  assert.deepEqual(groups.map((g) => g.sales), ["Gina Boyd", "Marcus Mast", NO_SALES]);
-  assert.deepEqual(groups[1].rows.map((r) => r.id), ["c1"]);
-  assert.deepEqual(groups[2].rows.map((r) => r.id), ["c3"]);
 });
 
 test("normColOrder: defaults on junk, drops unknowns/dupes, appends new columns", () => {

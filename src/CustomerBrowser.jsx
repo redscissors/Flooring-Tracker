@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { X, Search, Plus, Users, Folder, FileText, ChevronRight, ChevronDown, ArrowUpRight, Zap, Clock, Check, Layers } from "lucide-react";
-import { browserRows, quickRows, draftRows, filterRows, filterBySales, sortRows, groupBySales, salesNameOf, salesRoster, defaultSalesFilter, shortDate, projNos, erpNos, SORTS, NO_SALES, normColOrder, moveCol, custSamples, filterBySamples, normPanelH, clampPanelH, stripOpenDefault, STRIP_H, LINES_H } from "./custbrowser.js";
+import { browserRows, quickRows, draftRows, filterRows, filterBySales, sortRows, salesNameOf, salesRoster, defaultSalesFilter, shortDate, projNos, erpNos, SORTS, normColOrder, moveCol, custSamples, filterBySamples, normPanelH, clampPanelH, stripOpenDefault, STRIP_H, LINES_H } from "./custbrowser.js";
 import { erpNosOf } from "./erporders.js";
 import { useEscClose, DotMenu, HelpTip } from "./widgets.jsx";
 import { PaneBack, PaneClose } from "./raildrawer.jsx";
@@ -53,11 +53,7 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
   const [linesH, setLinesH] = useState(() => normPanelH(initialPanels?.linesH));
   const toggleStrip = () => { const next = !showQuick; setShowQuick(next); onPanels({ strip: next }); };
   const shown = useMemo(() => sortRows(filterBySales(filterRows(samplesOnly ? filterBySamples(rows, sampleTally) : rows, q), salesQ), sortKey), [rows, q, salesQ, sortKey, samplesOnly, sampleTally]);
-  // Flat list by default; the salesman bands appear only while the
-  // salesperson box narrows the list (they show which salesmen matched).
-  const groups = useMemo(() => salesQ.trim() ? groupBySales(shown) : [{ sales: null, rows: shown }], [salesQ, shown]);
-  const flat = useMemo(() => groups.flatMap((g) => g.rows), [groups]);
-  const sel = flat.find((r) => r.id === selId) || null;
+  const sel = shown.find((r) => r.id === selId) || null;
 
   // Shared count chips — the samples column, the strips, and the lines panel.
   const sampleChips = (t) => (t.need || t.ordered) ? (
@@ -72,11 +68,11 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
   const onSearchKeys = (e) => {
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
-      const i = flat.findIndex((r) => r.id === selId);
-      const next = flat[i < 0 ? 0 : Math.min(flat.length - 1, Math.max(0, i + (e.key === "ArrowDown" ? 1 : -1)))];
+      const i = shown.findIndex((r) => r.id === selId);
+      const next = shown[i < 0 ? 0 : Math.min(shown.length - 1, Math.max(0, i + (e.key === "ArrowDown" ? 1 : -1)))];
       if (next) setSelId(next.id);
     } else if (e.key === "Enter") {
-      const target = sel || (flat.length === 1 ? flat[0] : null);
+      const target = sel || (shown.length === 1 ? shown[0] : null);
       if (target) onOpenCustomer(target.id);
     }
   };
@@ -290,12 +286,10 @@ export default function CustomerBrowser({ people, projects, builders, myName, in
               </tr>
             </thead>
             <tbody>
-              {groups.map((g) => (
-                <FragmentRows key={g.sales ?? "all"} group={g} rowEl={rowEl} />
-              ))}
+              {shown.map(rowEl)}
             </tbody>
           </table>
-          {flat.length === 0 && <div className="text-center text-sm text-slate-400 mt-10">{q || samplesOnly ? "No matches" : "No customers yet"}</div>}
+          {shown.length === 0 && <div className="text-center text-sm text-slate-400 mt-10">{q || samplesOnly ? "No matches" : "No customers yet"}</div>}
         </div>
 
         {/* Project lines for the selected customer — the ERP order-lines panel */}
@@ -372,27 +366,5 @@ function ResizeHandle({ edge, onResize, onReset, label }) {
       className={`group absolute inset-x-0 ${edge === "top" ? "top-0" : "bottom-0"} h-[7px] z-20 flex items-center justify-center cursor-row-resize touch-none`}>
       <div className="w-10 h-[3px] rounded-full bg-slate-200 group-hover:bg-indigo-400 transition-colors" />
     </div>
-  );
-}
-
-// One salesperson band + its customer rows (band suppressed for the flat,
-// unfiltered list — group.sales is null there).
-function FragmentRows({ group, rowEl }) {
-  return (
-    <>
-      {group.sales != null && (
-        <tr>
-          {/* 12 ≥ the widest layout (incl. filler); browsers clamp the span */}
-          <td colSpan={12} className="px-2 py-1" style={{ background: "var(--ft-band)" }}>
-            <span className="ft-eyebrow text-[9.5px] flex items-center gap-1.5">
-              <Users size={11} className={group.sales === NO_SALES ? "text-slate-400" : "text-indigo-500"} />
-              {group.sales}
-              <span className="normal-case tracking-normal font-normal text-slate-400">· {group.rows.length}</span>
-            </span>
-          </td>
-        </tr>
-      )}
-      {group.rows.map(rowEl)}
-    </>
   );
 }
