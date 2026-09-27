@@ -94,6 +94,7 @@ const CSS = `
 .cmp-pick .sdot.so{background:transparent;border:1.3px solid var(--ft-faint)}
 .cmp-pick .srow .n{flex:1;min-width:0;font-size:11.5px;font-weight:700;color:var(--ft-text);line-height:1.3}
 .cmp-pick .srow .n small{display:block;font-size:9.5px;color:var(--ft-faint);font-weight:600}
+.cmp-pick .more{padding:6px 8px;font-size:9.5px;color:var(--ft-faint);font-weight:600}
 .cmp-pick .srow .p{font-size:11.5px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--ft-text)}
 `;
 
@@ -250,19 +251,40 @@ export default function CompareTab({
   const hostKeys = () => hostAddedLines(hostBuild, hostBrand).map((h) => h.key);
   const writeMirror = (key, v) => onMirror && onMirror((m) => pruneMirror({ ...m, [key]: v }, hostKeys()));
   const partsFor = (e) => mirrorParts(plan.brand, e.grp, { cat: schCat, source });
+  const sameAs = (m) => (c) => c.g === m.g && c.id === m.id;
+  // mirrorPlan resolves a hand pick against the full catalog, so under Stock
+  // only it can sit outside the pooled list; its part carries it as `standing`
+  // so the picker still opens on it, marked, at the top.
+  const pickParts = (e) => {
+    const parts = partsFor(e);
+    const m = e.match;
+    if (!m) return parts;
+    const all = mirrorParts(plan.brand, e.grp, { cat: schCat, source: "all" });
+    const home = all.find((p) => p.parts.some(sameAs(m)));
+    const pooled = new Map(parts.map((p) => [p.key, p]));
+    if (!home || (pooled.get(home.key) || { parts: [] }).parts.some(sameAs(m))) return parts;
+    return all.filter((p) => pooled.has(p.key) || p === home).map((p) => {
+      const q = pooled.get(p.key) || { ...p, parts: [] };
+      return p === home ? { ...q, standing: m } : q;
+    });
+  };
+  const listFor = (e, part) => {
+    const list = mirrorCandidates(e.host, part);
+    return part.standing ? [part.standing, ...list] : list;
+  };
   const openPick = (hostKey, ev) => {
     const e = plan.entries.find((x) => x.hostKey === hostKey);
     if (!e) return;
-    const parts = partsFor(e);
-    const part = (e.match && parts.find((p) => p.g === e.match.g && p.parts.some((c) => c.id === e.match.id)))
+    const parts = pickParts(e);
+    const part = (e.match && parts.find((p) => p.standing || p.parts.some(sameAs(e.match))))
       || parts.find((p) => p.parts.some((c) => c.slot === e.slot)) || parts[0];
     if (!part) return;
-    const list = mirrorCandidates(e.host, part);
-    const cur = e.match && list.find((c) => c.id === e.match.id);
+    const list = listFor(e, part);
+    const cur = e.match && list.find(sameAs(e.match));
     const first = cur || list[0];
     const r = ev.currentTarget.getBoundingClientRect();
     setPick({
-      hostKey, part: part.key, id: first.id, qty: cur ? e.qty : matchQty(e.host.part, e.host.qty, first),
+      hostKey, part: part.key, id: first.id, qty: cur ? e.qty : matchQty(e.host.part, e.host.qty, first), q: "",
       at: { anchor: ev.currentTarget.closest(".ln"), x: r.right - 470, y: r.bottom + 6 },
     });
   };
@@ -378,15 +400,18 @@ export default function CompareTab({
 
       {pick && (() => {
         const e = plan.entries.find((x) => x.hostKey === pick.hostKey);
-        const parts = e ? partsFor(e) : [];
+        const parts = e ? pickParts(e) : [];
         const part = parts.find((p) => p.key === pick.part) || parts[0];
         if (!e || !part) return null;
-        const list = mirrorCandidates(e.host, part);
+        const list = listFor(e, part);
         const cur = list.find((c) => c.id === pick.id) || list[0];
+        const toks = pick.q.toLowerCase().split(/\s+/).filter(Boolean);
+        const shown = list.filter((c) => toks.every((t) => (c.item.name + " " + c.id).toLowerCase().includes(t)));
+        const qtyOf = (c) => (e.match && sameAs(e.match)(c) ? e.qty : matchQty(e.host.part, e.host.qty, c));
         const setP = (patch) => setPick((p) => (p ? { ...p, ...patch } : p));
         const partRow = parts.length > 1 ? [{ label: "Part", chips: parts.map((p) => ({
           key: p.key, label: p.label, ok: true, on: p.key === part.key,
-          onPick: () => { const top = mirrorCandidates(e.host, p)[0]; setP({ part: p.key, id: top.id, qty: matchQty(e.host.part, e.host.qty, top) }); },
+          onPick: () => { const top = listFor(e, p)[0]; setP({ part: p.key, id: top.id, qty: qtyOf(top), q: "" }); },
         })) }] : [];
         const price = (c) => (c.brand === "wedi" ? c.item.retail : c.retail);
         return (
@@ -397,15 +422,21 @@ export default function CompareTab({
               delta: "retail", total: fm(price(cur) * pick.qty), up: false }}
             onUse={() => { writeMirror(e.hostKey, { pick: { g: cur.g, id: cur.id, qty: pick.qty } }); setPick(null); }}
             onClose={() => setPick(null)}>
+            {list.length > 12 && (
+              <input className="w-full rounded-md border border-slate-300 px-2 py-1 mb-1 text-[12px]" autoFocus value={pick.q}
+                placeholder={`Search ${part.label.toLowerCase()}…`} onChange={(ev) => setP({ q: ev.target.value })} data-add-search />
+            )}
             <div className="cmp-list">
-              {list.slice(0, 60).map((c) => (
+              {shown.slice(0, 60).map((c) => (
                 <button key={c.g + c.id} type="button" className={"srow" + (c.id === cur.id ? " on" : "")} data-mirror-row={c.id}
-                  onClick={() => setP({ id: c.id, qty: matchQty(e.host.part, e.host.qty, c) })}>
+                  onClick={() => setP({ id: c.id, qty: qtyOf(c) })}>
                   <span className={"sdot" + (c.item.stock ? "" : " so")} />
                   <span className="n">{c.item.name}<small>{[c.id, c.item.stock ? "stock" : "special order"].join(" · ")}</small></span>
                   <span className="p">{fm(price(c))}</span>
                 </button>
               ))}
+              {!shown.length && <div className="more">Nothing matches — clear the search</div>}
+              {shown.length > 60 && <div className="more" data-mirror-more>{shown.length - 60} more — narrow the search</div>}
             </div>
           </SwapPop>
         );
