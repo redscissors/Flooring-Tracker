@@ -14,7 +14,7 @@ are history now.
 | **1a** drain slot | merged | [redscissors/Flooring-Tracker#437](https://github.com/redscissors/Flooring-Tracker/pull/437) |
 | **1b** ⇄ on every line | merged 2026-09-27 | [redscissors/Flooring-Tracker#438](https://github.com/redscissors/Flooring-Tracker/pull/438) |
 | 1b owner calls + the 1c handoff | merged 2026-09-27 | [redscissors/Flooring-Tracker#439](https://github.com/redscissors/Flooring-Tracker/pull/439) |
-| **1c** "+" on every group, add another line | built 2026-09-27 | PR: (opened from claude/stoic-fermat-0dpjv2 — number added at PR time) |
+| **1c** "+" on every group, add another line | merged 2026-09-27 | [redscissors/Flooring-Tracker#441](https://github.com/redscissors/Flooring-Tracker/pull/441) |
 | **1d** shared group names, Compare row alignment | **not designed** | this handoff |
 | **Phase 2** Board vs Membrane, both brands | not designed | ticket |
 | **Phase 3** 4-way compare | not designed; needs 1 + 2 | ticket |

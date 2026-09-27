@@ -106,7 +106,7 @@ retire into it; several wedi niches.
 - **Plan:** `docs/superpowers/plans/2026-09-27-add-another.md`
 - **ADR:** `docs/adr/0049-configurator-swaps-remember-the-choice.md` (amended)
 - **Proof:** `.scratch/158_shower-config-roadmap/p1c/`
-- **PR:** (opened from claude/stoic-fermat-0dpjv2 — number added at PR time)
+- **PR:** [redscissors/Flooring-Tracker#441](https://github.com/redscissors/Flooring-Tracker/pull/441)
 
 **Carry into 1d+ (what's left):**
 - Schluter kit-card thumbnails draw Vario at full width under a fixed drain
