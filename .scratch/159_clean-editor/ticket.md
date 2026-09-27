@@ -156,6 +156,21 @@ faint + always there, "+ Extras" on hover). Whatever is picked, "Add extras"
 also goes in the line ⋯ menu for the shop iPads (no hover). Warnings
 ("Mortar — not calculating") must stay visible inline as an amber tag (ADR 0045).
 
+## Round 2d — line front exploration (2026-09-27)
+
+Owner: drop the T/V/M type chip at the front of a filled line (you set type
+when starting a line by hand, rarely after) — move "change type" into the
+line's ⋯ menu; put a + for extras either between size and product or IN the
+old type slot ("maybe that's the play"). Keep extras as today's info strip
+under the line when there are any; no strip at all when there are none.
+
+Mockups (`mockups/lines.html`): `51-line-L1-plus-in-type-slot` (the type slot
+becomes a + — faint on a line without extras, green on one with extras or on
+hover; a blank new line keeps the type picker), `52-line-L2-plus-before-name`
+(no front slot; a small + just before the product name), `53-line-type-in-menu`
+("Type  Tile ›" at the top of the line menu, opening the list in place like
+Move to area). Waiting on the owner's pick.
+
 ## Round 2 — open: product rows
 
 What the mockups show (every board uses the same card treatment; the frame
