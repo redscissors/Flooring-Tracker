@@ -1332,7 +1332,7 @@ export default function App({ user, onSignOut }) {
     };
     if (headerLayout === "classic") return <ProjectHeaderClassic {...hp} />;
     if (headerLayout !== "clean") return <ProjectHeaderBar {...hp} />;
-    return <ProjectHeaderClean {...hp} preview={viewTab === "preview"} onTogglePreview={() => setViewTab((t) => (t === "preview" ? "edit" : "preview"))}
+    return <ProjectHeaderClean {...hp} ping={ping} preview={viewTab === "preview"} onTogglePreview={() => setViewTab((t) => (t === "preview" ? "edit" : "preview"))}
       erp={sel.erpOrders?.length ? erpStatus(sel.erpOrders, sel.erpKeyed, erpLines()) : null} />;
   };
   // Order entry + order sheet ask which option is being ordered when the job

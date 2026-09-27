@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
-import { ChevronDown, Building2, Lock, LockOpen, Save, History, ClipboardList, Copy, Printer, Trash2, Check, Truck, X, Layers, FileText, MoreHorizontal } from "lucide-react";
-import { SalespersonPop, SegBar, WasteBar, FilesPop, useAnchoredPanel, useEscClose, SearchPop, growBox, PriceLevelMenu, MorphSelect, DotMenu } from "./widgets.jsx";
+import { ChevronDown, Building2, Lock, LockOpen, Save, History, ClipboardList, Copy, Printer, Trash2, Check, Truck, X, Layers, FileText, MoreHorizontal, MapPin } from "lucide-react";
+import { SalespersonPop, SegBar, WasteBar, FilesPop, useAnchoredPanel, useEscClose, SearchPop, growBox, PriceLevelMenu, MorphSelect, DotMenu, AddressField } from "./widgets.jsx";
 import { FreightColumn } from "./freightui.jsx";
 import { normPricing } from "./pricing.js";
 import { TIER_COLOR, tierBadgeText, PROJECT_NAME_MAX } from "./uiconst.js";
@@ -431,7 +431,7 @@ export function ProjectHeaderClassic({ sel, cust, builderName, profile, tv, gran
 const ICON = "ft-tip relative w-[32px] h-[30px] shrink-0 flex items-center justify-center rounded-md border border-transparent hover:bg-[color:var(--ft-hover)]";
 const BAR_TXT = "h-[30px] shrink-0 inline-flex items-center gap-1 rounded-md px-2.5 text-[12.5px] font-extrabold whitespace-nowrap hover:bg-[color:var(--ft-hover)]";
 
-// The project name and address edit in place. An invisible copy of the text
+// The project name edits in place. An invisible copy of the text
 // sizes the input, so the line reads as text rather than a row of boxes.
 function InlineField({ value, onChange, placeholder, inputRef, className = "", maxLength }) {
   const cls = "col-start-1 row-start-1 px-px " + className;
@@ -465,6 +465,31 @@ function NotesPop({ value, onChange }) {
         </SearchPop>
       )}
     </>
+  );
+}
+
+// The project address (job site) editor. The AddressField's own suggestion
+// list is a second portal on <body>, so a pick there counts as "inside" —
+// otherwise the pointerdown would close this box before the pick lands.
+const ADDR_INP = "ft-field w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent";
+function AddressPop({ anchorRef, value, custAddress, distance, shopAddress, ping, onChange, onDistance, onClose }) {
+  const boxRef = useRef(null);
+  const panelRef = useRef({ contains: (t) => !!(boxRef.current?.contains(t) || t?.closest?.("[data-l0]")) });
+  const pos = useAnchoredPanel(true, anchorRef, panelRef, onClose);
+  useEscClose(true, onClose);
+  return pos && (
+    <SearchPop pos={pos} box={growBox(pos, 360)} fieldRef={anchorRef} panelRef={boxRef} bg="var(--ft-cream)" className="p-2">
+      <div onKeyDown={(e) => { if (e.key === "Enter") { e.target.blur?.(); onClose(); } }}>
+        <div className="ft-eyebrow text-[9px] mb-1.5">Project address</div>
+        <AddressField autoFocus suggest value={value} onChange={onChange} placeholder={custAddress || "Job site address…"} inp={ADDR_INP} ping={ping}
+          distance={distance} shopAddress={shopAddress} onDistance={onDistance} />
+        <div className="flex items-center gap-3 mt-2 text-[12px]">
+          {value && <button onClick={() => { onChange(""); onClose(); }} className="font-semibold text-indigo-600 hover:text-indigo-700">{custAddress ? "Use customer's address" : "Clear"}</button>}
+          <span className="flex-1" />
+          <button onClick={onClose} className="h-[26px] rounded-md px-3 font-bold text-white bg-indigo-600 hover:bg-indigo-700">Done</button>
+        </div>
+      </div>
+    </SearchPop>
   );
 }
 
@@ -511,12 +536,12 @@ function FreightToggle({ on, amount, onSet }) {
   );
 }
 
-export function ProjectHeaderClean({ sel, cust, builderName, profile, tv, grandTotal, optionBadges = null, freightCost = 0, saveOk, settings, jobWasteUI, updateProject, onOpenCustomer, onPromote, nameRef, nameTabRef, orderEntryRef, focusName, namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion, openAttachment, delAttachment, attRef, addAttachment, setShowVersions, setPrintMode, setConfirm, setShowOrderCopy, samples = null, onOpenSamples, preview = false, onTogglePreview, erp = null }) {
+export function ProjectHeaderClean({ sel, cust, builderName, profile, freightCost = 0, saveOk, settings, jobWasteUI, updateProject, onOpenCustomer, onPromote, nameRef, nameTabRef, orderEntryRef, focusName, namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion, openAttachment, delAttachment, attRef, addAttachment, setShowVersions, setPrintMode, setConfirm, setShowOrderCopy, samples = null, onOpenSamples, preview = false, onTogglePreview, erp = null, ping }) {
   const [menu, setMenu] = useState(false);
+  const [addrAt, setAddrAt] = useState(null);
   const moreRef = useRef(null);
+  const addrRef = useRef(null);
   const upd = (patch) => updateProject(sel.id, patch);
-  const badge = tierBadgeText(tv.tier, tv.pct);
-  const tierInk = TIER_COLOR[tv.tier]?.main;
   const tierFill = TIER_COLOR[sel.priceTier] ? { background: TIER_COLOR[sel.priceTier].main } : undefined;
   const dot = <span style={{ color: "var(--ft-border-strong)" }}>·</span>;
   const nos = erp?.nos || [];
@@ -547,30 +572,24 @@ export function ProjectHeaderClean({ sel, cust, builderName, profile, tv, grandT
             {sel.projectNo && <span className="shrink-0 font-semibold" style={{ color: "var(--ft-faint)" }}>N{sel.projectNo}</span>}
             <ErpChip erpOrders={sel.erpOrders} onOpen={() => setShowOrderCopy(true)} done={nos.length ? done : undefined} size={10} />
             {dot}
-            <InlineField value={sel.address} onChange={(v) => upd({ address: v })} placeholder="Add address" />
-            {dot}
-            <span className="shrink-0"><SalespersonPop plain value={sel.salesperson} fallback={profile} onChange={(v) => upd({ salesperson: v })} /></span>
+            {sel.address ? (
+              <button ref={addrRef} onClick={() => setAddrAt(addrRef)} title="Project address (job site) — press to change" className="min-w-0 truncate text-left hover:text-[color:var(--ft-text)]">{sel.address}</button>
+            ) : cust ? (
+              <button ref={addrRef} onClick={onOpenCustomer} title={cust.address ? "Customer's address — open customer" : "No address yet — open customer"} className="min-w-0 truncate text-left hover:text-[color:var(--ft-text)]" style={{ color: "var(--ft-faint)" }}>{cust.address || "Add address"}</button>
+            ) : (
+              <button ref={addrRef} onClick={() => setAddrAt(addrRef)} title="Add the job site address" className="min-w-0 truncate text-left hover:text-[color:var(--ft-text)]" style={{ color: "var(--ft-faint)" }}>Add address</button>
+            )}
+            {addrAt && <AddressPop anchorRef={addrAt} value={sel.address} custAddress={cust?.address || ""} distance={sel.distance} shopAddress={settings.shop?.address || ""} ping={ping}
+              onChange={(v) => upd({ address: v })} onDistance={(d) => upd({ distance: d })} onClose={() => setAddrAt(null)} />}
             {dot}
             <NotesPop value={sel.notes} onChange={(v) => upd({ notes: v })} />
           </div>
         </div>
-        <div className="shrink-0 flex flex-col items-end">
-          <div className="flex items-center gap-1.5 text-[12px] text-slate-500">
-            {saveOk && <span style={{ color: "var(--ft-brand)" }}>Saved ✓</span>}
-            {badge && <span className="rounded px-1 font-semibold" style={{ background: TIER_COLOR[tv.tier]?.soft || "var(--ft-brand-soft)", color: tierInk, fontSize: 10.5 }}>{badge}</span>}
-            <span>Job total</span>
+        <div className="shrink-0 max-w-[40%] min-w-0 flex flex-col items-end gap-0.5">
+          <span className="text-[12px] h-[16px]" style={{ color: "var(--ft-brand)" }}>{saveOk && "Saved ✓"}</span>
+          <div className="min-w-0 max-w-full flex justify-end text-[15px] font-bold">
+            <SalespersonPop plain alignRight value={sel.salesperson} fallback={profile} onChange={(v) => upd({ salesperson: v })} />
           </div>
-          {optionBadges ? (
-            <div className="flex items-center gap-1.5 flex-wrap justify-end mt-1">
-              {optionBadges.map((b) => (
-                <span key={b.slot} className="ft-mono rounded-md px-2 py-0.5 text-[13px] font-bold whitespace-nowrap" style={{ background: `color-mix(in srgb, ${b.color.main} 12%, var(--ft-card))`, color: b.color.deep, boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${b.color.main} 45%, transparent)` }}>
-                  {b.label} <span className="opacity-75 font-semibold">{money(b.total)}</span>
-                </span>
-              ))}
-            </div>
-          ) : (
-            <div className="ft-mono font-extrabold" style={{ fontSize: 30, lineHeight: 1.15, letterSpacing: "-.02em", color: tierInk || "var(--ft-text)" }}>{money(grandTotal)}</div>
-          )}
         </div>
       </div>
 
@@ -596,8 +615,12 @@ export function ProjectHeaderClean({ sel, cust, builderName, profile, tv, grandT
             {samples?.need > 0 && <span className="absolute rounded-full font-bold" style={{ top: -4, right: -4, fontSize: 9.5, lineHeight: "14px", minWidth: 14, padding: "0 3px", background: "#b45309", color: "#fff" }}>{samples.need}</span>}
           </button>
         )}
-        <button ref={moreRef} onClick={() => setMenu((m) => !m)} aria-label="More" aria-expanded={menu} data-tip="Versions and delete" className={ICON + " text-slate-500"}><MoreHorizontal size={17} /></button>
+        <button ref={moreRef} onClick={() => setMenu((m) => !m)} aria-label="More" aria-expanded={menu} data-tip="Project address, versions and delete" className={ICON + " text-slate-500"}><MoreHorizontal size={17} /></button>
         <DotMenu open={menu} onClose={() => setMenu(false)} anchorRef={moreRef} align="left" width={230} bg="var(--ft-cream)">
+          <button onClick={() => { setMenu(false); setAddrAt(moreRef); }} className="w-full flex items-center gap-2.5 px-3 py-1.5 text-left font-semibold hover:bg-[color:var(--ft-hover)]">
+            <MapPin size={15} className="text-slate-500" /><span className="flex-1">{sel.address ? "Change project address…" : "Add project address…"}</span>
+          </button>
+          <div className="my-1 mx-2 border-t border-slate-200" />
           <button onClick={() => { setMenu(false); setShowVersions(true); }} className="w-full flex items-center gap-2.5 px-3 py-1.5 text-left font-semibold hover:bg-[color:var(--ft-hover)]">
             <History size={15} className="text-slate-500" /><span className="flex-1">Versions</span><span className="text-[12px] font-medium text-slate-400">{sel.versions?.length || 0} saved</span>
           </button>

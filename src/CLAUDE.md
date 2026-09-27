@@ -238,15 +238,20 @@ src/
                     # whole so the team can flip back without a revert) and
                     # `ProjectHeaderClean` (on trial 2026-09-27,
                     # .scratch/159_clean-editor): customer as the headline, the
-                    # project one inline-editable line under it (name · N ·
-                    # ERP chip · address · salesperson · notes), and one flat
+                    # project one line under it (name · N · ERP chip ·
+                    # address · notes — the address is the project's when set,
+                    # else the customer's, which opens the customer; the
+                    # project address edits in an AddressField popover from
+                    # the line or ⋯), the salesperson's name alone top right
+                    # (no total there — the Order summary has it), and one flat
                     # bar on the cream — PriceLevelMenu, a MorphSelect for
                     # Estimate shows, a waste popover over WasteBar, the freight
                     # truck (quiet when on, amber "No freight" when off), the
                     # page icon that IS the Edit ⇄ Print preview switch (App
                     # hides its tabs and renders Clean above the edit/preview
                     # split so it stays up in both), files, samples, a ⋯
-                    # DotMenu (Versions / Save a named version / Delete), and
+                    # DotMenu (Project address / Versions / Save a named version /
+                    # Delete), and
                     # the Order entry button carrying the ERP number — green
                     # with a check once erporders.js `erpStatus` says every
                     # line is keyed, an "N left" pill before that. No order

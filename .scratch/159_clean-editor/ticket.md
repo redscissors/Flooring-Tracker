@@ -1,7 +1,8 @@
 ---
 issue_type: Feature
 summary: A cleaner estimate editor, on trial behind a per-user Settings switch —
-  round 1 (header + preview toggle) shipped; round 2 (area cards) open.
+  round 1 (header + preview toggle) shipped, header amended 2026-09-27;
+  round 2 (area cards) open.
 status: open
 labels: [ready-for-agent]
 ---
@@ -59,6 +60,29 @@ Owner decisions, in the order they were made:
 Known gap: the button's "N left" counts unmerged lines (`erpLines` in App.jsx);
 the order-entry panel's own counts can merge a SKU repeated across areas, so the
 two numbers can differ on such a job.
+
+## Round 1 amendment — header top right + address (2026-09-27, owner)
+
+10. The top right drops the job total, the tier discount badge and the
+    Option A/B total chips — no money in the header at all (the editor's
+    Order summary still carries every total). The salesperson's NAME ONLY
+    sits there instead (bold, right-aligned; click opens the same picker);
+    "Saved ✓" stays above it. The salesperson leaves the project line.
+11. The address shown is the project address when one is set, otherwise the
+    customer's. The customer's shows fainter and opens the customer (it's
+    edited there); with neither, "Add address" opens the customer — or, on an
+    unassigned / quick-price job, the project-address box.
+12. The project address is added / changed through ⋯ → "Add project
+    address…" (or by clicking it on the line): a popover holding the real
+    AddressField (Maps suggestions + drive distance) and "Use customer's
+    address", which clears it.
+13. Print follows the same rule — project address first, then the customer's
+    (it used to prefer the customer's). This one is shared by every header
+    layout. Order entry already worked this way.
+
+Proof: `shots/13-r2-*` … `shots/20-r2-*` (header-preview.html). The Maps
+suggestion pick inside the popover wasn't exercised (no Maps key in the
+preview) — check it once on the live site.
 
 ## Round 2 — open: area cards (next session)
 
