@@ -426,9 +426,11 @@ prototyping the plan; 19–23 were made building it.
     Custom tab the room is kept and re-solved for wedi pans (top option). On
     the Kits tab a loaded S-DRY kit still clears (ruling 13), but when
     kitDirty or hand-added lines exist it asks first through the
-    kit-overwrite confirm (KitOverwriteConfirm); Cancel keeps Membrane. The
-    confirm's wording is kit-card copy ("Start the Building Panel kit?") —
-    owner call on better copy. (Task 5 review, commit 2b534ae.)
+    kit-overwrite confirm (KitOverwriteConfirm); Cancel keeps Membrane. Its
+    copy names what the switch clears ("Switch to Building Panel?" — the
+    S-DRY base, drain, curb and membrane come off; Start over / Keep my walls
+    and extras / New shower), owner ask 2026-09-27. (Task 5 review, commit
+    2b534ae.)
 22. **A wedi pan under S-DRY walls seals its pan/extension joints with wedi
     Joint & Seal** (OWNER DECISION, 2026-09-28, asked during the build).
     Figured on the pan + extension floor footprint (bounding footprint, not

@@ -191,7 +191,8 @@ src/
                     # `KitOverwriteConfirm` (2026-09-02, ADR 0035 amendment) —
                     # the kit-card confirm both popups raise over customized
                     # work: Overwrite · Keep what I added · New shower ·
-                    # Cancel, one component for the same no-drift reason; the
+                    # Cancel (an optional `copy` prop rewords it for other
+                    # moments, e.g. the wedi wall-system switch), one component for the same no-drift reason; the
                     # callers own what each answer does to their state.
                     # `NumIn` (round 6) — the commit-on-blur/Enter number field
                     # both vendor configurators mount (moved out of
@@ -1451,9 +1452,9 @@ src/
                     # amendment 21): on the Custom tab the room is kept and re-solved for wedi
                     # pans, but on the Kits tab a loaded S-DRY kit with `kitDirty` or hand-added
                     # lines asks first through the kit-overwrite confirm (`KitOverwriteConfirm`,
-                    # `confirmBoard`/`confirmBoardModal`) — Cancel keeps Membrane. The confirm
-                    # reuses the kit-card copy ("Start the Building Panel kit?"); the owner
-                    # hasn't picked better wording for the wall-system flip yet.
+                    # `confirmBoard`/`confirmBoardModal`) — Cancel keeps Membrane. It passes
+                    # `BOARD_FLIP_COPY`, which says what the switch clears (the S-DRY base,
+                    # drain, curb and membrane) and what each choice keeps.
   panelplan.js      # `planPanels(walls, sheets)` — the wall-board course
                     # planner both shower engines share (wedi `panelPlan`,
                     # Schluter `boardPlan`; owner 2026-09-22): full courses

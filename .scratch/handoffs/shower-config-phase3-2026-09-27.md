@@ -139,13 +139,6 @@ applies):
   (seen in review as 96.67 sf summed against an 83.33 sf room). Pre-existing,
   not introduced by Phase 2, and out of scope for it; give it the same
   bounding-box treatment `floorSfOf` got if it's worth fixing.
-- **The wall-system flip confirm's wording.** Flipping a loaded S-DRY kit
-  back to Building Panel (when hand work exists) reuses `KitOverwriteConfirm`
-  with its kit-card copy ("Start the Building Panel kit?"), because that's
-  the existing three-way confirm (Overwrite / Keep what I added / New
-  shower) and reusing it kept one component instead of a second one-off
-  modal. The copy doesn't quite fit a wall-system flip rather than a new kit
-  card. Owner call on better wording — functionally correct either way.
 - The full list of smaller deferred findings (test gaps, cosmetic proof-shot
   issues, an untested backer-note-row branch, and so on) is in
   `.superpowers/sdd/2026-09-28-board-vs-membrane/progress.md` (session

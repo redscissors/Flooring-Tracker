@@ -497,6 +497,15 @@ const DEF_WALLS = [
 ];
 const DEF_OPTS = { panelKey: undefined, curbPick: undefined, fastenerKey: undefined, coverPick: undefined, coverFrame: undefined, sealantForm: "tube", recess: undefined };
 const DEF_INP = { w: 48, d: 66, curb: "curbed", drain: "any", drainX: "", drainY: "", anchor: "left" };
+// Building Panel sits on a wedi pan, so leaving S-DRY clears the S-DRY base,
+// drain, curb and membrane whichever way the user goes.
+const BOARD_FLIP_COPY = {
+  title: "Switch to Building Panel?",
+  body: "This S-DRY build has been customized. Building Panel needs a wedi pan, so the S-DRY base, drain, curb and membrane come off — pick a Building Panel kit next.",
+  overwrite: ["Start over", "Clear the whole build — walls, benches, add-ons and hand-added lines too."],
+  keep: ["Keep my walls and extras", "Keep the wall layout, benches, add-ons and hand-added lines for the Building Panel kit you pick. Stepped quantities and part swaps reset."],
+  fresh: ["New shower", "Park this S-DRY build in the basket and start the Building Panel one as a second shower."],
+};
 
 // The seed is either a search parse (seedFromQuery: { tab, input, search }) or a
 // saved row's marker / the restore layer ({ mode, cfg } — cfg from kitFor). A
@@ -1631,7 +1640,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     setDetached(true);
     hardReset(key);
     const p = item(key);
-    say((parked ? "Parked in the basket — " : "Nothing to park — ") + (p ? unwedi(p.name) : "the kit") + " starts as a new shower");
+    say((parked ? "Parked in the basket — " : "Nothing to park — ") + (p ? unwedi(p.name) + " starts as a new shower" : "pick a kit for the new shower"));
   };
   const moveEntries = (ids) => {
     const picked = (basket || []).filter((b) => ids.includes(b.id));
@@ -2795,7 +2804,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   const confirmBoardModal = confirmBoard && (() => {
     const done = (fn) => () => { setConfirmBoard(false); flipWallSys("board"); fn(null); };
     return (
-      <KitOverwriteConfirm vendor="wedi" kitName="Building Panel" kitWord="stock kit"
+      <KitOverwriteConfirm vendor="wedi" copy={BOARD_FLIP_COPY}
         onCancel={() => setConfirmBoard(false)}
         onOverwrite={done(hardReset)} onKeep={done(keepAdded)}
         onNew={onBasketChange ? done(newShower) : undefined} />
