@@ -96,7 +96,7 @@ The Vario pan-width rule shipped early in PR #436.
 - **Plan:** `docs/superpowers/plans/2026-09-27-swap-every-line.md`
 - **ADR:** `docs/adr/0049-configurator-swaps-remember-the-choice.md` (amended)
 - **Proof:** `.scratch/158_shower-config-roadmap/p1b/`
-- **PR:** pending
+- **PR:** [redscissors/Flooring-Tracker#438](https://github.com/redscissors/Flooring-Tracker/pull/438)
 
 **Carry into 1c+ (what's left):**
 - Schluter kit-card thumbnails draw Vario at full width under a fixed drain
