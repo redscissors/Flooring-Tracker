@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
-import { ovKey, rowItemEntry, sessionFromRows, classify, catalogOf, coverageOf, trayCandidates, pickRolls, pickFrom, buildKit, buildFromMarker, linesTotal, tierPrice, lineItems, orderCopyLines, entryOpening, openRuns, boardPlan, boardSheets, expandBoardFaces, normBench, benchTrayRoom, slotOf, resolveDrain, drainOptions, pointGrateLabel,
+import { FINISH_LABEL, ovKey, rowItemEntry, sessionFromRows, classify, catalogOf, coverageOf, trayCandidates, pickRolls, pickFrom, buildKit, buildFromMarker, linesTotal, tierPrice, lineItems, orderCopyLines, entryOpening, openRuns, boardPlan, boardSheets, expandBoardFaces, normBench, benchTrayRoom, slotOf, resolveDrain, drainOptions, pointGrateLabel,
   resolveMembrane, membraneOptions, resolveBand, bandOptions, bandWidthLabel } from "./schluter.js";
 import { isSlot } from "./slots.js";
 
@@ -1339,4 +1339,23 @@ test("every 1b pick survives the marker: buildFromMarker bills the same lines", 
     const back = buildFromMarker({ mode: "custom", cfg: { ...c, source: "all" } }, cat);
     assert.deepEqual(bill(back), bill(live), JSON.stringify(c.swaps || c.benches));
   }
+});
+
+test("FINISH_LABEL names every KERDI-LINE finish code the way Schluter does", () => {
+  assert.deepEqual(FINISH_LABEL, {
+    EB: "Brushed stainless", EP: "Chrome", MBW: "Matte white", MGS: "Matte black",
+    TSBG: "Greige", TSC: "Cream", TSDA: "Dark anthracite", TSG: "Pewter",
+    TSI: "Ivory", TSOB: "Bronze", TSSG: "Stone grey",
+  });
+});
+
+test("resolveBand with no width choice stays on the narrowest width carried, whatever the row order (owner 2026-09-27)", () => {
+  const first185 = catalogOf([...BAND_185, ...FIXTURE_ITEMS]);
+  for (const cat of [BCAT, first185]) {
+    for (const need of [10, 29.56, 60, 120]) {
+      const r = resolveBand(null, need, cat, { source: "all" });
+      assert.ok(r.lines.length && r.lines.every((l) => l.item.width === "125"), `need ${need}: ${picks(r)}`);
+    }
+  }
+  assert.deepEqual(picks(resolveBand({ width: "185" }, 120, first185, { source: "all" })), [["KEBA100/185", 2]]);
 });

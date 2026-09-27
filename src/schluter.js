@@ -936,7 +936,12 @@ export function resolveDrain(choice, panW, cat, { source } = {}) {
   return resolveVario(c, panW, cat, source);
 }
 
-export const FINISH_LABEL = { EB: "Brushed stainless", EP: "Polished stainless", MBW: "Matte black" };
+// Schluter's own names (grate listings, TRENDLINE sheets); MBW is matte white, MGS matte black.
+export const FINISH_LABEL = {
+  EB: "Brushed stainless", EP: "Chrome", MBW: "Matte white", MGS: "Matte black",
+  TSBG: "Greige", TSC: "Cream", TSDA: "Dark anthracite", TSG: "Pewter",
+  TSI: "Ivory", TSOB: "Bronze", TSSG: "Stone grey",
+};
 
 /**
  * The drain popover's rows for a pan of width `panW`: every chip's `ok`
@@ -1055,7 +1060,11 @@ export function membraneOptions(choice, sfNeed, cat, { source } = {}) {
 export function resolveBand(choice, lfNeed, cat, { source } = {}) {
   const c = choice && typeof choice === "object" ? choice : {};
   const all = cat.filter((i) => i.g === "seam" && i.lf).sort((a, b) => a.lf - b.lf);
-  let pool = c.width ? all.filter((i) => i.width === c.width) : all, subst = "";
+  // no width chosen = the narrowest width carried (5″, Schluter's standard —
+  // the KERDI-SHOWER-KIT band; owner 2026-09-27), never whatever row sorts first
+  const narrowest = all.map((i) => i.width).filter(Boolean).sort((a, b) => a - b)[0];
+  let pool = c.width ? all.filter((i) => i.width === c.width)
+    : narrowest ? all.filter((i) => i.width === narrowest) : all, subst = "";
   if (!pool.length && c.width) { pool = all; subst = `no ${bandWidthLabel(c.width)} band in the books — another width used`; }
   if (c.roll && !subst) {
     const pinned = stockPool(pool.filter((i) => i.roll === c.roll), source)[0];

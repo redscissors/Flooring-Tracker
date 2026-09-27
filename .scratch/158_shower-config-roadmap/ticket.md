@@ -83,7 +83,7 @@ per group → 1d shared names / Compare alignment (owner). **1a DONE
 - **Spec:** `docs/superpowers/specs/2026-09-26-drain-slot-design.md`
 - **Plan:** `docs/superpowers/plans/2026-09-26-drain-slot.md`
 - **Mockup:** `.scratch/mockups/drain-swap-2026-09-26.html` (layout A)
-- **Handoff:** `.scratch/handoffs/shower-config-phase1a-2026-09-26.md`
+- **Handoffs:** `.scratch/handoffs/shower-config-phase1a-2026-09-26.md` (1a); **next:** `.scratch/handoffs/shower-config-phase1c-2026-09-27.md` (1c onward)
 - **ADR:** `docs/adr/0049-configurator-swaps-remember-the-choice.md`
 - **Proof:** `.scratch/158_shower-config-roadmap/p1a/`
 - **PR:** [redscissors/Flooring-Tracker#437](https://github.com/redscissors/Flooring-Tracker/pull/437)
@@ -105,13 +105,17 @@ The Vario pan-width rule shipped early in PR #436.
   reason (double space, offset case); Vario design swap on >96″ pans has no
   note; `schluterDiag` doc comment.
 - wedi finish chips repeat the style.
-- **Owner call (1b):** the no-choice KERDI-BAND pick searches every width,
-  so under Full catalog the landed width can depend on registry row order
-  (e.g. an SO 7¼″ over a stocked 5″). Proposed: no choice = the narrowest
-  width carried, stock-first. Changes default bills, so it waits for the owner.
-- **Owner call (1b):** a stale wedi `curbKey` bills the recipe curb (R2) but
-  tile sf reads the saved key ("enter manually"). If R2 stands, make
-  `markerCurbKey` fall through to the recipe for an unknown key.
+- ~~Owner call (1b): default KERDI-BAND width~~ **DONE 2026-09-27**: owner
+  chose "always 5″, stock-first". No width chosen = the narrowest width
+  carried (5″ is Schluter's standard, the KERDI-SHOWER-KIT band), whatever the
+  row order; picking 5″ stores no pick.
+- ~~Owner call (1b): stale wedi `curbKey`~~ **DONE 2026-09-27**: owner
+  confirmed R2; `markerCurbKey` falls through to the recipe, so tile sf and
+  bill agree.
+- **Trendline finish names DONE 2026-09-27** (from Schluter's listings):
+  EP Chrome, MBW Matte white (was mislabelled "Matte black"), MGS Matte black,
+  TSBG Greige, TSC Cream, TSDA Dark anthracite, TSG Pewter, TSI Ivory,
+  TSOB Bronze, TSSG Stone grey.
 - 1b review minors: spec line on `canSwap` ("counts only the Stock-only
   pool") is stale — it now also counts the committed sku; a Browse-added line
   that merges into a kit line of the same key keeps its ⇄; the curb drawing

@@ -2251,8 +2251,8 @@ export default function SchluterConfigurator({
 
   // The membrane / band popover — the drain popover's draft model: chips edit
   // `swap.draft`, the Δ reads it against the lines the bill carries now, and
-  // Use this commits it. Membrane's default draft stores nothing; a band width
-  // pick is kept even at the default, since it stops the all-widths search.
+  // Use this commits it. A draft that bills the default stores nothing (the
+  // standard membrane width; the narrowest band width, with no roll pinned).
   const steppedPanel = () => {
     const mem = swap.stepped === "membrane";
     const draft = swap.draft || {};
@@ -2273,7 +2273,8 @@ export default function SchluterConfigurator({
       : `${p.qty} × ${inchGlyph(bandWidthLabel(p.item.width))} band, ${parseInt(p.item.roll, 10)} m · ${p.item.lf} lf`;
     const what = o.result.lines.map(lineWord).join(" + ") || "Nothing in the books";
     const why = o.result.subst || (mem ? `${Math.round(build.need.wallSf)} sf of wall with laps` : `${Math.round(build.need.bandLf)} lf of seams + tray perimeter`);
-    const commit = mem ? (draft.wide || draft.roll ? draft : null) : (draft.width || draft.roll ? draft : null);
+    const bandDefault = !draft.roll && (!draft.width || draft.width === (o.widths[0] && o.widths[0].key));
+    const commit = mem ? (draft.wide || draft.roll ? draft : null) : (bandDefault ? null : draft);
     const r = swap.rect;
     return (
       <SwapPop at={{ anchor: swap.anchor, x: r.right - 470, y: r.bottom + 6 }} className="sch-swappanel"

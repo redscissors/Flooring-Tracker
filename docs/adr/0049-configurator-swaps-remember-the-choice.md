@@ -119,5 +119,5 @@ one recipe.
 One exception beyond the one 1a already recorded: a stale wedi `curbKey` the
 catalog no longer knows now bills the recipe's default curb, where it used to
 bill none — the "nothing silently dropped" rule outranks pinning a key the
-books no longer carry (flagged for the owner in the PR, cost if wrong: such an
-old kit gains a curb line it didn't have).
+books no longer carry. The owner confirmed this on 2026-09-27, and tile sf
+(`markerCurbKey`) now falls through to the same recipe curb.

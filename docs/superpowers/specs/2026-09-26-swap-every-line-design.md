@@ -210,16 +210,19 @@ during execution (ledger: `.superpowers/sdd/2026-09-27-swap-every-line/progress.
   `curbKey` translates with its profile, so the bill is identical.
 - **Tile sf follows the marker.** `showersf.js` read `cfg.curbKey` directly for
   the tile-sf pieces; it now resolves the billed curb through `markerCurbKey`,
-  the same way `kitFor` does, so tile-sf and bill read the same curb —
-  **except** a stale `curbKey` (not in the book): `markerCurbKey` still
-  returns the saved key for that case ("enter manually" on the tile-sf side),
-  while `kitFor` bills the recipe default (the next bullet). That one
-  disagreement is a known gap, flagged to the owner; the existing
-  `showersf.js` test expects it.
+  the same way `kitFor` does, so tile-sf and bill read the same curb. A stale
+  `curbKey` (not in the book) falls through to the recipe curb on both sides
+  (owner confirmed R2, 2026-09-27; it first shipped as "enter manually" on the
+  tile-sf side).
+- **Default band width (owner 2026-09-27).** With no width chosen,
+  `resolveBand` uses the narrowest width carried (5″, Schluter's standard and
+  the KERDI-SHOWER-KIT band), stock-first. It used to search every width, so
+  the landed width could follow registry row order. A popover draft of 5″ with
+  no roll pinned stores no pick.
 - **Stale curb keys bill the recipe, not nothing.** A stale wedi `curbKey` —
   not in the book — used to read as no curb; it now bills the recipe default
   curb instead, the Schluter `swaps` precedent (a stale sku falls back to the
-  recipe rather than vanishing the line). Flagged for the owner to confirm.
+  recipe rather than vanishing the line). Owner confirmed 2026-09-27.
 - **Stale fastener/panel keys fall back with a note.** A stale wedi
   `fastenerKey` or `panelKey` — not in the book — falls back to the house
   kit/default panel and says so on the line ("… not in the book — house kit /
