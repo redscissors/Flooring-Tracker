@@ -16,8 +16,10 @@ import { PaneBack, PaneClose } from "./raildrawer.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
   trayCandidates, pickRolls, buildKit, tierPrice, coverageOf, lineItems, orderCopyLines, normBench, benchTrayRoom,
-  boardPlan, expandBoardFaces, wallArea, halfBoardPool, buildFromMarker, ovKey, sessionFromRows, slotOf, drainOptions,
+  boardPlan, expandBoardFaces, halfBoardPool, buildFromMarker, ovKey, sessionFromRows, drainOptions,
   resolveDrain, FINISH_LABEL, VARIO_DESIGN, pointGrateLabel, membraneOptions, bandOptions, bandWidthLabel,
+  addedLines, addedGroup, addedQty, setAddedQty, addParts, addPartOf, addRollOptions, drainAddOptions,
+  applyBoardPlan, applyQtyOv,
 } from "./schluter.js";
 import { SwapPop, fmDelta, inchGlyph } from "./swappop.jsx";
 import { mortarItemFrom, MORTAR_BED_SF_PER_BAG } from "./schluteradapter.js";
@@ -240,6 +242,9 @@ const CSS = `
 .sch-pop .bgroup{margin-top:8px}
 .sch-pop .bg-h{display:flex;align-items:center;gap:7px;font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:var(--ft-muted);padding-bottom:4px;border-bottom:1px solid var(--ft-border-strong)}
 .sch-pop .bg-h .wallctl{margin-left:auto;display:flex;align-items:center;gap:4px;text-transform:none;letter-spacing:0}
+.sch-pop .bg-h .addb{margin-left:auto;flex:none;border:1px solid var(--ft-border);background:var(--ft-card);border-radius:5px;color:var(--ft-muted);font-size:12px;font-weight:800;width:20px;height:18px;cursor:pointer;line-height:1;padding:0}
+.sch-pop .bg-h .wallctl + .addb{margin-left:6px}
+.sch-pop .bg-h .addb:hover{border-color:var(--ft-brand);color:var(--ft-brand-deep)}
 .sch-pop .pfseg{display:inline-flex;border:1px solid var(--ft-border-strong);border-radius:5px;overflow:hidden}
 .sch-pop .pfseg button{border:none;background:var(--ft-card);color:var(--ft-faint);font-size:9px;font-weight:800;padding:3px 7px;cursor:pointer}
 .sch-pop .pfseg button + button{border-left:1px solid var(--ft-border-strong)}
@@ -247,6 +252,7 @@ const CSS = `
 .sch-pop .bline{display:flex;align-items:center;gap:7px;padding:3px 0;border-bottom:1px solid var(--ft-row-line)}
 .sch-pop .bline .bn{flex:1;min-width:0}
 .sch-pop .bline .bn .n{font-size:11.5px;font-weight:700;line-height:1.25;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.sch-pop .bline .bn .n .addtag{font-size:8.5px;font-weight:800;color:var(--ft-brand-deep);background:var(--ft-brand-soft);border-radius:4px;padding:0 5px;margin-left:3px;vertical-align:1px}
 .sch-pop .bline .bn .n .sotag{font-size:8.5px;font-weight:800;color:var(--s-rust);background:var(--ft-hover-red,#F7E8E1);border-radius:4px;padding:0 5px;margin-left:6px;vertical-align:1px}
 .sch-pop .bline .bn .m{font-size:9.5px;color:var(--ft-faint);font-weight:600;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sch-pop .bline .bn .m b{color:var(--ft-muted);font-weight:700}
@@ -479,6 +485,7 @@ export default function SchluterConfigurator({
   const [swaps, setSwaps] = useState(s0.swaps);
   const [drainPick, setDrainPick] = useState(s0.drainPick);
   const [swap, setSwap] = useState(null);           // { key, rect, anchor, drain?, draft? } — a line's ⇄ popover
+  const [add, setAdd] = useState(null);             // { g, part, draft, qty, q, replace?, rect, anchor } — a group's "+" (Phase 1c)
   const [confirmKit, setConfirmKit] = useState(null); // tray clicked over a customized build
   const [manual, setManual] = useState(s0.manual);
   const [qtyOv, setQtyOv] = useState({}); // hand-stepped line quantities (the wedi idiom) — session only, never in the marker
@@ -701,47 +708,11 @@ export default function SchluterConfigurator({
   const plan = useMemo(() => planFor(cfg),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [cfg, cat, catReady, source, panelFit]);
-  // Swap the recipe's by-area panel line for the plan's per-sheet lines, in
-  // place (the fastener line stays — its count is pure area either way).
-  // The first plan line carries the wedi note: sf, seam count, stood-vertical
-  // count; the rest read "panel plan".
-  const applyBoardPlan = (lines, c, p) => {
-    if (!p || !p.lines.length) return lines;
-    const vWalls = p.detail.filter((d2) => d2.vertical).length;
-    const sf = wallArea(c);
-    const planLines = p.lines.map((pl, i) => {
-      const e = cat.find((x) => x.sku === pl.sku);
-      return e && {
-        g: "Walls", item: e, qty: pl.qty, so: !e.stock, slot: "wallBoard",
-        note: i === 0
-          ? sf.toFixed(0) + " sf — " + p.vSeams + " vertical seam" + (p.vSeams === 1 ? "" : "s")
-            + (vWalls ? " · " + vWalls + " wall" + (vWalls === 1 ? "" : "s") + " stood vertical" : "")
-          : "panel plan",
-      };
-    }).filter(Boolean);
-    if (!planLines.length) return lines;
-    const idx = lines.findIndex((l) => l.g === "Walls" && l.item.g === "board" && !l.item.fastener);
-    const out = lines.filter((l) => !(l.g === "Walls" && l.item.g === "board" && !l.item.fastener));
-    out.splice(idx >= 0 ? idx : out.length, 0, ...planLines);
-    return out;
-  };
-
-  // a stepped quantity keeps winning over the recipe's figure while the
-  // line survives; stepped to 0 the line leaves the bill (the wedi rule).
-  // The basket drawer runs it too, so a staged entry prices the build that
-  // was staged and not just its marker (owner decision 2026-08-31).
-  const applyQtyOv = (lines, ov) => lines.map((l) => {
-    const q = l.noteOnly ? null : ov[ovKey(l)];
-    return q == null ? l : { ...l, autoQty: l.qty, qty: q, ov: true };
-  }).filter((l) => l.noteOnly || l.qty > 0);
   const build = useMemo(() => {
     if (!pickCand) return null;
     const b = buildKit(cfg, cat, { source, pick: pickCand });
-    b.lines = applyQtyOv(applyBoardPlan(b.lines, cfg, plan), qtyOv);
-    manual.forEach((m) => {
-      const e = cat.find((i) => i.sku === m.sku);
-      if (e) b.lines.push({ g: "Extras", item: e, qty: m.qty, so: !e.stock, manual: true, slot: slotOf("Extras", e) });
-    });
+    b.lines = applyQtyOv(applyBoardPlan(b.lines, cfg, plan, cat), qtyOv);
+    b.lines.push(...addedLines(manual, cat));
     return b;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cfg, cat, source, pickCand, manual, qtyOv, plan]);
@@ -757,10 +728,14 @@ export default function SchluterConfigurator({
     const b = buildFromMarker(seed, cat);
     if (!b) return;
     const c2 = seed.cfg;
-    const lines = applyBoardPlan(b.lines, c2, c2.wallSys === "board" ? boardPlan(expandBoardFaces(c2), cat, { source: c2.source === "stock" ? "stock" : "all" }) : null);
+    const lines = applyBoardPlan(b.lines, c2, c2.wallSys === "board" ? boardPlan(expandBoardFaces(c2), cat, { source: c2.source === "stock" ? "stock" : "all" }) : null, cat);
     const s = sessionFromRows(lines, editRows, cat);
     if (Object.keys(s.qtyOv).length) setQtyOv(s.qtyOv);
-    if (s.manual.length) setManual((m) => [...m, ...s.manual]);
+    // a placed row's extra beyond the marker's own added lines tops up that row
+    if (s.manual.length) setManual((m) => s.manual.reduce((acc, r) => {
+      const g = addedGroup(r, cat.find((i) => i.sku === r.sku));
+      return setAddedQty(acc, g, r.sku, addedQty(acc, g, r.sku, cat) + r.qty, cat);
+    }, m));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [catReady, cat]);
   const mode = kitPick && !manual.length && !benches.length && !liveXwalls.length && !cfg.drainX && !cfg.drainY
@@ -787,7 +762,7 @@ export default function SchluterConfigurator({
     const c2 = marker.cfg;
     const s = session || {};
     const fit = session ? s.panelFit !== false : panelFit;
-    let lines = applyBoardPlan(b.lines, c2, fit && c2.wallSys === "board" ? boardPlan(expandBoardFaces(c2), cat, { source: c2.source === "stock" ? "stock" : "all" }) : null);
+    let lines = applyBoardPlan(b.lines, c2, fit && c2.wallSys === "board" ? boardPlan(expandBoardFaces(c2), cat, { source: c2.source === "stock" ? "stock" : "all" }) : null, cat);
     lines = applyQtyOv(lines, s.qtyOv || {});
     const bill = lines.filter((l) => !l.noteOnly);
     return {
@@ -878,15 +853,17 @@ export default function SchluterConfigurator({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, markCfg, tab, q, started]);
 
-  const qtyIn = (sku) => (manual.find((m) => m.sku === sku) || { qty: 0 }).qty;
-  const setQty = (sku, n) => setManual((mm) => {
-    const rest = mm.filter((m) => m.sku !== sku);
-    return n > 0 ? [...rest, { sku, qty: n }] : rest;
-  });
-  // a build-column stepper: a hand-added Extras line adjusts its manual row,
-  // a recipe line takes a qtyOv override
+  // Added lines (Phase 1c) are cfg.manual rows keyed by group + sku. Browse,
+  // the chips and the figurer add under the part's own group (addedGroup);
+  // a group's "+" adds under that group.
+  const browseG = (sku) => addedGroup({}, cat.find((i) => i.sku === sku));
+  const qtyIn = (sku) => addedQty(manual, browseG(sku), sku, cat);
+  const setQty = (sku, n) => setManual((mm) => setAddedQty(mm, browseG(sku), sku, n, cat));
+  const addQty = (g, sku, n) => setManual((mm) => setAddedQty(mm, g, sku, n, cat));
+  // a build-column stepper: an added line adjusts its own row, a recipe line
+  // takes a qtyOv override
   const stepLine = (l, delta) => {
-    if (l.manual) { setQty(l.item.sku, Math.max(0, l.qty + delta)); return; }
+    if (l.manual) { addQty(l.g, l.item.sku, Math.max(0, l.qty + delta)); return; }
     setQtyOv((o) => ({ ...o, [ovKey(l)]: Math.max(0, l.qty + delta) }));
   };
 
@@ -982,7 +959,7 @@ export default function SchluterConfigurator({
   const setBenchPick = (bi, patch) => setBenches((xs) => xs.map((b, j) => (j === bi ? { ...b, ...patch } : b)));
   const swapChoices = (l) => {
     const e = l.item;
-    if (l.noteOnly) return null;
+    if (l.noteOnly || l.manual) return null;
     if (l.g === "Curb" && e.g === "curb" && e.len) return {
       title: "Curb",
       list: pool(cat.filter((i) => i.g === "curb" && i.len)).slice().sort((a, b2) => a.len - b2.len),
@@ -1017,7 +994,7 @@ export default function SchluterConfigurator({
   // KERDI membrane and KERDI-BAND lines open the stepped popover (Phase 1b):
   // Width → Roll, the choice riding cfg.swaps.membrane / cfg.swaps.band.
   const steppedKind = (l) => {
-    if (l.noteOnly || !build) return null;
+    if (l.noteOnly || l.manual || !build) return null;
     if (l.g === "Walls" && l.item.g === "membrane") return cat.filter((i) => i.g === "membrane").length > 1 ? "membrane" : null;
     if (l.g === "Seams" && l.item.g === "seam" && l.item.lf) return cat.filter((i) => i.g === "seam" && i.lf).length > 1 ? "band" : null;
     return null;
@@ -1027,10 +1004,11 @@ export default function SchluterConfigurator({
   // 1a): linear builds choose family → grate → frame → finish, point builds
   // only the grate (the tray fixes the drain family).
   const pointGrates = () => pool(cat.filter((i) => i.g === "drain" && i.part === "grate")).sort(byShelf);
-  const drainKind = (l) => (l.g !== "Drain" || l.noteOnly || !build ? null
+  const drainKind = (l) => (l.g !== "Drain" || l.noteOnly || l.manual || !build ? null
     : build.drainFit ? "linear" : pointGrates().length ? "point" : null);
   const panW = benchTrayRoom(normBenches, cfg).w;
   const openSwap = (l, ev) => {
+    setAdd(null);
     const kind = drainKind(l);
     const stepped = !kind && steppedKind(l);
     const grate = kind === "point" && build.lines.find((x) => x.g === "Drain" && x.item.part === "grate");
@@ -1043,6 +1021,40 @@ export default function SchluterConfigurator({
     });
   };
 
+  // Added lines (Phase 1c): a group's "+" and an added line's ⇄ open addPanel.
+  const addDraft = (part, e) => {
+    const kitLine = (hit) => build && build.lines.find((l) => !l.manual && !l.noteOnly && hit(l.item));
+    if (part.stepped === "membrane") {
+      const m = e || kitLine((i) => i.g === "membrane")?.item;
+      return m ? { wide: !!m.wide, roll: m.roll } : {};
+    }
+    if (part.stepped === "band") {
+      const b = e || kitLine((i) => i.g === "seam" && i.lf)?.item;
+      return b ? { width: b.width, roll: b.roll } : {};
+    }
+    if (part.stepped === "drain") {
+      const fit = build?.drainFit;
+      const pick = drainPick && fit && (drainPick.family || "vario") === fit.family ? drainPick : { family: fit ? fit.family : "vario" };
+      return { ...pick, ...(fit ? { len: fit.len } : {}) };
+    }
+    return null;
+  };
+  const openAdd = (g, ev, line) => {
+    const part = line ? addPartOf(g, line.item) : addParts(g, cat, { linear: !!build?.drainFit })[0];
+    if (!part) return;
+    setSwap(null);
+    setAdd({
+      g, part: part.key, qty: 1, q: "", draft: addDraft(part, line ? line.item : null), replace: line ? line.item.sku : null,
+      rect: ev.currentTarget.getBoundingClientRect(), anchor: ev.currentTarget.closest(line ? ".bline" : ".bg-h"),
+    });
+  };
+  // an added line's ⇄: the part it sits in offers more than itself
+  const canSwapAdded = (l) => {
+    const part = l.manual && addPartOf(l.g, l.item);
+    if (!part) return false;
+    if (part.stepped) return true;
+    return new Set([...pool(cat.filter(part.hit)).map((i) => i.sku), l.item.sku]).size > 1;
+  };
   // A kit click over customized work asks before wiping it (the wedi
   // overwrite rule) — an untouched kit-to-kit hop stays one click.
   const kitDirty = manual.length > 0 || benches.length > 0 || liveXwalls.length > 0
@@ -1100,7 +1112,7 @@ export default function SchluterConfigurator({
       const own = kc.find((c) => c.tray && c.tray.sku === t.sku) || kc[0];
       if (!own || !own.tray) return;
       const b = buildKit(kcfg, cat, { source, pick: own });
-      const lines = applyBoardPlan(b.lines, kcfg, planFor(kcfg));
+      const lines = applyBoardPlan(b.lines, kcfg, planFor(kcfg), cat);
       out[t.sku] = round2(lines.filter((l) => !l.noteOnly).reduce((s, l) => s + tierOf(l.item) * l.qty, 0));
     });
     return out;
@@ -1133,7 +1145,7 @@ export default function SchluterConfigurator({
     setCorners({}); setMaxIn(false); setTileT("");
     setDrainX(""); setDrainY(""); setDrainRef("left");
     setBenches([]); setBenchMenu(null); setWallMenu(null); setPicker(null);
-    setMortarName(""); setRamp(false); setSwaps({}); setDrainPick(null); setSwap(null); setManual([]); setQtyOv({});
+    setMortarName(""); setRamp(false); setSwaps({}); setDrainPick(null); setSwap(null); setAdd(null); setManual([]); setQtyOv({});
     setPick(null); setKitPick(false); setStarted(false);
   };
 
@@ -1157,7 +1169,7 @@ export default function SchluterConfigurator({
   // tray size.
   const keepAdded = (t) => {
     setWalls((ws) => ws.map((x, i) => (+x.len > 0 && Math.abs(+x.len - (i === 0 ? cfg.w : cfg.d)) < 0.01 ? { ...x, len: "" } : x)));
-    setPlacing(false); setWallMenu(null); setBenchMenu(null); setPicker(null); setSwap(null);
+    setPlacing(false); setWallMenu(null); setBenchMenu(null); setPicker(null); setSwap(null); setAdd(null);
     setSwaps({}); setQtyOv({}); setMaxIn(false);
     setW(String(t.w)); setD(String(t.d)); setDrain(t.drain); setCurbed(!t.thin);
     setPick(t.sku); setKitPick(true); setStarted(true);
@@ -1498,16 +1510,12 @@ export default function SchluterConfigurator({
               const inBuild = (sku) => (build ? build.lines.reduce((t, l) => t + (!l.noteOnly && l.item.sku === sku ? l.qty : 0), 0) : 0);
               const want = figRolls.map((p) => [p.item.sku, p.qty]);
               if (allset) want.push([allset.sku, figBags]);
-              setManual((mm) => {
-                let next = mm.slice();
-                want.forEach(([sku, qty]) => {
-                  const need = qty - inBuild(sku);
-                  if (need <= 0) return;
-                  const m = next.find((x) => x.sku === sku);
-                  next = m ? next.map((x) => (x === m ? { ...x, qty: Math.max(x.qty, need) } : x)) : [...next, { sku, qty: need }];
-                });
-                return next;
-              });
+              setManual((mm) => want.reduce((next, [sku, qty]) => {
+                const need = qty - inBuild(sku);
+                if (need <= 0) return next;
+                const g = browseG(sku);
+                return setAddedQty(next, g, sku, Math.max(addedQty(next, g, sku, cat), need), cat);
+              }, mm));
               say("KERDI + ALL-SET added for " + figSfVal + " sf of wall");
             }}>Add to build</button>
           )}
@@ -1573,7 +1581,8 @@ export default function SchluterConfigurator({
           </div>
           {GROUPS.map((g) => {
             const gl = build.lines.filter((l) => l.g === g);
-            if (!gl.length) return null;
+            const canAdd = addParts(g, cat).length > 0;
+            if (!gl.length && !canAdd) return null;
             return (
               <div className="bgroup" key={g}>
                 <div className="bg-h">{g}
@@ -1585,21 +1594,29 @@ export default function SchluterConfigurator({
                       </span>
                     </span>
                   )}
+                  {canAdd && <button className="addb" title={`add another line to ${g}`} onClick={(ev) => openAdd(g, ev)} data-add-group={g}>+</button>}
                 </div>
                 {gl.map((l, li) => {
                   const e = l.item;
                   const price = tierOf(e);
-                  const meta = [e.sku, e.size, l.note, l.noteOnly ? "" : perUnit(e, false)].filter(Boolean);
+                  // the kit's own lines of an added line's part — a double-up after a room or kit change
+                  const kitAlso = l.manual ? build.lines.reduce((t, k) => t + (!k.manual && !k.noteOnly && k.item.sku === e.sku ? k.qty : 0), 0) : 0;
+                  const meta = [e.sku, e.size, l.note, kitAlso ? "kit also bills " + kitAlso : "", l.noteOnly ? "" : perUnit(e, false)].filter(Boolean);
                   return (
                     <div className={"bline" + (l.noteOnly ? " note" : "")} key={g + (e.sku || e.name) + li}>
                       <div className="bn">
                         <div className="n">{shown(e.name)}
+                          {l.manual && <>{" "}<span className="addtag" title="added by hand — doesn't re-figure when the room or kit changes" data-added-tag>added</span></>}
                           {!l.noteOnly && !e.stock && <span className="sotag">special order</span>}</div>
                         <div className="m" title={meta.join(" · ") || undefined}>{meta.map((s2, k) => (k ? " · " + s2 : <b key="k">{s2}</b>))}</div>
                       </div>
                       {(drainKind(l) || steppedKind(l) || canSwap(l)) && (
                         <button className="swapb" title="swap" data-schluter-swapb={e.sku}
                           onClick={(ev) => openSwap(l, ev)}>⇄</button>
+                      )}
+                      {canSwapAdded(l) && (
+                        <button className="swapb" title="swap this added line" data-schluter-swapb={e.sku} data-added-swapb
+                          onClick={(ev) => openAdd(l.g, ev, l)}>⇄</button>
                       )}
                       {!l.noteOnly && (
                         <div className="stepper">
@@ -2141,11 +2158,13 @@ export default function SchluterConfigurator({
         <div className="ph">Niches <HelpTip className="align-middle ml-1" w={220} tip={NICHE_PICK_TIP} /></div>
         {list.map((e) => {
           const n = qtyIn(e.sku);
+          // a row adds another (Phase 1c) — several niches, several sizes;
+          // the build line's − or ⇄ is where one comes off
           return (
             <button key={e.sku} className={"srow" + (n ? " on" : e.stock ? " stk" : "")}
-              onClick={() => setQty(e.sku, n ? 0 : 1)} data-schluter-pick={e.sku}>
+              onClick={() => setQty(e.sku, n + 1)} data-schluter-pick={e.sku}>
               <span className={"sdot" + (e.stock ? "" : " so")} />
-              <span className="n">{(n ? "✓ " : "") + shown(e.name)}<small>{[e.size, e.sku, e.stock ? "stock" : "special order"].filter(Boolean).join(" · ")}</small></span>
+              <span className="n">{(n ? `✓ ×${n} ` : "") + shown(e.name)}<small>{[e.size, e.sku, e.stock ? "stock" : "special order"].filter(Boolean).join(" · ")}</small></span>
               <span className="p">{fm(tierOf(e))}</span>
             </button>
           );
@@ -2160,7 +2179,7 @@ export default function SchluterConfigurator({
   // the Δ reads the draft against the drain the bill carries now.
   const drainPanel = () => {
     const drainTotal = (lines) => round2(lines.reduce((t, l) => t + tierOf(l.item) * l.qty, 0));
-    const cur = build.lines.filter((l) => l.g === "Drain" && !l.noteOnly);
+    const cur = build.lines.filter((l) => l.g === "Drain" && !l.noteOnly && !l.manual);
     const curTotal = drainTotal(cur);
     const setDraft = (draft) => setSwap((sw) => (sw ? { ...sw, draft } : sw));
     const clearDrainQty = () => setQtyOv((q) => Object.fromEntries(Object.entries(q).filter(([k]) => !k.startsWith("Drain|"))));
@@ -2193,6 +2212,22 @@ export default function SchluterConfigurator({
     if (!build.drainFit) return null;
     const draft = swap.draft;
     const o = drainOptions(draft, panW, cat, { source });
+    const { rows, what, why } = drainRowsFor(o, draft, setDraft, panW);
+    return (
+      <SwapPop at={at} className="sch-swappanel" title={`Swap the drain — ${panW}″ pan`} rows={rows}
+        summary={summaryOf(what, why, drainTotal(o.result.lines))}
+        onUse={() => {
+          setDrainPick(draft.family === "vario" && !draft.design && !draft.finish ? null : draft);
+          clearDrainQty(); setKitPick(false); setSwap(null);
+        }}
+        onClose={() => setSwap(null)} />
+    );
+  };
+
+  // The linear drain popover's rows and summary text for a drain choice at a
+  // `width` — the pan's installed width on a swap, the Length row's pick on a
+  // "+" (Phase 1c; `onPan` false words the family tooltip for a length).
+  const drainRowsFor = (o, draft, setDraft, width, onPan = true) => {
     const fam = o.family, res = o.result;
     // unchosen steps light the chip of what actually resolved
     const got = res.family === fam ? res.lines[fam === "vario" ? 0 : 1]?.item : null;
@@ -2201,14 +2236,14 @@ export default function SchluterConfigurator({
     // than dragging the whole choice onto a substitute or the Vario fallback
     const keepFinish = (next) => {
       if (!next.finish) return next;
-      const t = resolveDrain(next, panW, cat, { source });
+      const t = resolveDrain(next, width, cat, { source });
       if (!t.fallback && !t.subst) return next;
       const { finish, ...bare } = next;
       return bare;
     };
     const rows = [
       { label: "Family", chips: o.families.map((f) => ({ key: f.key, label: f.label, ok: f.ok, on: f.key === fam,
-        title: f.ok ? "" : `can't be made for a ${panW}″ pan`, onPick: () => setDraft({ family: f.key }) })) },
+        title: f.ok ? "" : onPan ? `can't be made for a ${width}″ pan` : `can't be made at ${width}″`, onPick: () => setDraft({ family: f.key }) })) },
       { label: fam === "frameless" ? "Body" : "Grate", chips: o.styles.map((st) => ({ key: st.key, ok: st.ok,
         label: st.label + (st.max && st.max < o.fit ? ` · to ${st.max}″` : ""),
         on: fam === "vario" ? st.key === (draft.design || got?.design)
@@ -2238,15 +2273,7 @@ export default function SchluterConfigurator({
           + (g.frame ? `, ${inchGlyph(g.frame)} frame` : "") + (g.finish ? ", " + low(FINISH_LABEL[g.finish] || g.finish) : "");
       why = [l0.note, l1.note].filter(Boolean).join(" · ");
     }
-    return (
-      <SwapPop at={at} className="sch-swappanel" title={`Swap the drain — ${panW}″ pan`} rows={rows}
-        summary={summaryOf(what, why, drainTotal(res.lines))}
-        onUse={() => {
-          setDrainPick(draft.family === "vario" && !draft.design && !draft.finish ? null : draft);
-          clearDrainQty(); setKitPick(false); setSwap(null);
-        }}
-        onClose={() => setSwap(null)} />
-    );
+    return { rows, what, why };
   };
 
   // The membrane / band popover — the drain popover's draft model: chips edit
@@ -2259,7 +2286,7 @@ export default function SchluterConfigurator({
     const setDraft = (next) => setSwap((sw) => (sw ? { ...sw, draft: next } : sw));
     const o = mem ? membraneOptions(draft, build.need.wallSf, cat, { source }) : bandOptions(draft, build.need.bandLf, cat, { source });
     const g = mem ? "Walls" : "Seams";
-    const cur = build.lines.filter((l) => l.g === g && (mem ? l.item.g === "membrane" : l.item.lf));
+    const cur = build.lines.filter((l) => l.g === g && !l.manual && (mem ? l.item.g === "membrane" : l.item.lf));
     const total = (lines) => round2(lines.reduce((t, l) => t + tierOf(l.item) * l.qty, 0));
     const curTotal = total(cur), next = total(o.result.lines);
     const d = round2(next - curTotal);
@@ -2289,6 +2316,88 @@ export default function SchluterConfigurator({
         onClose={() => setSwap(null)} />
     );
   };
+
+  // The "+" on a bill group (Phase 1c): the group's parts — stepped where the
+  // swap is stepped, with no Auto (an added line is a real part), a list
+  // elsewhere. Use this / a list click adds under that group; an added line's
+  // ⇄ opens the same panel on its own part and replaces that row, keeping
+  // its qty.
+  const addPanel = (() => {
+    if (!add || !build) return null;
+    const parts = add.replace ? [addPartOf(add.g, cat.find((i) => i.sku === add.replace))].filter(Boolean) : addParts(add.g, cat, { linear: !!build.drainFit });
+    const part = parts.find((p) => p.key === add.part) || parts[0];
+    if (!part) return null;
+    const setA = (patch) => setAdd((a) => (a ? { ...a, ...patch } : a));
+    const r = add.rect;
+    const at = { anchor: add.anchor, x: r.right - 470, y: r.bottom + 6 };
+    const partRow = !add.replace && parts.length > 1 ? [{ label: "Part", chips: parts.map((p) => ({
+      key: p.key, label: p.label, ok: true, on: p.key === part.key, onPick: () => setA({ part: p.key, draft: addDraft(p, null), q: "" }) })) }] : [];
+    const title = add.replace ? `Swap the added ${part.label.toLowerCase()}` : `Add to ${add.g}`;
+    const oldQty = add.replace ? addedQty(manual, add.g, add.replace, cat) : 0;
+    const old = add.replace ? cat.find((i) => i.sku === add.replace) : null;
+    const summaryFor = (items, why) => {
+      const q = add.replace ? oldQty : add.qty;
+      const cost = round2(items.reduce((t, e) => t + tierOf(e), 0) * q);
+      const d = round2(cost - (old ? tierOf(old) * q : 0));
+      return { what: (q > 1 ? q + " × " : "") + items.map((e) => shown(e.name)).join(" + "), why, delta: fmDelta(d), total: fm(round2((totals ? totals.sell : 0) + d)), up: d > 0 };
+    };
+    const use = (items) => {
+      if (add.replace) {
+        const to = items[0].sku;
+        if (to !== add.replace) setManual((mm) => setAddedQty(setAddedQty(mm, add.g, add.replace, 0, cat), add.g, to, addedQty(mm, add.g, to, cat) + oldQty, cat));
+      } else setManual((mm) => items.reduce((acc, e) => setAddedQty(acc, add.g, e.sku, addedQty(acc, add.g, e.sku, cat) + add.qty, cat), mm));
+      setAdd(null);
+    };
+    const qtyProps = add.replace ? {} : { qty: add.qty, onQty: (n) => setA({ qty: n }) };
+    const shelfWhy = (e) => [e.sku, e.stock ? "stock" : "special order"].join(" · ");
+    if (part.stepped === "membrane" || part.stepped === "band") {
+      const o = addRollOptions(part.stepped, add.draft, cat, { source });
+      const chip = (c) => ({ ...c, onPick: () => setA({ draft: c.next }) });
+      const rows = [...partRow,
+        { label: "Width", chips: o.widths.map((c) => ({ ...chip(c), label: part.stepped === "membrane" ? c.label : inchGlyph(c.label) })) },
+        { label: "Roll", chips: o.rolls.map(chip) }];
+      return (
+        <SwapPop add at={at} className="sch-swappanel" title={title} rows={rows} stockFirst={source === "stock"} {...qtyProps}
+          summary={o.item ? summaryFor([o.item], shelfWhy(o.item)) : { what: "Nothing in the books", why: "", delta: "", total: "" }}
+          onUse={() => o.item && use([o.item])} onClose={() => setAdd(null)} />
+      );
+    }
+    if (part.stepped === "drain") {
+      const o = drainAddOptions(add.draft, cat, { source });
+      const { rows, what } = drainRowsFor(o, o.choice, (d) => setA({ draft: { ...d, len: d.len ?? o.len } }), o.len, false);
+      rows.splice(1, 0, { label: "Length", chips: o.lengths.map((c) => ({ ...c, onPick: () => setA({ draft: c.next }) })) });
+      const items = o.lines.map((l) => l.item);
+      return (
+        <SwapPop add at={at} className="sch-swappanel" title={title} rows={[...partRow, ...rows]} {...qtyProps}
+          summary={{ ...summaryFor(items, items.map((e) => e.sku).join(" + ")), what: (add.qty > 1 ? add.qty + " × " : "") + what }}
+          onUse={() => items.length && use(items)} onClose={() => setAdd(null)} />
+      );
+    }
+    const all = pool(cat.filter(part.hit)).sort(byShelf);
+    const toks = add.q.toLowerCase().split(/\s+/).filter(Boolean);
+    const list = all.filter((e) => toks.every((t) => (e.name + " " + e.sku + " " + (e.size || "")).toLowerCase().includes(t)));
+    return (
+      <SwapPop add at={at} className="sch-swappanel" title={title} rows={partRow} onClose={() => setAdd(null)}>
+        {all.length > 12 && (
+          <input className="w-full rounded-md border border-slate-300 px-2 py-1 mb-1 text-[12px]" autoFocus value={add.q}
+            placeholder={`Search ${part.label.toLowerCase()}…`} onChange={(e) => setA({ q: e.target.value })} data-add-search />
+        )}
+        <div className="sch-swap sch-grown">
+          {list.slice(0, 60).map((e) => {
+            const n = addedQty(manual, add.g, e.sku, cat);
+            return (
+              <button key={e.sku} className={"srow" + (add.replace === e.sku ? " on" : "") + (e.stock ? " stk" : "")}
+                onClick={() => use([e])} data-add-row={e.sku}>
+                <span className={"sdot" + (e.stock ? "" : " so")} />
+                <span className="n">{(!add.replace && n ? `✓ ×${n} ` : "") + shown(e.name)}<small>{[e.size, e.sku, e.stock ? "stock" : "special order"].filter(Boolean).join(" · ")}</small></span>
+                <span className="p">{fm(tierOf(e))}</span>
+              </button>
+            );
+          })}
+        </div>
+      </SwapPop>
+    );
+  })();
 
   // The ⇄ swap popover — the wedi anchored panel: the line's alternatives,
   // stock tinted, the standing pick highlighted.
@@ -2467,6 +2576,7 @@ export default function SchluterConfigurator({
       {benchMenuPanel}
       {pickerPanel}
       {swapPanel}
+      {addPanel}
       {confirmModal}
       {payloadModal}
       {printSheet}

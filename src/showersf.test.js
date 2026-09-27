@@ -14,6 +14,11 @@ test("wedi: three walls, curb cap across the entry, one 12×12 niche", () => {
   assert.deepEqual(r.pieces.map((p) => p.piece), ["walls", "floor", "curb", "niche"]);
 });
 
+test("wedi: added niches count × qty — two sizes, one twice (ticket 158 Phase 1c)", () => {
+  const r = wediPieces({ ...base, curbKey: "US3000008", manual: [{ key: "US3000005", qty: 2, group: "addon" }, { key: "US3000004", qty: 1, group: "addon" }] });
+  assert.equal(sf(r).niche, 2.7);
+});
+
 test("wedi: lean curb and a back bench (face into walls, top its own piece, footprint off the floor)", () => {
   assert.deepEqual(sf(wediPieces({ ...base, curbKey: "US3000038", benches: [{ kind: "wall", side: "back", len: 48 }] })),
     { walls: 94, floor: 10.3, curb: 3.8, benchTop: 4.7 });

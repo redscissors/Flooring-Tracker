@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { rowItemKey, sessionFromRows,
+  addedRows, setAddedRow, wediBucketOf, wediAddParts, wediAddPartOf, curbAddOptions, coverAddOptions,
   catalog, item, group, pans, curbs, kitFor, buildFromMarker, solve, figureConsumables, panelPlan,
   openEdges, openCorners, curbRuns, wallSpans, expandWallFaces, WALL_THICK, panThick, BROWSE_SECTIONS, sectionHit,
   tierPrice, lineItems, factoryKit, linearCoverFor, legacyCoverPick, coverStyles, coverFrames, coverFrameFor, dims, round2, inch,
@@ -1621,4 +1622,96 @@ test("kitFor: a stale or non-panel panelKey falls back to the default panel with
   assert.equal(notAPanel.item.key, SKU.panelDefault);
   assert.equal(notAPanel.note.includes(SKU.fastenerKit + " not in the book — default panel used"), true);
   assert.equal("panelKey" in kitFor("US9100004", { panelKey: "NOPE" }).cfg, false, "a stale pick never rides the marker");
+});
+
+// --- added lines (ticket 158 Phase 1c) ---------------------------------------
+
+test("addedRows: old addons translate (a key twice = qty 2, add-on bucket); manual rows keep their bucket", () => {
+  assert.deepEqual(addedRows({ addons: ["US3000004", "US3000004", SKU.gun] }),
+    [{ key: "US3000004", qty: 2, group: "addon" }, { key: SKU.gun, qty: 1, group: "addon" }]);
+  assert.deepEqual(addedRows({ manual: [{ key: "US3000004", qty: 1, group: "addon" }, { key: SKU.panelDefault, qty: 2 }, { key: "NOPE", qty: 1 }, { key: "US3000005", qty: 0 }] }),
+    [{ key: "US3000004", qty: 1, group: "addon" }, { key: SKU.panelDefault, qty: 2, group: "walls" }]);
+  assert.deepEqual(addedRows({ manual: [{ key: "US3000002", qty: 1, group: "bench" }] }), [{ key: "US3000002", qty: 1, group: "bench" }], "a seat added under Bench stays there");
+  assert.deepEqual(addedRows({}), []);
+  assert.equal(wediBucketOf(item(SKU.panelDefault)), "walls");
+  assert.equal(wediBucketOf(item("US3000004")), "addon");
+});
+
+test("kitFor: added rows bill as their own un-auto lines; a kit part added again never merges; the marker writes manual, not addons", () => {
+  const plain = kitFor("US9100004");
+  const panel = plain.lines.find((l) => l.item.group === "panel");
+  const k = kitFor("US9100004", { manual: [{ key: panel.item.key, qty: 2, group: "walls" }, { key: "US3000004", qty: 2, group: "addon" }] });
+  const same = k.lines.filter((l) => l.item.key === panel.item.key);
+  assert.deepEqual(same.map((l) => [l.group, l.qty, l.auto, !!l.added]), [["walls", panel.qty, true, false], ["walls", 2, false, true]]);
+  assert.deepEqual(k.lines.filter((l) => l.item.key === "US3000004").map((l) => [l.group, l.qty, l.slot]), [["addon", 2, "niche"]]);
+  assert.deepEqual(k.cfg.manual, [{ key: panel.item.key, qty: 2, group: "walls" }, { key: "US3000004", qty: 2, group: "addon" }]);
+  assert.equal(k.cfg.addons, undefined);
+  assert.equal(plain.cfg.manual, undefined, "no added rows — no manual key");
+  assert.deepEqual(kitFor("US9100004", { addons: ["US3000004", "US3000004"] }).cfg.manual, [{ key: "US3000004", qty: 2, group: "addon" }], "old addons re-save as rows");
+});
+
+test("kitFor: an added sealant gun clears the sausage-gun hint", () => {
+  assert.ok(kitFor("US9100004", { sealantForm: "sausage" }).hints.includes("sausage-gun"));
+  assert.ok(!kitFor("US9100004", { sealantForm: "sausage", manual: [{ key: SKU.gun, qty: 1, group: "install" }] }).hints.includes("sausage-gun"));
+});
+
+test("buildFromMarker: added rows round-trip — same lines, same bill", () => {
+  const k = kitFor("US9100004", { manual: [{ key: "US3000004", qty: 1, group: "addon" }, { key: "US3000248", qty: 2, group: "addon" }] });
+  const back = buildFromMarker({ mode: "kit", cfg: k.cfg });
+  assert.deepEqual(back.lines.map((l) => l.item.key + "×" + l.qty + "@" + l.group), k.lines.map((l) => l.item.key + "×" + l.qty + "@" + l.group));
+  assert.deepEqual(back.cfg.manual, k.cfg.manual);
+});
+
+test("setAddedRow: rows key on bucket + key; 0 removes; order kept", () => {
+  let m = setAddedRow([], "addon", "US3000004", 1);
+  m = setAddedRow(m, "addon", "US3000248", 1);
+  m = setAddedRow(m, "addon", "US3000004", 3);
+  assert.deepEqual(m, [{ key: "US3000004", qty: 3, group: "addon" }, { key: "US3000248", qty: 1, group: "addon" }]);
+  assert.deepEqual(setAddedRow(m, "addon", "US3000004", 0), [{ key: "US3000248", qty: 1, group: "addon" }]);
+  assert.deepEqual(setAddedRow([{ key: SKU.panelDefault, qty: 1 }], "walls", SKU.panelDefault, 2), [{ key: SKU.panelDefault, qty: 2, group: "walls" }], "a groupless row is its default bucket's row");
+});
+
+test("wediAddParts / wediAddPartOf: each bucket's '+' parts", () => {
+  const keys = (b) => wediAddParts(b).map((p) => p.key);
+  assert.deepEqual(keys("walls"), ["panel"]);
+  assert.deepEqual(keys("drain"), ["cover", "frame", "drainKit"].filter((k) => k !== "drainKit" || group("drainKit").length));
+  assert.ok(keys("addon").includes("niche") && keys("addon").includes("shelf"));
+  assert.ok(keys("floor").includes("curb"));
+  assert.equal(wediAddPartOf("addon", item("US3000004")).key, "niche");
+  assert.equal(wediAddPartOf("bench", item("US3000002")).key, "bench");
+  assert.equal(wediAddPartOf("floor", item(SKU.curbLean60)).key, "curb");
+});
+
+test("curbAddOptions: Style → Profile → Length with no Auto or No curb; the piece is one at a real length", () => {
+  const o = curbAddOptions();
+  assert.deepEqual(o.choice, { sub: "lean", len: 60 });
+  assert.equal(o.item.key, SKU.curbLean60);
+  assert.ok(!o.lengths.some((c) => c.key === "auto") && !o.styles.some((c) => c.key === "none"));
+  assert.ok(o.styles.every((c) => c.next.len === 60), "a style chip keeps the drafted length");
+  assert.equal(curbAddOptions({ sub: "lean", len: 96 }).item.len, 96);
+  const at = curbAddOptions({ sub: "at", len: 96 });
+  assert.equal(at.choice.len, 60, "AT isn't made at 96″ — its longest lands");
+  assert.equal(at.item.len, 60);
+});
+
+test("coverAddOptions: Size → Style → Finish, each chip a cover key", () => {
+  const o = coverAddOptions("US1000085");
+  assert.equal(o.cur.key, "US1000085");
+  assert.ok(o.sizes.find((c) => c.key === "43").on);
+  assert.equal(o.sizes.find((c) => c.key === "27").next, "676797048", "the drafted finish follows a size change, stocked first");
+  assert.equal(o.styles.find((c) => c.key === "tileable").next, "US1000087");
+  assert.ok(o.finishes.every((c) => item(c.next).len === 43));
+  const pt = coverAddOptions();
+  assert.equal(pt.cur.key, SKU.coverSS);
+  assert.equal(pt.styles.length, 0, "a point cover has no style row");
+  assert.ok(pt.finishes.every((c) => item(c.next).sub === "point"));
+});
+
+test("sessionFromRows: a placed kit's added lines come off the totals — never an override or a second extra", () => {
+  const k = kitFor("US9100004", { manual: [{ key: "US3000004", qty: 2, group: "addon" }, { key: SKU.panelDefault, qty: 1, group: "walls" }] });
+  const rows = lineItems(k);
+  assert.deepEqual(sessionFromRows(k.lines, rows), { qtyOv: {}, manual: [] });
+  const panel = k.lines.find((l) => l.item.key === SKU.panelDefault && !l.added);
+  const bumped = rows.map((r, i) => (k.lines[i] === panel ? { ...r, qty: String(panel.qty + 1) } : r));
+  assert.deepEqual(sessionFromRows(k.lines, bumped), { qtyOv: { [SKU.panelDefault]: panel.qty + 1 }, manual: [] });
 });

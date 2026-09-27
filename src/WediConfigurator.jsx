@@ -24,6 +24,7 @@ import {
   normBench, benchPremades, benchPanRoom, benchPanPlan, smallerPanFor,
   BENCH_CORNER_LBL, buildFromMarker, sessionFromRows, wediSlotOf, coverStyles, legacyCoverPick, coverPickApplies,
   resolveCurb, curbOptions, curbPickOf, panelOptions, panelSheets, fastenerKits,
+  addedRows, setAddedRow, wediBucketOf, wediAddParts, wediAddPartOf, curbAddOptions, coverAddOptions, curbProfile, catalog,
 } from "./wedi.js";
 import { SwapPop, fmDelta, inchGlyph } from "./swappop.jsx";
 import { TopDown, Iso, railSplit, RAIL_DESIGN_W, curbHeight } from "./showerdraw.jsx";
@@ -314,8 +315,13 @@ const CSS = `
 .wedi-pop .bline .stepper button{width:20px;height:20px;font-size:12px}
 .wedi-pop .bline .stepper .q{width:24px;font-size:11px}
 .wedi-pop .bline .stepper .q.ov{color:var(--w-rust)}
+.wedi-pop .bline .stepph{flex:none;width:66px;text-align:center;font-size:11px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--ft-muted)}
 .wedi-pop .swapb{flex:none;border:1px solid var(--ft-border);background:var(--ft-card);border-radius:5px;width:20px;height:20px;font-size:11px;color:var(--ft-muted);cursor:pointer;line-height:1}
 .wedi-pop .swapb:hover{border-color:var(--ft-brand);color:var(--ft-brand-deep)}
+.wedi-pop .bg-h .addb{margin-left:auto;flex:none;border:1px solid var(--ft-border);background:var(--ft-card);border-radius:5px;color:var(--ft-muted);font-size:12px;font-weight:800;width:20px;height:18px;cursor:pointer;line-height:1;padding:0}
+.wedi-pop .bg-h .wallctl + .addb{margin-left:6px}
+.wedi-pop .bg-h .addb:hover{border-color:var(--ft-brand);color:var(--ft-brand-deep)}
+.wedi-pop .bline .addtag{font-size:8.5px;font-weight:800;color:var(--ft-brand-deep);background:var(--ft-brand-soft);border-radius:4px;padding:0 5px;margin-left:3px;vertical-align:1px}
 .wedi-pop .starb{flex:none;border:1px solid var(--ft-border);background:var(--ft-card);border-radius:5px;width:22px;height:22px;font-size:12px;color:var(--ft-faint);cursor:pointer;line-height:1;padding:0}
 .wedi-pop .starb.on{color:#C9A050;border-color:#C9A050}
 .wedi-pop .addchips{display:flex;flex-wrap:wrap;gap:5px;padding:5px 0 2px}
@@ -452,12 +458,7 @@ const browseSub = (e) => [finName(e), sizeLed(e) ? e.sizeText : "", GROUP_LABEL[
   .filter(Boolean).join(" · ");
 
 const BUCKETS = [["floor", "Floor"], ["walls", "Walls"], ["bench", "Bench"], ["drain", "Drain & finish"], ["install", "Install"], ["addon", "Add-ons"]];
-const BUCKET_OF = {
-  pan: "floor", module: "floor", modExt: "floor", extension: "floor", cornerExt: "floor", ramp: "floor",
-  curb: "floor", kit: "floor", panel: "walls", cover: "drain", coverFrame: "drain", drainKit: "drain",
-  recess: "install", fastener: "install", sealant: "install", tool: "install", collar: "install", subliner: "install",
-};
-const bucketOf = (e) => BUCKET_OF[e.group] || "addon";
+const bucketOf = wediBucketOf;
 
 // One word each, no descriptive line (owner 2026-08-02): the Kits tab is a
 // price list to scan, and the difference between these four is the one word.
@@ -496,7 +497,7 @@ const DEF_INP = { w: 48, d: 66, curb: "curbed", drain: "any", drainX: "", drainY
 function seedState(seed) {
   const s = {
     tab: "kits", inp: { ...DEF_INP }, q: "", panKey: null, opts: { ...DEF_OPTS },
-    addons: [], benches: [], walls: DEF_WALLS.map((w) => ({ ...w })), extraWalls: [], wallH: 96, wallSeq: 0,
+    manual: [], benches: [], walls: DEF_WALLS.map((w) => ({ ...w })), extraWalls: [], wallH: 96, wallSeq: 0,
     corners: { bl: false, br: false, fl: false, fr: false }, solveInput: null, maxIn: false, tileT: "", source: "stock",
   };
   if (!seed) return s;
@@ -520,7 +521,8 @@ function seedState(seed) {
       sealantForm: cfg.sealantForm === "sausage" ? "sausage" : "tube",
       recess: cfg.recess || undefined,
     };
-    s.addons = (cfg.addons || []).slice();
+    // added lines (Phase 1c): cfg.manual, an old marker's addons translated
+    s.manual = addedRows(cfg);
     s.benches = (cfg.benches || []).map((b) => ({ ...b }));
     const rows = [];
     (cfg.walls || []).forEach((w) => {
@@ -631,8 +633,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   const [option, setOption] = useState(null);
   const [results, setResults] = useState([]);
   const [qtyOv, setQtyOv] = useState({});
-  const [manual, setManual] = useState([]);
-  const [addons, setAddons] = useState(s0.addons);
+  const [manual, setManual] = useState(s0.manual);
   const [benches, setBenches] = useState(s0.benches);
   const [opts, setOpts] = useState(s0.opts);
   const [inp, setInp] = useState(s0.inp);
@@ -727,6 +728,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   });
   const [swap, setSwap] = useState(null);     // { key, rect }
   const [chipMenu, setChipMenu] = useState(null);   // { group, rect } — add-on chip picker
+  const [add, setAdd] = useState(null);             // { g, part, draft, qty, q, replace?, rect, anchor } — a bucket's "+" (Phase 1c)
   const [wallMenu, setWallMenu] = useState(null);   // { wid, extra, x, y } — right-clicked wall
   const [benchMenu, setBenchMenu] = useState(null); // { kind, side|corner, x, y } — pan zone clicked
   const [confirmPan, setConfirmPan] = useState(null); // kit card clicked over a custom shower
@@ -893,22 +895,23 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   };
 
   // The build column's tail over a kitFor result — panel plan, stepped
-  // quantities, hand-added extras. The basket drawer runs it too, so a staged
-  // entry prices the build that was staged and not just its marker.
+  // quantities. The basket drawer runs it too, so a staged entry prices the
+  // build that was staged and not just its marker. Added lines ride the cfg
+  // (kitFor bills them); `s.manual` is only a basket entry staged before
+  // Phase 1c, whose extras rode the session — each its own line now.
   const applySession = (b, wl, s) => {
-    let lines = b.lines.map((l) => ({ item: l.item, qty: l.qty, group: l.group, note: l.note, auto: l.auto, slot: l.slot }));
+    let lines = b.lines.map((l) => ({ item: l.item, qty: l.qty, group: l.group, note: l.note, auto: l.auto, slot: l.slot, added: l.added }));
     if (s.panelFit) lines = applyPanelFit(lines, wl, b.panelSf);
     lines.forEach((l) => {
       const ov = s.qtyOv[l.item.key];
-      if (ov != null && l.auto !== false) { l.autoQty = l.qty; l.qty = ov; l.ov = true; }
+      if (ov != null && !l.added) { l.autoQty = l.qty; l.qty = ov; l.ov = true; }
     });
-    lines = lines.filter((l) => l.qty > 0);
-    s.manual.forEach((m) => {
-      const it = item(m.key);
-      if (!it || !(m.qty > 0)) return;
-      const hit = lines.find((l) => l.item.key === m.key);
-      if (hit) hit.qty += m.qty;
-      else lines.push({ item: it, qty: m.qty, group: bucketOf(it), note: "", auto: false, slot: wediSlotOf({ item: it, group: bucketOf(it) }) });
+    // the Fit plan re-appends the kit's panels, so added lines move back to
+    // the end — below the kit lines of their bucket
+    lines = [...lines.filter((l) => l.qty > 0 && !l.added), ...lines.filter((l) => l.qty > 0 && l.added)];
+    addedRows({ manual: s.manual }).forEach((r) => {
+      const it = item(r.key);
+      lines.push({ item: it, qty: r.qty, group: r.group, note: "", auto: false, added: true, slot: wediSlotOf({ item: it, group: r.group }) });
     });
     return lines;
   };
@@ -928,7 +931,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     || (w.h !== "" && Math.abs(+w.h - (+wallH || 96)) >= 0.01)
     || (w.faces || "in") !== "in");
   const geomDirty = wallsTouched || extraWalls.length > 0 || Object.values(corners).some(Boolean) || wallFlip || +wallH !== 96;
-  const kitDirty = !!panKey && (geomDirty || Object.keys(qtyOv).length > 0 || manual.length > 0 || addons.length > 0
+  const kitDirty = !!panKey && (geomDirty || Object.keys(qtyOv).length > 0 || manual.length > 0
     || benches.length > 0
     || opts.panelKey !== undefined || opts.curbPick !== undefined || opts.fastenerKey !== undefined
     || coverPickApplies(opts.coverPick, panKey)
@@ -947,18 +950,15 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
         walls: buildWalls, wallHeight: +wallH || 80,
         panelKey: opts.panelKey, curbPick: opts.curbPick, fastenerKey: opts.fastenerKey, coverPick: opts.coverPick,
         coverFrame: opts.coverFrame, sealantForm: opts.sealantForm, recess: opts.recess,
-        addons: addons.slice(), benches: benches.slice(), tier: tierId,
+        manual: manual.slice(), benches: benches.slice(), tier: tierId,
         corners: ["bl", "br", "fl", "fr"].filter((k) => corners[k]),
         mode: option ? "custom" : "kit", maxIn: maxIn, tileT: tileIn,
       });
       if (!b) return null;
-      return { ...b, cfg: { ...b.cfg, source }, lines: applySession(b, buildWalls, { qtyOv, manual, panelFit }) };
+      return { ...b, cfg: { ...b.cfg, source }, lines: applySession(b, buildWalls, { qtyOv, panelFit }) };
     }
     if (manual.length) {
-      const lines = manual.filter((m) => m.qty > 0).map((m) => {
-        const it = item(m.key);
-        return it ? { item: it, qty: m.qty, group: bucketOf(it), note: "", auto: false } : null;
-      }).filter(Boolean);
+      const lines = addedRows({ manual }).map((r) => ({ item: item(r.key), qty: r.qty, group: r.group, note: "", auto: false, added: true }));
       if (!lines.length) return null;
       const soNet = round2(lines.reduce((t, l) => t + (l.item.stock ? 0 : (l.item.soNet || l.item.cost || 0) * l.qty), 0));
       const hints = [];
@@ -967,7 +967,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
       return { pan: null, lines, panelSf: 0, factory: null, hints, mode: "browse", cfg: {}, soNet };
     }
     return null;
-  }, [panKey, option, buildWalls, wallH, opts, addons, benches, qtyOv, manual, panelFit, tierId, corners, maxIn, tileIn, source]);
+  }, [panKey, option, buildWalls, wallH, opts, benches, qtyOv, manual, panelFit, tierId, corners, maxIn, tileIn, source]);
 
   // A Reconfigure opens on what the sheet says (owner 2026-09-02): the placed
   // rows are the truth once a kit lands, so a quantity typed on a row — or
@@ -981,9 +981,13 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     rowsSeeded.current = true;
     const b = buildFromMarker(seed);
     if (!b) return;
-    const s = sessionFromRows(applySession(b, b.cfg.walls, { qtyOv: {}, manual: [], panelFit: true }), editRows);
+    const s = sessionFromRows(applySession(b, b.cfg.walls, { qtyOv: {}, panelFit: true }), editRows);
     if (Object.keys(s.qtyOv).length) setQtyOv(s.qtyOv);
-    if (s.manual.length) setManual(s.manual);
+    // a placed row's extra beyond the marker's own added lines tops up that row
+    if (s.manual.length) setManual((m) => s.manual.reduce((acc, r) => {
+      const g = bucketOf(item(r.key));
+      return setAddedRow(acc, g, r.key, addedQty(acc, g, r.key) + r.qty);
+    }, m));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -996,27 +1000,33 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
 
   const qtyIn = (key) => (build ? build.lines.reduce((t, l) => t + (l.item.key === key ? l.qty : 0), 0) : 0);
 
+  // Added lines (Phase 1c) are manual rows keyed by bucket + key, each its own
+  // line. Browse, the chips and the figurer add under the part's own bucket;
+  // a bucket's "+" adds under that bucket.
+  const addedQty = (mm, g, key) => (addedRows({ manual: mm }).find((r) => r.key === key && r.group === g) || { qty: 0 }).qty;
+  const addTo = (g, key, n) => setManual((mm) => setAddedRow(mm, g, key, n));
+  const browseQty = (key) => addedQty(manual, bucketOf(item(key)), key);
   const step = (key, delta) => {
-    const auto = build && build.lines.find((l) => l.item.key === key && l.auto !== false);
-    if (auto) {
-      setQtyOv((o) => ({ ...o, [key]: Math.max(0, (o[key] != null ? o[key] : auto.qty) + delta) }));
-      return;
-    }
-    const m = manual.find((x) => x.key === key);
-    let next = manual;
-    if (m) {
-      const nq = Math.max(0, m.qty + delta);
-      next = nq ? manual.map((x) => (x === m ? { ...x, qty: nq } : x)) : manual.filter((x) => x !== m);
-    } else if (delta > 0) next = [...manual, { key, qty: delta }];
-    setManual(next);
-    // an add-on stepped past its last piece drops its chip too
-    if (delta < 0 && addons.includes(key) && !next.some((x) => x.key === key && x.qty > 0)) setAddons((a) => a.filter((k) => k !== key));
+    const g = bucketOf(item(key));
+    addTo(g, key, Math.max(0, browseQty(key) + delta));
+  };
+  // a build-column stepper: an added line adjusts its own row, a kit line
+  // takes a qtyOv override
+  const stepLine = (l, delta) => {
+    if (l.added) { addTo(l.group, l.item.key, Math.max(0, l.qty + delta)); return; }
+    // a placed premade bench counts the benches on the drawing; two of one
+    // part share a qtyOv key, so it takes no stepper
+    if (l.auto === false) return;
+    const key = l.item.key;
+    setQtyOv((o) => ({ ...o, [key]: Math.max(0, (o[key] != null ? o[key] : l.qty) + delta) }));
   };
 
   // A re-solved room keeps the cover and curb choices: they name a finish or
-  // a style, not a part, so they re-fit the new room (ADR 0049).
+  // a style, not a part, so they re-fit the new room (ADR 0049). Added lines
+  // stay too — a part and a hand-set qty, never re-fit (Phase 1c).
   const resetBuild = (keepChoices) => {
-    setQtyOv({}); setAddons([]); setBenches([]); setBenchMenu(null); setManual([]);
+    setQtyOv({}); setBenches([]); setBenchMenu(null);
+    if (!keepChoices) setManual([]);
     setOpts((o) => ({ ...DEF_OPTS, coverPick: keepChoices ? o.coverPick : undefined, curbPick: keepChoices ? o.curbPick : undefined }));
   };
   // Only a genuinely modified wall survives a room/option change (owner rule):
@@ -1322,7 +1332,8 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     if (!diag) return { segs: [], diags: [], cuts: [] };
     const runs = curbRuns(diag.room, buildWalls, ["bl", "br", "fl", "fr"].filter((k) => corners[k]),
       (build && build.benches) || []);
-    const line = build && build.lines.find((l) => l.item.group === "curb");
+    // the kit's own curb — an added curb is a part on the bill, not a curb in the room
+    const line = build && build.lines.find((l) => l.item.group === "curb" && !l.added);
     return {
       segs: line ? runs.segs : [], diags: line ? runs.diags : [], cuts: runs.diags,
       h: line ? curbHeight(line.item) : 0, w: line ? curbWidth(line.item) : 0,
@@ -1340,18 +1351,42 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     });
   }, [cornerOpenMap]);
 
+  // --- added lines (Phase 1c) -------------------------------------------------
+  // A bucket's "+" and an added line's ⇄ open addPanel: the bucket's parts,
+  // stepped where the swap is stepped (no Auto — an added line is a real
+  // part), a list elsewhere.
+  const addDraft = (part, e) => {
+    const kit = (hit) => build && build.lines.find((l) => !l.added && hit(l.item));
+    if (part.stepped === "curb") {
+      const c = e || kit((i) => i.group === "curb" && i.len)?.item;
+      return c ? { sub: c.sub, len: c.len, ...(c.sub === "at" ? { profile: curbProfile(c) } : {}) } : undefined;
+    }
+    if (part.stepped === "panel") return (e || kit((i) => i.group === "panel" && i.sf > 0)?.item || {}).key;
+    if (part.stepped === "cover") return (e || kit((i) => i.group === "cover")?.item || {}).key;
+    return null;
+  };
+  const openAdd = (g, ev, line) => {
+    const part = line ? wediAddPartOf(g, line.item) : wediAddParts(g)[0];
+    if (!part) return;
+    setSwap(null); setChipMenu(null);
+    setAdd({
+      g, part: part.key, qty: 1, q: "", draft: addDraft(part, line ? line.item : null), replace: line ? line.item.key : null,
+      rect: ev.currentTarget.getBoundingClientRect(), anchor: ev.currentTarget.closest(line ? ".bline" : ".bg-h"),
+    });
+  };
+  const addPool = (part) => bySource(catalog().filter(part.hit)).slice().sort((a, b) => (b.stock ? 1 : 0) - (a.stock ? 1 : 0) || a.retail - b.retail);
+  // an added line's ⇄: the part it sits in offers more than itself
+  const canSwapAdded = (l) => {
+    const part = l.added && wediAddPartOf(l.group, l.item);
+    if (!part) return false;
+    return !!part.stepped || new Set([...addPool(part).map((e) => e.key), l.item.key]).size > 1;
+  };
+
   // --- swaps ----------------------------------------------------------------
   const swapChoices = (line) => {
     const g = line.item.group;
-    if (["niche", "seat", "bench", "shelf"].includes(g)) {
-      return {
-        title: GROUP_LABEL[g], list: bySource(group(g)), set: (k) => {
-          if (!k) return;
-          setAddons((a) => a.map((x) => (x === line.item.key ? k : x)));
-          setManual((mm) => mm.map((x) => (x.key === line.item.key ? { ...x, key: k } : x)));
-        },
-      };
-    }
+    // an added line's ⇄ is the "+" panel on its own row (Phase 1c)
+    if (line.added) return null;
     // every other swap writes opts, which a Browse-only build (no pan) ignores
     // and a Browse-added line in a kit build isn't the part they pick
     if (!build || !build.pan || line.auto === false) return null;
@@ -1394,9 +1429,12 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   const chipPick = (g, key) => {
     if (g === "recess") setOpts((o) => ({ ...o, recess: key === SKU.ramp ? "ramp" : "kit" }));
     else if (g === "coverFrame") setOpts((o) => ({ ...o, coverFrame: (item(key) || {}).finish }));
-    else setAddons((a) => [...a, key]);
+    else addTo("addon", key, addedQty(manual, "addon", key) + 1);
     setChipMenu(null);
   };
+  const gunOn = () => manual.some((m) => m.key === SKU.gun);
+  const toggleGun = () => setManual((mm) => (mm.some((m) => m.key === SKU.gun) ? mm.filter((m) => m.key !== SKU.gun)
+    : setAddedRow(mm, "addon", SKU.gun, 1)));
 
   // --- kit cards ------------------------------------------------------------
   // What each house kit sells for through the tier lens with the current wall
@@ -1476,7 +1514,8 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     if (!build || !onBasketChange) return false;
     const entry = normKitBasketEntry({
       addedAt: Date.now(), snap: { mode: build.mode, cfg: JSON.parse(JSON.stringify(build.cfg)) },
-      session: { qtyOv: { ...qtyOv }, manual: manual.map((m) => ({ ...m })), panelFit },
+      // a kit build's added lines ride its cfg; a Browse-only build has no cfg
+      session: { qtyOv: { ...qtyOv }, ...(build.pan ? {} : { manual: manual.map((m) => ({ ...m })) }), panelFit },
       target: edit || undefined,
     });
     if (!entry) return false;
@@ -1801,15 +1840,12 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     }).sort((a, b) => (b.stock ? 1 : 0) - (a.stock ? 1 : 0) || (a.group > b.group ? 1 : a.group < b.group ? -1 : 0) || a.retail - b.retail);
     const MAX = 48;
     const addFigured = () => {
-      let next = manual.slice();
-      fig.lines.forEach((l) => {
+      setManual((mm) => fig.lines.reduce((next, l) => {
         const cur = qtyIn(l.item.key);
-        if (cur >= l.qty) return;
-        const need = l.qty - cur;
-        const m = next.find((x) => x.key === l.item.key);
-        next = m ? next.map((x) => (x === m ? { ...x, qty: x.qty + need } : x)) : [...next, { key: l.item.key, qty: need }];
-      });
-      setManual(next);
+        if (cur >= l.qty) return next;
+        const g = bucketOf(l.item);
+        return setAddedRow(next, g, l.item.key, addedQty(next, g, l.item.key) + l.qty - cur);
+      }, mm));
       say("Sealant + fasteners added for " + sf + " sf");
     };
     return (
@@ -1892,7 +1928,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
           </div>
         </div>
         {list.slice(0, MAX).map((e) => {
-          const n = qtyIn(e.key);
+          const n = browseQty(e.key);
           // Cover FRAMES lead with what the buyer picks by — Size · Type ·
           // COLOR (color a shade bolder) — the vendor name drops to the small
           // line (owner ask 2026-07-30). Covers themselves say all three in
@@ -1961,11 +1997,12 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
           {BUCKETS.map((bk) => {
             const lines = build.lines.filter((l) => l.group === bk[0]);
             const isAddon = bk[0] === "addon";
-            if (!lines.length && !isAddon) return null;
+            const canAdd = wediAddParts(bk[0]).length > 0;
+            if (!lines.length && !isAddon && !canAdd) return null;
             return (
               <div className="bgroup" key={bk[0]}>
                 <div className="bg-h">{bk[1]}
-                  {bk[0] === "walls" && (
+                  {bk[0] === "walls" && lines.length > 0 && (
                     <span className="wallctl">
                       <span className="pfseg">
                         <button className={panelFit ? "on" : ""} title="mixed sheet sizes, level courses, minimal vertical seams" onClick={() => setPanelFit(true)}>Fit</button>
@@ -1973,20 +2010,25 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
                       </span>
                     </span>
                   )}
+                  {canAdd && <button className="addb" title={`add another line to ${bk[1]}`} onClick={(ev) => openAdd(bk[0], ev)} data-add-group={bk[0]}>+</button>}
                 </div>
                 {lines.map((l) => {
                   const e = l.item;
                   const price = tierOf(e);
                   const ch = e.group === "panel" && panelFit ? null : swapChoices(l);
                   const can = ch && (ch.drain || ch.stepped || new Set([...ch.list.map((x) => x.key), e.key]).size + (ch.none ? 1 : 0) > 1);
+                  // tag and double-up hint only beside a kit — a Browse-only build is all added
+                  const tagged = l.added && !!build.pan;
+                  const kitAlso = tagged ? build.lines.reduce((t, k) => t + (!k.added && k.item.key === e.key ? k.qty : 0), 0) : 0;
                   return (
-                    <div className="bline" key={e.key + l.group}>
+                    <div className="bline" key={e.key + l.group + (l.added ? "+" : "")}>
                       <div className="bn">
-                        <div className="n"><FinDot e={e} />{unwedi(e.name)}</div>
+                        <div className="n"><FinDot e={e} />{unwedi(e.name)}
+                          {tagged && <>{" "}<span className="addtag" title="added by hand — doesn't re-figure when the room or kit changes" data-added-tag>added</span></>}</div>
                         {(() => {
                           // Contents lead, the auto note follows — the line truncates from
                           // the right, and "100 ct" is the part that must survive it.
-                          const meta = [finName(e) || e.sizeText, l.note, perUnit(e, false)].filter(Boolean);
+                          const meta = [finName(e) || e.sizeText, l.note, kitAlso ? "kit also bills " + kitAlso : "", perUnit(e, false)].filter(Boolean);
                           return (
                             <div className="m" title={meta.join(" · ") || undefined}><b>{e.stock ? e.erp : "SO " + e.us}</b>
                               {meta.map((s) => " · " + s).join("")}</div>
@@ -1995,11 +2037,16 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
                       </div>
                       {can && <button className="swapb" title="swap" data-wedi-swapb={e.key} onClick={(ev) => setSwap({ key: e.key, grp: l.group, rect: ev.currentTarget.getBoundingClientRect(), anchor: ev.currentTarget.closest(".bline"),
                         ...(e.group === "cover" || e.group === "panel" ? { draft: e.key } : e.group === "curb" ? { draft: opts.curbPick || null } : {}) })}>⇄</button>}
-                      <div className="stepper">
-                        <button onClick={() => step(e.key, -1)}>−</button>
-                        <span className={"q" + (l.ov ? " ov" : "")} title={l.ov ? "hand-set — auto is " + l.autoQty : undefined}>{l.qty}</span>
-                        <button onClick={() => step(e.key, 1)}>+</button>
-                      </div>
+                      {canSwapAdded(l) && <button className="swapb" title="swap this added line" data-wedi-swapb={e.key} data-added-swapb onClick={(ev) => openAdd(l.group, ev, l)}>⇄</button>}
+                      {l.auto === false && !l.added ? (
+                        <div className="stepph" title="one per bench on the drawing — add or remove it there" data-no-stepper>{l.qty}</div>
+                      ) : (
+                        <div className="stepper">
+                          <button onClick={() => stepLine(l, -1)}>−</button>
+                          <span className={"q" + (l.ov ? " ov" : "")} title={l.ov ? "hand-set — auto is " + l.autoQty : undefined}>{l.qty}</span>
+                          <button onClick={() => stepLine(l, 1)}>+</button>
+                        </div>
+                      )}
                       <div className="lp" style={{ color: tierColor }}>{fm(round2(price * l.qty))}
                         <small>{fm(price)}{e.unit && e.unit !== "EA" ? "/" + e.unit.toLowerCase() : " ea"}</small></div>
                     </div>
@@ -2009,28 +2056,29 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
                   <div className="addchips">
                     {ADDON_CHIPS.filter((ac) => (ac[0] === "recess" ? pan && pan.sub === "curbless"
                       : ac[0] === "coverFrame" ? frameOpts.length > 0 : true)).map((ac) => {
-                      const on = ac[0] === "gun" ? build.lines.some((l) => l.item.key === SKU.gun)
-                        : ac[0] === "recess" ? build.lines.some((l) => l.item.group === "recess" || l.item.group === "ramp")
-                          : build.lines.some((l) => l.item.group === ac[0]);
+                      // niche · seat · bench · shelf add another each click (Phase 1c) —
+                      // one comes off on its own line's − or ⇄, never all at once
+                      const many = ["niche", "seat", "bench", "shelf"].includes(ac[0]);
+                      const count = many ? build.lines.reduce((t, l) => t + (l.item.group === ac[0] ? l.qty : 0), 0) : 0;
+                      // Recess kit / Cover frame are the kit's option: an added ramp or frame is its own line
+                      const kitOpt = ac[0] === "recess" || ac[0] === "coverFrame";
+                      const hit = (l) => !(kitOpt && l.added) && (ac[0] === "recess"
+                        ? l.item.group === "recess" || l.item.group === "ramp" : l.item.group === ac[0]);
+                      const on = ac[0] === "gun" ? build.lines.some((l) => l.item.key === SKU.gun) : build.lines.some(hit);
                       return (
-                        <button key={ac[0]} className={"addchip" + (on ? " on" : "")} onClick={(ev) => {
-                          if (ac[0] === "gun") { setAddons((a) => (a.includes(SKU.gun) ? a.filter((k) => k !== SKU.gun) : [...a, SKU.gun])); return; }
-                          const cur = build.lines.find((l) => ac[0] === "recess"
-                            ? l.item.group === "recess" || l.item.group === "ramp" : l.item.group === ac[0]);
+                        <button key={ac[0]} className={"addchip" + (on ? " on" : "")} data-wedi-chip={ac[0]} onClick={(ev) => {
+                          if (ac[0] === "gun") { toggleGun(); return; }
+                          const cur = !many && build.lines.find(hit);
                           if (cur) {
                             if (ac[0] === "recess") setOpts((o) => ({ ...o, recess: "none" }));
                             else if (ac[0] === "coverFrame") setOpts((o) => ({ ...o, coverFrame: undefined }));
-                            else {
-                              setAddons((a) => a.filter((k) => { const it = item(k); return !it || it.group !== ac[0]; }));
-                              setManual((mm) => mm.filter((m) => { const it = item(m.key); return !it || it.group !== ac[0]; }));
-                            }
                             setQtyOv((o) => { const n = { ...o }; delete n[cur.item.key]; return n; });
                           } else {
                             const ch = chipChoices(ac[0]).filter(Boolean);
                             if (ch.length > 1) setChipMenu({ group: ac[0], label: ac[1], rect: ev.currentTarget.getBoundingClientRect(), anchor: ev.currentTarget });
                             else if (ch.length) chipPick(ac[0], ch[0].key);
                           }
-                        }}>{(on ? "✓ " : "+ ") + ac[1]}</button>
+                        }}>{(on ? "✓ " : "+ ") + ac[1] + (count > 1 ? " ×" + count : "")}</button>
                       );
                     })}
                   </div>
@@ -2041,7 +2089,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
 
           {build.hints.includes("sausage-gun") && (
             <div className="whint">Sausage sealant with no gun on the job
-              <button onClick={() => setAddons((a) => (a.includes(SKU.gun) ? a : [...a, SKU.gun]))}>Add gun {fm(tierOf(item(SKU.gun)))}</button>
+              <button onClick={() => { if (!gunOn()) toggleGun(); }}>Add gun {fm(tierOf(item(SKU.gun)))}</button>
             </div>
           )}
           {build.hints.includes("small-order") && (
@@ -2282,6 +2330,81 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     );
   })();
 
+  const addPanel = (() => {
+    if (!add || !build) return null;
+    const parts = add.replace ? [wediAddPartOf(add.g, item(add.replace))].filter(Boolean) : wediAddParts(add.g);
+    const part = parts.find((p) => p.key === add.part) || parts[0];
+    if (!part) return null;
+    const setA = (patch) => setAdd((a) => (a ? { ...a, ...patch } : a));
+    const r = add.rect;
+    const at = { anchor: add.anchor, x: r.right - 470, y: r.bottom + 6 };
+    const partRow = !add.replace && parts.length > 1 ? [{ label: "Part", chips: parts.map((p) => ({
+      key: p.key, label: p.label, ok: true, on: p.key === part.key, onPick: () => setA({ part: p.key, draft: addDraft(p, null), q: "" }) })) }] : [];
+    const bucketLabel = (BUCKETS.find((b) => b[0] === add.g) || [])[1] || add.g;
+    const title = add.replace ? `Swap the added ${part.label.toLowerCase()}` : `Add to ${bucketLabel}`;
+    const oldQty = add.replace ? addedQty(manual, add.g, add.replace) : 0;
+    const old = add.replace ? item(add.replace) : null;
+    const sell = round2(build.lines.reduce((t, l) => t + tierOf(l.item) * l.qty, 0));
+    const summaryFor = (e) => {
+      const q = add.replace ? oldQty : add.qty;
+      const d = round2(tierOf(e) * q - (old ? tierOf(old) * q : 0));
+      return { what: (q > 1 ? q + " × " : "") + unwedi(e.name) + (e.stock ? "" : " · special order"), why: e.stock ? e.erp : "SO " + e.us, delta: fmDelta(d), total: fm(round2(sell + d)), up: d > 0 };
+    };
+    const use = (e) => {
+      if (add.replace) {
+        if (e.key !== add.replace) setManual((mm) => setAddedRow(setAddedRow(mm, add.g, add.replace, 0), add.g, e.key, addedQty(mm, add.g, e.key) + oldQty));
+      } else setManual((mm) => setAddedRow(mm, add.g, e.key, addedQty(mm, add.g, e.key) + add.qty));
+      setAdd(null);
+    };
+    if (part.stepped) {
+      const chip = (c) => ({ ...c, label: inchGlyph(c.label), onPick: () => setA({ draft: c.next }) });
+      let rows = [], e = null;
+      if (part.stepped === "curb") {
+        const o = curbAddOptions(add.draft);
+        rows = [{ label: "Style", chips: o.styles.map(chip) }, { label: "Profile", chips: o.profiles.map(chip) }, { label: "Length", chips: o.lengths.map(chip) }];
+        e = o.item;
+      } else if (part.stepped === "panel") {
+        const o = panelOptions(add.draft);
+        rows = [{ label: "Type", chips: o.types.map(chip) }, { label: "Thickness", chips: o.thicknesses.map(chip) }, { label: "Size", chips: o.sizes.map(chip) }];
+        e = o.cur;
+      } else {
+        const o = coverAddOptions(add.draft);
+        rows = [{ label: "Size", chips: o.sizes.map(chip) }, { label: "Style", chips: o.styles.map(chip) }, { label: "Finish", chips: o.finishes.map(chip) }];
+        e = o.cur;
+      }
+      return (
+        <SwapPop add at={at} className="wedi-swap wedi-grown" title={title} rows={[...partRow, ...rows]} stockFirst={source === "stock"}
+          {...(add.replace ? {} : { qty: add.qty, onQty: (n) => setA({ qty: n }) })}
+          summary={e ? summaryFor(e) : { what: "Nothing in the book", why: "", delta: "", total: "" }}
+          onUse={() => e && use(e)} onClose={() => setAdd(null)} />
+      );
+    }
+    const all = addPool(part);
+    const toks = add.q.toLowerCase().split(/\s+/).filter(Boolean);
+    const list = all.filter((e) => toks.every((t) => (e.name + " " + e.us + " " + e.erp + " " + (e.sizeText || "")).toLowerCase().includes(t)));
+    return (
+      <SwapPop add at={at} className="wedi-swap wedi-grown" title={title} rows={partRow} onClose={() => setAdd(null)}>
+        {all.length > 12 && (
+          <input className="w-full rounded-md border border-slate-300 px-2 py-1 mb-1 text-[12px]" autoFocus value={add.q}
+            placeholder={`Search ${part.label.toLowerCase()}…`} onChange={(ev) => setA({ q: ev.target.value })} data-add-search />
+        )}
+        <div className="wedi-swap wedi-grown">
+          {list.slice(0, 60).map((e) => {
+            const n = addedQty(manual, add.g, e.key);
+            return (
+              <button key={e.key} className={"srow" + (add.replace === e.key ? " on" : "") + (e.stock ? " stk" : "")} onClick={() => use(e)} data-add-row={e.key}>
+                <span className={"sdot" + (e.stock ? "" : " so")} />
+                <span className="n"><FinDot e={e} />{(!add.replace && n ? `✓ ×${n} ` : "") + unwedi(e.name)}
+                  <small>{[finName(e), e.sizeText, e.stock ? e.erp : "SO — " + e.us].filter(Boolean).join(" · ")}</small></span>
+                <span className="p">{fm(tierOf(e))}</span>
+              </button>
+            );
+          })}
+        </div>
+      </SwapPop>
+    );
+  })();
+
   // The add-on chip picker: same anchored popover as a swap, listing the
   // chip's possible parts — a chip with one part never gets here.
   const chipPanel = (() => {
@@ -2378,7 +2501,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
             onClick={() => {
               if (wallMenu.extra) setExtraWalls((xs) => xs.filter((x) => x.id !== wallMenu.wid));
               else setWalls((ws) => ws.map((x) => (x.id === wallMenu.wid ? { ...x, on: false, len: "", h: "", faces: "in" } : x)));
-              if (build && !build.lines.some((l) => l.item.group === "curb"))
+              if (build && !build.lines.some((l) => l.item.group === "curb" && !l.added))
                 setOpts((o) => ({ ...o, curbPick: pan && pan.sub === "curbless" ? { sub: "lean" } : undefined }));
               setWallMenu(null);
               say("Wall turned into a curb — the run butts the walls square, figured at its longest point");
@@ -2629,7 +2752,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
           {BUCKETS.flatMap((bk) => build.lines.filter((l) => l.group === bk[0]).map((l) => {
             const p = tierOf(l.item);
             return (
-              <tr key={bk[0] + l.item.key}>
+              <tr key={bk[0] + l.item.key + (l.added ? "+" : "")}>
                 <td>{l.item.stock ? l.item.erp : "wedi " + l.item.us}</td>
                 <td>{unwedi(l.item.name)}</td><td>{l.item.sizeText || ""}</td>
                 <td className="num">{l.qty}</td><td className="num">{fm(p)}</td><td className="num">{fm(round2(p * l.qty))}</td>
@@ -2727,6 +2850,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
       </div>
       {swapPanel}
       {chipPanel}
+      {addPanel}
       {wallMenuPanel}
       {benchMenuPanel}
       {confirmModal}

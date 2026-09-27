@@ -128,10 +128,13 @@ export const normWasteJob = (w) => (w == null ? null : { tile: w.tile ?? 10, flo
 // engine exactly like a Reconfigure would. Engine-free on purpose — model.js
 // must never import wedi.js/schluter.js (boot path); junk cfgs price as a
 // faint row in the drawer instead of crashing here.
-// The stepped quantities, hand-added extras and panel-Fit flag ride BESIDE the
-// marker, never inside it: the marker is what a Reconfigure reopens on and it
-// deliberately carries no session state, but a staged entry still has to
-// reproduce the build that was on screen (owner decision 2026-08-31).
+// The stepped quantities and panel-Fit flag ride BESIDE the marker, never
+// inside it: the marker is what a Reconfigure reopens on and it deliberately
+// carries no session state, but a staged entry still has to reproduce the
+// build that was on screen (owner decision 2026-08-31). A kit build's added
+// lines ride the marker (cfg.manual, both brands, ticket 158 Phase 1c), so
+// `manual` here is only a Browse-only wedi build's, or an entry staged before
+// 1c.
 const normKitSession = (s) => {
   if (!s || typeof s !== "object") return undefined;
   const out = {};

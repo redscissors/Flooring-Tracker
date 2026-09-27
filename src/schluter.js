@@ -850,6 +850,95 @@ export function slotOf(g, i) {
   return G_SLOT[g] || "extra";
 }
 
+// ---------------------------------------------------------------------------
+// Added lines (ticket 158 Phase 1c): cfg.manual rows { sku, qty, g? } are
+// parts with a hand-set qty — never a choice, so they don't re-fit the room.
+// A row draws under its own bill group; an old row with no `g` files where
+// the kit would bill that part.
+
+export const BILL_GROUPS = ["Base", "Drain", "Walls", "Seams", "Curb", "Setting", "Extras"];
+const SLOT_G = {
+  tray: "Base", drainBody: "Drain", grate: "Drain", flange: "Drain", wallBoard: "Walls", wallMembrane: "Walls",
+  seam: "Seams", corners: "Seams", curb: "Curb", setting: "Setting", niche: "Extras", bench: "Extras", extra: "Extras",
+};
+
+/** The bill group an added row draws under: its own `g`, else where the kit files the part. */
+export const addedGroup = (row, item) => (BILL_GROUPS.includes(row && row.g) ? row.g : SLOT_G[slotOf(undefined, item)] || "Extras");
+
+/** cfg.manual → bill lines, each flagged `manual` (the popup's "added" tag). */
+export function addedLines(manual, cat) {
+  const out = [];
+  for (const m of manual || []) {
+    const e = m && cat.find((i) => i.sku === m.sku);
+    if (!e || !(m.qty > 0)) continue;
+    const g = addedGroup(m, e);
+    out.push({ g, item: e, qty: m.qty, so: !e.stock, manual: true, slot: slotOf(g, e) });
+  }
+  return out;
+}
+
+/** The qty of the added row for `sku` under group `g` (0 when there is none). */
+export function addedQty(manual, g, sku, cat) {
+  const e = cat.find((i) => i.sku === sku);
+  const m = (manual || []).find((r) => r.sku === sku && addedGroup(r, e) === g);
+  return m ? m.qty : 0;
+}
+
+/** An added row's qty set to `n` (0 removes it); rows are keyed by group + sku. */
+export function setAddedQty(manual, g, sku, n, cat) {
+  const e = cat.find((i) => i.sku === sku);
+  const same = (m) => m.sku === sku && addedGroup(m, e) === g;
+  const rest = (manual || []).filter((m) => !same(m));
+  const at = (manual || []).findIndex(same);
+  if (!(n > 0)) return rest;
+  const row = { sku, qty: n, g };
+  if (at < 0) return [...rest, row];
+  return [...rest.slice(0, at), row, ...rest.slice(at)];
+}
+
+// What a "+" on each bill group can add (Phase 1c). A stepped part opens the
+// swap popover's rows without Auto; the rest are one-click lists.
+const benchBoard = (i) => i.g === "board" && !i.fastener;
+export const ADD_PARTS = {
+  Base: [{ key: "tray", label: "Tray", hit: (i) => i.g === "tray" }, { key: "membrane", label: "Membrane", hit: (i) => i.g === "membrane" }],
+  Drain: [
+    { key: "drain", label: "Drain", stepped: "drain" },
+    { key: "grate", label: "Grate", hit: (i) => i.part === "grate" || i.part === "cover" },
+    { key: "body", label: "Body", hit: (i) => i.part === "channel" || i.part === "body" },
+    { key: "flange", label: "Flange", hit: (i) => i.part === "flange" },
+  ],
+  Walls: [
+    { key: "board", label: "Board", hit: benchBoard },
+    { key: "membrane", label: "Membrane", stepped: "membrane", hit: (i) => i.g === "membrane" },
+    { key: "fastener", label: "Fasteners", hit: (i) => !!i.fastener },
+  ],
+  Seams: [
+    { key: "band", label: "Band", stepped: "band", hit: (i) => i.g === "seam" && !!i.lf },
+    { key: "corners", label: "Corners & seals", hit: (i) => i.g === "seam" && !i.lf },
+  ],
+  Curb: [{ key: "curb", label: "Curb", hit: (i) => i.g === "curb" }],
+  Setting: [{ key: "setting", label: "Setting", hit: (i) => i.g === "set" }],
+  Extras: [
+    { key: "niche", label: "Niche", hit: (i) => i.extra === "niche" },
+    { key: "bench", label: "Bench", hit: (i) => i.extra === "bench" || i.extra === "benchkit" || benchBoard(i) },
+    { key: "other", label: "Other", hit: (i) => (i.g === "extra" && !["niche", "bench", "benchkit"].includes(i.extra)) || i.g === "kit" },
+  ],
+};
+
+const DRAIN_ADD = (i) => (i.g === "drain" && i.part === "channel" && i.len) || (i.g === "line" && i.part === "body");
+
+/**
+ * The "+" parts a group offers with this catalog — a part with nothing to add
+ * never shows. A whole drain is a linear build's add (`linear`); a point
+ * build's Drain "+" leads with the grate.
+ */
+export function addParts(g, cat, { linear = true } = {}) {
+  return (ADD_PARTS[g] || []).filter((p) => (p.stepped === "drain" ? linear && cat.some(DRAIN_ADD) : cat.some(p.hit)));
+}
+
+/** The part an added line's ⇄ swaps within: the first of its group's parts whose rule matches it. */
+export const addPartOf = (g, item) => (ADD_PARTS[g] || []).find((p) => p.hit && p.hit(item)) || null;
+
 export const VARIO_DESIGN = { 3: "Square", 5: "Floral", 13: "Herringbone", 14: "Slant" };
 const cheapestFirst = (list) => list.slice().sort((a, b) => a.len - b.len || a.price - b.price);
 
@@ -1107,6 +1196,50 @@ export function bandOptions(choice, lfNeed, cat, { source } = {}) {
   return { widths, rolls, result };
 }
 
+/**
+ * A "+" on a membrane or band (Phase 1c): the swap popover's Width → Roll rows
+ * without Auto — an added line is a real roll, not a re-fitting choice. A
+ * draft with no roll (a width chip's `next`) lands on that width's first roll
+ * that resolves; `item` is the roll it adds.
+ */
+export function addRollOptions(kind, choice, cat, { source } = {}) {
+  const opts = kind === "membrane" ? membraneOptions : bandOptions;
+  let c = choice && typeof choice === "object" ? choice : {};
+  let o = opts(c, 1, cat, { source });
+  if (!c.roll || o.result.subst) {
+    const first = o.rolls.find((r) => r.key !== "auto" && r.ok) || o.rolls.find((r) => r.key !== "auto");
+    if (first) { c = first.next; o = opts(c, 1, cat, { source }); }
+  }
+  return { widths: o.widths, rolls: o.rolls.filter((r) => r.key !== "auto"), choice: c, item: o.result.lines[0] ? o.result.lines[0].item : null };
+}
+
+/**
+ * A "+" on the Drain group of a linear build (Phase 1c): the drain popover's
+ * rows plus a Length row of the lengths the family comes in, in place of
+ * fitting the pan. `choice.len` picks the length (the longest when unset; the
+ * longest at or under it when not made, else the shortest); `len` is the
+ * length that actually lands — a fixed body steps down to a length its grate
+ * is made at. `lines` are the parts it adds, each qty 1 per drain.
+ */
+export function drainAddOptions(choice, cat, { source } = {}) {
+  const c = { family: "vario", ...(choice && typeof choice === "object" ? choice : {}) };
+  const lensOf = (ch) => (ch.family === "fixed" || ch.family === "frameless"
+    ? cat.filter((i) => i.g === "line" && i.part === "body" && !!i.offset === !!ch.offset).map((i) => i.len)
+    : cat.filter((i) => i.g === "drain" && i.part === "channel" && i.len).map((i) => i.len));
+  const lens = [...new Set(lensOf(c))].sort((a, b) => a - b);
+  const req = lens.includes(c.len) ? c.len
+    : !(c.len > 0) ? lens[lens.length - 1] || 0
+      : lens.filter((L) => L <= c.len).slice(-1)[0] || lens[0] || 0;
+  const resolveAt = (L) => resolveDrain({ ...c, len: L }, L, cat, { source });
+  const r = resolveAt(req);
+  const len = !r.fallback && r.len ? r.len : req;
+  const at = { ...c, len };
+  const o = drainOptions(at, len, cat, { source });
+  const lands = (L) => { const x = resolveAt(L); return !x.fallback && !x.subst && x.len === L; };
+  const lengths = lens.map((L) => ({ key: String(L), label: L + '"', ok: lands(L), on: L === len, next: { ...at, len: L } }));
+  return { ...o, lengths, len, choice: at, lines: o.result.lines };
+}
+
 /** A point grate's chip label — size, design and finish ("4″ floral, brushed"), not the row's "kit 4" floral brushed SS". */
 export function pointGrateLabel(e) {
   const s = String((e && e.name) || "").replace(/^schluter\s+(?:—\s*)?/i, "").replace(/^kerdi-drain\s+/i, "")
@@ -1277,10 +1410,7 @@ export function buildFromMarker(marker, cat) {
   const pick = (cfg.pick && cands.find((c) => c.tray && c.tray.sku === cfg.pick)) || cands[0] || null;
   if (!pick) return null;
   const b = buildKit(cfg, cat, { source, pick });
-  (cfg.manual || []).forEach((m) => {
-    const e = cat.find((i) => i.sku === m.sku);
-    if (e && m.qty > 0) b.lines.push({ g: "Extras", item: e, qty: m.qty, so: !e.stock, manual: true, slot: slotOf("Extras", e) });
-  });
+  b.lines.push(...addedLines(cfg.manual, cat));
   return { ...b, pick };
 }
 
@@ -1380,6 +1510,40 @@ export function lineItems(build, opts) {
 // can sit in two groups of a build (a board in Walls and in Extras).
 export const ovKey = (l) => l.g + "|" + (l.item.sku || l.item.name);
 
+// Swap a build's by-area panel line for the board plan's per-sheet lines, in
+// place (the fastener line stays — its count is pure area either way). The
+// first plan line carries the wedi note: sf, seam count, stood-vertical
+// count; the rest read "panel plan".
+export function applyBoardPlan(lines, cfg, plan, cat) {
+  if (!plan || !plan.lines.length) return lines;
+  const vWalls = plan.detail.filter((d2) => d2.vertical).length;
+  const sf = wallArea(cfg);
+  const planLines = plan.lines.map((pl, i) => {
+    const e = cat.find((x) => x.sku === pl.sku);
+    return e && {
+      g: "Walls", item: e, qty: pl.qty, so: !e.stock, slot: "wallBoard",
+      note: i === 0
+        ? sf.toFixed(0) + " sf — " + plan.vSeams + " vertical seam" + (plan.vSeams === 1 ? "" : "s")
+          + (vWalls ? " · " + vWalls + " wall" + (vWalls === 1 ? "" : "s") + " stood vertical" : "")
+        : "panel plan",
+    };
+  }).filter(Boolean);
+  if (!planLines.length) return lines;
+  // an added board is a hand-set part, not the kit's panel line — it stays
+  const kitBoard = (l) => l.g === "Walls" && l.item.g === "board" && !l.item.fastener && !l.manual;
+  const idx = lines.findIndex(kitBoard);
+  const out = lines.filter((l) => !kitBoard(l));
+  out.splice(idx >= 0 ? idx : out.length, 0, ...planLines);
+  return out;
+}
+
+// A stepped quantity keeps winning over the recipe's figure while the line
+// survives; stepped to 0 the line leaves the bill (the wedi rule).
+export const applyQtyOv = (lines, ov) => lines.map((l) => {
+  const q = l.noteOnly || l.manual ? null : ov[ovKey(l)];
+  return q == null ? l : { ...l, autoQty: l.qty, qty: q, ov: true };
+}).filter((l) => l.noteOnly || l.qty > 0);
+
 // Which catalog entry a placed project row is: the sku its marker carries
 // (lineItems stamps every line since 2026-09-02), else the shop number a
 // stocked line lands as its sku (a legacy `part: true` row). Null for a row
@@ -1399,7 +1563,9 @@ export function rowItemEntry(row, cat) {
 // takes that total as its override (ovKey), a line with no row left steps to
 // 0, and a row the build doesn't produce is a manual extra { sku, qty }. A
 // blank qty is "not said". When no row resolves the session stays empty
-// rather than zeroing the kit.
+// rather than zeroing the kit. The marker's own added lines (`manual`) are
+// taken off each total first, so only a kit line's hand-set qty becomes an
+// override and a placed added line never bills twice (Phase 1c).
 export function sessionFromRows(lines, rows, cat) {
   const qtyOv = {}, manual = [];
   const totals = new Map(), present = new Set();
@@ -1411,18 +1577,21 @@ export function sessionFromRows(lines, rows, cat) {
     totals.set(e.sku, (totals.get(e.sku) || 0) + (Number(r.qty) || 0));
   }
   if (!present.size) return { qtyOv, manual };
-  const want = new Map();
+  const want = new Map(), added = new Map();
   for (const l of lines || []) {
     if (l.noteOnly || !l.item) continue;
     const sku = l.item.sku;
+    if (l.manual) { added.set(sku, (added.get(sku) || 0) + l.qty); continue; }
     if (!want.has(sku)) want.set(sku, { qty: 0, line: l });
     want.get(sku).qty += l.qty;
   }
   for (const [sku, w] of want) {
-    const have = totals.has(sku) ? totals.get(sku) : present.has(sku) ? null : 0;
+    const raw = totals.has(sku) ? totals.get(sku) : present.has(sku) ? null : 0;
+    const have = raw == null ? null : Math.max(0, raw - (added.get(sku) || 0));
     if (have == null || have === w.qty) continue;
     qtyOv[ovKey(w.line)] = have;
   }
+  for (const [sku, q] of added) if (!want.has(sku) && totals.has(sku)) totals.set(sku, Math.max(0, totals.get(sku) - q));
   for (const [sku, q] of totals) if (!want.has(sku) && q > 0) manual.push({ sku, qty: q });
   return { qtyOv, manual };
 }
