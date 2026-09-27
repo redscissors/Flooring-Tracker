@@ -10,8 +10,6 @@ import { erpHit, erpNosOf } from "./erporders.js";
 // string (bootload LIST_SELECT).
 export const salesNameOf = (p) => ((p.salesperson && p.salesperson.name) || "").trim() || (p.sales || "").trim();
 
-export const NO_SALES = "No salesperson";
-
 // Order-number search (the project-numbers spec's deferred follow-up): the
 // query hits a project's number as "N214" or bare "214" — the same case-blind
 // substring contract as every other searched field. Callers pass the query
@@ -151,26 +149,10 @@ export function sortRows(rows, key) {
   return [...rows].sort(cmp);
 }
 
-// Salesperson groups, A–Z, customers with no salesperson-carrying project
-// last. Row order inside each group is the caller's (sortRows) order.
-export function groupBySales(rows) {
-  const groups = new Map();
-  for (const r of rows) {
-    const key = r.sales || NO_SALES;
-    const g = groups.get(key);
-    if (g) g.push(r); else groups.set(key, [r]);
-  }
-  return [...groups.entries()]
-    .map(([sales, list]) => ({ sales, rows: list }))
-    .sort((a, b) => a.sales === NO_SALES ? 1 : b.sales === NO_SALES ? -1
-      : a.sales.localeCompare(b.sales, undefined, { sensitivity: "base" }));
-}
-
 // The grid's draggable columns (the Customer column is pinned first — it's
 // the row's identity and the A–Z sort anchor). Saved per user in their
 // app_data blob (ui.browserCols), so each salesperson's arrangement follows
-// their login. `sales` carries the salesman in the default flat view — the
-// band grouping only kicks in once the salesperson box has a name.
+// their login.
 export const BROWSER_COLS = ["projno", "erp", "sales", "builder", "phone", "address", "email", "jobs", "samples", "created", "modified"];
 
 // Sanitize a saved order: unknown keys drop, duplicates collapse, columns
