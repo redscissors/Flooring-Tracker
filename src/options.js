@@ -7,12 +7,25 @@ import { uid, OPTION_SLOTS, newArea, newProduct, stampKit } from "./model.js";
 // (normA/normC gate on them); this file re-exports the list as the UI's import
 // point.
 export { OPTION_SLOTS };
-// Per-slot colors retired with the A–L extension (owner ask 2026-08-26):
-// twelve tellable-apart hues don't exist, so every option wears the one
-// slate-blue tint and the LETTER is the identity. The per-slot map shape
-// stays so badges/borders/dots keep reading OPTION_COLOR[slot].
-const OPTION_TINT = { main: "#3E5F8A", deep: "#2E4869", soft: "color-mix(in srgb, #3E5F8A 8%, transparent)" };
-export const OPTION_COLOR = Object.fromEntries(OPTION_SLOTS.map((s) => [s, OPTION_TINT]));
+// One color per slot (owner 2026-09-27, reversing the 2026-08-26 single
+// tint): A–F are the most tellable-apart, and none is green (the app accent),
+// amber (warnings) or red (delete). The letter stays the identity; the color
+// helps. Every `main` carries white text (print bands, letter squares).
+const SLOT_COLORS = {
+  A: { main: "#3E5F8A", deep: "#2E4768" },
+  B: { main: "#9A3F5E", deep: "#742F46" },
+  C: { main: "#2C7A7B", deep: "#215C5C" },
+  D: { main: "#6B4FA0", deep: "#503B78" },
+  E: { main: "#8C6D1F", deep: "#695217" },
+  F: { main: "#A0469A", deep: "#783474" },
+  G: { main: "#2F7FA8", deep: "#235F7E" },
+  H: { main: "#8E4A3A", deep: "#6A382C" },
+  I: { main: "#5E6670", deep: "#464C54" },
+  J: { main: "#86607A", deep: "#64485C" },
+  K: { main: "#2B3F6B", deep: "#202F50" },
+  L: { main: "#7A6448", deep: "#5C4B36" },
+};
+export const OPTION_COLOR = Object.fromEntries(OPTION_SLOTS.map((s) => [s, { ...SLOT_COLORS[s], soft: `color-mix(in srgb, ${SLOT_COLORS[s].main} 8%, transparent)` }]));
 
 export const optionsUsed = (cats) => OPTION_SLOTS.filter((s) => (cats || []).some((a) => a.option === s));
 export const hasOptions = (cats) => optionsUsed(cats).length > 0;

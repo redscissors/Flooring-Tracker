@@ -1,0 +1,93 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Line front ideas</title>
+<style>
+:root{--cream:#F6F3EC;--card:#fff;--row:#F6F3EC;--line:#E4DFD2;--border:rgba(28,26,23,.12);--wash:#E7E3D6;--ink:#1C1A17;--muted:#57534C;--faint:#8A8378;--brand:#57703A;--deep:#40542A;--tile:#2A3A1B;--misc:#A4BC84}
+*{box-sizing:border-box}body{margin:0;background:var(--cream);font:12px/1.3 system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink)}
+.board{width:880px;padding:16px 10px 18px}
+.tag{font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--deep);margin:0 0 4px 2px}
+.sub{font-size:12px;color:var(--muted);margin:0 0 10px 2px;max-width:840px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.bar,.row{display:grid;align-items:center}
+.bar{height:30px;border-bottom:1px solid #ECE8DC;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+.bar>div,.row>div{padding:0 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.r{text-align:right}.mono{font-variant-numeric:tabular-nums}
+.row{height:30px;background:var(--row);font-weight:700;font-size:11.5px}
+.row .w{background:var(--wash);align-self:stretch;display:flex;align-items:center;justify-content:flex-end}
+.row .sku{font-size:10.5px}.row .cov{font-size:10.5px;color:var(--muted)}
+.dots{color:#b8b2a6;text-align:center;font-weight:400}
+.block{border-bottom:1px solid var(--line);background:var(--row)}
+.strip{margin:0 44px 6px 26px;border:1px solid #E4DFD2;background:#FBFAF6;border-radius:3px;padding:3px 8px;font-size:9.5px;color:var(--muted);font-weight:500}
+.strip b{color:var(--ink)}.warn{color:#c2410c;font-weight:700}
+.note{font-style:italic;color:var(--muted);font-size:11.5px;font-weight:500;padding:0 8px 6px 26px}
+.adder{height:28px;display:flex;align-items:center;gap:8px;padding:0 10px;color:var(--faint);font-size:11px;font-weight:700;background:#fff}
+.tchip{align-self:stretch;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800;padding:0!important}
+.plus{align-self:stretch;display:flex;align-items:center;justify-content:center;padding:0!important;color:#cfc8ba;font-size:14px;font-weight:700}
+.plus.hov{color:var(--brand)}
+.plus.has{color:var(--brand)}
+.pl2{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;color:#cfc8ba;font-size:13px;font-weight:700;margin-right:4px}
+.pl2.hov{color:#fff;background:var(--brand)}
+.lab{font-size:10px;font-weight:800;color:var(--muted);margin:12px 2px 4px}
+.cursor{position:absolute;font-size:14px}
+.menu{width:230px;background:#fff;border:1.5px solid var(--ink);border-radius:8px;box-shadow:0 12px 28px -12px rgba(28,26,23,.45);padding:4px 0;font-size:12.5px}
+.mi{display:flex;align-items:center;gap:9px;padding:6px 12px;color:var(--ink)}
+.mi .ic{width:14px;color:var(--faint);text-align:center}
+.mi.sel{background:#F1EFE8}
+.sw{width:10px;height:10px;border-radius:3px}
+</style></head><body>
+
+<section class="board" id="L1">
+  <p class="tag">L1 — the type slot becomes the ＋ (extras)</p>
+  <p class="sub">A filled line has no T / V / M at the front. That narrow slot becomes a faint ＋ that opens the extras drawer (green on hover). Extras that are on still show underneath like today; a line without extras has no second row. A brand-new blank line keeps the type picker until something is typed.</p>
+</section>
+<section class="board" id="L2">
+  <p class="tag">L2 — ＋ between size and product, no front slot</p>
+  <p class="sub">The line starts with the size. A small ＋ sits right before the product name (faint at rest, a green button on hover). Same rules underneath.</p>
+</section>
+<section class="board" id="M">
+  <p class="tag">Changing a line's type — moved into the line's ⋯ menu</p>
+  <p class="sub">"Type" sits at the top of the line menu with the current type on the right; pressing it opens the list in place (like Move to area does today).</p>
+</section>
+
+<script>
+const C1 = "18px 0.85fr 2.75fr 1fr 0.55fr 0.5fr 0.55fr 0.7fr 0.8fr 44px";
+const C2 = "0.9fr 2.85fr 1fr 0.55fr 0.5fr 0.55fr 0.7fr 0.8fr 44px";
+const R = [
+  { size: "12×24×3/8", name: "Marazzi Rice", sku: "MZRICE1224", cov: "15.5 sf/ct", sf: "420", price: "5.25", order: "30 ct", total: "$2,441.25",
+    strip: `<b>Grout</b> 462 · Prism — Delorean Gray · 1/8" joint &nbsp; <b>Mortar</b> 9 bags · VersaBond`, note: "Run 1/3 offset, no more" },
+  { size: "3×12×3/8", name: "Carrara Bullnose", sku: "CAR312BN", cov: "—", sf: "22", price: "6.25", order: "22 sf", total: "$137.50", hover: 1 },
+  { size: "2×2×3/8", name: "Daltile Keystones White", sku: "DKEYWH", cov: "—", sf: "60", price: "6.40", order: "60 sf", total: "$384.00",
+    strip: `<b>Grout</b> 66 · Prism — Delorean Gray · 1/8" joint &nbsp; <span class="warn">⚠ Mortar — not calculating</span>` },
+  { size: "—", name: "Schluter Jolly 8' satin nickel", sku: "J100AE", cov: "—", sf: "1 ea", price: "18.50", order: "1 ea", total: "$18.50" },
+  { blank: 1 },
+];
+const bar = (cols, first) => `<div class="bar" style="grid-template-columns:${cols}"><div style="grid-column:1 / ${first};text-transform:none;letter-spacing:0;font-size:13.5px;color:var(--ink);padding-left:12px">Kitchen + Pantry</div><div>SKU</div><div>Cov.</div><div class="r">SF/EA</div><div class="r">Price</div><div class="r">Order</div><div class="r mono" style="font-size:12.5px;color:var(--ink);letter-spacing:0">$2,981.25</div><div class="dots">···</div></div>`;
+const tail = (r) => `<div class="sku">${r.sku}</div><div class="cov">${r.cov}</div><div class="r mono">${r.sf}</div><div class="w mono">${r.price}</div><div class="r mono">${r.order}</div><div class="w mono">${r.total}</div><div class="dots">···</div>`;
+const blankTail = `<div class="sku" style="color:var(--faint)">SKU</div><div class="cov">—</div><div class="r mono">0</div><div class="w mono">0.00</div><div class="r mono">sf</div><div class="w mono">—</div><div class="dots">···</div>`;
+const under = (r) => (r.strip ? `<div class="strip">${r.strip}</div>` : "") + (r.note ? `<div class="note">${r.note}</div>` : "");
+
+function L1(hov) {
+  return `<div class="card">${bar(C1, 4)}${R.map((r) => {
+    if (r.blank) return `<div class="block"><div class="row" style="grid-template-columns:${C1}"><div class="tchip" style="background:var(--tile)">T</div><div style="color:var(--faint)">Size</div><div style="background:#fff;color:var(--faint);font-weight:600">Product / color…</div>${blankTail}</div></div>`;
+    const h = hov && r.hover;
+    return `<div class="block" style="position:relative${h ? ";background:#EFEBE1" : ""}"><div class="row" style="grid-template-columns:${C1}${h ? ";background:#EFEBE1" : ""}"><div class="plus ${h ? "hov" : r.strip ? "has" : ""}" title="Extras">＋</div><div>${r.size}</div><div>${r.name}</div>${tail(r)}</div>${under(r)}${h ? `<span class="cursor" style="left:12px;top:14px">🖱</span>` : ""}</div>`;
+  }).join("")}<div class="adder">＋ &nbsp;Search SKU or product… &nbsp;(double-click to type by hand)</div></div>`;
+}
+function L2(hov) {
+  return `<div class="card">${bar(C2, 3)}${R.map((r) => {
+    if (r.blank) return `<div class="block"><div class="row" style="grid-template-columns:${C2}"><div style="color:var(--faint)"><span style="display:inline-block;background:var(--tile);color:#fff;border-radius:3px;padding:0 4px;margin-right:5px;font-size:10px">T ▾</span>Size</div><div style="background:#fff;color:var(--faint);font-weight:600">Product / color…</div>${blankTail}</div></div>`;
+    const h = hov && r.hover;
+    return `<div class="block" style="position:relative${h ? ";background:#EFEBE1" : ""}"><div class="row" style="grid-template-columns:${C2}${h ? ";background:#EFEBE1" : ""}"><div style="padding-left:12px">${r.size}</div><div><span class="pl2 ${h ? "hov" : ""}" ${r.strip && !h ? 'style="color:var(--brand)"' : ""}>＋</span>${r.name}</div>${tail(r)}</div>${under(r)}${h ? `<span class="cursor" style="left:118px;top:14px">🖱</span>` : ""}</div>`;
+  }).join("")}<div class="adder">＋ &nbsp;Search SKU or product… &nbsp;(double-click to type by hand)</div></div>`;
+}
+const pair = (fn) => `<div class="lab">At rest</div>${fn(false)}<div class="lab">Mouse over the Bullnose line</div>${fn(true)}`;
+document.getElementById("L1").insertAdjacentHTML("beforeend", pair(L1));
+document.getElementById("L2").insertAdjacentHTML("beforeend", pair(L2));
+
+const TYPES = [["Tile", "#2A3A1B", 1], ["Hardwood", "#40542A"], ["Vinyl / LVP", "#57703A"], ["Carpet", "#6E8A4C"], ["Laminate", "#87A363"], ["Underlayment", "#8C9F72"], ["Misc", "#A4BC84"]];
+const mi = (ic, t, extra = "", cls = "") => `<div class="mi ${cls}"><span class="ic">${ic}</span><span style="flex:1">${t}</span>${extra}</div>`;
+document.getElementById("M").insertAdjacentHTML("beforeend", `<div style="display:flex;gap:28px;align-items:flex-start">
+  <div class="menu">${mi("◧", "Type", '<span style="color:var(--faint);font-size:11.5px">Tile ›</span>')}${mi("⧉", "Duplicate line")}${mi("✎", "Add note")}${mi("%", "Waste…", '<span style="color:var(--faint);font-size:11.5px">job 10%</span>')}${mi("↦", "Move to area", '<span style="color:#cfc8ba">›</span>')}${mi("≋", "Request sample")}<div style="border-top:1px solid #eee;margin:4px 0"></div>${mi("🗑", '<span style="color:#b91c1c">Delete line</span>')}</div>
+  <div class="menu">${mi("◧", "Type", '<span style="color:var(--faint);font-size:11.5px">Tile ⌄</span>')}${TYPES.map(([t, c, on]) => `<div class="mi ${on ? "sel" : ""}" style="padding-left:36px"><span class="sw" style="background:${c}"></span><span style="flex:1">${t}</span>${on ? "✓" : ""}</div>`).join("")}${mi("⧉", "Duplicate line")}${mi("✎", "Add note")}</div>
+</div>`);
+</script>
+</body></html>

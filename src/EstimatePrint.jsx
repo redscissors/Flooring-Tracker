@@ -61,7 +61,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
               );
               return (
                 <div className="mb-5" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
-                  {col("Customer", cust?.name || printName, [cust?.address || sel.address])}
+                  {col("Customer", cust?.name || printName, [sel.address || cust?.address])}
                   {col("Your salesperson", pname, [sp.phone, sp.email].filter((x) => x && x !== pname))}
                   {col("Project", printName, [wMeta])}
                 </div>
@@ -279,7 +279,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
               the next cell already identifies the job. */}
           <div>
             {cust?.name && <div style={{ fontSize: 11.5, fontWeight: 800, lineHeight: 1.3 }}>{cust.name}</div>}
-            {(cust?.address || sel.address) && <div style={stackLine}>{cust?.address || sel.address}</div>}
+            {(sel.address || cust?.address) && <div style={stackLine}>{sel.address || cust?.address}</div>}
             {(cust?.phone || sel.phone) && <div style={stackLine}>{cust?.phone || sel.phone}</div>}
           </div>
           <div>

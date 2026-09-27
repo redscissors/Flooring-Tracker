@@ -63,3 +63,16 @@ read unchanged. No migration: old records carry only A–F, which remain valid.
 Same rollout caveat as 2026-08-19: a client running a pre-amendment build
 normalizes an area tagged G–L back to shared on its next save of that job, so
 stale tabs should refresh before teams lean on the new slots.
+
+## Amendment 2026-09-27 — per-slot colors restored
+
+Reverses the color half of the 2026-08-26 amendment (owner, while building
+the Clean editor's area bars, .scratch/159_clean-editor): options get their
+own colors again, everywhere — area bars, compare dots, the Order summary,
+the option print. `OPTION_COLOR` maps each of A–L to its own `{main, deep,
+soft}`: slate blue, berry, teal, violet, ochre, magenta, sky, brick,
+graphite, mauve, navy, walnut. A–F are the most tellable-apart (most jobs
+never pass C); none is green, amber or red, which the app already means
+something by. The 2026-08-26 point still holds — twelve hues can't all be
+told apart — so the LETTER stays the identity and the color is a helper.
+No data change.

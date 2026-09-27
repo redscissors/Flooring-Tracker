@@ -19,7 +19,7 @@ app_data.data : { profile: { name, phone, email },    // per user; stamped onto 
                           stripH: number|null,        // the customer browser's column
                           linesH: number|null },      // order + its two side panels'
                         dockSide: "left"|"right",     // shown/dragged heights; the
-                        header: "bar"|"classic"|"clean" } }  // order-entry/Samples
+                        header: "bar"|"classic"|"clean"|"cleancompact" } }  // order-entry/Samples
                                                       // drawer side; the desktop
                                                       // project header layout
                                                       // (per user since 2026-09-27;

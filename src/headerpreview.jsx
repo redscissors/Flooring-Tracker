@@ -60,7 +60,7 @@ function ClassicHeaderDemo() {
 // The Clean header (2026-09-27) over the same mock job, stateful so the price
 // menu, estimate dropdown, waste popover, freight truck, preview icon and ⋯
 // menu all work. `erp` is the status App derives from the job's lines.
-function CleanHeaderDemo({ id, patch = {}, cust = { name: "Kathy Marsh" }, builderName = "Meridian Homes", erp = null, preview: startPreview = false }) {
+function CleanHeaderDemo({ id, compact = false, patch = {}, cust = { name: "Kathy Marsh", address: "88 Birch Ln, Chagrin Falls" }, builderName = "Meridian Homes", erp = null, preview: startPreview = false }) {
   const props = useHeaderDemoState();
   const [preview, setPreview] = useState(startPreview);
   const [local, setLocal] = useState(patch);
@@ -70,8 +70,10 @@ function CleanHeaderDemo({ id, patch = {}, cust = { name: "Kathy Marsh" }, build
   const tv = { tier: t, pct: t === "builder" ? 8 : t === "sale" ? 15 : t === "custom" ? Number(sel.customPct) || 0 : 0 };
   return (
     <div id={id} className="max-w-4xl">
-      <ProjectHeaderClean {...props} sel={sel} tv={tv} cust={cust} builderName={builderName} updateProject={updateProject} freightCost={214}
-        preview={preview} onTogglePreview={() => setPreview((v) => !v)} erp={erp} />
+      <div className={compact ? "mb-4 border-b border-slate-100" : undefined} style={compact ? { height: 73 } : undefined}>
+        <ProjectHeaderClean {...props} sel={sel} tv={tv} cust={cust} builderName={builderName} updateProject={updateProject} freightCost={214} ping={noop}
+          preview={preview} onTogglePreview={() => setPreview((v) => !v)} erp={erp} compact={compact} />
+      </div>
       <div className="rounded-lg border border-dashed border-slate-300 text-center text-[12px] text-slate-400 py-6">{preview ? "Estimate paper shows here" : "Areas show here"}</div>
     </div>
   );
@@ -150,13 +152,16 @@ function Page() {
     <div className="p-5" style={{ background: "var(--ft-cream)", minHeight: "100vh" }}>
       <div className="ft-eyebrow text-[10px] mb-2">Project header — one-bar, compact</div>
       <div id="proj-header" style={{ maxWidth: 1120 }}><ProjectHeaderDemo /></div>
-      <div className="ft-eyebrow text-[10px] mt-6 mb-2">Project header — clean · ERP order partly keyed</div>
+      <div className="ft-eyebrow text-[10px] mt-6 mb-2">Project header — clean · project address set, ERP order partly keyed</div>
       <CleanHeaderDemo id="proj-header-clean" patch={{ erpOrders: [{ no: "48213", addedBy: "Danny", addedAt: Date.now() - 3600e3 }] }}
         erp={{ nos: ["48213"], keyed: 5, total: 8, left: 3, done: false }} />
-      <div className="ft-eyebrow text-[10px] mt-6 mb-2">Project header — clean · builder tier, every line keyed on two orders, freight off, preview on</div>
-      <CleanHeaderDemo id="proj-header-clean-done" preview patch={{ priceTier: "builder", freight: false }}
+      <div className="ft-eyebrow text-[10px] mt-6 mb-2">Project header — clean · no project address (shows the customer's), builder tier, every line keyed on two orders, freight off, preview on</div>
+      <CleanHeaderDemo id="proj-header-clean-done" preview patch={{ priceTier: "builder", freight: false, address: "" }}
         erp={{ nos: ["48213", "48260"], keyed: 8, total: 8, left: 0, done: true }} />
-      <div className="ft-eyebrow text-[10px] mt-6 mb-2">Project header — clean · quick price, no order yet</div>
+      <div className="ft-eyebrow text-[10px] mt-6 mb-2">Project header — clean compact · same job, two rows level with the logo line</div>
+      <CleanHeaderDemo id="proj-header-clean-compact" compact patch={{ erpOrders: [{ no: "48213", addedBy: "Danny", addedAt: Date.now() - 3600e3 }] }}
+        erp={{ nos: ["48213"], keyed: 5, total: 8, left: 3, done: false }} />
+      <div className="ft-eyebrow text-[10px] mt-6 mb-2">Project header — clean · quick price, no address, no order yet</div>
       <CleanHeaderDemo id="proj-header-clean-quick" cust={null} builderName="" patch={{ quick: true, projectNo: null, name: "Quick price", address: "", notes: "", erpOrders: [] }} />
       <div className="ft-eyebrow text-[10px] mt-6 mb-2">Project header — classic</div>
       <div id="proj-header-classic" style={{ maxWidth: 1120 }}><ClassicHeaderDemo /></div>

@@ -276,7 +276,7 @@ export default function App({ user, onSignOut }) {
   // prefers-color-scheme block in index.css decide.
   const [theme, setTheme] = useState(() => { try { return localStorage.getItem("ft-theme") || "system"; } catch { return "system"; } });
   // Desktop header layout: "bar" (one-bar, 2026-07-21) | "classic" | "clean"
-  // (on trial 2026-09-27). Per user (ui.header, Settings → General) so a person
+  // | "cleancompact" (both on trial 2026-09-27). Per user (ui.header, Settings → General) so a person
   // trying Clean sees it on every device; until they pick, this device's old
   // per-device choice stands.
   const [headerPick, setHeaderPick] = useState(null);
@@ -299,6 +299,21 @@ export default function App({ user, onSignOut }) {
     return () => clearTimeout(t);
   }, [theme]);
   const [isWide, setIsWide] = useState(() => typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 768px)").matches : true);
+  // Clean's area cards ride the same per-user header switch (.scratch/159_clean-editor).
+  const cleanHead = headerLayout === "clean" || headerLayout === "cleancompact";
+  const cleanCards = isWide && cleanHead;
+  const cleanBand = isWide && headerLayout === "cleancompact";
+  // Clean pins its header in a band exactly as tall as the rail's logo block,
+  // so the band's bottom line continues the logo's straight across the top.
+  const railHeadRef = useRef(null);
+  const [railHeadH, setRailHeadH] = useState(0);
+  useLayoutEffect(() => {
+    const el = railHeadRef.current;
+    if (!el || !cleanBand) return;
+    const ro = new ResizeObserver(() => setRailHeadH(el.getBoundingClientRect().height));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [cleanBand]);
   const [custChip, setCustChip] = useState(null); // which contact chip is expanded (customer view)
   const [viewTab, setViewTab] = useState("edit"); // project detail: "edit" | "preview" (on-screen estimate paper)
   const [projSheet, setProjSheet] = useState(false); // mobile shell: project bottom sheet
@@ -1331,8 +1346,8 @@ export default function App({ user, onSignOut }) {
       setPrintMode: (m) => (m === "order" ? askOrderScope("sheet") : setPrintMode(m)),
     };
     if (headerLayout === "classic") return <ProjectHeaderClassic {...hp} />;
-    if (headerLayout !== "clean") return <ProjectHeaderBar {...hp} />;
-    return <ProjectHeaderClean {...hp} preview={viewTab === "preview"} onTogglePreview={() => setViewTab((t) => (t === "preview" ? "edit" : "preview"))}
+    if (!cleanHead) return <ProjectHeaderBar {...hp} />;
+    return <ProjectHeaderClean {...hp} ping={ping} compact={headerLayout === "cleancompact"} preview={viewTab === "preview"} onTogglePreview={() => setViewTab((t) => (t === "preview" ? "edit" : "preview"))}
       erp={sel.erpOrders?.length ? erpStatus(sel.erpOrders, sel.erpKeyed, erpLines()) : null} />;
   };
   // Order entry + order sheet ask which option is being ordered when the job
@@ -1459,7 +1474,7 @@ export default function App({ user, onSignOut }) {
         {/* Sidebar */}
         <aside style={{ width: RAIL_W, ...zoomStyle }}
           className={isWide ? "ft-rail border-r border-slate-200 flex flex-col shrink-0" : `ft-rail border-r border-slate-200 flex flex-col fixed inset-y-0 left-0 z-40 transform transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
-          <div className="relative px-4 py-3.5 border-b border-slate-100">
+          <div ref={railHeadRef} className="relative px-4 py-3.5 border-b border-slate-100">
             <div className="min-w-0"><button onClick={goHome} title="Home" className="block text-left hover:opacity-70 transition"><NedLogo height={27} /></button><div className="ft-eyebrow text-[9.5px] mt-1">Selection Manager</div></div>
             <div className="absolute top-3 right-3 flex items-center">
               <button onClick={() => railDispatch({ type: "toggleDrawer", which: "settings" })} aria-label="Settings" aria-expanded={railNav.drawer === "settings"} title="Settings"
@@ -1609,11 +1624,17 @@ export default function App({ user, onSignOut }) {
           ) : !sel._full ? (
             <div className="h-full flex items-center justify-center text-slate-400 text-sm">Loading {sel.name || "customer"}…</div>
           ) : (
+            <>
+            {cleanBand && (
+              <div className="sticky top-0 z-30 border-b border-slate-100" style={{ height: railHeadH || 73, background: "var(--ft-cream)" }}>
+                <div className="h-full max-w-4xl mx-auto px-5">{deskHeader()}</div>
+              </div>
+            )}
             <div className="max-w-4xl mx-auto p-2 md:p-5">
               {/* Edit / Print preview tabs are a desk thing (Fold 5 header
                   2026-09-15): on the phone the ⋯ sheet prints, and the area
                   menu's "Print this option…" prints straight away. */}
-              {isWide && headerLayout !== "clean" && (
+              {isWide && !cleanHead && (
                 <div className="flex items-center gap-1 mb-3 border-b border-slate-200">
                   {[["edit", "Edit"], ["preview", "Print preview"]].map(([k, label]) => (
                     <button key={k} onClick={() => setViewTab(k)} className={"px-4 py-2 text-sm font-semibold -mb-px border-b-2 transition " + (viewTab === k ? "" : "border-transparent text-slate-400 hover:text-slate-600")} style={viewTab === k ? { color: "var(--ft-brand)", borderColor: "var(--ft-brand)" } : {}}>{label}</button>
@@ -1625,12 +1646,13 @@ export default function App({ user, onSignOut }) {
                   .scratch/mockups/header-redesign-2026-07-21.html), the
                   print-sheet classic it replaced, and Clean (2026-09-27), all
                   in projectheader.jsx. Clean sits above the edit/preview split
-                  because it stays on screen in both; the other two live inside
-                  the edit view as before. Mobile keeps its own band below. */}
+                  (Clean compact is pinned in the band above this column) so it
+                  stays on screen in both; the other two live inside the edit
+                  view. Mobile keeps its own band below. */}
               {isWide && headerLayout === "clean" && deskHeader()}
               {/* Edit view stays mounted (hidden, not unmounted) so field focus and in-progress typing survive tab flips. */}
               <div className={viewTab === "edit" ? "" : "hidden"}>
-              {isWide && headerLayout !== "clean" && deskHeader()}
+              {isWide && !cleanHead && deskHeader()}
 
               {/* Mobile shell (2026-07-16, .scratch/mockups/mobile-v2; header
                   reworked for the Fold 5 cover screen 2026-09-15,
@@ -1752,7 +1774,7 @@ export default function App({ user, onSignOut }) {
                   rounds its own corners, so touching areas keep the soft "pill"
                   notch at their seam that the flush product boxes don't.
                   `relative` anchors the area-drag insertion bar. */}
-              <div className="relative">
+              <div className={cleanCards ? "relative flex flex-col gap-1.5" : "relative"}>
                 {sel.categories.map((a, ai) => {
                   const areaSf = a.products.reduce((t, p) => t + (p.qtyType === "sqft" ? num(p.qty) : 0), 0);
                   const areaTotal = printAreaFloor(tv.proj.categories[ai] || a, tSet);
@@ -1763,7 +1785,32 @@ export default function App({ user, onSignOut }) {
                   // card isn't clipped at its home area's edge) and while one of its
                   // products' materials drawers is open (so the drawer can float past
                   // the card's bottom edge without being clipped).
-                  <div key={a.id} data-area-drop={a.id} onClickCapture={isWide ? undefined : () => setActiveAreaId(a.id)} className={`rounded-lg border bg-white transition-colors ${drag || areaMatOpen ? "" : "overflow-hidden"} ${drag?.to?.aid === a.id ? "border-indigo-400" : drag ? "border-dashed border-slate-300" : "border-slate-200"}`} style={oc ? { borderColor: oc.main, borderWidth: 1.5 } : undefined}>
+                  <div key={a.id} data-area-drop={a.id} onClickCapture={isWide ? undefined : () => setActiveAreaId(a.id)} className={`${cleanCards ? "group" : ""} rounded-lg border bg-white transition-colors ${drag || areaMatOpen ? "" : "overflow-hidden"} ${drag?.to?.aid === a.id ? "border-indigo-400" : drag ? "border-dashed border-slate-300" : "border-slate-200"}`} style={!cleanCards && oc ? { borderColor: oc.main, borderWidth: 1.5 } : undefined}>
+                    {cleanCards ? (() => {
+                      // Clean's area bar (owner picks 2026-09-27, .scratch/159_clean-editor
+                      // "D"): name, column labels and subtotal share one slim bar. An
+                      // option area tints the bar in its option's color with the slot
+                      // letter at the far left — no chip; shared areas stay plain.
+                      const menuAt = (e, x) => { const r = e.currentTarget.getBoundingClientRect(); setAreaMenu({ aid: a.id, x: x ?? r.left, y: r.bottom + 4, clean: true }); };
+                      const lab = (t, right) => <div style={{ padding: "0 8px", textAlign: right ? "right" : undefined }}>{t}</div>;
+                      return (
+                        <div onContextMenu={(e) => { e.preventDefault(); setAreaMenu({ aid: a.id, x: e.clientX, y: e.clientY, clean: true }); }}
+                          style={{ display: "grid", gridTemplateColumns: GRID_COLS, alignItems: "center", height: 30, borderBottom: "1px solid var(--ft-border-soft)", fontSize: 9, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--ft-faint)",
+                            background: oc ? `color-mix(in srgb, ${oc.main} 24%, var(--ft-area-head))` : "var(--ft-area-head)" }}>
+                          <div className="flex items-center gap-2 min-w-0 normal-case tracking-normal" style={{ gridColumn: "1 / 3", padding: "0 4px 0 6px", color: "var(--ft-text)" }}>
+                            {oc && <button tabIndex={-1} onClick={(e) => menuAt(e)} title={`${optionTitle(sel, a.option)} — press to change`} className="ft-noprint shrink-0 w-[18px] h-[18px] rounded flex items-center justify-center text-[10.5px] font-extrabold" style={{ background: oc.main, color: "#fff" }}>{a.option}</button>}
+                            <button tabIndex={-1} onPointerDown={(e) => startAreaDrag(e, a.id, ai)} title="Drag to reorder areas" className="ft-noprint p-0.5 rounded touch-none cursor-grab text-slate-400 hover:text-slate-600 opacity-0 group-hover:opacity-100 focus:opacity-100 shrink-0"><AlignJustify size={12} /></button>
+                            <input ref={(el) => { if (el) areaRefs.current[a.id] = el; }} value={a.name} onChange={(e) => updArea(a.id, { name: e.target.value })} placeholder={`Area ${ai + 1}`} className="bg-transparent border-b border-transparent focus:border-indigo-500 focus:outline-none min-w-0 placeholder:text-slate-400" style={{ fontSize: 13.5, fontWeight: 700, letterSpacing: "-.01em", width: `${Math.max(a.name.length || `Area ${ai + 1}`.length, 4) + 1}ch` }} />
+                          </div>
+                          {lab("SKU")}{lab("Cov.")}{lab("SF/EA", 1)}{lab("Price", 1)}{lab("Order", 1)}
+                          <div className="ft-mono normal-case tracking-normal font-bold" style={{ padding: "0 8px", textAlign: "right", fontSize: 12.5, color: "var(--ft-text)" }}>{areaTotal > 0 ? money(areaTotal) : ""}</div>
+                          <div className="flex justify-center">
+                            <button tabIndex={-1} aria-label="Area options" title="Area options" onClick={(e) => menuAt(e, e.currentTarget.getBoundingClientRect().right - 212)}
+                              className="ft-noprint w-[24px] h-[22px] flex items-center justify-center rounded-md text-slate-400 hover:text-slate-600 hover:bg-[color:var(--ft-hover)]"><MoreHorizontal size={15} /></button>
+                          </div>
+                        </div>
+                      );
+                    })() : (
                     <div className="flex justify-between items-center gap-3" onContextMenu={(e) => { e.preventDefault(); setAreaMenu({ aid: a.id, x: e.clientX, y: e.clientY }); }} style={{ background: "var(--ft-area-head)", padding: isWide ? "8px 14px" : "6px 11px", ...(!isWide && a.id === activeAreaId ? { boxShadow: "inset 3px 0 0 var(--ft-brand)" } : {}) }}>
                       <div className="flex items-baseline gap-2.5 flex-1 min-w-0">
                         <input ref={(el) => { if (el) areaRefs.current[a.id] = el; }} value={a.name} onChange={(e) => updArea(a.id, { name: e.target.value })} placeholder={`Area ${ai + 1}`} className="ft-serif bg-transparent border-b border-transparent focus:border-indigo-500 focus:outline-none min-w-0 placeholder:text-slate-400" style={{ fontSize: isWide ? 20 : 18, lineHeight: 1.1, width: `${Math.max(a.name.length || `Area ${ai + 1}`.length, 4) + 1}ch` }} />
@@ -1781,6 +1828,7 @@ export default function App({ user, onSignOut }) {
                         <button tabIndex={-1} onClick={() => setConfirmArea(a.id)} title="Delete this area" className="ft-noprint text-slate-400 hover:text-red-500"><Trash2 size={14} /></button>
                       </div>
                     </div>
+                    )}
                     {confirmArea === a.id && (
                       <div className="ft-noprint flex items-center gap-2 px-3 py-2 text-xs border-b border-slate-100">
                         {(() => { const realN = a.products.filter((p) => !rowBlank(p)).length; return (
@@ -1792,7 +1840,7 @@ export default function App({ user, onSignOut }) {
                     )}
 
                     <div data-prod-list="1" className="relative" onKeyDown={(e) => gridEnterNav(e, () => addProduct(a.id))}>
-                      {isWide && (
+                      {isWide && !cleanCards && (
                       <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, background: "var(--ft-area-head)", borderTop: "1px solid var(--ft-border)", borderBottom: "1px solid var(--ft-border)", fontSize: 8, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--ft-muted)" }}>
                         <div style={{ padding: "5px 10px", borderRight: "1px solid var(--ft-row-line)" }}>Size / Type ▾</div>
                         <div style={{ padding: "5px 8px", borderRight: "1px solid var(--ft-row-line)" }}>Product / Color ▾</div>
@@ -2113,7 +2161,17 @@ export default function App({ user, onSignOut }) {
                               setLineMenu({ x: e.clientX, y: e.clientY, aid: a.id, pid: p.id, pi });
                             }} style={{ display: "grid", gridTemplateColumns: GRID_COLS, fontSize: 11, fontWeight: 600, background: rowTint, ...(rowOpen ? { position: "relative", zIndex: 46, borderTop: matBorder, borderLeft: matBorder, borderRight: matBorder, marginTop: -3 } : null) }}>
                               <div style={{ ...gridCell, paddingLeft: 0, gap: 2 }}>
+                                {/* Clean (L1, 2026-09-27): once a line has content its type
+                                    chip gives way to the extras + (type moves to the line
+                                    menu); a blank manual line keeps the picker. */}
+                                {cleanCards && !rowBlank(p) ? (
+                                  <button ref={(el) => { if (el) typeRefs.current[p.id] = el; }} tabIndex={-1} onClick={p.type === "misc" ? undefined : openMats} disabled={p.type === "misc"}
+                                    title={p.type === "misc" ? TLBL[p.type] : hasMats ? "Extras — grout, mortar, underlayment…" : "Add extras — grout, mortar, underlayment…"}
+                                    className="ft-noprint shrink-0 self-stretch flex items-center justify-center hover:!text-[color:var(--ft-brand)]"
+                                    style={{ width: 18, color: hasMats ? "var(--ft-brand)" : "var(--ft-border-strong)", visibility: p.type === "misc" ? "hidden" : undefined }}><Plus size={13} strokeWidth={2.6} /></button>
+                                ) : (
                                 <TypeSelect compact type={p.type} onChange={(t) => updProduct(a.id, p.id, { type: t })} triggerRef={(el) => { if (el) typeRefs.current[p.id] = el; }} />
+                                )}
                                 {/* no expand carrot — the materials pill opens the drawer,
                                     clicking anywhere outside folds it */}
                                 <span className="w-1 shrink-0" />
@@ -2481,7 +2539,7 @@ export default function App({ user, onSignOut }) {
                               {showNote ? noteInput : null}
                               </div>
                             )}
-                            {stripMats.length === 0 && warns.length === 0 && !hasMats && addables.length > 0 && (
+                            {!cleanCards && stripMats.length === 0 && warns.length === 0 && !hasMats && addables.length > 0 && (
                               <div style={{ background: rowTint, width: "calc(100% - 44px)", padding: "4px 8px 7px 26px" }}>
                               {/* One invitation, not a manifest: an empty row's slot
                                   reads "＋ Extras" whatever is addable there, matching
@@ -2493,7 +2551,7 @@ export default function App({ user, onSignOut }) {
                               {showNote ? noteInput : null}
                               </div>
                             )}
-                            {stripMats.length === 0 && warns.length === 0 && (hasMats || addables.length === 0) && showNote && (
+                            {stripMats.length === 0 && warns.length === 0 && (hasMats || addables.length === 0 || cleanCards) && showNote && (
                               <div className="flex items-center" style={{ padding: "1px 12px 4px 26px" }}>
                                 {noteInput}
                               </div>
@@ -2519,7 +2577,7 @@ export default function App({ user, onSignOut }) {
                 // this bar is the next stop; Tab from it jumps back up to Order
                 // entry → Print. With no areas yet it also catches Tab out of
                 // the header (addAreaRef).
-                <button ref={addAreaRef} onClick={addArea} onKeyDown={tabTo(orderEntryRef)} className="ft-noprint mt-4 w-full flex items-center justify-center gap-1.5 text-sm font-semibold rounded-lg border border-dashed border-slate-300 py-2.5 text-slate-500 hover:border-indigo-300 hover:text-indigo-700 transition"><Plus size={15} /> Add area</button>
+                <button ref={addAreaRef} onClick={addArea} onKeyDown={tabTo(orderEntryRef)} className={`ft-noprint mt-4 w-full flex items-center justify-center gap-1.5 text-sm font-semibold ${cleanCards ? "rounded-lg h-[40px]" : "rounded-lg py-2.5"} border border-dashed border-slate-300 text-slate-500 hover:border-indigo-300 hover:text-indigo-700 transition`}><Plus size={15} /> Add area</button>
               )}
 
               {(totalSqft > 0 || hasMat || miscCost > 0 || freightCost > 0) && (
@@ -2645,6 +2703,7 @@ export default function App({ user, onSignOut }) {
                 </div>
               )}
             </div>
+            </>
           )}
         </main>
         {/* Customers, Apps and Settings open here, over the still-mounted
@@ -2880,6 +2939,7 @@ export default function App({ user, onSignOut }) {
           wasteText={takesWaste(p) ? (wasteTag(p, wSet)?.text || "none") : null}
           onWaste={takesWaste(p) ? () => setWastePop({ aid: a.id, pid: p.id, x: lineMenu.x, y: lineMenu.y }) : null}
           onFlag={() => setFlagCtx({ source: jobSource(sel, { name: areaLabel(a, ai) }, p) })}
+          type={p.type} onType={cleanCards ? (t) => updProduct(a.id, p.id, { type: t }) : null}
           onDelete={() => setConfirmProd({ aid: a.id, pid: p.id })} />;
       })()}
       {wastePop && sel && (
@@ -3307,6 +3367,10 @@ export default function App({ user, onSignOut }) {
               ))}
               {a.option && <button className={item} onClick={() => { setRenamingOpt(a.option); setAreaMenu(null); }}>Rename {optionTitle(sel, a.option)}…</button>}
               {a.option && <button className={item} onClick={() => { setPreviewScope(a.option); if (isWide) setViewTab("preview"); else setPrintMode("estimate"); setAreaMenu(null); }}>Print this option…</button>}
+              {areaMenu.clean && <>
+                <div className="border-t border-slate-100 my-1" />
+                <button className={item + " text-red-600 hover:bg-[color:var(--ft-hover-red)]"} onClick={() => { setConfirmArea(a.id); setAreaMenu(null); }}><Trash2 size={13} />Delete area…</button>
+              </>}
           </PopMenu>
         );
       })()}

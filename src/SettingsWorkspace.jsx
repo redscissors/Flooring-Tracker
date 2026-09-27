@@ -959,9 +959,9 @@ export default function SettingsWorkspace({ settings, setSettings, gFamilies, ex
               </div>
             </div>}
             <div className="mt-8 pt-6 border-t border-slate-100">
-              <label className={lbl + " mb-2"}>Project header <HelpTip className="align-middle" tip="Your choice follows you to every device. One-bar is the 2026-07 redesign; Classic is the original two-row header; Clean (on trial) puts the customer first with one quiet settings bar, and its page icon swaps in the print preview." /></label>
+              <label className={lbl + " mb-2"}>Project header <HelpTip className="align-middle" tip="Your choice follows you to every device. One-bar is the 2026-07 redesign; Classic is the original two-row header; Clean (on trial) puts the customer first with one quiet settings bar, and its page icon swaps in the print preview; Clean compact fits the same header into two rows that stay pinned at the top, level with the logo line." /></label>
               <div className="inline-flex rounded-md border border-slate-200 overflow-hidden text-sm">
-                {[{ v: "bar", label: "One-bar" }, { v: "classic", label: "Classic" }, { v: "clean", label: "Clean" }].map(({ v, label }) => (
+                {[{ v: "bar", label: "One-bar" }, { v: "classic", label: "Classic" }, { v: "clean", label: "Clean" }, { v: "cleancompact", label: "Clean compact" }].map(({ v, label }) => (
                   <button key={v} onClick={() => setHeaderLayout(v)} className={`px-3.5 py-2 font-medium ${headerLayout === v ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{label}</button>
                 ))}
               </div>

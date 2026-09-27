@@ -26,7 +26,17 @@ src/
                     # `addCompareOptions(aid, payload)` is the landing —
                     # ONE `updateProject` with compareOptionsPatch's single
                     # patch, wired as `onQuoteOptions` on both job-context
-                    # vendor mounts (never on the Apps-hub copies)
+                    # vendor mounts (never on the Apps-hub copies).
+                    # `cleanCards` (isWide && either Clean layout, 2026-09-27)
+                    # swaps the area frame for Clean's cards (the regular
+                    # slate-200 card border): one slim tan bar
+                    # per area carrying name · column labels · subtotal · ⋯
+                    # (⋯ = the area menu + "Delete area…", hover-only grip);
+                    # an option area washes the bar in its option color with
+                    # the slot letter at the far left. On product lines, a
+                    # line with content swaps its type chip for the extras +
+                    # (type moves to LineMenu's `onType`), and the empty
+                    # "＋ Extras" strip is dropped.
   uiconst.js        # shared UI constants: TYPES/TLBL (incl. `underlayment`, ADR 0043), tier colors/labels,
                     # joints/thicknesses, grout color lists, sweep/keep constants,
                     # stock-loading messages, `skuSearchable`, `colorsFor`
@@ -237,16 +247,26 @@ src/
                     # `ProjectHeaderClassic` (the print-sheet original, kept
                     # whole so the team can flip back without a revert) and
                     # `ProjectHeaderClean` (on trial 2026-09-27,
-                    # .scratch/159_clean-editor): customer as the headline, the
-                    # project one inline-editable line under it (name · N ·
-                    # ERP chip · address · salesperson · notes), and one flat
-                    # bar on the cream — PriceLevelMenu, a MorphSelect for
+                    # .scratch/159_clean-editor), two choices: "clean" (tall:
+                    # 30px customer headline over the project line, then the
+                    # bar) and "cleancompact" (`compact`: two rows sized to the
+                    # rail logo block, pinned by App in a sticky band whose
+                    # bottom line continues the logo's — rail height measured
+                    # with a ResizeObserver). Both share the pieces and the
+                    # area cards. Row 1: customer · project (name · N ·
+                    # ERP chip · address · notes — the address is the project's when set,
+                    # else the customer's, which opens the customer; the
+                    # project address edits in an AddressField popover from
+                    # the line or ⋯) … the salesperson's name (no total — the
+                    # Order summary has it). Row 2: the flat bar —
+                    # PriceLevelMenu, a MorphSelect for
                     # Estimate shows, a waste popover over WasteBar, the freight
                     # truck (quiet when on, amber "No freight" when off), the
                     # page icon that IS the Edit ⇄ Print preview switch (App
-                    # hides its tabs and renders Clean above the edit/preview
-                    # split so it stays up in both), files, samples, a ⋯
-                    # DotMenu (Versions / Save a named version / Delete), and
+                    # hides its tabs; the pinned band stays up in both),
+                    # files, samples, a ⋯
+                    # DotMenu (Project address / Versions / Save a named version /
+                    # Delete), and
                     # the Order entry button carrying the ERP number — green
                     # with a check once erporders.js `erpStatus` says every
                     # line is keyed, an "N left" pill before that. No order
@@ -288,6 +308,7 @@ src/
                     # quick-reason chips, optional note; CLAUDE_CLAY (#D97757)
                     # is the one non-theme color, marking everything Claude
   linemenu.jsx      # `LineMenu` — the product line's action menu (issue 087,
+                    # Clean layout: a "Type" item on top when `onType` is passed),
                     # owner "option A" 2026-08-13): opened by a plain CLICK on
                     # the row-end ⋯ (a HOLD on the same button drags — the dots
                     # are the row's one grip; no tip line, the grab cursor is

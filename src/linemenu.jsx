@@ -1,7 +1,8 @@
 import { useRef, useState } from "react";
-import { Copy, FolderInput, Trash2, ChevronRight, Layers, StickyNote, Percent } from "lucide-react";
+import { Copy, FolderInput, Trash2, ChevronRight, Layers, StickyNote, Percent, Shapes, Check } from "lucide-react";
 import { useEscClose, useAnchoredPanel, useDismissOutside, SearchPop, PointPop } from "./widgets.jsx";
 import { ClaudeMark, CLAUDE_CLAY_DEEP } from "./claudeflag.jsx";
+import { TYPES, TLBL, TYPE_ACCENT } from "./uiconst.js";
 
 const MENU_W = 204;
 
@@ -54,10 +55,26 @@ function PointMenu({ menu, title, subtitle, onClose, ...rest }) {
   );
 }
 
-function MenuItems({ areas, canDelete, sampleOn, hasNote, wasteText, onClose, onDuplicate, onMoveTo, onSample, onNote, onWaste, onFlag, onDelete }) {
+// `type` + `onType` (the Clean layout, where a filled line has no type chip)
+// put the line's type at the top, expanding in place like Move to area.
+function MenuItems({ areas, canDelete, sampleOn, hasNote, wasteText, type, onType, onClose, onDuplicate, onMoveTo, onSample, onNote, onWaste, onFlag, onDelete }) {
   const [moving, setMoving] = useState(false);
+  const [typing, setTyping] = useState(false);
   const mi = "flex w-full items-center gap-2.5 px-3 py-1.5 text-[12.5px] font-medium text-left hover:bg-slate-50";
   return (<>
+    {onType && <>
+      <button className={mi} onClick={() => setTyping((v) => !v)}>
+        <Shapes size={13} className="text-slate-400" /> Type
+        <span className="ml-auto text-[11px] font-medium text-slate-400">{TLBL[type]}</span>
+        <ChevronRight size={12} className={`text-slate-300 transition-transform ${typing ? "rotate-90" : ""}`} />
+      </button>
+      {typing && TYPES.map((t) => (
+        <button key={t} className={mi + " pl-9 " + (t === type ? "font-semibold" : "text-slate-600")} onClick={() => { if (t !== type) onType(t); onClose(); }}>
+          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: TYPE_ACCENT[t] }} />{TLBL[t]}
+          {t === type && <Check size={12} className="ml-auto" />}
+        </button>
+      ))}
+    </>}
     <button className={mi} onClick={() => { onDuplicate(); onClose(); }}><Copy size={13} className="text-slate-400" /> Duplicate line</button>
     {onNote && <button className={mi} onClick={() => { onNote(); onClose(); }}><StickyNote size={13} className="text-slate-400" /> {hasNote ? "Edit note" : "Add note"}</button>}
     {onWaste && (
