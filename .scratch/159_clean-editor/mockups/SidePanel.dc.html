@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>C · Document and settings panel</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap">
+<style>
+body{margin:0;font-family:Manrope,ui-sans-serif,system-ui,sans-serif;background:#F6F3EC;color:#1C1A17}
+button{font-family:inherit;cursor:pointer}
+a{color:#40542A}a:hover{color:#2E3B22}
+</style>
+</helmet>
+<div style="width: 1280px; height: 900px; display: flex; background: #F6F3EC; color: #1C1A17; font-family: Manrope, ui-sans-serif, system-ui, sans-serif; overflow: hidden">
+<dc-import name="Sidebar" hint-size="210px,900px"></dc-import>
+<main style="flex-grow: 1; min-width: 0; padding: 12px 28px 24px; display: flex; flex-direction: column; gap: 22px">
+
+<div style="display: flex; gap: 24px; height: 40px; align-items: flex-end; border-bottom: 1px solid rgba(28,26,23,.10)">
+<button style="border: 0; background: none; padding: 0 0 10px; border-bottom: 2px solid #57703A; font-size: 14px; font-weight: 700; color: #1C1A17">Edit</button>
+<button style="border: 0; background: none; padding: 0 0 12px; font-size: 14px; font-weight: 500; color: #57534C">Print preview</button>
+</div>
+
+<div style="display: flex; align-items: flex-end; gap: 20px">
+<div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px">
+<div style="font-size: 13px; color: #57534C"><span style="font-weight: 600; color: #40542A">Eddie Schlabach</span> · N214</div>
+<h1 style="margin: 0; font-size: 32px; font-weight: 800; letter-spacing: -0.025em; line-height: 1.15">Kitchen &amp; mudroom</h1>
+</div>
+<div style="text-align: right">
+<div style="font-size: 12px; color: #57534C">Job total · Retail</div>
+<div style="font-size: 28px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1.15">$1,352.39</div>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px">
+<div style="display: grid; grid-template-columns: 80px minmax(0, 1fr) 70px 58px 62px 82px 78px 20px; column-gap: 10px; padding: 0 15px; font-size: 10px; font-weight: 700; letter-spacing: .1em; color: #8A8378">
+<span>SIZE / TYPE</span><span>PRODUCT</span><span>SKU</span><span style="text-align: right">COV.</span><span style="text-align: right">PRICE</span><span style="text-align: right">ORDER</span><span style="text-align: right">TOTAL</span><span></span>
+</div>
+<sc-for list="{{areas}}" as="area" hint-placeholder-count="3">
+<section style="background: #FFFFFF; border: 1px solid rgba(28,26,23,.10); border-radius: 12px; overflow: hidden">
+<div style="display: flex; align-items: center; gap: 10px; height: 46px; padding: 0 8px 0 14px">
+<h2 style="margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -0.01em">{{area.name}}</h2>
+<span style="font-size: 12px; color: #8A8378">{{area.meta}}</span>
+<span style="flex-grow: 1"></span>
+<span style="font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums">{{area.total}}</span>
+<button aria-label="Area options" style="width: 28px; height: 28px; border: 0; background: none; border-radius: 6px; color: #8A8378; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle></svg></button>
+</div>
+<sc-for list="{{area.rows}}" as="row" hint-placeholder-count="2">
+<div style="display: grid; grid-template-columns: 80px minmax(0, 1fr) 70px 58px 62px 82px 78px 20px; column-gap: 10px; align-items: center; height: 44px; padding: 0 14px; border-top: 1px solid #ECE8DC; font-size: 13px">
+<div style="display: flex; align-items: center; gap: 7px"><span style="width: 20px; height: 20px; border-radius: 5px; background: {{row.chip}}; color: #FFFFFF; font-size: 10.5px; font-weight: 800; display: flex; align-items: center; justify-content: center">{{row.letter}}</span><span style="color: #57534C; font-size: 12px">{{row.size}}</span></div>
+<div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600">{{row.name}}</div>
+<div style="color: #57534C; font-size: 12px">{{row.sku}}</div>
+<div style="text-align: right; color: #57534C; font-size: 12px; font-variant-numeric: tabular-nums">{{row.cov}}</div>
+<div style="text-align: right; font-variant-numeric: tabular-nums">{{row.price}}</div>
+<div style="text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap"><span style="color: #8A8378; font-size: 11px; margin-right: 5px">{{row.exact}}</span>{{row.order}}</div>
+<div style="text-align: right; font-weight: 700; font-variant-numeric: tabular-nums">{{row.total}}</div>
+<div></div>
+</div>
+</sc-for>
+<div style="display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 14px; border-top: 1px solid #ECE8DC; color: #8A8378; font-size: 13px">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5v14"></path></svg>
+<span>Search SKU or product…</span>
+</div>
+</section>
+</sc-for>
+<button style="height: 44px; border: 1px dashed rgba(28,26,23,.22); border-radius: 12px; background: transparent; color: #57534C; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5v14"></path></svg>
+Add area
+</button>
+</div>
+</main>
+
+<aside aria-label="Job settings" style="width: 280px; flex-shrink: 0; box-sizing: border-box; background: #FFFFFF; border-left: 1px solid rgba(28,26,23,.10); display: flex; flex-direction: column">
+<div style="height: 52px; box-sizing: border-box; display: flex; align-items: center; gap: 2px; padding: 0 10px 0 18px; border-bottom: 1px solid #ECE8DC; color: #57534C">
+<span style="font-size: 13px; font-weight: 700; color: #1C1A17; flex-grow: 1">Job settings</span>
+<button aria-label="Save a version" style="width: 30px; height: 30px; border: 0; background: none; border-radius: 6px; color: inherit; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><path d="M17 21v-8H7v8M7 3v5h8"></path></svg></button>
+<button aria-label="Version history" style="width: 30px; height: 30px; border: 0; background: none; border-radius: 6px; color: inherit; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5M12 7v5l4 2"></path></svg></button>
+<button aria-label="More: delete project" style="width: 30px; height: 30px; border: 0; background: none; border-radius: 6px; color: inherit; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle></svg></button>
+<button aria-label="Collapse panel" style="width: 30px; height: 30px; border: 0; background: none; border-radius: 6px; color: inherit; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M15 3v18"></path></svg></button>
+</div>
+
+<div style="padding: 14px 18px 16px; display: flex; flex-direction: column; gap: 12px; border-bottom: 1px solid #ECE8DC">
+<div style="display: flex; align-items: center; font-size: 13px"><span style="width: 92px; color: #57534C">Customer</span><span style="flex-grow: 1; font-weight: 600">Eddie Schlabach</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8A8378" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></div>
+<div style="display: flex; align-items: center; font-size: 13px"><span style="width: 92px; color: #57534C">Salesperson</span><span style="flex-grow: 1; font-weight: 600">Marcus</span><span style="font-size: 12px; color: #8A8378">330 893 1292</span></div>
+<div style="display: flex; align-items: center; font-size: 13px"><span style="width: 92px; color: #57534C">Address</span><span style="flex-grow: 1; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">214 Old Mill Rd</span></div>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px"><span style="color: #57534C">Notes</span><textarea placeholder="Project notes…" rows="2" style="resize: none; box-sizing: border-box; border: 1px solid rgba(28,26,23,.12); border-radius: 8px; padding: 8px 10px; font-family: inherit; font-size: 13px; background: #F6F3EC; color: #1C1A17"></textarea></label>
+</div>
+
+<div style="padding: 14px 18px 16px; display: flex; flex-direction: column; gap: 14px; border-bottom: 1px solid #ECE8DC">
+<div style="font-size: 10px; font-weight: 700; letter-spacing: .1em; color: #8A8378">PRICING</div>
+<div style="display: flex; flex-direction: column; gap: 6px; font-size: 13px">
+<span style="color: #57534C">Price level</span>
+<button style="height: 34px; box-sizing: border-box; border: 1px solid rgba(28,26,23,.14); border-radius: 8px; background: #FFFFFF; padding: 0 10px; display: flex; align-items: center; font-size: 13px; font-weight: 600; color: #1C1A17"><span style="flex-grow: 1; text-align: left">Retail</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#57534C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px; font-size: 13px">
+<span style="color: #57534C">Estimate shows</span>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; padding: 2px; background: #EDE9DD; border-radius: 8px">
+<button style="height: 28px; border: 0; border-radius: 6px; background: #FFFFFF; box-shadow: 0 1px 2px rgba(28,26,23,.12); font-size: 12px; font-weight: 700; color: #1C1A17">All</button>
+<button style="height: 28px; border: 0; border-radius: 6px; background: none; font-size: 12px; font-weight: 500; color: #57534C">Unit only</button>
+<button style="height: 28px; border: 0; border-radius: 6px; background: none; font-size: 12px; font-weight: 500; color: #57534C">None</button>
+</div>
+</div>
+<button aria-pressed="true" style="border: 0; background: none; padding: 0; display: flex; align-items: center; font-size: 13px; color: #1C1A17"><span style="flex-grow: 1; text-align: left; color: #57534C">Freight</span><span style="font-size: 12px; color: #57534C; margin-right: 8px">Included</span><span style="width: 30px; height: 18px; border-radius: 9px; background: #57703A; position: relative; display: block"><span style="position: absolute; top: 2px; left: 14px; width: 14px; height: 14px; border-radius: 7px; background: #FFFFFF; display: block"></span></span></button>
+</div>
+
+<div style="padding: 14px 18px 16px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: center; font-size: 10px; font-weight: 700; letter-spacing: .1em; color: #8A8378"><span style="flex-grow: 1">WASTE</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg></div>
+<div style="display: flex; align-items: center; font-size: 13px"><span style="flex-grow: 1; color: #57534C">Tile</span><span style="font-weight: 700; font-variant-numeric: tabular-nums">10%</span></div>
+<div style="display: flex; align-items: center; font-size: 13px"><span style="flex-grow: 1; color: #57534C">Flooring</span><span style="font-weight: 700; font-variant-numeric: tabular-nums">5%</span></div>
+</div>
+
+<div style="flex-grow: 1"></div>
+<div style="padding: 14px 18px; border-top: 1px solid #ECE8DC; display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; gap: 6px">
+<button style="flex-grow: 1; height: 34px; border: 1px solid rgba(28,26,23,.14); border-radius: 8px; background: #FFFFFF; font-size: 12.5px; font-weight: 600; color: #1C1A17; display: flex; align-items: center; justify-content: center; gap: 6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="2" width="8" height="4" rx="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2M12 11h4M12 16h4M8 11h.01M8 16h.01"></path></svg>Order sheet</button>
+<button aria-label="Attachments" style="width: 38px; height: 34px; border: 1px solid rgba(28,26,23,.14); border-radius: 8px; background: #FFFFFF; color: #57534C; display: flex; align-items: center; justify-content: center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg></button>
+<button aria-label="Samples" style="width: 38px; height: 34px; border: 1px solid rgba(28,26,23,.14); border-radius: 8px; background: #FFFFFF; color: #57534C; display: flex; align-items: center; justify-content: center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 2 10 5-10 5L2 7l10-5z"></path><path d="m2 17 10 5 10-5M2 12l10 5 10-5"></path></svg></button>
+</div>
+<button style="height: 36px; border: 1px solid rgba(28,26,23,.18); border-radius: 8px; background: #FFFFFF; font-size: 13px; font-weight: 700; color: #1C1A17; display: flex; align-items: center; justify-content: center; gap: 8px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="14" height="14" rx="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg>Order entry</button>
+<button style="height: 40px; border: 0; border-radius: 8px; background: #1C1A17; font-size: 14px; font-weight: 700; color: #F6F3EC; display: flex; align-items: center; justify-content: center; gap: 8px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V2h12v7"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>Print</button>
+</div>
+</aside>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      areas: [
+        { name: 'Kitchen', meta: '3 items', total: '$957.33', rows: [
+          { letter: 'T', chip: '#2E3B22', size: '12×24', name: 'Porcelain — Matte Ash', sku: 'PA-1224', cov: '15.5 sf', price: '$3.49', exact: '13.4', order: '14 ctn', total: '$757.33' },
+          { letter: 'G', chip: '#57703A', size: '25 lb', name: 'Sanded grout — Warm Gray', sku: 'G-104', cov: '—', price: '$24.00', exact: '2.6', order: '3 bag', total: '$72.00' },
+          { letter: 'M', chip: '#6E8A4B', size: '50 lb', name: 'Large-format mortar', sku: 'M-LFT', cov: '—', price: '$32.00', exact: '3.3', order: '4 bag', total: '$128.00' }
+        ] },
+        { name: 'Mudroom', meta: '1 item', total: '$395.06', rows: [
+          { letter: 'V', chip: '#40542A', size: '7×48', name: 'Rigid-core LVP — Natural Oak', sku: 'LV-778', cov: '23.6 sf', price: '$2.79', exact: '5.6', order: '6 ctn', total: '$395.06' }
+        ] },
+        { name: 'Area 3', meta: 'Empty', total: '', rows: [] }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

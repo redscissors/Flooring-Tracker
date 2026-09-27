@@ -230,11 +230,27 @@ src/
                     # order sheet and Print live only in the ⋯ sheet (owner
                     # call) — the band never grows a button row, and the
                     # phone has no Edit / Print preview tabs
-  projectheader.jsx # the desktop project header, two layouts behind a per-device
-                    # switch (Settings → General, localStorage "ft-header"):
-                    # `ProjectHeaderBar` (the 2026-07-21 one-bar) and
+  projectheader.jsx # the desktop project header, three layouts behind a PER-USER
+                    # switch (Settings → General, saved as ui.header through
+                    # saveUiPref; localStorage "ft-header" only until a user
+                    # picks): `ProjectHeaderBar` (the 2026-07-21 one-bar),
                     # `ProjectHeaderClassic` (the print-sheet original, kept
-                    # whole so the team can flip back without a revert).
+                    # whole so the team can flip back without a revert) and
+                    # `ProjectHeaderClean` (on trial 2026-09-27,
+                    # .scratch/159_clean-editor): customer as the headline, the
+                    # project one inline-editable line under it (name · N ·
+                    # ERP chip · address · salesperson · notes), and one flat
+                    # bar on the cream — PriceLevelMenu, a MorphSelect for
+                    # Estimate shows, a waste popover over WasteBar, the freight
+                    # truck (quiet when on, amber "No freight" when off), the
+                    # page icon that IS the Edit ⇄ Print preview switch (App
+                    # hides its tabs and renders Clean above the edit/preview
+                    # split so it stays up in both), files, samples, a ⋯
+                    # DotMenu (Versions / Save a named version / Delete), and
+                    # the Order entry button carrying the ERP number — green
+                    # with a check once erporders.js `erpStatus` says every
+                    # line is keyed, an "N left" pill before that. No order
+                    # sheet button in Clean.
                     # Exported `ErpChip` (ADR 0044, `ERP 48213` · `+N`) mounts
                     # in both layouts (opens order entry) and is imported by
                     # mobile.jsx for the band (static there)
@@ -305,7 +321,8 @@ src/
   headerpreview.jsx # dev-only harness (header-preview.html): the REAL
                     # ProjectHeaderBar + PriceBookLibrary over local mock state,
                     # no Supabase — preview proof for the 2026-08-14 compact
-                    # headers and the book page's config drawers (stateful
+                    # headers (+ three live Clean-header states, 2026-09-27)
+                    # and the book page's config drawers (stateful
                     # updateBook + a mock Glazzio book with items, so the
                     # markup/freight/brand tabs save-and-rerender) + the
                     # MobileProjectBand in a 344px frame (Fold 5 header
@@ -2337,7 +2354,11 @@ src/
                     # row's sources; keyedNo — "mixed" across orders, null
                     # when any source is unstamped; remainingRows; keyedNote),
                     # erpNosOf/erpHit for the browser's column + search over
-                    # light or full rows. Never imports model.js (erporders.test.js)
+                    # light or full rows; `erpLabel` ("ERP 48260 +1"),
+                    # `matIdMaker` (the materials line ids — the panel and the
+                    # Clean header's count both mint through it, or a stamp
+                    # stops matching) and `erpStatus` (keyed/left/done over
+                    # App's unmerged `erpLines`). Never imports model.js (erporders.test.js)
   clipseq.js        # `writeSequence` + `CLIP_GAP_MS` (400): writes a list of
                     # texts to the clipboard one after another, a pause
                     # between, so Windows clipboard history (Win+V) keeps

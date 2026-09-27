@@ -1,31 +1,38 @@
 import { useRef, useState } from "react";
-import { ChevronDown, Building2, Lock, LockOpen, Save, History, ClipboardList, Copy, Printer, Trash2, Check, Truck, X, Layers } from "lucide-react";
-import { SalespersonPop, SegBar, WasteBar, FilesPop, useAnchoredPanel, useEscClose, SearchPop, growBox } from "./widgets.jsx";
+import { ChevronDown, Building2, Lock, LockOpen, Save, History, ClipboardList, Copy, Printer, Trash2, Check, Truck, X, Layers, FileText, MoreHorizontal } from "lucide-react";
+import { SalespersonPop, SegBar, WasteBar, FilesPop, useAnchoredPanel, useEscClose, SearchPop, growBox, PriceLevelMenu, MorphSelect, DotMenu } from "./widgets.jsx";
 import { FreightColumn } from "./freightui.jsx";
 import { normPricing } from "./pricing.js";
 import { TIER_COLOR, tierBadgeText, PROJECT_NAME_MAX } from "./uiconst.js";
 import { money } from "./model.js";
+import { erpLabel } from "./erporders.js";
 
-// The desktop project header, two layouts behind a per-device switch
-// (Settings → General, localStorage "ft-header"):
+// The desktop project header, three layouts behind a per-user switch
+// (Settings → General, saved as ui.header; "ft-header" in localStorage is the
+// fallback before a user has picked):
 //   ProjectHeaderBar     — the one-bar (2026-07-21,
 //                          .scratch/mockups/header-redesign-2026-07-21.html rev 5;
 //                          compacted ~30% 2026-08-14,
 //                          .scratch/mockups/header-compact-2026-08-14.html)
 //   ProjectHeaderClassic — the print-sheet original it replaced, kept whole so
 //                          the team can flip back without a revert
-// Both take the same props from App and share all state — switching layouts
+//   ProjectHeaderClean   — the customer-first header (2026-09-27, on trial;
+//                          .scratch/159_clean-editor)
+// All take the same props from App and share all state — switching layouts
 // never loses in-progress work. Mobile (<768px) has its own shell in App.jsx.
 
 // The ERP 1 order chip beside the N-number (spec 2026-09-19): shows once the
 // job has an order; two or more read "+N" with the full list on hover. A
 // button where order entry exists (desktop), a static chip on mobile.
-export function ErpChip({ erpOrders = [], onOpen }) {
+// `done` (Clean header only) splits the look: moss once every line is keyed,
+// neutral while some are still to paste.
+export function ErpChip({ erpOrders = [], onOpen, done, size = 9 }) {
   if (!erpOrders.length) return null;
   const nos = erpOrders.map((o) => o.no);
-  const label = `ERP ${nos[nos.length - 1]}${nos.length > 1 ? ` +${nos.length - 1}` : ""}`;
+  const label = erpLabel(nos);
   const cls = "ft-mono rounded px-1.5 font-extrabold whitespace-nowrap";
-  const style = { fontSize: 9, letterSpacing: ".05em", lineHeight: "15px", background: "var(--ft-brand-soft)", color: "var(--ft-brand-deep)" };
+  const style = { fontSize: size, letterSpacing: ".05em", lineHeight: `${size + 6}px`,
+    background: done === false ? "var(--ft-sand)" : "var(--ft-brand-soft)", color: done === false ? "var(--ft-muted)" : "var(--ft-brand-deep)" };
   const title = `ERP 1 order${nos.length > 1 ? "s" : ""}: ${[...nos].reverse().join(", ")}${onOpen ? " — open order entry" : ""}`;
   return onOpen ? <button type="button" onClick={onOpen} title={title} className={cls + " hover:opacity-80"} style={style}>{label}</button>
     : <span title={title} className={cls} style={style}>{label}</span>;
@@ -123,8 +130,10 @@ function WasteCard({ w, dflt, onChange }) {
 
 // Save-a-version popover off the small Save button — drives the same
 // namingVersion/versionName state the classic inline flow uses.
-function SaveVersionPop({ open, onOpen, onClose, name, setName, onConfirm, tip }) {
-  const anchorRef = useRef(null);
+// `anchor` hangs it off another button instead (the Clean header's ⋯ menu).
+function SaveVersionPop({ open, onOpen, onClose, name, setName, onConfirm, tip, anchor }) {
+  const ownRef = useRef(null);
+  const anchorRef = anchor || ownRef;
   const panelRef = useRef(null);
   const pos = useAnchoredPanel(open, anchorRef, panelRef, onClose);
   // One row: the name field and ✓ sit beside the Save button inside the box.
@@ -138,7 +147,7 @@ function SaveVersionPop({ open, onOpen, onClose, name, setName, onConfirm, tip }
   );
   return (
     <>
-      <button ref={anchorRef} onClick={() => (open ? onClose() : onOpen())} aria-expanded={open} data-tip={tip} className={MINI} style={MINI_STYLE}><Save size={13} /></button>
+      {!anchor && <button ref={anchorRef} onClick={() => (open ? onClose() : onOpen())} aria-expanded={open} data-tip={tip} className={MINI} style={MINI_STYLE}><Save size={13} /></button>}
       {open && pos && <SearchPop pos={pos} box={box} fieldRef={anchorRef} panelRef={panelRef} {...(box.right ? { trail: row } : { lead: row })} />}
     </>
   );
@@ -406,6 +415,212 @@ export function ProjectHeaderClassic({ sel, cust, builderName, profile, tv, gran
             <button data-flow-end="1" onClick={() => setPrintMode("estimate")} style={TIER_COLOR[sel.priceTier] ? { background: TIER_COLOR[sel.priceTier].main } : undefined} className="h-[30px] flex items-center justify-center gap-1.5 text-[12.5px] font-bold rounded-md bg-indigo-600 hover:bg-indigo-700 text-white whitespace-nowrap"><Printer size={14} /> Print</button>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ---- clean ------------------------------------------------------------------
+// The customer-first header (2026-09-27, .scratch/159_clean-editor, mockup E):
+// customer as the headline, the project one quiet line under it, and every job
+// setting and action in one flat bar on the header's own cream. It also owns
+// the Edit ⇄ Print preview switch (the page icon) — App hides its tabs and
+// keeps this header on screen in both views. No order sheet button here (the
+// one-bar and classic layouts keep theirs).
+
+const ICON = "ft-tip relative w-[32px] h-[30px] shrink-0 flex items-center justify-center rounded-md border border-transparent hover:bg-[color:var(--ft-hover)]";
+const BAR_TXT = "h-[30px] shrink-0 inline-flex items-center gap-1 rounded-md px-2.5 text-[12.5px] font-extrabold whitespace-nowrap hover:bg-[color:var(--ft-hover)]";
+
+// The project name and address edit in place. An invisible copy of the text
+// sizes the input, so the line reads as text rather than a row of boxes.
+function InlineField({ value, onChange, placeholder, inputRef, className = "", maxLength }) {
+  const cls = "col-start-1 row-start-1 px-px " + className;
+  return (
+    <span className="inline-grid min-w-0 max-w-full">
+      <span aria-hidden="true" className={cls + " invisible whitespace-pre overflow-hidden"}>{value || placeholder}</span>
+      <input ref={inputRef} size={1} value={value} maxLength={maxLength} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
+        className={cls + " w-full min-w-0 text-ellipsis bg-transparent border-b border-transparent hover:border-[color:var(--ft-border-strong)] focus:border-indigo-500 focus:outline-none placeholder:text-[color:var(--ft-faint)]"} />
+    </span>
+  );
+}
+
+function NotesPop({ value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const anchorRef = useRef(null);
+  const panelRef = useRef(null);
+  const pos = useAnchoredPanel(open, anchorRef, panelRef, () => setOpen(false));
+  useEscClose(open, () => setOpen(false));
+  const has = !!String(value || "").trim();
+  return (
+    <>
+      <button ref={anchorRef} onClick={() => setOpen((o) => !o)} aria-expanded={open} title={has ? value : "Add project notes"}
+        className={"shrink-0 whitespace-nowrap hover:text-[color:var(--ft-text)] " + (has ? "font-semibold" : "")} style={{ color: has ? "var(--ft-muted)" : "var(--ft-faint)" }}>
+        {has ? "Notes" : "+ Notes"}
+      </button>
+      {open && pos && (
+        <SearchPop pos={pos} box={growBox(pos, 320)} fieldRef={anchorRef} panelRef={panelRef} className="p-2">
+          <textarea autoFocus value={value} onChange={(e) => onChange(e.target.value)} placeholder="Project notes…" rows={4}
+            className="w-full rounded-md px-2 py-1.5 text-[13px] resize-y focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            style={{ background: "var(--ft-cream)", border: "1px solid var(--ft-border-strong)" }} />
+        </SearchPop>
+      )}
+    </>
+  );
+}
+
+// "Tile 10% · Floor 5%" opening the one WasteBar (its padlock and its
+// press-to-apply rules unchanged) in the shared popover box.
+function WastePop({ w, dflt, onChange }) {
+  const [open, setOpen] = useState(false);
+  const anchorRef = useRef(null);
+  const panelRef = useRef(null);
+  const pos = useAnchoredPanel(open, anchorRef, panelRef, () => setOpen(false));
+  const pct = (flag, k) => (w[flag] ? Number(w[k]) || 0 : 0);
+  const part = (label, flag, k) => <span style={w[flag] ? undefined : { color: "var(--ft-faint)" }}>{label} {pct(flag, k)}%</span>;
+  return (
+    <>
+      <button ref={anchorRef} onClick={() => setOpen((o) => !o)} aria-expanded={open} title="Waste — press to change" className={BAR_TXT}>
+        {part("Tile", "tileOn", "tile")}<span className="font-medium" style={{ color: "var(--ft-faint)" }}>·</span>{part("Floor", "floorOn", "floor")}
+      </button>
+      {open && pos && (
+        <SearchPop pos={pos} box={growBox(pos, 220)} fieldRef={anchorRef} panelRef={panelRef} className="p-2">
+          <div className="ft-eyebrow text-[9px] mb-1.5">Waste on this job</div>
+          <WasteBar w={w} dflt={dflt} onChange={onChange} />
+        </SearchPop>
+      )}
+    </>
+  );
+}
+
+// Freight is on for nearly every job, so "on" is a quiet truck and "off" is
+// the thing that has to be seen: amber, struck through, and named.
+function FreightToggle({ on, amount, onSet }) {
+  const tip = on ? `Freight included${amount ? ` — ${amount}` : ""}: vendor shipping is added to this job's special orders. Press to leave it off.` : "No freight on this job. Press to add vendor shipping to the special orders.";
+  const truck = (
+    <span className="relative inline-flex">
+      <Truck size={16} />
+      {!on && <span className="absolute left-1/2 top-1/2 h-[1.75px] w-[20px] rounded bg-current" style={{ transform: "translate(-50%,-50%) rotate(-40deg)" }} />}
+    </span>
+  );
+  return (
+    <button onClick={() => onSet(!on)} aria-pressed={on} aria-label={on ? "Freight included" : "No freight"} title={tip}
+      className={on ? ICON + " text-slate-500" : "h-[30px] shrink-0 inline-flex items-center gap-1.5 rounded-md px-2.5 text-[12.5px] font-bold whitespace-nowrap"}
+      style={on ? undefined : { background: "var(--ft-hover-amber-strong)", color: "#b45309", border: "1px solid color-mix(in oklab, #b45309 40%, transparent)" }}>
+      {truck}{!on && "No freight"}
+    </button>
+  );
+}
+
+export function ProjectHeaderClean({ sel, cust, builderName, profile, tv, grandTotal, optionBadges = null, freightCost = 0, saveOk, settings, jobWasteUI, updateProject, onOpenCustomer, onPromote, nameRef, nameTabRef, orderEntryRef, focusName, namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion, openAttachment, delAttachment, attRef, addAttachment, setShowVersions, setPrintMode, setConfirm, setShowOrderCopy, samples = null, onOpenSamples, preview = false, onTogglePreview, erp = null }) {
+  const [menu, setMenu] = useState(false);
+  const moreRef = useRef(null);
+  const upd = (patch) => updateProject(sel.id, patch);
+  const badge = tierBadgeText(tv.tier, tv.pct);
+  const tierInk = TIER_COLOR[tv.tier]?.main;
+  const tierFill = TIER_COLOR[sel.priceTier] ? { background: TIER_COLOR[sel.priceTier].main } : undefined;
+  const dot = <span style={{ color: "var(--ft-border-strong)" }}>·</span>;
+  const nos = erp?.nos || [];
+  const done = !!erp?.done;
+  const left = erp?.left || 0;
+  const oeTitle = nos.length
+    ? `ERP 1 order${nos.length > 1 ? "s" : ""} ${[...nos].reverse().join(", ")} — ${done ? "every line pasted" : `${erp.keyed} of ${erp.total} lines pasted`}. Open order entry.`
+    : "Order entry — copy this job into ERP One";
+  return (
+    <div className="mb-4" onKeyDown={headerTabOut(nameTabRef)}>
+      <input ref={attRef} type="file" onChange={addAttachment} className="hidden" />
+      <div className="flex items-end gap-6">
+        <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+          {cust ? (
+            <div className="flex items-baseline gap-3 min-w-0">
+              <button onClick={onOpenCustomer} title="Open customer details" className="min-w-0 truncate text-left font-extrabold hover:opacity-80" style={{ fontSize: 30, lineHeight: 1.1, letterSpacing: "-.025em" }}>{cust.name || "Customer"}</button>
+              {builderName && <span className="shrink min-w-0 truncate text-[13px] text-slate-500 flex items-center gap-1"><Building2 size={13} className="shrink-0 text-slate-400" />{builderName}</span>}
+            </div>
+          ) : (
+            <button onClick={onPromote} title="File this job under a customer" className="self-start flex items-baseline gap-3 text-amber-600 hover:text-amber-700">
+              <span className="font-extrabold" style={{ fontSize: 30, lineHeight: 1.1, letterSpacing: "-.025em" }}>{sel.quick ? "Quick price" : "Unassigned"}</span>
+              <span className="text-[11px] font-semibold rounded border border-amber-300 px-1.5 py-0.5">File under customer ▾</span>
+            </button>
+          )}
+          <div className="flex items-center gap-2 min-w-0 text-[13px] text-slate-500 whitespace-nowrap">
+            <InlineField inputRef={nameRef} value={sel.name} onChange={(v) => upd({ name: v })} placeholder="Project name" maxLength={PROJECT_NAME_MAX}
+              className={"text-[14px] font-bold text-[color:var(--ft-text)]" + (focusName ? " border-indigo-300" : "")} />
+            {sel.projectNo && <span className="shrink-0 font-semibold" style={{ color: "var(--ft-faint)" }}>N{sel.projectNo}</span>}
+            <ErpChip erpOrders={sel.erpOrders} onOpen={() => setShowOrderCopy(true)} done={nos.length ? done : undefined} size={10} />
+            {dot}
+            <InlineField value={sel.address} onChange={(v) => upd({ address: v })} placeholder="Add address" />
+            {dot}
+            <span className="shrink-0"><SalespersonPop plain value={sel.salesperson} fallback={profile} onChange={(v) => upd({ salesperson: v })} /></span>
+            {dot}
+            <NotesPop value={sel.notes} onChange={(v) => upd({ notes: v })} />
+          </div>
+        </div>
+        <div className="shrink-0 flex flex-col items-end">
+          <div className="flex items-center gap-1.5 text-[12px] text-slate-500">
+            {saveOk && <span style={{ color: "var(--ft-brand)" }}>Saved ✓</span>}
+            {badge && <span className="rounded px-1 font-semibold" style={{ background: TIER_COLOR[tv.tier]?.soft || "var(--ft-brand-soft)", color: tierInk, fontSize: 10.5 }}>{badge}</span>}
+            <span>Job total</span>
+          </div>
+          {optionBadges ? (
+            <div className="flex items-center gap-1.5 flex-wrap justify-end mt-1">
+              {optionBadges.map((b) => (
+                <span key={b.slot} className="ft-mono rounded-md px-2 py-0.5 text-[13px] font-bold whitespace-nowrap" style={{ background: `color-mix(in srgb, ${b.color.main} 12%, var(--ft-card))`, color: b.color.deep, boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${b.color.main} 45%, transparent)` }}>
+                  {b.label} <span className="opacity-75 font-semibold">{money(b.total)}</span>
+                </span>
+              ))}
+            </div>
+          ) : (
+            <div className="ft-mono font-extrabold" style={{ fontSize: 30, lineHeight: 1.15, letterSpacing: "-.02em", color: tierInk || "var(--ft-text)" }}>{money(grandTotal)}</div>
+          )}
+        </div>
+      </div>
+
+      <div role="toolbar" aria-label="Job settings and actions" className="mt-3 flex items-center gap-0.5 py-1.5 border-y" style={{ borderColor: "var(--ft-border-soft)" }}>
+        <PriceLevelMenu value={sel.priceTier || "retail"} customPct={sel.customPct} onPick={(v) => upd({ priceTier: v })} onPct={(v) => upd({ priceTier: "custom", customPct: v })} />
+        <MorphSelect value={sel.printPricing || "full"} onChange={(v) => upd({ printPricing: v })} bg="var(--ft-cream)" flat bold minOpenW={150} title="What the estimate shows"
+          options={[
+            { v: "full", label: "All prices", title: "Print every price and total" },
+            { v: "unit", label: "Unit only", title: "Print unit prices only — no line or job totals" },
+            { v: "none", label: "No prices", title: "Print no pricing" },
+          ]} />
+        <WastePop w={jobWasteUI} dflt={settings.waste} onChange={(patch) => upd({ waste: { ...jobWasteUI, ...patch } })} />
+        <FreightToggle on={sel.freight !== false} amount={freightCost > 0 ? `$${Math.round(freightCost).toLocaleString()}` : ""} onSet={(v) => upd({ freight: v })} />
+        <span className="w-3 shrink-0" />
+        <button onClick={onTogglePreview} aria-pressed={preview} aria-label="Print preview" data-tip={preview ? "Back to editing" : "Print preview — see the estimate as it prints"}
+          className={ICON} style={preview ? { background: "var(--ft-brand-soft)", borderColor: "color-mix(in oklab, var(--ft-brand) 45%, transparent)", color: "var(--ft-brand-deep)" } : { color: "var(--ft-muted)" }}>
+          <FileText size={16} />
+        </button>
+        <FilesPop mini tip="Files — photos & docs attached to this job" triggerClass={ICON + " text-slate-500"} attachments={sel.attachments} onOpen={openAttachment} onDelete={delAttachment} onAdd={() => attRef.current?.click()} />
+        {onOpenSamples && (
+          <button onClick={onOpenSamples} aria-label="Samples" data-tip="Samples — this job's sample requests, grouped by vendor" className={ICON + " text-slate-500"}>
+            <Layers size={16} />
+            {samples?.need > 0 && <span className="absolute rounded-full font-bold" style={{ top: -4, right: -4, fontSize: 9.5, lineHeight: "14px", minWidth: 14, padding: "0 3px", background: "#b45309", color: "#fff" }}>{samples.need}</span>}
+          </button>
+        )}
+        <button ref={moreRef} onClick={() => setMenu((m) => !m)} aria-label="More" aria-expanded={menu} data-tip="Versions and delete" className={ICON + " text-slate-500"}><MoreHorizontal size={17} /></button>
+        <DotMenu open={menu} onClose={() => setMenu(false)} anchorRef={moreRef} align="left" width={230} bg="var(--ft-cream)">
+          <button onClick={() => { setMenu(false); setShowVersions(true); }} className="w-full flex items-center gap-2.5 px-3 py-1.5 text-left font-semibold hover:bg-[color:var(--ft-hover)]">
+            <History size={15} className="text-slate-500" /><span className="flex-1">Versions</span><span className="text-[12px] font-medium text-slate-400">{sel.versions?.length || 0} saved</span>
+          </button>
+          <button onClick={() => { setMenu(false); startVersionName(); }} className="w-full flex items-center gap-2.5 px-3 py-1.5 text-left font-semibold hover:bg-[color:var(--ft-hover)]">
+            <Save size={15} className="text-slate-500" /><span className="flex-1">Save a named version…</span>
+          </button>
+          <div className="my-1 mx-2 border-t border-slate-200" />
+          <button onClick={() => { setMenu(false); setConfirm({ id: sel.id }); }} className="w-full flex items-center gap-2.5 px-3 py-1.5 text-left font-semibold text-red-600 hover:bg-[color:var(--ft-hover-red)]">
+            <Trash2 size={15} /><span className="flex-1">Delete project</span>
+          </button>
+        </DotMenu>
+        <SaveVersionPop anchor={moreRef} open={namingVersion} onOpen={startVersionName} onClose={() => setNamingVersion(false)} name={versionName} setName={setVersionName} onConfirm={confirmVersion} />
+        <span className="flex-1" />
+        <button ref={orderEntryRef} data-flow-end="1" onClick={() => setShowOrderCopy(true)} title={oeTitle}
+          className="h-[32px] shrink-0 mr-1.5 inline-flex items-center gap-1.5 rounded-md px-3 text-[12.5px] font-bold whitespace-nowrap border hover:opacity-90"
+          style={done ? { background: "var(--ft-brand-soft)", borderColor: "color-mix(in oklab, var(--ft-brand) 50%, transparent)", color: "var(--ft-brand-deep)" } : { borderColor: "var(--ft-border-strong)", color: "var(--ft-text)" }}>
+          {done ? <Check size={14} strokeWidth={2.6} /> : <Copy size={14} />}
+          <span className="ft-mono">{nos.length ? erpLabel(nos) : "Order entry"}</span>
+          {nos.length > 0 && !done && left > 0 && <span className="rounded-full px-1.5 text-[11px] font-bold" style={{ background: "var(--ft-sand)", color: "var(--ft-muted)" }}>{left} left</span>}
+        </button>
+        <button data-flow-end="1" onClick={() => setPrintMode("estimate")} className="h-[32px] shrink-0 inline-flex items-center gap-1.5 rounded-md px-4 text-[13px] font-extrabold text-white bg-indigo-600 hover:bg-indigo-700 whitespace-nowrap" style={tierFill}>
+          <Printer size={14} /> Print
+        </button>
       </div>
     </div>
   );
