@@ -3,10 +3,10 @@
 - **Status:** Accepted
 - **Date:** 2026-09-26
 - **Scope:** the Schluter and wedi shower configurators' swap machinery
-  (`src/slots.js`, `src/drainswap.jsx`, `src/schluter.js`, `src/schluterdraw.js`,
-  `src/wedi.js`, `SchluterConfigurator.jsx`, `WediConfigurator.jsx`) — drain/
-  cover swaps in sub-project 1a; curb and panel swaps extend the same pattern
-  in 1b–1d.
+  (`src/slots.js`, `src/swappop.jsx`, `src/schluter.js`, `src/schluterdraw.js`,
+  `src/wedi.js`, `src/showersf.js`, `SchluterConfigurator.jsx`,
+  `WediConfigurator.jsx`) — drain/cover swaps in sub-project 1a; curb, panel,
+  membrane, band and fastener/bench swaps extend the same pattern in 1b–1d.
 - **Related:** design spec `docs/superpowers/specs/2026-09-26-drain-slot-design.md`;
   plan `docs/superpowers/plans/2026-09-26-drain-slot.md`; ticket 158 Phase 1
   (`.scratch/158_shower-config-roadmap/ticket.md`); mockup
@@ -89,3 +89,58 @@ one recipe.
   pick and reopens on the stocked twin (`676797048`, $0.01 more) — the
   stock-first rule (ADR 0032/0037) outranks pinning that one key, and the
   amount is a rounding-scale cent, not a bill change.
+
+## Amendment (2026-09-27): every line swaps (Phase 1b)
+
+1. **Lines.**
+   - Schluter: `cfg.swaps` gains `membrane` `{ wide, roll? }`, `band`
+     `{ width, roll? }` and `fastener` (a sku, whose count re-fits). Bench rows
+     gain `board`; `part` already existed.
+   - wedi: `curbPick` `{ sub, len?, profile? } | { none: true }`, plus
+     `panelKey` and `fastenerKey`.
+   - Engines: `resolveMembrane`, `resolveBand` and `resolveCurb`, each with an
+     options function the popover reads.
+2. **Write-only-when-picked.**
+   - wedi no longer writes the resolved `curbKey`, and writes `panelKey` and
+     `fastenerKey` only when they differ from the house part.
+   - Old markers translate on read: `legacyCurbPick` / `curbPickOf` / an old
+     default `panelKey` = no pick.
+   - `src/wedimarkergolden.test.js` pins that every old marker shape reopens to
+     its pre-1b bill.
+   - `markerCurbKey` lets the tile-sf reader (`showersf.js`) resolve a choice
+     the same way.
+3. **Inert picks.** A saved pick the pan type can't use stays in the marker but
+   doesn't mark the build Custom or dirty: a Schluter `drainPick` on a point
+   tray, or a wedi `coverPick` of the wrong shape (`coverPickApplies`).
+4. **Consequence.** 1c ("+" per group) and 1d (Compare alignment) build on
+   these choice records and the `SwapPop` component (`src/swappop.jsx`, which
+   replaced `drainswap.jsx`).
+
+One exception beyond the one 1a already recorded: a stale wedi `curbKey` the
+catalog no longer knows now bills the recipe's default curb, where it used to
+bill none — the "nothing silently dropped" rule outranks pinning a key the
+books no longer carry. The owner confirmed this on 2026-09-27, and tile sf
+(`markerCurbKey`) now falls through to the same recipe curb.
+
+## Amendment (2026-09-27): add another line (Phase 1c)
+
+1. **Added lines are parts + a hand-set qty, never choices.** They don't
+   re-fit.
+   - One list per brand, in the marker. Schluter: `cfg.manual`
+     `{ sku, qty, g? }`. wedi: `cfg.manual` `{ key, qty, group? }` — wedi's
+     first time in the marker; `kitFor` bills it and writes it.
+   - Rows key on group + part. An added line is always its own line; it
+     never merges into a kit line.
+2. **Translation on read.**
+   - Schluter: a row with no `g` files where the kit bills that part
+     (`addedGroup`). It moves out of Extras on screen and in print; its qty
+     and the total don't change.
+   - wedi: `addons` keys become rows in the add-on bucket (a key listed twice
+     = qty 2). Nothing writes `addons` again.
+   - `src/addedgolden.test.js` pins every old shape to its pre-1c bill and
+     tile-sf niche.
+3. **The "+" popover is the ⇄ popover** (`SwapPop`) with Auto dropped. An
+   added line's ⇄ replaces only its own row. This replaces 1b's rule that
+   hid opts-backed ⇄ on Browse-added lines in a wedi kit build.
+4. **The wedi curb drawing** (and "Turn into a curb") follows only the kit's
+   own curb. An added curb is a part on the bill, not a curb in the room.

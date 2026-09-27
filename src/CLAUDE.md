@@ -230,11 +230,27 @@ src/
                     # order sheet and Print live only in the ⋯ sheet (owner
                     # call) — the band never grows a button row, and the
                     # phone has no Edit / Print preview tabs
-  projectheader.jsx # the desktop project header, two layouts behind a per-device
-                    # switch (Settings → General, localStorage "ft-header"):
-                    # `ProjectHeaderBar` (the 2026-07-21 one-bar) and
+  projectheader.jsx # the desktop project header, three layouts behind a PER-USER
+                    # switch (Settings → General, saved as ui.header through
+                    # saveUiPref; localStorage "ft-header" only until a user
+                    # picks): `ProjectHeaderBar` (the 2026-07-21 one-bar),
                     # `ProjectHeaderClassic` (the print-sheet original, kept
-                    # whole so the team can flip back without a revert).
+                    # whole so the team can flip back without a revert) and
+                    # `ProjectHeaderClean` (on trial 2026-09-27,
+                    # .scratch/159_clean-editor): customer as the headline, the
+                    # project one inline-editable line under it (name · N ·
+                    # ERP chip · address · salesperson · notes), and one flat
+                    # bar on the cream — PriceLevelMenu, a MorphSelect for
+                    # Estimate shows, a waste popover over WasteBar, the freight
+                    # truck (quiet when on, amber "No freight" when off), the
+                    # page icon that IS the Edit ⇄ Print preview switch (App
+                    # hides its tabs and renders Clean above the edit/preview
+                    # split so it stays up in both), files, samples, a ⋯
+                    # DotMenu (Versions / Save a named version / Delete), and
+                    # the Order entry button carrying the ERP number — green
+                    # with a check once erporders.js `erpStatus` says every
+                    # line is keyed, an "N left" pill before that. No order
+                    # sheet button in Clean.
                     # Exported `ErpChip` (ADR 0044, `ERP 48213` · `+N`) mounts
                     # in both layouts (opens order entry) and is imported by
                     # mobile.jsx for the band (static there)
@@ -305,7 +321,8 @@ src/
   headerpreview.jsx # dev-only harness (header-preview.html): the REAL
                     # ProjectHeaderBar + PriceBookLibrary over local mock state,
                     # no Supabase — preview proof for the 2026-08-14 compact
-                    # headers and the book page's config drawers (stateful
+                    # headers (+ three live Clean-header states, 2026-09-27)
+                    # and the book page's config drawers (stateful
                     # updateBook + a mock Glazzio book with items, so the
                     # markup/freight/brand tabs save-and-rerender) + the
                     # MobileProjectBand in a 344px frame (Fold 5 header
@@ -900,6 +917,75 @@ src/
                     # Both halves are now imports; the tables are fallbacks
                     # only, removable together in a later PR.
                     # (wedi.test.js, wediequivalence.test.js)
+                    # Ticket 158 Phase 1b (ADR 0049): `curbPick` replaces the
+                    # resolved `curbKey` — `{ sub, len?, profile? } | { none: true }`,
+                    # `profile` only on the AT style (full-foam vs the
+                    # cheaper stocked lean piece); `resolveCurb`/`curbOptions`
+                    # figure it fresh every build (Auto re-fits the opening),
+                    # `legacyCurbPick`/`curbPickOf` translate an old `curbKey`
+                    # on read so no bill moves except a stale key, which now
+                    # bills the recipe default instead of no curb;
+                    # `markerCurbKey` lets `showersf.js` resolve the same
+                    # choice for tile sf; `kitFor` also returns `curbFit`
+                    # (`{openLen, fam}`) for the popover. `panelOptions`/
+                    # `panelSheets` and `fastenerKits`/`fastenerKey` are the
+                    # wall-panel and fastener-kit swaps (panelKey/fastenerKey
+                    # written only when picked, and only honoured when they
+                    # name a real panel / one of the two boxed kits — a stale
+                    # key falls back to the house part with a note on the
+                    # line rather than vanishing). `coverPickApplies` keeps an
+                    # inert cover pick (wrong pan type) from marking the build
+                    # Custom.
+                    # (wedimarkergolden.test.js)
+                    # Ticket 158 Phase 1c (ADR 0049): added lines are parts +
+                    # a hand-set qty, never choices. `cfg.manual`
+                    # `{ key, qty, group? }` rides the marker (wedi's first
+                    # time); `addons` retires. `addedRows(src)` reads a
+                    # marker's or kitFor opts' rows, translating old
+                    # `addons` into the add-on bucket (a key twice = qty 2)
+                    # and dropping a key the book doesn't know;
+                    # `setAddedRow` sets one row's qty keyed by bucket + key
+                    # (0 removes it). `kitFor` bills the rows at the old
+                    # add-on position, flags them `added`, and writes
+                    # `manual` (never `addons`); `buildFromMarker` passes
+                    # them through. `wediBucketOf` (moved from the popup,
+                    # which aliases it `bucketOf`) and the new
+                    # `WEDI_BUCKETS` name the bill buckets.
+                    # `WEDI_ADD_PARTS`/`wediAddParts(bucket)` are what each
+                    # bucket's "+" offers (a part the book lacks never
+                    # shows); `wediAddPartOf` is the part an added line's ⇄
+                    # swaps within. `curbAddOptions` and `coverAddOptions`
+                    # are the stepped "+" rows with no Auto (a real length,
+                    # a real cover key). `sessionFromRows` takes the
+                    # marker's added lines off each placed total first, so
+                    # only a kit line's hand-set qty becomes `qtyOv`.
+                    # (addedgolden.test.js)
+  wedimarkergolden.js  # the golden bill of every old wedi marker shape,
+                    # captured from wedi.js BEFORE 1b changed how curbPick/
+                    # panelKey are written (ticket 158 Phase 1b) — every
+                    # pan × a curb axis (every real curb key, plus null and
+                    # the recipe default — no key) × a room axis (its own
+                    # room and a 24″-widened open edge), plus every real
+                    # panel key. Never hand-edited — GENERATED by
+                    # `.scratch/158_shower-config-roadmap/tools/gen-wedi-marker-golden.mjs`.
+                    # `wedimarkergolden.test.js` reopens each shape through
+                    # `buildFromMarker` and fails if the bill moves. A stale
+                    # curbKey — not in the book — is outside the golden (no
+                    # such key is generated here); its bill-moves-on-purpose
+                    # ruling is recorded in the ADR 0049 amendment instead
+  addedgolden.js    # the golden bill of every old hand-added-line marker,
+                    # captured BEFORE 1c moved added lines into their own
+                    # groups (ticket 158 Phase 1c): wedi `addons` shapes (one
+                    # niche, the same niche twice, niche + gun, niche + seat,
+                    # …) on three pans, and Schluter `cfg.manual` rows in the
+                    # old `{ sku, qty }` shape (a band, a board, niches ×2,
+                    # KERDI-FIX, …) on a point and a linear build. Bills are
+                    # quantities per part, plus the tile-sf niche back. Never
+                    # hand-edited — GENERATED by
+                    # `.scratch/158_shower-config-roadmap/tools/gen-added-golden.mjs`.
+                    # `addedgolden.test.js` reopens each shape through both
+                    # `buildFromMarker`s and `showersf.js` and fails if a
+                    # bill or niche figure moves
   wedibook.js       # wedi distribution pricelist parser (ADR 0038, 8b): a
                     # section-table state machine (ovfbook.js's parseSundries
                     # shape) that flattens the "wedi Fundo" and "wedi S-Dry"
@@ -1181,7 +1267,8 @@ src/
                     # kits (App remounts on a pid+nonce key so reconfiguring
                     # the CURRENT kit re-seeds too), delete-on-move stands,
                     # and a staged entry carries its `session` sibling
-                    # (qtyOv, the manual extras, the Fit flag) beside the
+                    # (qtyOv, the Fit flag, and — since 1c only for a
+                    # Browse-only build — the manual extras) beside the
                     # marker snap, so a staged-then-moved kit bills what was
                     # on screen. A Reconfigure gets `editRows` (App: kitRows
                     # of the anchor) and seeds qtyOv/manual from them once
@@ -1200,6 +1287,57 @@ src/
                     # `escActive` (default true) gates its Escape handler —
                     # the Apps pane passes false while it is hidden (ADR
                     # 0047).
+                    # Ticket 158 Phase 1b (ADR 0049): ⇄ on the curb and the
+                    # wall panel line opens `SwapPop` stepped (Style →
+                    # Profile-on-AT-only → Length for the curb, Type →
+                    # Thickness → Size for the panel, "Panel kit" a third Type
+                    # chip); the fastener kit swaps via a one-click list.
+                    # `curbPick` seeds from the old marker via `curbPickOf`
+                    # and survives a room re-solve the way `coverPick` does; a
+                    # kit-card reset wipes both. The panel ⇄ lives on the
+                    # walls' panel line only — the bench's own sheet line
+                    # doesn't open it. A cover pick that can't apply to the
+                    # pan (`coverPickApplies`) stays inert. In a Browse-only
+                    # build (no `build.pan`) every opts-backed ⇄ — cover,
+                    # cover frame, curb, panel, fastener kit, joint sealant
+                    # form, curbless recess/ramp — is hidden: only the curb
+                    # ⇄ crashed there, the others would write settings a
+                    # Browse-only build ignores. (1b hid opts-backed ⇄ on a
+                    # kit build's Browse-added lines too; 1c replaced that —
+                    # an added line's ⇄ writes its own row, below.) The curb
+                    # popover's Δ counts only the kit's curb. A curb pick is
+                    # cleared when the room's curb type changes (Curbed ⇄
+                    # Curbless): it belongs to the curb type it was made for.
+                    # Ticket 158 Phase 1c (ADR 0049): every bucket header
+                    # carries a "+" (`data-add-group`), shown even on an empty
+                    # bucket. It opens `SwapPop` in add mode: a Part row when
+                    # the bucket offers more than one part (`wediAddParts`),
+                    # then the part's stepped rows with no Auto (curb →
+                    # `curbAddOptions`, panel → `panelOptions`, cover →
+                    # `coverAddOptions`) and a qty stepper, or a one-click
+                    # list (stock-first, a search box past 12 rows). The
+                    # draft starts on the part the kit already bills. Added
+                    # lines are `manual` rows `{ key, qty, group }` keyed by
+                    # bucket + key (`setAddedRow`); `seedState` reads them
+                    # through `addedRows` (old `addons` translated) and the
+                    # marker saves them — `addons` state is gone. Browse,
+                    # the chips and the figurer add under the part's own
+                    # bucket; Browse's counter shows that added qty. Each
+                    # added line is its own line with its own stepper, an
+                    # "added" tag, "kit also bills N" when a kit line bills
+                    # the same part (tag and hint hidden in a Browse-only
+                    # build; screen only, never print), and a ⇄ that opens
+                    # the "+" panel on its own part and replaces only that
+                    # row, keeping its qty. A kit line's stepper
+                    # (`stepLine`) writes `qtyOv` and never touches an added
+                    # row; a placed premade bench (`auto:false` kit line)
+                    # shows its count with no stepper. Niche · Seat · Bench
+                    # · Glass shelf chips add another each click ("✓ Niche
+                    # ×2"); Sealant gun stays a toggle. A room re-solve
+                    # keeps added lines; the kit-card hard reset and Clear
+                    # design clear them. The curb drawing and "Turn into a
+                    # curb" read only the kit's own curb. Reconfigure tops
+                    # up an added row by what the sheet carries beyond it.
   panelplan.js      # `planPanels(walls, sheets)` — the wall-board course
                     # planner both shower engines share (wedi `panelPlan`,
                     # Schluter `boardPlan`; owner 2026-09-22): full courses
@@ -1271,7 +1409,17 @@ src/
                     # all three props, since it never renders benches
   showersf.js       # tile sq ft per piece of a placed wedi/Schluter shower
                     # from its saved cfg. LAZY-CHUNK-ONLY (imports both
-                    # engines); loaded only by usejobshowers.js.
+                    # engines); loaded only by usejobshowers.js. Ticket 158
+                    # Phase 1b (ADR 0049): the wedi curb piece resolves
+                    # through `markerCurbKey` (wedi.js) instead of reading
+                    # `cfg.curbKey` directly, so tile sf follows the same
+                    # choice `kitFor` bills; a stale `curbKey` (not in the
+                    # book) tiles the recipe curb, as it bills (R2).
+                    # Phase 1c: the wedi niche back reads the added rows ×
+                    # qty through `addedRows` (old `addons` translated), the
+                    # way the Schluter side already read `cfg.manual` × qty,
+                    # so several niches count; an old marker gives the same
+                    # figure (addedgolden.test.js).
   slots.js          # the shared bill-line slot vocabulary (ticket 158 Phase 1,
                     # ADR 0049): `SLOTS`/`SLOT_LABEL`/`isSlot`, a pure,
                     # import-free 14-line module both engines and Compare read
@@ -1279,15 +1427,33 @@ src/
                     # (drain body, grate, flange, wall board, curb, …) read as
                     # the same kind of thing — never re-derive the list from a
                     # bill's own group names
-  drainswap.jsx     # `DrainSwapPop` — the shared stepped drain-swap popover
-                    # (ticket 158 Phase 1a, mockup layout A) both configurators
-                    # mount over `PopMenu` (widgets.jsx): rows of chips plus a
-                    # summary strip (what will land, why, the Δ against the
-                    # committed drain, Use this). It renders a draft only —
-                    # each popup owns what a chip means and what Use this
-                    # commits (`cfg.drainPick`/`cfg.swaps.grate` for Schluter,
-                    # `coverPick` for wedi); Esc / an outside click discards
-                    # the draft on the existing swap step of the Esc ladder
+  swappop.jsx       # `SwapPop` — the shared stepped popover (ticket 158 Phase
+                    # 1a, mockup layout A; renamed from `DrainSwapPop` in 1b,
+                    # which also folded in the two popups' duplicated Δ
+                    # formatter) both configurators mount over `PopMenu`
+                    # (widgets.jsx) for the drain AND every stepped 1b line
+                    # (membrane, band, wedi curb, wedi panel): rows of chips
+                    # plus a summary strip (what will land, why, the Δ against
+                    # the committed line at the tier price, Use this). It
+                    # renders a draft only — each popup owns what a chip means
+                    # and what Use this commits (`cfg.drainPick`/
+                    # `cfg.swaps.grate`/`cfg.swaps.membrane`/`cfg.swaps.band`
+                    # for Schluter, `coverPick`/`curbPick` for wedi); Esc / an
+                    # outside click discards the draft on the existing swap
+                    # step of the Esc ladder. `fmDelta` (the shared Δ
+                    # formatter) and `inchGlyph` (chip inch text) live here
+                    # too; `stockFirst` only reorders a row's chips
+                    # stocked-first under Stock only — the SO chip dot itself
+                    # renders off each chip's own `c.so`, regardless of
+                    # `stockFirst`. The `data-drain-*` DOM
+                    # attributes are kept on every stepped popover (not just
+                    # the drain) so the 1a proof scripts still run unchanged.
+                    # Phase 1c: it is also every group's "+" popover. `add`
+                    # marks it (`data-add-pop`); `qty`/`onQty` put a qty
+                    # stepper in the summary strip (`data-add-qty`; the
+                    # caller always passes `qty`); `children` render under
+                    # the rows (a one-click part list); `summary` is
+                    # optional — a list popover has no strip
   schluter.js       # Schluter shower-system engine (issue 097 prototype ->
                     # production, tasks 1-6) — wedi's sibling, deliberately
                     # built the opposite way: TABLE-FREE. `classify()` is a
@@ -1465,7 +1631,48 @@ src/
                     # `buildFromMarker` is the same rule over the LIVE catalog
                     # (cfg.pick keeps the quoted tray; cfg.manual extras ride
                     # along); the popup's drawer gates it on catReady and
-                    # applies its own board plan (ADR 0035 step 3)
+                    # applies its own board plan (ADR 0035 step 3).
+                    # Ticket 158 Phase 1b (ADR 0049): classified rows carry
+                    # `rollCode`/`roll`/`width`; `resolveMembrane`/
+                    # `membraneOptions` and `resolveBand`/`bandOptions` are
+                    # the stepped-line engines `buildKit` calls for
+                    # `cfg.swaps.membrane`/`.band`, chip `ok` running the
+                    # resolver rather than a hand-written rule; `cfg.swaps`
+                    # also takes `.fastener` (a sku, count re-fit) and each
+                    # bench's own `board`; `buildKit` returns `need` (
+                    # `{wallSf, bandLf}`) and lines carry their `bench` index
+                    # so the popup's list swap can key on group+bench+sku;
+                    # `pointGrateLabel` reads the point grate's plain-English
+                    # chip text.
+                    # Ticket 158 Phase 1c (ADR 0049): added lines are parts +
+                    # a hand-set qty, never choices. `cfg.manual` rows gain
+                    # `g` (the bill group they draw under, one of
+                    # `BILL_GROUPS`); `addedGroup` files a row with no `g`
+                    # where the kit bills that part (`slotOf` → the slot's
+                    # group), so old Extras rows move group with no bill
+                    # change. `addedLines(manual, cat)` turns the rows into
+                    # bill lines flagged `manual` (`buildFromMarker` and the
+                    # popup both use it); `addedQty`/`setAddedQty` read and
+                    # set one row keyed by group + sku (0 removes it).
+                    # `ADD_PARTS`/`addParts(g, cat, { linear })` are what each
+                    # group's "+" offers — a part the catalog lacks never
+                    # shows, and the whole drain is a linear build's only;
+                    # `addPartOf` is the part an added line's ⇄ swaps within.
+                    # `addRollOptions` is the membrane/band Width → Roll rows
+                    # with no Auto; `drainAddOptions` is the linear drain's
+                    # rows plus a Length row, its chips `ok` only at a length
+                    # the resolver actually lands (between lengths steps
+                    # down, below every length falls to the shortest).
+                    # `sessionFromRows` takes the marker's added lines off
+                    # each placed total first, so only a kit line's hand-set
+                    # qty becomes `qtyOv` (addedgolden.test.js).
+                    # `applyBoardPlan(lines, cfg, plan, cat)` swaps the kit's
+                    # by-area board line for the Fit plan's per-sheet lines
+                    # in place (first line carries the sf/seam note) and
+                    # `applyQtyOv(lines, ov)` applies the hand-set qtys (0
+                    # drops a line) — the popup's build column, Reconfigure
+                    # and basket drawer all run them; both leave `manual`
+                    # lines alone (1c final review)
   schluterfixture.js  # the 2026-08-20 stock-sheet/EFT snapshot schluter.js's
                     # tests are pinned against (schluter.test.js) — the ERP
                     # Vendor SKU Analysis + dealer-cost EFT the prototype was
@@ -1692,8 +1899,8 @@ src/
                     # session-only qtyOv override (never in the marker, the
                     # wedi precedent), hand-set qty reads rust with the
                     # recipe's figure in the title, stepped to 0 the line
-                    # leaves the bill, and a hand-added Extras line steps its
-                    # own manual row — from-stock meter,
+                    # leaves the bill, and a hand-added line steps its own
+                    # manual row — from-stock meter,
                     # cost & margin behind a click, payload preview modal)
                     # and the showerdraw rail (TopDown/Iso via
                     # schluterdraw.js + the cut list) — plus a FOURTH tab,
@@ -1802,6 +2009,38 @@ src/
                     # `escActive` (default true) gates its Escape handler —
                     # the Apps pane passes false while it is hidden (ADR
                     # 0047).
+                    # Ticket 158 Phase 1b (ADR 0049): ⇄ on the KERDI membrane
+                    # and KERDI-BAND lines opens `SwapPop` stepped (Width →
+                    # Roll, Auto the default so it re-fits the room); the
+                    # board fastener pack and each bench's board swap via a
+                    # one-click list, keyed by group+bench+sku so a bench
+                    # board sharing a sku with another line can't hijack its
+                    # ⇄. ⇄ shows only when the line has more than one valid
+                    # part; a saved `drainPick` inert on a point tray stays in
+                    # the marker without forcing Custom.
+                    # Ticket 158 Phase 1c (ADR 0049): every group header
+                    # carries a "+" (`data-add-group`), shown even on an
+                    # empty group. It opens `SwapPop` in add mode: a Part row
+                    # when the group offers more than one part (`addParts`;
+                    # a point build's Drain reads Grate · Body · Flange),
+                    # then membrane/band Width → Roll (`addRollOptions`) or
+                    # the linear drain's rows + Length (`drainAddOptions`),
+                    # with no Auto and a qty stepper, or a one-click list
+                    # (stock-first, a search box past 12 rows). The draft
+                    # starts on the part the build already bills — the
+                    # drain from `build.drainFit`, not a pick that fell
+                    # back. A drain "+" adds every part the strip lists as
+                    # separate lines. Added lines are `cfg.manual` rows
+                    # keyed by group + sku; Browse, the chips and the
+                    # figurer add under the part's own group (`addedGroup`).
+                    # Each is its own line with its own stepper, an "added"
+                    # tag, "kit also bills N" when a kit line bills the same
+                    # sku (screen only, never print), and a ⇄ that opens the
+                    # "+" panel on its own part and replaces only that row,
+                    # keeping its qty; the kit's ⇄s never open on an added
+                    # line. Niche picker rows add another (`✓ ×n`).
+                    # Reconfigure tops up an added row by what the sheet
+                    # carries beyond it.
   schluterpreview.jsx  # dev-only harness (schluter-preview.html): the REAL
                     # SchluterConfigurator over the fixture pushed BACKWARDS
                     # through normOrderItem into live registry shape (shop
@@ -2117,7 +2356,11 @@ src/
                     # row's sources; keyedNo — "mixed" across orders, null
                     # when any source is unstamped; remainingRows; keyedNote),
                     # erpNosOf/erpHit for the browser's column + search over
-                    # light or full rows. Never imports model.js (erporders.test.js)
+                    # light or full rows; `erpLabel` ("ERP 48260 +1"),
+                    # `matIdMaker` (the materials line ids — the panel and the
+                    # Clean header's count both mint through it, or a stamp
+                    # stops matching) and `erpStatus` (keyed/left/done over
+                    # App's unmerged `erpLines`). Never imports model.js (erporders.test.js)
   clipseq.js        # `writeSequence` + `CLIP_GAP_MS` (400): writes a list of
                     # texts to the clipboard one after another, a pause
                     # between, so Windows clipboard history (Win+V) keeps

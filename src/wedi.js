@@ -4455,7 +4455,7 @@ function sealantItem(form, six20) {
   return item(form === "tube" ? SKU.sealantTube : SKU.sealantSausage);
 }
 
-export function figureConsumables(panelSf, form) {
+export function figureConsumables(panelSf, form, fastenerKey) {
   const sf = Math.max(0, +panelSf || 0);
   form = form === "tube" ? "tube" : "sausage";
   const oz = round2(sf * CONSUMABLES.sealantOzPerSf);
@@ -4470,11 +4470,20 @@ export function figureConsumables(panelSf, form) {
     // Today both codes survive a thinned book because WEDI_SO also carries
     // them — 22 of the 24 SKU.* constants have that pricelist twin. 8b retires
     // WEDI_SO, and then they don't.
-    const fastenerKit = item(SKU.fastenerKit);
+    // a swapped kit (Phase 1b) counts by its own "N ct"; the house kit keeps the recipe's 100.
+    // Honoured only when it's one of the boxed kits (fastenerKits()) — a stray
+    // fastener SKU (a washer master pack) is not a kit swap and falls back like
+    // an unrecognized key, never silently substituted.
+    const picked = fastenerKey ? item(fastenerKey) : null;
+    const honoured = picked && fastenerKits().some((f) => f.key === picked.key) ? picked : null;
+    const fastenerKit = honoured || item(SKU.fastenerKit);
+    const fastenerStale = !!fastenerKey && !honoured;
+    const ctM = honoured && honoured.key !== SKU.fastenerKit ? /(\d+)\s*ct/i.exec(honoured.sizeText || "") : null;
     const sealant = sealantItem(form, false);
     if (fastenerKit) lines.push({
-      item: fastenerKit, qty: Math.ceil(fastenerCount / CONSUMABLES.fastenerKitCt),
-      group: "install", auto: true, note: "",
+      item: fastenerKit, qty: Math.ceil(fastenerCount / (ctM ? +ctM[1] : CONSUMABLES.fastenerKitCt)),
+      group: "install", auto: true,
+      note: fastenerStale ? fastenerKey + " not in the book — house kit" : "",
     });
     if (sealant) lines.push({
       item: sealant, qty: Math.ceil(oz / per),
@@ -5043,6 +5052,44 @@ export function coverStyles(len) {
   return out;
 }
 
+/**
+ * A "+" on a drain cover (Phase 1c): Size (the point covers, each linear
+ * length) → Style (linear) → Finish, drafted as a cover key. Each chip's
+ * `next` is the cover it lands on — stocked first, then the cheapest, and the
+ * drafted finish kept across a size or style change when it's made there.
+ */
+export function coverAddOptions(key) {
+  const covers = group("cover");
+  const cur = (key && covers.find((c) => c.key === key)) || item(SKU.coverSS) || covers[0] || null;
+  if (!cur) return { cur: null, sizes: [], styles: [], finishes: [] };
+  const best = (l) => l.slice().sort(byStockThenPrice)[0] || null;
+  const sizeOf = (c) => (c.sub === "linear" ? String(c.len) : "point");
+  const styleOf = (c) => (c.finish === "T" ? "tileable" : /P$/.test(c.finish) ? "perforated" : "solid");
+  const chip = (k, label, c, on) => ({ key: k, label, ok: !!c, so: !!c && !c.stock, on, next: c ? c.key : null });
+  const sizes = [...new Set(covers.map(sizeOf))].sort((a, b) => (a === "point" ? -1 : b === "point" ? 1 : a - b)).map((z) => {
+    const l = covers.filter((c) => sizeOf(c) === z);
+    return chip(z, z === "point" ? "4×4 point" : z + '"', best(l.filter((c) => c.finish === cur.finish)) || best(l), z === sizeOf(cur));
+  });
+  const inSize = covers.filter((c) => sizeOf(c) === sizeOf(cur));
+  const lin = cur.sub === "linear";
+  const styles = lin ? ["solid", "perforated", "tileable"].map((st) => {
+    const l = inSize.filter((c) => styleOf(c) === st);
+    return chip(st, st[0].toUpperCase() + st.slice(1), best(l), st === styleOf(cur));
+  }) : [];
+  const inStyle = lin ? inSize.filter((c) => styleOf(c) === styleOf(cur)) : inSize;
+  const finishes = lin
+    ? [...new Set(inStyle.map((c) => c.finish))].map((f) => chip(f, FINISHES[f] || f, best(inStyle.filter((c) => c.finish === f)), f === cur.finish))
+    : inStyle.slice().sort(byStockThenPrice).map((c) => chip(c.key, FINISHES[c.finish] || c.finish || c.name, c, c.key === cur.key));
+  return { cur, sizes, styles, finishes };
+}
+
+/** Whether a saved coverPick bills on this pan — a point `{ key }` on a linear pan, or a `{ finish }` on a point pan, is kept but inert. */
+export function coverPickApplies(pick, panKey) {
+  const pan = typeof panKey === "string" ? item(panKey) : panKey;
+  if (!pick || !pan) return false;
+  return familyOf(pan) === "linear" ? !!pick.finish : !!pick.key;
+}
+
 // wedi's channel frame is a trim ring the linear cover drops into — a design
 // pick, never part of the house kit, so it rides in as an add-on. wedi lists
 // no perforated frame: a perforated cover wears the plain frame of its own
@@ -5069,6 +5116,187 @@ export function coverFrameFor(cover, finish) {
     if (hit) return hit;
   }
   return match[0] || null;
+}
+
+// ---------------------------------------------------------------------------
+// Curb choice (ticket 158 Phase 1b, ADR 0049): `cfg.curbPick` names a style
+// and optionally a length — never a part — so the recipe's length rule re-runs
+// every build and a grown opening re-fits. The AT style comes as a full-foam
+// and a lean piece at one length, so an AT choice may also name its `profile`.
+
+const CURB_STYLES = [["full", "Full"], ["lean", "Lean"], ["at", "AT"], ["cap", "Cap"]];
+const CURB_WORD = Object.fromEntries(CURB_STYLES);
+export const curbProfile = (c) => (/lean/i.test(c.name) ? "lean" : "full");
+
+// The length Auto takes: a linear pan 60", multiplied to cover; a fundo pan
+// (and any other family a curb is picked onto) 60" up to a 60" opening, else 96".
+const curbRuleLen = (fam, openLen) => (fam === "linear" ? 60 : openLen > 60 ? 96 : 60);
+
+const openLenOf = (dims, walls, corners, benches) =>
+  curbRuns(dims, walls, corners, benches).openLen || (benches.length ? 0 : dims.w);
+
+/**
+ * A curb choice → the curb line for `openLen` of open edge on a pan of family
+ * `fam`. No choice is the recipe: the lean curb on fundo and linear pans, no
+ * curb on the rest. `{ none: true }` bills none. A style not made at the
+ * wanted length takes its longest made length, multiplied, and says so; a
+ * style the books don't carry falls back to lean with a note.
+ */
+export function resolveCurb(pick, openLen, fam) {
+  const none = { item: null, qty: 0, note: "", len: 0 };
+  if (pick && pick.none) return none;
+  if (!pick && fam !== "fundo" && fam !== "linear") return none;
+  const all = group("curb").filter((c) => c.len);
+  let sub = (pick && pick.sub) || "lean", missing = "";
+  let inStyle = all.filter((c) => c.sub === sub && (!pick || !pick.profile || curbProfile(c) === pick.profile));
+  if (!inStyle.length && sub !== "lean") {
+    missing = (CURB_WORD[sub] || sub) + " curb not in the books — lean used";
+    sub = "lean";
+    inStyle = all.filter((c) => c.sub === "lean");
+  }
+  if (!inStyle.length) return none;
+  const want = (pick && pick.len) || curbRuleLen(fam, openLen);
+  const lens = [...new Set(inStyle.map((c) => c.len))].sort((a, b) => a - b);
+  const len = lens.includes(want) ? want : lens[lens.length - 1];
+  const it = inStyle.filter((c) => c.len === len).sort(byStockThenPrice)[0];
+  const qty = openLen > 0 ? Math.max(1, Math.ceil((openLen - 0.01) / len)) : 0;
+  const fit = qty > 1 ? round2(openLen) + '" of open edge — cut to fit' : len > openLen ? "cut to " + round2(openLen) + '"' : "";
+  const why = missing || (len !== want ? (CURB_WORD[sub] || sub) + ' not made at ' + want + '" — ' + len + '" used' : "");
+  return { item: it, qty, note: [why, fit].filter(Boolean).join(" · "), len };
+}
+
+/** An old marker's resolved curbKey → the choice it stands for at this pan and opening; the recipe's own curb reads as no choice. */
+export function legacyCurbPick(key, fam, openLen) {
+  if (key === undefined) return undefined;
+  const def = resolveCurb(undefined, openLen, fam).item;
+  if (key === null) return def ? { none: true } : undefined;
+  if (def && key === def.key) return undefined;
+  const c = item(key);
+  if (!c || c.group !== "curb" || !c.len) return undefined;
+  return { sub: c.sub, len: c.len, ...(c.sub === "at" ? { profile: curbProfile(c) } : {}) };
+}
+
+// A choice that bills exactly what no choice would, so Use this stores none.
+const curbIsRecipe = (pick, fam) => (fam === "fundo" || fam === "linear"
+  ? !pick || (pick.sub === "lean" && !pick.len && !pick.profile)
+  : !pick || !!pick.none);
+
+/**
+ * The curb popover's rows — Style (plus No curb) → Profile (AT only) →
+ * Length (Auto first) — each chip's `next` the choice it drafts and its `ok`
+ * whether the style is made at that length. `recipe` says the draft bills
+ * what no choice would.
+ */
+export function curbOptions(pick, openLen, fam) {
+  const all = group("curb").filter((c) => c.len);
+  const result = resolveCurb(pick, openLen, fam);
+  const cur = result.item;
+  const sub = cur ? cur.sub : null;
+  const soAll = (list) => list.length > 0 && !list.some((c) => c.stock);
+  const styles = [
+    ...CURB_STYLES.filter(([k]) => all.some((c) => c.sub === k)).map(([key, label]) => ({
+      key, label, ok: true, so: soAll(all.filter((c) => c.sub === key)), on: key === sub, next: { sub: key },
+    })),
+    { key: "none", label: "No curb", ok: true, so: false, on: !cur, next: { none: true } },
+  ];
+  const inStyle = sub ? all.filter((c) => c.sub === sub) : [];
+  const profs = [...new Set(inStyle.map(curbProfile))];
+  const prof = cur && profs.length > 1 ? curbProfile(cur) : null;
+  const profiles = prof ? profs.map((p) => ({
+    key: p, label: p === "lean" ? "Lean" : "Full foam", ok: true, so: soAll(inStyle.filter((c) => curbProfile(c) === p)),
+    on: p === prof, next: { ...pick, sub, profile: p },
+  })) : [];
+  const inProf = prof ? inStyle.filter((c) => curbProfile(c) === prof) : inStyle;
+  const base = sub ? { sub, ...(prof && pick && pick.profile ? { profile: prof } : {}) } : null;
+  const lengths = sub ? [
+    { key: "auto", label: "Auto", ok: true, so: false, on: !(pick && pick.len), next: base },
+    ...[...new Set(all.map((c) => c.len))].sort((a, b) => a - b).map((L) => {
+      const at = inProf.filter((c) => c.len === L);
+      return { key: String(L), label: L + '"', ok: at.length > 0, so: soAll(at), on: !!(pick && pick.len === L), next: { ...base, len: L } };
+    }),
+  ] : [];
+  return { styles, profiles, lengths, result, recipe: curbIsRecipe(pick, fam) };
+}
+
+/**
+ * A "+" on a curb (Phase 1c): the curb popover's rows without Auto or No curb —
+ * an added curb is one piece at a real length. A style not made at the
+ * drafted length lands on its longest; `item` is the piece it adds.
+ */
+export function curbAddOptions(pick) {
+  const all = group("curb").filter((c) => c.len);
+  let p = { sub: "lean", ...(pick && !pick.none ? pick : {}) };
+  if (!p.len) p = { ...p, len: Math.min(...all.filter((c) => c.sub === p.sub).map((c) => c.len)) || 60 };
+  let o = curbOptions(p, p.len, "fundo");
+  if (o.result.item && o.result.item.len !== p.len) { p = { ...p, len: o.result.item.len }; o = curbOptions(p, p.len, "fundo"); }
+  const withLen = (c) => ({ ...c, next: { ...c.next, len: p.len } });
+  return {
+    styles: o.styles.filter((c) => c.key !== "none").map(withLen),
+    profiles: o.profiles.map(withLen),
+    lengths: o.lengths.filter((c) => c.key !== "auto"),
+    choice: p, item: o.result.item,
+  };
+}
+
+/** The curb a saved marker bills (tile sf reads it): a legacy curbKey as saved, else the choice resolved at the marker's own opening. */
+export function markerCurbKey(cfg) {
+  const pan = cfg && cfg.panKey ? item(cfg.panKey) : null;
+  if (!pan) return null;
+  if (!cfg.curbPick && (cfg.curbKey === null || (cfg.curbKey && group("curb").some((c) => c.key === cfg.curbKey)))) return cfg.curbKey;
+  const room = cfg.room ? { w: +cfg.room.w || 0, d: +cfg.room.d || 0 } : panRoomDims(pan);
+  const walls = cfg.walls && cfg.walls.length ? cfg.walls : defaultWalls(pan, cfg.room || null);
+  const benches = (cfg.benches || []).map((b) => normBench(b, room));
+  const r = resolveCurb(cfg.curbPick, openLenOf(room, walls, cfg.corners, benches), familyOf(pan));
+  return r.item ? r.item.key : null;
+}
+
+/** A marker's curb choice for the popup: its curbPick, else an old curbKey translated at the marker's own opening. */
+export function curbPickOf(cfg) {
+  if (!cfg || cfg.curbPick) return cfg ? cfg.curbPick : undefined;
+  const pan = cfg.panKey ? item(cfg.panKey) : null;
+  if (!pan || cfg.curbKey === undefined) return undefined;
+  const room = cfg.room ? { w: +cfg.room.w || 0, d: +cfg.room.d || 0 } : panRoomDims(pan);
+  const walls = cfg.walls && cfg.walls.length ? cfg.walls : defaultWalls(pan, cfg.room || null);
+  const benches = (cfg.benches || []).map((b) => normBench(b, room));
+  return legacyCurbPick(cfg.curbKey, familyOf(pan), openLenOf(room, walls, cfg.corners, benches));
+}
+
+// Wall panels by Type → Thickness → Size (ticket 158 Phase 1b). The part is
+// the choice (the sheet count re-fits), so each chip names the panel it lands
+// on: stocked first, then the cheapest — a special-order twin of a stocked
+// sheet is never a chip.
+const PANEL_TYPE = { board: "Standard", vapor: "Vapor 85", kit: "Panel kit" };
+const panelSize = (p) => p.w + "x" + p.d;
+export const panelSheets = (sf, panel) => (panel && panel.sf ? Math.ceil(sf / panel.sf) : 0);
+
+/** The wall-panel popover's rows for the drafted panel `key` (the house panel when none). */
+export function panelOptions(key) {
+  const all = group("panel").filter((p) => p.sf > 0);
+  const cur = (key && all.find((p) => p.key === key)) || item(SKU.panelDefault);
+  if (!cur) return { cur: null, types: [], thicknesses: [], sizes: [] };
+  const best = (list) => list.slice().sort(byStockThenPrice)[0] || null;
+  const chip = (key2, label, p, on) => ({ key: key2, label, ok: !!p, so: !!p && !p.stock, on, next: p ? p.key : null });
+  const types = [...new Set(all.map((p) => p.sub))].map((s) => {
+    const l = all.filter((p) => p.sub === s);
+    const p = best(l.filter((x) => x.t === cur.t && panelSize(x) === panelSize(cur))) || best(l.filter((x) => x.t === cur.t)) || best(l);
+    return chip(s, PANEL_TYPE[s] || s, p, s === cur.sub);
+  });
+  const inType = all.filter((p) => p.sub === cur.sub);
+  const thicknesses = [...new Set(inType.map((p) => p.t))].sort((a, b) => a - b).map((t) => {
+    const l = inType.filter((p) => p.t === t);
+    return chip(String(t), inch(t) + '"', best(l.filter((x) => panelSize(x) === panelSize(cur))) || best(l), t === cur.t);
+  });
+  const inThick = inType.filter((p) => p.t === cur.t);
+  const sizes = [...new Set(inThick.map(panelSize))].map((s) => {
+    const p = best(inThick.filter((x) => panelSize(x) === s));
+    return chip(s, ftLbl(p.w) + "×" + ftLbl(p.d), p, s === panelSize(cur));
+  });
+  return { cur, types, thicknesses, sizes };
+}
+
+/** The fastener kits a build can take in place of the house kit — screws and washers boxed together. */
+export function fastenerKits() {
+  return group("fastener").filter((f) => /kit/i.test(f.name) && f.sub !== "vapor");
 }
 
 /**
@@ -5098,6 +5326,93 @@ const WEDI_SLOT = {
   niche: "niche", shelf: "niche", seat: "bench", bench: "bench",
 };
 
+// The popup's bill buckets, by catalog group; anything unlisted (niches,
+// seats, benches, shelves, …) is an add-on.
+const BUCKET_OF = {
+  pan: "floor", module: "floor", modExt: "floor", extension: "floor", cornerExt: "floor", ramp: "floor",
+  curb: "floor", kit: "floor", panel: "walls", cover: "drain", coverFrame: "drain", drainKit: "drain",
+  recess: "install", fastener: "install", sealant: "install", tool: "install", collar: "install", subliner: "install",
+};
+export const WEDI_BUCKETS = ["floor", "walls", "bench", "drain", "install", "addon"];
+/** The bill bucket a part files under when the kit bills it. */
+export const wediBucketOf = (e) => BUCKET_OF[e && e.group] || "addon";
+
+// ---------------------------------------------------------------------------
+// Added lines (ticket 158 Phase 1c): cfg.manual rows { key, qty, group? } are
+// parts with a hand-set qty, each its own line — never merged into a kit line
+// and never a re-fitting choice. Old markers' `addons` keys read as rows in
+// the add-on bucket (a key saved twice is qty 2); nothing writes `addons` now.
+
+const addedBucket = (row, it) => (WEDI_BUCKETS.includes(row && row.group) ? row.group : wediBucketOf(it));
+
+/** A marker's (or kitFor opts') added rows: `manual`, plus any old `addons` translated. */
+export function addedRows(src) {
+  const out = [];
+  const put = (key, qty, grp) => {
+    const it = key ? item(key) : null;
+    if (!it || !(qty > 0)) return;
+    const group = addedBucket({ group: grp }, it);
+    const hit = out.find((r) => r.key === key && r.group === group);
+    if (hit) hit.qty += qty; else out.push({ key, qty, group });
+  };
+  (src && src.addons || []).forEach((a) => put(typeof a === "string" ? a : a && a.key, (a && a.qty) || 1, "addon"));
+  (src && src.manual || []).forEach((m) => m && put(m.key, +m.qty || 0, m.group));
+  return out;
+}
+
+/** An added row's qty set to `n` (0 removes it); rows key on bucket + key. */
+export function setAddedRow(manual, group, key, n) {
+  const same = (m) => m.key === key && addedBucket(m, item(key)) === group;
+  const rest = (manual || []).filter((m) => !same(m));
+  const at = (manual || []).findIndex(same);
+  if (!(n > 0)) return rest;
+  const row = { key, qty: n, group };
+  return at < 0 ? [...rest, row] : [...rest.slice(0, at), row, ...rest.slice(at)];
+}
+
+// What a "+" on each bucket can add (Phase 1c). A stepped part opens the swap
+// popover's rows without Auto; the rest are one-click lists.
+const ADDON_KINDS = ["niche", "shelf", "seat", "bench"];
+export const WEDI_ADD_PARTS = {
+  floor: [
+    { key: "pan", label: "Pan", hit: (i) => ["pan", "module", "kit"].includes(i.group) },
+    { key: "ext", label: "Extension", hit: (i) => ["extension", "modExt", "cornerExt"].includes(i.group) },
+    { key: "curb", label: "Curb", stepped: "curb", hit: (i) => i.group === "curb" && !!i.len },
+    { key: "ramp", label: "Ramp", hit: (i) => i.group === "ramp" },
+  ],
+  walls: [{ key: "panel", label: "Panel", stepped: "panel", hit: (i) => i.group === "panel" && i.sf > 0 }],
+  bench: [
+    { key: "bench", label: "Seat & bench", hit: (i) => i.group === "seat" || i.group === "bench" },
+    { key: "panel", label: "Panel", stepped: "panel", hit: (i) => i.group === "panel" && i.sf > 0 },
+  ],
+  drain: [
+    { key: "cover", label: "Cover", stepped: "cover", hit: (i) => i.group === "cover" },
+    { key: "frame", label: "Frame", hit: (i) => i.group === "coverFrame" },
+    { key: "drainKit", label: "Drain kit", hit: (i) => i.group === "drainKit" },
+  ],
+  install: [
+    { key: "fastener", label: "Fasteners", hit: (i) => i.group === "fastener" },
+    { key: "sealant", label: "Sealant", hit: (i) => i.group === "sealant" },
+    { key: "membrane", label: "Membrane & tape", hit: (i) => i.group === "subliner" || i.group === "sdry" },
+    { key: "collar", label: "Collars & seals", hit: (i) => i.group === "collar" },
+    { key: "tool", label: "Tools", hit: (i) => i.group === "tool" },
+    { key: "recess", label: "Recess kit", hit: (i) => i.group === "recess" },
+  ],
+  addon: [
+    { key: "niche", label: "Niche", hit: (i) => i.group === "niche" },
+    { key: "shelf", label: "Glass shelf", hit: (i) => i.group === "shelf" },
+    { key: "seat", label: "Seat", hit: (i) => i.group === "seat" },
+    { key: "bench", label: "Bench", hit: (i) => i.group === "bench" },
+    { key: "other", label: "Other", hit: (i) => wediBucketOf(i) === "addon" && !ADDON_KINDS.includes(i.group) },
+  ],
+};
+
+/** The "+" parts a bucket offers with this book — a part with nothing to add never shows. */
+export const wediAddParts = (bucket) => (WEDI_ADD_PARTS[bucket] || []).filter((p) => catalog().some(p.hit));
+
+/** The part an added line's ⇄ swaps within: the first of its bucket's parts whose rule matches it. */
+export const wediAddPartOf = (bucket, it) => (WEDI_ADD_PARTS[bucket] || []).find((p) => p.hit(it)) || null;
+
 /** The shared slot (slots.js) a kitFor line fills. */
 export function wediSlotOf(line) {
   const it = (line && line.item) || {};
@@ -5119,7 +5434,10 @@ export function kitFor(panKey, opts) {
   const room = opts.room || (option ? { w: option.room.w, d: option.room.d } : null);
   const walls = opts.walls || defaultWalls(pan, room, opts.wallHeight);
   const form = opts.sealantForm === "tube" ? "tube" : "sausage";
-  const panel = item(opts.panelKey || SKU.panelDefault) || item(SKU.panelDefault);
+  const panelPick = opts.panelKey ? item(opts.panelKey) : null;
+  const validPanel = !!(panelPick && panelPick.group === "panel" && panelPick.sf > 0);
+  const panel = validPanel ? panelPick : item(SKU.panelDefault);
+  const panelStale = !!opts.panelKey && !validPanel;
   const lines = [], hints = [];
   const roomDims = room || panRoomDims(pan);
   const benches = (opts.benches || []).map((x) => normBench(x, roomDims));
@@ -5193,11 +5511,12 @@ export function kitFor(panKey, opts) {
   }
 
   // --- walls -----------------------------------------------------------------
-  const sheets = panel && panel.sf ? Math.ceil(panelSf / panel.sf) : 0;
+  const sheets = panelSheets(panelSf, panel);
   // A live book can drop the default panel; the floor in usewedicatalog.js
   // refuses such a book, and this is the belt to that brace.
   if (panel) push(lines, panel, sheets, "walls",
-    round2(panelSf) + " sf of wall — " + (panel.sf || 0) + " sf/sheet", true);
+    round2(panelSf) + " sf of wall — " + (panel.sf || 0) + " sf/sheet"
+      + (panelStale ? " · " + opts.panelKey + " not in the book — default panel used" : ""), true);
   else hints.push("no-panel");
 
   // --- benches ---------------------------------------------------------------
@@ -5208,19 +5527,11 @@ export function kitFor(panKey, opts) {
   // The curb runs the room's OPEN perimeter — every edge run no wall covers —
   // minus what the benches take, so turning a wall off (or shortening it)
   // grows the curb to match and a bench shrinks it.
-  const openLen = curbRuns(roomDims, walls, opts.corners, benches).openLen
-    || (benches.length ? 0 : roomDims.w);
-  let curbKey = opts.curbKey;
-  if (curbKey === undefined && fam === "fundo") curbKey = openLen > 60 ? SKU.curbLean96 : SKU.curbLean60;
-  if (curbKey === undefined && fam === "linear") curbKey = SKU.curbLean60;
-  if (curbKey && openLen > 0) {
-    const curb = item(curbKey);
-    const per = curb && curb.len ? curb.len : 0;
-    const n = per ? Math.max(1, Math.ceil((openLen - 0.01) / per)) : 1;
-    push(lines, curb, n, "floor",
-      n > 1 ? round2(openLen) + '" of open edge — cut to fit'
-        : per > openLen ? "cut to " + round2(openLen) + '"' : "", true);
-  }
+  const openLen = openLenOf(roomDims, walls, opts.corners, benches);
+  // an old marker's resolved curbKey reads as the choice it stood for (ADR 0049)
+  const curbPick = opts.curbPick !== undefined ? opts.curbPick : legacyCurbPick(opts.curbKey, fam, openLen);
+  const curb = resolveCurb(curbPick, openLen, fam);
+  if (curb.item && curb.qty > 0) push(lines, curb.item, curb.qty, "floor", curb.note, true);
 
   // --- drain finish ----------------------------------------------------------
   const coverPick = opts.coverPick || legacyCoverPick(opts.coverKey);
@@ -5253,7 +5564,8 @@ export function kitFor(panKey, opts) {
   // --- consumables + install -------------------------------------------------
   // Bench surfaces (tops + faces, framed wraps) seal and fasten like wall
   // panel; premades whose kit already includes the sealant contribute nothing.
-  const con = figureConsumables(panelSf + bl.surfSf, form);
+  const con = figureConsumables(panelSf + bl.surfSf, form, opts.fastenerKey);
+  const fastener = con.lines.find((l) => l.item.group === "fastener");
   con.lines.forEach((l) => { lines.push(l); });
   push(lines, SKU.collarValve, 1, "install", "mixing valve", true);
   push(lines, SKU.collarPipe, 1, "install", "shower arm / pipe", true);
@@ -5262,10 +5574,11 @@ export function kitFor(panKey, opts) {
   // flat, not figured by area, mirroring Schluter's ALL-SET line.
   push(lines, SKU.proSet, 1, "install", "sets the pan — 1 bag", true);
 
-  // --- add-ons ---------------------------------------------------------------
-  (opts.addons || []).forEach((a) => {
-    const key = typeof a === "string" ? a : a.key;
-    push(lines, key, (a && a.qty) || 1, "addon", (a && a.note) || "", false);
+  // --- added lines (Phase 1c; old `addons` translate) -------------------------
+  const added = addedRows(opts);
+  added.forEach((r) => {
+    push(lines, r.key, r.qty, r.group, "", false);
+    lines[lines.length - 1].added = true;
   });
 
   const hasGun = lines.some((l) => l.item.key === SKU.gun);
@@ -5286,12 +5599,14 @@ export function kitFor(panKey, opts) {
   });
   lines.forEach((l) => { l.slot = wediSlotOf(l); });
   const cfg = {
-    panKey: pan.key, walls: cfgWalls, panelKey: panel ? panel.key : null,
-    curbKey: curbKey || null,
+    panKey: pan.key, walls: cfgWalls,
+    ...(panel && panel.key !== SKU.panelDefault ? { panelKey: panel.key } : {}),
+    ...(curbPick ? { curbPick } : {}),
+    ...(fastener && fastener.item.key !== SKU.fastenerKit ? { fastenerKey: fastener.item.key } : {}),
     ...(coverPick ? { coverPick } : {}),
     coverFrame: frame ? frame.finish : null,
     sealantForm: form, recess: recess,
-    addons: (opts.addons || []).map((a) => (typeof a === "string" ? a : a.key)),
+    ...(added.length ? { manual: added.map((r) => ({ ...r })) } : {}),
     benches: benches.map((b) => ({ ...b })),
     corners: (opts.corners || []).slice(),
     room: room || null, solve: option ? { id: option.id, input: option.input } : null,
@@ -5301,7 +5616,7 @@ export function kitFor(panKey, opts) {
 
   return {
     pan: pan, lines: lines, panelSf: round2(panelSf), factory: factory, hints: hints,
-    mode: opts.mode || (option ? "custom" : "kit"), cfg: cfg,
+    mode: opts.mode || (option ? "custom" : "kit"), cfg: cfg, curbFit: { openLen, fam },
     consumables: con, soNet: round2(soNet), benches: benches, panPlan: panPlan,
   };
 }
@@ -5310,8 +5625,8 @@ export function kitFor(panKey, opts) {
 // ({ mode, cfg } — cfg from kitFor). The drawer's staged and placed kits both
 // price through this, so a kit reads the same before and after it lands. A
 // custom cfg re-runs the solver and re-picks its option by id (the seedState
-// doctrine); qtyOv/manual never rode the cfg, so a rebuilt kit is exactly
-// what Reconfigure restores. Null when the catalog no longer knows the pan.
+// doctrine); added lines ride the cfg (`manual`, old `addons` translated),
+// qtyOv never does. Null when the catalog no longer knows the pan.
 export function buildFromMarker(marker) {
   const cfg = marker && marker.cfg;
   if (!cfg || !cfg.panKey || !item(cfg.panKey)) return null;
@@ -5331,11 +5646,11 @@ export function buildFromMarker(marker) {
     walls: cfg.walls && cfg.walls.length ? cfg.walls.map((w) => ({ ...w })) : undefined,
     wallHeight: cfg.walls && cfg.walls[0] ? +cfg.walls[0].h : undefined,
     panelKey: cfg.panelKey || undefined,
-    curbKey: cfg.curbKey,
+    curbPick: cfg.curbPick, curbKey: cfg.curbKey, fastenerKey: cfg.fastenerKey,
     coverPick: cfg.coverPick || legacyCoverPick(cfg.coverKey),
     coverFrame: cfg.coverFrame || undefined,
     sealantForm: cfg.sealantForm, recess: cfg.recess,
-    addons: (cfg.addons || []).slice(), benches: (cfg.benches || []).map((b) => ({ ...b })),
+    manual: addedRows(cfg), benches: (cfg.benches || []).map((b) => ({ ...b })),
     corners: (cfg.corners || []).slice(),
     maxIn: !!cfg.maxIn, tileT: cfg.tileT, tier: cfg.tier,
     mode: marker.mode || undefined,
@@ -6096,13 +6411,17 @@ export function sessionFromRows(lines, rows) {
     totals.set(key, (totals.get(key) || 0) + (Number(r.qty) || 0));
   }
   if (!matched) return { qtyOv, manual };
-  const want = new Map(), auto = new Map();
+  // the marker's own added lines come off each total first, so only a kit
+  // line's hand-set qty becomes an override (Phase 1c)
+  const want = new Map(), auto = new Map(), added = new Map();
   for (const l of lines || []) {
     const key = l.item && l.item.key;
     if (!key) continue;
+    if (l.added) { added.set(key, (added.get(key) || 0) + l.qty); continue; }
     want.set(key, (want.get(key) || 0) + l.qty);
     if (l.auto !== false) auto.set(key, true);
   }
+  for (const [key, q] of added) if (totals.has(key)) totals.set(key, Math.max(0, totals.get(key) - q));
   for (const [key, w] of want) {
     const have = totals.has(key) ? totals.get(key) : matchedKeys(rows).has(key) ? null : 0;
     if (have == null || have === w) continue;

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sidebar</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 210px; height: 900px; box-sizing: border-box; background: #F6F3EC; border-right: 1px solid rgba(28,26,23,.10); display: flex; flex-direction: column; font-family: Manrope, ui-sans-serif, system-ui, sans-serif; color: #1C1A17">
+<div style="padding: 18px 14px 14px 16px; display: flex; align-items: flex-start; justify-content: space-between; border-bottom: 1px solid rgba(28,26,23,.08)">
+<div>
+<div style="display: flex; align-items: flex-end; gap: 3px">
+<span style="writing-mode: vertical-rl; transform: rotate(180deg); font-size: 8px; font-weight: 600; color: #57534C; line-height: 1">the</span>
+<span style="font-size: 36px; font-weight: 800; letter-spacing: -2px; line-height: 0.78">ned</span>
+</div>
+<div style="margin-top: 8px; font-size: 9.5px; font-weight: 600; letter-spacing: 2px; color: #40542A">SELECTION MANAGER</div>
+</div>
+<button aria-label="Settings" style="border: 0; background: none; padding: 4px; color: #57534C; font-family: inherit">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+</button>
+</div>
+<div style="padding: 12px 10px 0; display: flex; flex-direction: column; gap: 2px">
+<button style="height: 38px; border: 0; border-radius: 6px; background: #1C1A17; color: #F6F3EC; font-family: inherit; font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 8px">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"></path></svg>
+Quick Price
+</button>
+<button style="height: 32px; border: 0; border-radius: 6px; background: none; font-family: inherit; font-size: 14px; font-weight: 600; color: #1C1A17; display: flex; align-items: center; gap: 10px; padding: 0 10px">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"></path></svg>
+Customers
+</button>
+<button style="height: 32px; border: 0; border-radius: 6px; background: none; font-family: inherit; font-size: 14px; font-weight: 500; color: #1C1A17; display: flex; align-items: center; gap: 10px; padding: 0 10px">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5v14"></path></svg>
+New Customer
+</button>
+<button style="height: 32px; border: 0; border-radius: 6px; background: none; font-family: inherit; font-size: 14px; font-weight: 500; color: #1C1A17; display: flex; align-items: center; gap: 10px; padding: 0 10px">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20 20 4M4 14 14 4M10 20 20 10"></path></svg>
+wedi
+</button>
+<button style="height: 32px; border: 0; border-radius: 6px; background: none; font-family: inherit; font-size: 14px; font-weight: 500; color: #1C1A17; display: flex; align-items: center; gap: 10px; padding: 0 10px">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg>
+Sheoga
+</button>
+</div>
+<div style="padding: 24px 10px 0">
+<label style="height: 34px; box-sizing: border-box; border: 1px solid rgba(28,26,23,.14); border-radius: 7px; background: #FFFFFF; display: flex; align-items: center; gap: 8px; padding: 0 10px; color: #8A8378; font-size: 14px">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
+<input placeholder="Search" aria-label="Search customers" style="border: 0; outline: none; background: none; font-family: inherit; font-size: 14px; width: 100%; color: #1C1A17">
+</label>
+</div>
+<div style="padding: 14px 10px 0; display: flex; flex-direction: column; gap: 2px">
+<div style="font-size: 10px; font-weight: 700; letter-spacing: .12em; color: #57534C; padding: 0 10px 6px">RECENT</div>
+<button style="height: 34px; border: 0; border-radius: 6px; background: #FFFFFF; box-shadow: 0 1px 2px rgba(28,26,23,.08), 0 0 0 1px rgba(28,26,23,.06); font-family: inherit; font-size: 13.5px; font-weight: 600; color: #1C1A17; text-align: left; padding: 0 10px">Eddie Schlabach</button>
+<button style="height: 34px; border: 0; border-radius: 6px; background: none; font-family: inherit; font-size: 13.5px; font-weight: 500; color: #1C1A17; text-align: left; padding: 0 10px">jacob Munson</button>
+<button style="height: 34px; border: 0; border-radius: 6px; background: none; font-family: inherit; font-size: 13.5px; font-weight: 500; color: #1C1A17; text-align: left; padding: 0 10px">David Stropki</button>
+<button style="height: 34px; border: 0; border-radius: 6px; background: none; font-family: inherit; font-size: 13.5px; font-weight: 500; color: #1C1A17; text-align: left; padding: 0 10px">Tiffany Evans</button>
+</div>
+<div style="flex-grow: 1"></div>
+<div style="height: 48px; border-top: 1px solid rgba(28,26,23,.08); display: flex; align-items: center; justify-content: space-around; color: #57534C">
+<button aria-label="Sign out" style="border: 0; background: none; padding: 6px; color: inherit">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><path d="m16 17 5-5-5-5"></path><path d="M21 12H9"></path></svg>
+</button>
+<button aria-label="Apps" style="border: 0; background: none; padding: 6px; color: inherit">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect></svg>
+</button>
+<button aria-label="Team to-dos" style="border: 0; background: none; padding: 6px; color: #B4532A">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="6" height="6" rx="1"></rect><path d="m3 17 2 2 4-4M13 6h8M13 12h8M13 18h8"></path></svg>
+</button>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":210,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -14,6 +14,11 @@ test("wedi: three walls, curb cap across the entry, one 12×12 niche", () => {
   assert.deepEqual(r.pieces.map((p) => p.piece), ["walls", "floor", "curb", "niche"]);
 });
 
+test("wedi: added niches count × qty — two sizes, one twice (ticket 158 Phase 1c)", () => {
+  const r = wediPieces({ ...base, curbKey: "US3000008", manual: [{ key: "US3000005", qty: 2, group: "addon" }, { key: "US3000004", qty: 1, group: "addon" }] });
+  assert.equal(sf(r).niche, 2.7);
+});
+
 test("wedi: lean curb and a back bench (face into walls, top its own piece, footprint off the floor)", () => {
   assert.deepEqual(sf(wediPieces({ ...base, curbKey: "US3000038", benches: [{ kind: "wall", side: "back", len: 48 }] })),
     { walls: 94, floor: 10.3, curb: 3.8, benchTop: 4.7 });
@@ -61,9 +66,11 @@ test("wedi: curbless has no curb piece", () => {
   assert.equal(wediPieces({ ...base, curbKey: null }).curbed, false);
 });
 
-test("wedi: an unknown curb part is 'enter manually' (sf null), never a guess", () => {
-  const c = wediPieces({ ...base, curbKey: "NOPE" }).pieces.find((p) => p.piece === "curb");
-  assert.equal(c.sf, null);
+test("wedi: an unknown saved curb part tiles the recipe curb the bill falls back to (ADR 0049 R2)", () => {
+  const stale = wediPieces({ ...base, curbKey: "NOPE" }).pieces.find((p) => p.piece === "curb");
+  const recipe = wediPieces({ ...base }).pieces.find((p) => p.piece === "curb");
+  assert.notEqual(stale.sf, null);
+  assert.deepEqual(stale, recipe);
 });
 
 test("wedi: unknown pan → null", () => {
@@ -102,4 +109,12 @@ test("jobShowers lists every placed kit with its area name and pieces", () => {
 test("jobShowers keeps an unmeasurable kit on the list, marked unmeasured", () => {
   const cats = [{ id: "a1", name: "Master Bath", products: [{ id: "r1", kitId: "k1", wedi: { mode: "custom", cfg: { ...base, panKey: "NOPE" } } }] }];
   assert.deepEqual(jobShowers(cats), [{ key: "k1", vendor: "wedi", areaName: "Master Bath", size: "", curbed: false, pieces: [], unmeasured: true }]);
+});
+
+test("wedi: a 1b marker (a curb choice, no curbKey) tiles the curb that choice bills", () => {
+  assert.deepEqual(sf(wediPieces(base)), { walls: 88, floor: 15, curb: 3.8 });
+  assert.equal(wediPieces(base).curbed, true);
+  assert.deepEqual(sf(wediPieces({ ...base, curbPick: { sub: "cap" } })), { walls: 88, floor: 15, curb: 6.1 });
+  assert.equal(wediPieces({ ...base, curbPick: { none: true } }).curbed, false);
+  assert.equal(sf(wediPieces({ ...base, curbPick: { sub: "cap" }, maxIn: true, tileT: 0.375 })).floor, 13.2);
 });

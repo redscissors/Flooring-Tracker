@@ -1,0 +1,91 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-09-27T12:00:00Z"
+  },
+  "title": "Estimate Header Redesigns",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {
+      "x": 290,
+      "y": 0,
+      "w": 1280,
+      "h": 900,
+      "title": "A · Quiet sheet — everything visible, de-boxed"
+    },
+    "ChipRow.dc.html": {
+      "x": 1650,
+      "y": 0,
+      "w": 1280,
+      "h": 900,
+      "title": "B · Title + property chips (Linear-style)"
+    },
+    "SidePanel.dc.html": {
+      "x": 290,
+      "y": 1020,
+      "w": 1280,
+      "h": 900,
+      "title": "C · Document + job settings panel"
+    },
+    "Dock.dc.html": {
+      "x": 1650,
+      "y": 1020,
+      "w": 1280,
+      "h": 900,
+      "title": "D · Floating dock — header is just the title"
+    },
+    "Sidebar.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 210,
+      "h": 900,
+      "title": "Sidebar (reference)"
+    },
+    "TopBar.dc.html": {
+      "x": 290,
+      "y": 2040,
+      "w": 1280,
+      "h": 900,
+      "title": "E · Customer-first header + compact bar (ERP order partly keyed)",
+      "is_interactive": true
+    },
+    "TopBarPreview.dc.html": {
+      "x": 1650,
+      "y": 2040,
+      "w": 1280,
+      "h": 900,
+      "title": "E · print preview on, ⋯ menu open, ERP order fully keyed"
+    },
+    "ErpStates.dc.html": {
+      "x": 290,
+      "y": 3060,
+      "w": 1280,
+      "h": 300,
+      "title": "Order entry button — ERP 1 order states"
+    }
+  },
+  "order": [
+    "Sidebar.dc.html",
+    "Main.dc.html",
+    "ChipRow.dc.html",
+    "SidePanel.dc.html",
+    "Dock.dc.html",
+    "TopBar.dc.html",
+    "TopBarPreview.dc.html",
+    "ErpStates.dc.html"
+  ],
+  "notes": {
+    "heading": {
+      "x": 0,
+      "y": -300,
+      "text": "Estimate editor — five clean directions",
+      "kind": "title1",
+      "maxW": 2930
+    }
+  },
+  "designSystems": []
+}

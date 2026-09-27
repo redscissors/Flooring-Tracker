@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Order entry button states</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap">
+<style>
+body{margin:0;font-family:Manrope,ui-sans-serif,system-ui,sans-serif;background:#F6F3EC;color:#1C1A17}
+button{font-family:inherit;cursor:pointer}
+</style>
+</helmet>
+<div style="width: 1280px; height: 300px; box-sizing: border-box; padding: 40px 48px; background: #F6F3EC; color: #1C1A17; font-family: Manrope, ui-sans-serif, system-ui, sans-serif; display: flex; flex-direction: column; gap: 28px">
+<h1 style="margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.02em">Order entry button — the ERP 1 order lives on it</h1>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px">
+
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 10px; font-weight: 700; letter-spacing: .12em; color: #40542A">1 · NO ORDER YET</div>
+<div style="font-size: 13px; color: #57534C; min-height: 36px">Quoted in NED, nothing keyed into ERP 1.</div>
+<div style="height: 46px; box-sizing: border-box; padding: 0 6px; border-radius: 12px; background: #FFFFFF; border: 1px solid rgba(28,26,23,.10); display: flex; align-items: center; justify-content: flex-end; gap: 6px">
+<button style="height: 32px; padding: 0 12px; border: 1px solid rgba(28,26,23,.14); border-radius: 8px; background: none; font-size: 12.5px; font-weight: 700; color: #1C1A17; display: flex; align-items: center; gap: 6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="14" height="14" rx="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg>Order entry</button>
+<button style="height: 32px; padding: 0 16px; border: 0; border-radius: 8px; background: #1C1A17; font-size: 13px; font-weight: 800; color: #F6F3EC">Print</button>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 10px; font-weight: 700; letter-spacing: .12em; color: #40542A">2 · NUMBER ADDED, STILL KEYING</div>
+<div style="font-size: 13px; color: #57534C; min-height: 36px">The number replaces the label; the pill counts lines not pasted yet.</div>
+<div style="height: 46px; box-sizing: border-box; padding: 0 6px; border-radius: 12px; background: #FFFFFF; border: 1px solid rgba(28,26,23,.10); display: flex; align-items: center; justify-content: flex-end; gap: 6px">
+<button style="height: 32px; padding: 0 12px; border: 1px solid rgba(28,26,23,.14); border-radius: 8px; background: none; font-size: 12.5px; font-weight: 700; color: #1C1A17; display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="14" height="14" rx="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg>ERP 48213<span style="padding: 1px 7px; border-radius: 999px; background: #F1EDE2; color: #57534C; font-size: 11px; font-weight: 700">3 left</span></button>
+<button style="height: 32px; padding: 0 16px; border: 0; border-radius: 8px; background: #1C1A17; font-size: 13px; font-weight: 800; color: #F6F3EC">Print</button>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 10px; font-weight: 700; letter-spacing: .12em; color: #40542A">3 · EVERYTHING PASTED</div>
+<div style="font-size: 13px; color: #57534C; min-height: 36px">Every line keyed on the order — the button turns green.</div>
+<div style="height: 46px; box-sizing: border-box; padding: 0 6px; border-radius: 12px; background: #FFFFFF; border: 1px solid rgba(28,26,23,.10); display: flex; align-items: center; justify-content: flex-end; gap: 6px">
+<button style="height: 32px; padding: 0 12px; border: 1px solid rgba(87,112,58,.50); border-radius: 8px; background: rgba(87,112,58,.13); font-size: 12.5px; font-weight: 700; color: #40542A; display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>ERP 48213</button>
+<button style="height: 32px; padding: 0 16px; border: 0; border-radius: 8px; background: #1C1A17; font-size: 13px; font-weight: 800; color: #F6F3EC">Print</button>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 10px; font-weight: 700; letter-spacing: .12em; color: #40542A">4 · SPLIT ACROSS TWO ORDERS</div>
+<div style="font-size: 13px; color: #57534C; min-height: 36px">Newest number shows, +1 for the rest; hover lists both.</div>
+<div style="height: 46px; box-sizing: border-box; padding: 0 6px; border-radius: 12px; background: #FFFFFF; border: 1px solid rgba(28,26,23,.10); display: flex; align-items: center; justify-content: flex-end; gap: 6px">
+<button title="ERP 1 orders 48260, 48213 — every line pasted" style="height: 32px; padding: 0 12px; border: 1px solid rgba(87,112,58,.50); border-radius: 8px; background: rgba(87,112,58,.13); font-size: 12.5px; font-weight: 700; color: #40542A; display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>ERP 48260 <span style="font-weight: 600; opacity: .75">+1</span></button>
+<button style="height: 32px; padding: 0 16px; border: 0; border-radius: 8px; background: #1C1A17; font-size: 13px; font-weight: 800; color: #F6F3EC">Print</button>
+</div>
+</div>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":300}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

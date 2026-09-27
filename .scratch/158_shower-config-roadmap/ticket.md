@@ -83,27 +83,58 @@ per group → 1d shared names / Compare alignment (owner). **1a DONE
 - **Spec:** `docs/superpowers/specs/2026-09-26-drain-slot-design.md`
 - **Plan:** `docs/superpowers/plans/2026-09-26-drain-slot.md`
 - **Mockup:** `.scratch/mockups/drain-swap-2026-09-26.html` (layout A)
-- **Handoff:** `.scratch/handoffs/shower-config-phase1a-2026-09-26.md`
+- **Handoffs:** `.scratch/handoffs/shower-config-phase1a-2026-09-26.md` (1a); `.scratch/handoffs/shower-config-phase1c-2026-09-27.md` (1c); **next:** `.scratch/handoffs/shower-config-phase1d-2026-09-27.md` (1d onward)
 - **ADR:** `docs/adr/0049-configurator-swaps-remember-the-choice.md`
 - **Proof:** `.scratch/158_shower-config-roadmap/p1a/`
 - **PR:** [redscissors/Flooring-Tracker#437](https://github.com/redscissors/Flooring-Tracker/pull/437)
 
 The Vario pan-width rule shipped early in PR #436.
 
-**Carry into 1b (review minors deferred from 1a):**
-- Move the Δ formatter duplicated in both popups into `drainswap.jsx`.
-- An inert carried pick (Schluter `drainPick` on a point build; a wedi pick
-  on the wrong pan type) still forces custom/kitDirty and rides the marker —
-  gate on whether it bills.
-- Point-grate chip labels ("kit 4″ floral brushed SS") and no SO marker on
-  chips; frame chips "3/4″" vs "¾″"; wedi finish chips repeat the style.
-- Schluter kit-card thumbnails draw Vario at full width under a fixed pick.
-- Tests: families at 36″; stocked vs SO at the same length; `fit === 0`;
-  a point `{key}` through `kitFor`; wedi frame re-sizes with cover length;
-  the wedi round-trip asserting the SKU, not just the finish.
+**1b DONE (2026-09-27):**
+
+- **Spec:** `docs/superpowers/specs/2026-09-26-swap-every-line-design.md`
+- **Plan:** `docs/superpowers/plans/2026-09-27-swap-every-line.md`
+- **ADR:** `docs/adr/0049-configurator-swaps-remember-the-choice.md` (amended)
+- **Proof:** `.scratch/158_shower-config-roadmap/p1b/`
+- **PR:** [redscissors/Flooring-Tracker#438](https://github.com/redscissors/Flooring-Tracker/pull/438)
+
+**1c DONE (2026-09-27):** "+" on every group; an added line is a part + a
+hand-set qty, its own line, saved in the marker on both brands; wedi `addons`
+retire into it; several wedi niches.
+
+- **Spec:** `docs/superpowers/specs/2026-09-27-add-another-design.md`
+- **Plan:** `docs/superpowers/plans/2026-09-27-add-another.md`
+- **ADR:** `docs/adr/0049-configurator-swaps-remember-the-choice.md` (amended)
+- **Proof:** `.scratch/158_shower-config-roadmap/p1c/`
+- **PR:** [redscissors/Flooring-Tracker#441](https://github.com/redscissors/Flooring-Tracker/pull/441)
+
+**Carry into 1d+ (what's left):**
+- Schluter kit-card thumbnails draw Vario at full width under a fixed drain
+  pick.
 - Wording: Vario substitution note on a finish-only miss; fixed-fallback
   reason (double space, offset case); Vario design swap on >96″ pans has no
   note; `schluterDiag` doc comment.
+- wedi finish chips repeat the style.
+- ~~Owner call (1b): default KERDI-BAND width~~ **DONE 2026-09-27**: owner
+  chose "always 5″, stock-first". No width chosen = the narrowest width
+  carried (5″ is Schluter's standard, the KERDI-SHOWER-KIT band), whatever the
+  row order; picking 5″ stores no pick.
+- ~~Owner call (1b): stale wedi `curbKey`~~ **DONE 2026-09-27**: owner
+  confirmed R2; `markerCurbKey` falls through to the recipe, so tile sf and
+  bill agree.
+- **Trendline finish names DONE 2026-09-27** (from Schluter's listings):
+  EP Chrome, MBW Matte white (was mislabelled "Matte black"), MGS Matte black,
+  TSBG Greige, TSC Cream, TSDA Dark anthracite, TSG Pewter, TSI Ivory,
+  TSOB Bronze, TSSG Stone grey.
+- 1b review minors: spec line on `canSwap` ("counts only the Stock-only
+  pool") is stale — it now also counts the committed sku; `markerOpen()`
+  extraction in wedi.js; the Walls one-size swap duplicates `wrapBoard`
+  inline; stale-pick note says "not in the book" for a key that is in the
+  book but isn't a kit; test gaps (membrane `so`, stock-source options,
+  roll-only band, bench round-trip, SO fastener under stock).
+- Pre-existing: bench lines sharing a board sku share one hand-set qty; the
+  drawing labels a Schluter build-up bench "2″ wedi"; the build prints a CSS
+  minify warning (`Expected identifier but found "-"`).
 
 Every build line belongs to a named slot, identical for both brands: Tray ·
 Drain body · Grate/cover · Flange · Wall board · Wall membrane · Seam/band ·

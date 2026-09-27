@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normErpNo, normErpOrders, normErpKeyed, gated, erpNosOf, erpHit, orderCounts, addErpOrder, removeErpOrder, stampErpLines, clearErpStamps, lineIds, lineStamp, keyedNo, copyable, remainingRows, erpCounts, keyedNote } from "./erporders.js";
+import { normErpNo, normErpOrders, normErpKeyed, gated, erpNosOf, erpHit, orderCounts, addErpOrder, removeErpOrder, stampErpLines, clearErpStamps, lineIds, lineStamp, keyedNo, copyable, remainingRows, erpCounts, keyedNote, erpLabel, matIdMaker, erpStatus } from "./erporders.js";
 
 test("normErpNo keeps digits only, at most 10", () => {
   assert.equal(normErpNo(" #48213 "), "48213");
@@ -147,4 +147,52 @@ test("keyedNote puts a mixed merged row's tally last, as \"N across orders\"", (
   ];
   const keyed = { a: { no: "48213" }, b: { no: "48260" }, x: { no: "48213" }, y: { no: "48260" } };
   assert.equal(keyedNote(rows, keyed), "3 of 4 keyed · 1 on 48213, 1 on 48260, 1 across orders");
+});
+
+test("erpLabel names the newest order, +N for the rest", () => {
+  assert.equal(erpLabel([]), "");
+  assert.equal(erpLabel(["48213"]), "ERP 48213");
+  assert.equal(erpLabel(["48213", "48260", "48301"]), "ERP 48301 +2");
+});
+
+test("matIdMaker mints the panel's material ids, suffixing repeats with #", () => {
+  const id = matIdMaker();
+  assert.equal(id({ kind: "Grout", product: "Warm Gray" }), "mat|Grout|Warm Gray");
+  assert.equal(id({ kind: "Grout", product: "Warm Gray" }), "mat|Grout|Warm Gray#");
+  assert.equal(id({ kind: "Mortar", product: "LFT" }), "mat|Mortar|LFT");
+  assert.equal(matIdMaker()({ kind: "Grout", product: "Warm Gray" }), "mat|Grout|Warm Gray");
+});
+
+test("erpStatus: no order means no status", () => {
+  const s = erpStatus([], {}, [{ id: "a", copyable: true }]);
+  assert.deepEqual(s, { nos: [], keyed: 0, total: 0, left: 0, done: false });
+});
+
+test("erpStatus counts copyable lines stamped on a live order", () => {
+  const orders = [{ no: "48213" }];
+  const lines = [{ id: "a", copyable: true }, { id: "b", copyable: true }, { id: "c", copyable: true }, { id: "x", copyable: false }];
+  const partial = erpStatus(orders, { a: { no: "48213" }, x: { no: "48213" } }, lines);
+  assert.deepEqual(partial, { nos: ["48213"], keyed: 1, total: 3, left: 2, done: false });
+  const all = erpStatus(orders, { a: { no: "48213" }, b: { no: "48213" }, c: { no: "48213" } }, lines);
+  assert.equal(all.done, true);
+  assert.equal(all.left, 0);
+});
+
+test("erpStatus ignores stamps on an order that was removed", () => {
+  const s = erpStatus([{ no: "48260" }], { a: { no: "48213" } }, [{ id: "a", copyable: true }]);
+  assert.equal(s.keyed, 0);
+  assert.equal(s.left, 1);
+});
+
+test("erpStatus: a split job is done only when every line sits on some order", () => {
+  const orders = [{ no: "48213" }, { no: "48260" }];
+  const lines = [{ id: "a", copyable: true }, { id: "b", copyable: true }];
+  assert.equal(erpStatus(orders, { a: { no: "48213" }, b: { no: "48260" } }, lines).done, true);
+  assert.deepEqual(erpStatus(orders, { a: { no: "48213" } }, lines).nos, ["48213", "48260"]);
+});
+
+test("erpStatus: an order with nothing to key is never done", () => {
+  const s = erpStatus([{ no: "48213" }], {}, []);
+  assert.equal(s.done, false);
+  assert.equal(s.left, 0);
 });

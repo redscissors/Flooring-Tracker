@@ -17,8 +17,14 @@ app_data.data : { profile: { name, phone, email },    // per user; stamped onto 
                         browserPanels: {              // only through saveUiPref
                           strip: bool,                // (best-effort, never toasts):
                           stripH: number|null,        // the customer browser's column
-                          linesH: number|null } } }   // order + its two side panels'
-                                                      // shown/dragged heights
+                          linesH: number|null },      // order + its two side panels'
+                        dockSide: "left"|"right",     // shown/dragged heights; the
+                        header: "bar"|"classic"|"clean" } }  // order-entry/Samples
+                                                      // drawer side; the desktop
+                                                      // project header layout
+                                                      // (per user since 2026-09-27;
+                                                      // absent = this device's old
+                                                      // localStorage "ft-header")
 
 customers row : { id (text), owner_id (uuid, nullable "created by"),
                   data: Customer, created_at, updated_at,
@@ -128,8 +134,16 @@ Customer { id, name, address, phone, email, notes, createdAt,
            // product lines" would have landed. Written only when non-empty
            // (panelFit only when false — true is the default), so an entry
            // with nothing overridden serializes as it always did; read back as
-           // `session.panelFit !== false`. Schluter needs only qtyOv/panelFit,
-           // its markCfg already carrying manual/source/pick. A PLACED kit has
+           // `session.panelFit !== false`. Since ticket 158 Phase 1c (ADR
+           // 0049 amendment) a kit build's hand-added lines ride the MARKER on
+           // both brands, not the session: Schluter `cfg.manual`
+           // [{ sku, qty, g? }] (g = the bill group; a row without it files
+           // where the kit bills that part), wedi `cfg.manual`
+           // [{ key, qty, group? }] (group = the bill bucket; wedi's old
+           // `addons` keys translate on read to add-on rows, a key twice =
+           // qty 2, and are never written again). `session.manual` is only a
+           // Browse-only wedi build's (no pan, so no kit cfg to carry it) or an
+           // entry staged before 1c, each row its own line. A PLACED kit has
            // no session — once landed the rows are the truth.
 Area     { id, name, option: ""|"A"…"L", products: Product[] }   // option = quote-option slot (ADR 0031, A–L since 2026-08-26); "" = shared base
 Product  { id, type:"tile|hardwood|vinyl|laminate|carpet|underlayment|misc",

@@ -73,6 +73,10 @@ eftRows.push(normOrderItem({
   ["SLRKL1AR19EB110","Kerdi-Line 3/4\" Frame Solid Grate","44\"",249.42],
   ["SLRKL1AR19EB120","Kerdi-Line 3/4\" Frame Solid Grate","48\"",253.92],
   ["SLRKL1AR19EB130","Kerdi-Line 3/4\" Frame Solid Grate","52\"",331.06],
+  // Illustrative finish rows (harness only, not EFT costs) so the finish chips show Schluter's names.
+  ["SLRKL1AR19MBW130","Kerdi-Line 3/4\" Frame Solid Grate Matte White","52\"",383.18],
+  ["SLRKL1AR19MGS130","Kerdi-Line 3/4\" Frame Solid Grate Matte Black","52\"",383.18],
+  ["SLRKL1AR19TSG130","Kerdi-Line 3/4\" Frame Solid Grate Textured Pewter","52\"",398.40],
   ["SLRKL1AR19EB140","Kerdi-Line 3/4\" Frame Solid Grate","56\"",347.66],
   ["SLRKL1AR19EB150","Kerdi-Line 3/4\" Frame Solid Grate","60\"",365.88],
   ["SLRKL1AR19EB160","Kerdi-Line 3/4\" Frame Solid Grate","64\"",389.54],
@@ -105,6 +109,20 @@ eftRows.push(normOrderItem({
 ].forEach(([sku, description, size, cost]) => eftRows.push(normOrderItem({
   sku, bookId: "bk_eft", unit: "PC", cost, size, description: lead(description), leadTime: "READY SHIP",
 })));
+
+// A second KERDI-BAND width (ticket 158 Phase 1b) so the band ⇄ shows a Width
+// row: the 7-1/4" full roll, special order. Illustrative cost, not an EFT figure.
+eftRows.push(normOrderItem({
+  sku: "SLRKEBA100/185", bookId: "bk_eft", unit: "RL", cost: 93.2, size: "98'5\" roll",
+  description: lead('Kerdi-Band 7-1/4" Seam Band'), leadTime: "READY SHIP",
+}));
+// ...and a stocked 10" width after it, so under Stock only the Width row
+// shows the stocked-first order (10" ahead of the special-order 7-1/4").
+// Illustrative stock row, not a real shelf item.
+stockRows.push(normOrderItem({
+  sku: "1509799", bookId: "bk_stock", vendorSkus: ["KEBA100/250/5M"], unit: "RL", cost: 24.1, price: 36.15,
+  size: "16'5\" roll", description: lead('KERDI-BAND 10" seam band'), leadTime: "READY SHIP",
+}));
 
 // The harness "sheet" — the placed rows as the job sheet holds them, with a
 // qty box per row and Reconfigure on each anchor, so the drive can prove a

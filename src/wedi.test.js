@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { rowItemKey, sessionFromRows,
+  addedRows, setAddedRow, wediBucketOf, wediAddParts, wediAddPartOf, curbAddOptions, coverAddOptions,
   catalog, item, group, pans, curbs, kitFor, buildFromMarker, solve, figureConsumables, panelPlan,
   openEdges, openCorners, curbRuns, wallSpans, expandWallFaces, WALL_THICK, panThick, BROWSE_SECTIONS, sectionHit,
   tierPrice, lineItems, factoryKit, linearCoverFor, legacyCoverPick, coverStyles, coverFrames, coverFrameFor, dims, round2, inch,
@@ -10,7 +11,9 @@ import { rowItemKey, sessionFromRows,
   BENCH_H, BENCH_DEPTH, BENCH_CORNER_LEG,
   curbWidth, curbInsets, applyCurbInset,
   setStockSource, clearStockSource, stockSourceIsBook,
-  wediSlotOf,
+  wediSlotOf, coverPickApplies,
+  resolveCurb, legacyCurbPick, curbOptions, curbPickOf, markerCurbKey,
+  panelOptions, panelSheets, fastenerKits,
 } from "./wedi.js";
 import { isSlot } from "./slots.js";
 
@@ -1406,7 +1409,7 @@ test("an old marker's coverKey reopens through buildFromMarker as the same cover
   const lin = group("cover").find((c) => c.sub === "linear" && c.finish === "MB" && c.len === 43);
   const k = kitFor("US9310001", { coverKey: lin.key });
   const back = buildFromMarker({ mode: "kit", cfg: { ...k.cfg, coverKey: lin.key, coverPick: undefined } });
-  assert.equal(back.lines.find((l) => l.item.group === "cover").item.finish, "MB");
+  assert.equal(back.lines.find((l) => l.item.group === "cover").item.key, "US1000083");
 });
 
 test("coverStyles groups a length's linear covers by style", () => {
@@ -1414,4 +1417,301 @@ test("coverStyles groups a length's linear covers by style", () => {
   assert.ok(s.solid.some((c) => c.finish === "SS"));
   assert.ok(s.perforated.some((c) => c.finish === "SSP"));
   assert.ok(s.tileable.some((c) => c.finish === "T"));
+});
+
+// --- 1a carry-overs (ticket 158 Phase 1b §5) ---------------------------------
+
+test("a point { key } cover pick lands through kitFor and rides the marker", () => {
+  const k = kitFor("US9100004", { coverPick: { key: "US1000058" } });
+  assert.equal(k.lines.find((l) => l.item.group === "cover").item.key, "US1000058");
+  assert.deepEqual(k.cfg.coverPick, { key: "US1000058" });
+});
+
+test("the cover frame re-sizes with the cover: the same MB choice on a 43″ and a 27″ channel", () => {
+  const drain = (pan) => kitFor(pan, { coverPick: { finish: "MB" }, coverFrame: "MB" }).lines
+    .filter((l) => l.item.group === "cover" || l.item.group === "coverFrame").map((l) => [l.item.key, l.item.len]);
+  assert.deepEqual(drain("US9310001"), [["US1000083", 43], ["US1000089", 43]]);
+  assert.deepEqual(drain("US9310002"), [["US1000082", 27], ["US1000088", 27]]);
+});
+
+test("coverPickApplies: a point pick on a linear pan, or a finish on a point pan, is inert", () => {
+  assert.equal(coverPickApplies({ finish: "MB" }, "US9310001"), true);
+  assert.equal(coverPickApplies({ key: "US1000058" }, "US9310001"), false);
+  assert.equal(coverPickApplies({ key: "US1000058" }, "US9100004"), true);
+  assert.equal(coverPickApplies({ finish: "MB" }, "US9100004"), false);
+  assert.equal(coverPickApplies({ finish: "MB" }, "US9320002"), true);
+  assert.equal(coverPickApplies(undefined, "US9100004"), false);
+});
+
+// --- Phase 1b: the curb choice (ticket 158) ----------------------------------
+
+const curbAt = (r) => [r.item ? r.item.key : null, r.qty];
+
+test("resolveCurb: each style × Auto across the 60″ boundary, fundo and linear", () => {
+  const got = {};
+  for (const fam of ["fundo", "linear"]) for (const sub of ["full", "lean", "at", "cap"])
+    got[fam + ":" + sub] = [curbAt(resolveCurb({ sub }, 60, fam)), curbAt(resolveCurb({ sub }, 72, fam))];
+  assert.deepEqual(got, {
+    "fundo:full": [["US3000039", 1], ["US3000041", 1]],
+    "fundo:lean": [["US3000038", 1], ["US3000040", 1]],
+    "fundo:at": [["US3000049", 1], ["US3000049", 2]],
+    "fundo:cap": [["US3000008", 1], ["US3000010", 1]],
+    "linear:full": [["US3000039", 1], ["US3000039", 2]],
+    "linear:lean": [["US3000038", 1], ["US3000038", 2]],
+    "linear:at": [["US3000049", 1], ["US3000049", 2]],
+    "linear:cap": [["US3000008", 1], ["US3000008", 2]],
+  });
+});
+
+test("resolveCurb: no pick is the recipe; a pinned length, none, AT profiles, and a style not made at the rule length", () => {
+  assert.deepEqual(curbAt(resolveCurb(undefined, 60, "fundo")), ["US3000038", 1]);
+  assert.deepEqual(curbAt(resolveCurb(undefined, 72, "fundo")), ["US3000040", 1]);
+  assert.deepEqual(curbAt(resolveCurb(undefined, 72, "linear")), ["US3000038", 2]);
+  assert.deepEqual(curbAt(resolveCurb(undefined, 72, "curbless")), [null, 0]);
+  assert.deepEqual(curbAt(resolveCurb({ sub: "lean" }, 72, "curbless")), ["US3000040", 1]);
+  assert.deepEqual(curbAt(resolveCurb({ sub: "full", len: 60 }, 72, "fundo")), ["US3000039", 2]);
+  assert.deepEqual(curbAt(resolveCurb({ none: true }, 60, "fundo")), [null, 0]);
+  assert.deepEqual(curbAt(resolveCurb({ sub: "at", profile: "full" }, 60, "fundo")), ["US3000048", 1]);
+  const at = resolveCurb({ sub: "at" }, 72, "fundo");
+  assert.deepEqual(curbAt(at), ["US3000049", 2]);
+  assert.equal(at.note, 'AT not made at 96" — 60" used · 72" of open edge — cut to fit');
+  assert.equal(resolveCurb({ sub: "full" }, 72, "fundo").note, 'cut to 72"');
+});
+
+test("legacyCurbPick: the recipe's own curb reads as no pick; null is none; any other curb keeps its length", () => {
+  assert.equal(legacyCurbPick(undefined, "fundo", 60), undefined);
+  assert.equal(legacyCurbPick("US3000038", "fundo", 60), undefined);
+  assert.deepEqual(legacyCurbPick("US3000038", "fundo", 72), { sub: "lean", len: 60 });
+  assert.equal(legacyCurbPick("US3000040", "fundo", 72), undefined);
+  assert.equal(legacyCurbPick("US3000038", "linear", 72), undefined);
+  assert.deepEqual(legacyCurbPick(null, "fundo", 60), { none: true });
+  assert.equal(legacyCurbPick(null, "curbless", 60), undefined);
+  assert.deepEqual(legacyCurbPick("US3000049", "fundo", 60), { sub: "at", len: 60, profile: "lean" });
+  assert.equal(legacyCurbPick("NOPE", "fundo", 60), undefined);
+});
+
+test("curbOptions: Style → Profile (AT only) → Length; Auto first, a length not made is not ok", () => {
+  const o = curbOptions(undefined, 60, "fundo");
+  assert.deepEqual(o.styles.map((c) => [c.key, c.on]), [["full", false], ["lean", true], ["at", false], ["cap", false], ["none", false]]);
+  assert.deepEqual(o.profiles, []);
+  assert.deepEqual(o.lengths.map((c) => [c.key, c.ok, c.on]), [["auto", true, true], ["60", true, false], ["96", true, false]]);
+  assert.equal(o.recipe, true);
+  const at = curbOptions({ sub: "at" }, 72, "fundo");
+  assert.deepEqual(at.profiles.map((c) => [c.key, c.on]), [["full", false], ["lean", true]]);
+  assert.deepEqual(at.profiles[0].next, { sub: "at", profile: "full" });
+  assert.deepEqual(at.lengths.map((c) => [c.key, c.ok]), [["auto", true], ["60", true], ["96", false]]);
+  assert.equal(at.recipe, false);
+  const cap = curbOptions({ sub: "cap", len: 96 }, 72, "fundo");
+  assert.deepEqual(cap.lengths.map((c) => [c.key, c.so, c.on]), [["auto", false, false], ["60", false, false], ["96", true, true]]);
+  assert.equal(curbOptions({ none: true }, 60, "curbless").recipe, true);
+  assert.equal(curbOptions({ none: true }, 60, "fundo").recipe, false);
+});
+
+test("kitFor: curbPick is written only when picked, never curbKey; a style re-fits when the opening grows", () => {
+  const plain = kitFor("US9100004", { room: { w: 60, d: 36 } });
+  assert.equal("curbKey" in plain.cfg, false);
+  assert.equal("curbPick" in plain.cfg, false);
+  assert.deepEqual(plain.curbFit, { openLen: 60, fam: "fundo" });
+  const curbLines = (k) => k.lines.filter((l) => l.item.group === "curb").map((l) => [l.item.key, l.qty]);
+  const at60 = kitFor("US9100004", { room: { w: 60, d: 36 }, curbPick: { sub: "full" } });
+  assert.deepEqual(curbLines(at60), [["US3000039", 1]]);
+  assert.deepEqual(at60.cfg.curbPick, { sub: "full" });
+  assert.deepEqual(curbLines(kitFor("US9100004", { room: { w: 84, d: 36 }, curbPick: { sub: "full" } })), [["US3000041", 1]]);
+});
+
+test("an old marker saved with the default 60″ curb re-fits to 96″ once the opening grows (the 1b bug)", () => {
+  const old = { ...kitFor("US9100004", { room: { w: 60, d: 36 } }).cfg, curbKey: "US3000038", panelKey: "US8000017" };
+  const pick = curbPickOf(old);
+  assert.equal(pick, undefined);
+  const grown = kitFor("US9100004", { room: { w: 72, d: 36 }, curbPick: pick });
+  assert.deepEqual(grown.lines.filter((l) => l.item.group === "curb").map((l) => [l.item.key, l.qty]), [["US3000040", 1]]);
+  assert.deepEqual(curbPickOf({ ...old, curbKey: "US3000039" }), { sub: "full", len: 60 });
+});
+
+test("markerCurbKey: the curb a marker bills — legacy key as saved, else the choice resolved at its opening", () => {
+  const k = kitFor("US9100004", { room: { w: 60, d: 36 } });
+  assert.equal(markerCurbKey(k.cfg), "US3000038");
+  assert.equal(markerCurbKey({ ...k.cfg, curbPick: { sub: "full" } }), "US3000039");
+  assert.equal(markerCurbKey(kitFor("US9100004", { room: { w: 84, d: 36 }, curbPick: { sub: "full" } }).cfg), "US3000041");
+  assert.equal(markerCurbKey({ ...k.cfg, curbPick: { none: true } }), null);
+  assert.equal(markerCurbKey({ ...k.cfg, curbKey: "US3000008" }), "US3000008");
+  assert.equal(markerCurbKey(kitFor("US9200003").cfg), null);
+  assert.equal(markerCurbKey(kitFor("US9100006").cfg), "US3000040");
+});
+
+// --- Phase 1b: wall panel and fastener kit choices (ticket 158) -------------
+
+test("panelOptions: Type → Thickness → Size, each chip landing on a stocked panel first", () => {
+  const o = panelOptions(undefined);
+  assert.equal(o.cur.key, "US8000017");
+  assert.deepEqual(o.types.map((c) => [c.key, c.label, c.next, c.so, c.on]), [
+    ["board", "Standard", "US8000017", false, true], ["vapor", "Vapor 85", "US8000026", false, false], ["kit", "Panel kit", "US4000001", true, false]]);
+  assert.deepEqual(o.thicknesses.map((c) => [c.label, c.next, c.so]), [
+    ['1/8"', "US8000006", false], ['1/4"', "US8000013", false], ['1/2"', "US8000017", false], ['5/8"', "US8000011", true],
+    ['3/4"', "US8000018", true], ['1"', "US8000022", false], ['1 1/2"', "US8000019", true], ['2"', "US8000020", false]]);
+  assert.deepEqual(o.sizes.map((c) => [c.key, c.label, c.next, c.so, c.on]), [
+    ["36x60", "3'×5'", "US8000017", false, true], ["48x96", "4'×8'", "US8000015", false, false],
+    ["48x60", "4'×5'", "US8000014", false, false], ["32x48", "2'8\"×4'", "US8000032", true, false]]);
+  // the special-order 4×8 twin never becomes a chip — its size chip lands the stocked sheet
+  assert.deepEqual(panelOptions("US8000010").sizes.find((c) => c.key === "48x96"), { key: "48x96", label: "4'×8'", ok: true, so: false, on: true, next: "US8000015" });
+});
+
+test("kitFor: panelKey is written only when picked; the sheet count re-fits", () => {
+  assert.equal("panelKey" in kitFor("US9100004").cfg, false);
+  assert.equal("panelKey" in kitFor("US9100004", { panelKey: SKU.panelDefault }).cfg, false);
+  const k = kitFor("US9100004", { room: { w: 60, d: 36 }, panelKey: "US8000015" });
+  assert.equal(k.cfg.panelKey, "US8000015");
+  assert.deepEqual(k.lines.filter((l) => l.item.group === "panel").map((l) => [l.item.key, l.qty]), [["US8000015", 3]]);
+  assert.equal(panelSheets(96, item("US8000015")), 3);
+});
+
+test("fastener kits: the two boxed kits; a pick bills by its own count and rides the marker", () => {
+  assert.deepEqual(fastenerKits().map((f) => f.key), ["US5000070", "US5000086"]);
+  const f = (k) => k.lines.filter((l) => l.item.group === "fastener").map((l) => [l.item.key, l.qty]);
+  const k = kitFor("US9100004", { fastenerKey: "US5000086" });
+  assert.deepEqual(f(k), [["US5000086", 1]]);
+  assert.equal(k.cfg.fastenerKey, "US5000086");
+  assert.equal("fastenerKey" in kitFor("US9100004").cfg, false);
+  assert.deepEqual(f(kitFor("US9100004", { fastenerKey: "NOPE" })), [["US5000070", 1]]);
+  const walls = [{ len: 72, h: 96, side: "back" }, { len: 72, h: 96, side: "left" }, { len: 72, h: 96, side: "right" }];
+  assert.deepEqual(f(kitFor("US9100016", { walls, fastenerKey: "US5000086" })), [["US5000086", 2]]);
+});
+
+test("every 1b wedi pick survives the marker: lineItems → buildFromMarker bills the same, cfg stable", () => {
+  for (const opts of [{ curbPick: { sub: "cap", len: 96 } }, { curbPick: { none: true } }, { curbPick: { sub: "at", profile: "full" } },
+    { panelKey: "US8000026" }, { fastenerKey: "US5000086" }]) {
+    const k = kitFor("US9100004", { room: { w: 60, d: 36 }, ...opts });
+    const rows = lineItems(k, {});
+    const back = buildFromMarker({ mode: rows[0].wedi.mode, cfg: rows[0].wedi.cfg });
+    assert.deepEqual(back.lines.map((l) => l.item.key + "×" + l.qty), k.lines.map((l) => l.item.key + "×" + l.qty), JSON.stringify(opts));
+    assert.deepEqual(back.cfg, k.cfg, JSON.stringify(opts));
+  }
+});
+
+// --- Phase 1b fix round 1: a stale panel/fastener pick says so, never drops silently ---
+
+test("figureConsumables: a fastenerKey that isn't one of the boxed kits falls back to the house kit with a note", () => {
+  assert.equal(lineFor(figureConsumables(100, "sausage"), SKU.fastenerKit).note, "", "no pick — no note");
+  assert.equal(lineFor(figureConsumables(100, "sausage", "US5000086"), "US5000086").note, "", "a boxed kit pick carries no note");
+  assert.equal(lineFor(figureConsumables(100, "sausage", SKU.fastenerKit), SKU.fastenerKit).note, "", "an explicit house-kit pick carries no note");
+  const nope = figureConsumables(100, "sausage", "NOPE");
+  assert.equal(lineFor(nope, SKU.fastenerKit).note, "NOPE not in the book — house kit", "an unrecognized key says so and bills the house kit");
+  // US5000009 is a real fastener-group SKU (a washer master pack) but not one of the two boxed kits
+  const other = figureConsumables(100, "sausage", "US5000009");
+  assert.equal(lineFor(other, SKU.fastenerKit).note, "US5000009 not in the book — house kit", "a non-kit fastener SKU takes the same stale path");
+});
+
+test("figureConsumables: an explicit house-kit pick keeps the recipe's 100 ct, never parses its own sizeText", () => {
+  const sf = 144; // fastenerCount = 144, so a 100-ct divisor gives 2 while any other misread would not
+  const byKey = (key) => lineFor(figureConsumables(sf, "sausage", key), SKU.fastenerKit).qty;
+  assert.equal(byKey(undefined), 2, "no pick — CONSUMABLES.fastenerKitCt");
+  assert.equal(byKey(SKU.fastenerKit), 2, "explicit house-kit pick — still CONSUMABLES.fastenerKitCt, not sizeText");
+});
+
+test("kitFor: a stale or non-panel panelKey falls back to the default panel with a note; a default build's notes are unchanged", () => {
+  const wallLine = (opts) => kitFor("US9100004", opts).lines.find((l) => l.item.group === "panel");
+  const k0 = kitFor("US9100004");
+  const w0 = wallLine(undefined);
+  assert.equal(w0.note, round2(k0.panelSf) + " sf of wall — " + (w0.item.sf || 0) + " sf/sheet", "default build's note is unchanged");
+  assert.equal(wallLine({ panelKey: "US8000015" }).note.includes("not in the book"), false, "a valid pick carries no stale note");
+  const nope = wallLine({ panelKey: "NOPE" });
+  assert.equal(nope.item.key, SKU.panelDefault);
+  assert.equal(nope.note.includes("NOPE not in the book — default panel used"), true);
+  // a real SKU that isn't a wall panel at all (a fastener kit) is just as stale
+  const notAPanel = wallLine({ panelKey: SKU.fastenerKit });
+  assert.equal(notAPanel.item.key, SKU.panelDefault);
+  assert.equal(notAPanel.note.includes(SKU.fastenerKit + " not in the book — default panel used"), true);
+  assert.equal("panelKey" in kitFor("US9100004", { panelKey: "NOPE" }).cfg, false, "a stale pick never rides the marker");
+});
+
+// --- added lines (ticket 158 Phase 1c) ---------------------------------------
+
+test("addedRows: old addons translate (a key twice = qty 2, add-on bucket); manual rows keep their bucket", () => {
+  assert.deepEqual(addedRows({ addons: ["US3000004", "US3000004", SKU.gun] }),
+    [{ key: "US3000004", qty: 2, group: "addon" }, { key: SKU.gun, qty: 1, group: "addon" }]);
+  assert.deepEqual(addedRows({ manual: [{ key: "US3000004", qty: 1, group: "addon" }, { key: SKU.panelDefault, qty: 2 }, { key: "NOPE", qty: 1 }, { key: "US3000005", qty: 0 }] }),
+    [{ key: "US3000004", qty: 1, group: "addon" }, { key: SKU.panelDefault, qty: 2, group: "walls" }]);
+  assert.deepEqual(addedRows({ manual: [{ key: "US3000002", qty: 1, group: "bench" }] }), [{ key: "US3000002", qty: 1, group: "bench" }], "a seat added under Bench stays there");
+  assert.deepEqual(addedRows({}), []);
+  assert.equal(wediBucketOf(item(SKU.panelDefault)), "walls");
+  assert.equal(wediBucketOf(item("US3000004")), "addon");
+});
+
+test("kitFor: added rows bill as their own un-auto lines; a kit part added again never merges; the marker writes manual, not addons", () => {
+  const plain = kitFor("US9100004");
+  const panel = plain.lines.find((l) => l.item.group === "panel");
+  const k = kitFor("US9100004", { manual: [{ key: panel.item.key, qty: 2, group: "walls" }, { key: "US3000004", qty: 2, group: "addon" }] });
+  const same = k.lines.filter((l) => l.item.key === panel.item.key);
+  assert.deepEqual(same.map((l) => [l.group, l.qty, l.auto, !!l.added]), [["walls", panel.qty, true, false], ["walls", 2, false, true]]);
+  assert.deepEqual(k.lines.filter((l) => l.item.key === "US3000004").map((l) => [l.group, l.qty, l.slot]), [["addon", 2, "niche"]]);
+  assert.deepEqual(k.cfg.manual, [{ key: panel.item.key, qty: 2, group: "walls" }, { key: "US3000004", qty: 2, group: "addon" }]);
+  assert.equal(k.cfg.addons, undefined);
+  assert.equal(plain.cfg.manual, undefined, "no added rows — no manual key");
+  assert.deepEqual(kitFor("US9100004", { addons: ["US3000004", "US3000004"] }).cfg.manual, [{ key: "US3000004", qty: 2, group: "addon" }], "old addons re-save as rows");
+});
+
+test("kitFor: an added sealant gun clears the sausage-gun hint", () => {
+  assert.ok(kitFor("US9100004", { sealantForm: "sausage" }).hints.includes("sausage-gun"));
+  assert.ok(!kitFor("US9100004", { sealantForm: "sausage", manual: [{ key: SKU.gun, qty: 1, group: "install" }] }).hints.includes("sausage-gun"));
+});
+
+test("buildFromMarker: added rows round-trip — same lines, same bill", () => {
+  const k = kitFor("US9100004", { manual: [{ key: "US3000004", qty: 1, group: "addon" }, { key: "US3000248", qty: 2, group: "addon" }] });
+  const back = buildFromMarker({ mode: "kit", cfg: k.cfg });
+  assert.deepEqual(back.lines.map((l) => l.item.key + "×" + l.qty + "@" + l.group), k.lines.map((l) => l.item.key + "×" + l.qty + "@" + l.group));
+  assert.deepEqual(back.cfg.manual, k.cfg.manual);
+});
+
+test("setAddedRow: rows key on bucket + key; 0 removes; order kept", () => {
+  let m = setAddedRow([], "addon", "US3000004", 1);
+  m = setAddedRow(m, "addon", "US3000248", 1);
+  m = setAddedRow(m, "addon", "US3000004", 3);
+  assert.deepEqual(m, [{ key: "US3000004", qty: 3, group: "addon" }, { key: "US3000248", qty: 1, group: "addon" }]);
+  assert.deepEqual(setAddedRow(m, "addon", "US3000004", 0), [{ key: "US3000248", qty: 1, group: "addon" }]);
+  assert.deepEqual(setAddedRow([{ key: SKU.panelDefault, qty: 1 }], "walls", SKU.panelDefault, 2), [{ key: SKU.panelDefault, qty: 2, group: "walls" }], "a groupless row is its default bucket's row");
+});
+
+test("wediAddParts / wediAddPartOf: each bucket's '+' parts", () => {
+  const keys = (b) => wediAddParts(b).map((p) => p.key);
+  assert.deepEqual(keys("walls"), ["panel"]);
+  assert.deepEqual(keys("drain"), ["cover", "frame", "drainKit"].filter((k) => k !== "drainKit" || group("drainKit").length));
+  assert.ok(keys("addon").includes("niche") && keys("addon").includes("shelf"));
+  assert.ok(keys("floor").includes("curb"));
+  assert.equal(wediAddPartOf("addon", item("US3000004")).key, "niche");
+  assert.equal(wediAddPartOf("bench", item("US3000002")).key, "bench");
+  assert.equal(wediAddPartOf("floor", item(SKU.curbLean60)).key, "curb");
+});
+
+test("curbAddOptions: Style → Profile → Length with no Auto or No curb; the piece is one at a real length", () => {
+  const o = curbAddOptions();
+  assert.deepEqual(o.choice, { sub: "lean", len: 60 });
+  assert.equal(o.item.key, SKU.curbLean60);
+  assert.ok(!o.lengths.some((c) => c.key === "auto") && !o.styles.some((c) => c.key === "none"));
+  assert.ok(o.styles.every((c) => c.next.len === 60), "a style chip keeps the drafted length");
+  assert.equal(curbAddOptions({ sub: "lean", len: 96 }).item.len, 96);
+  const at = curbAddOptions({ sub: "at", len: 96 });
+  assert.equal(at.choice.len, 60, "AT isn't made at 96″ — its longest lands");
+  assert.equal(at.item.len, 60);
+});
+
+test("coverAddOptions: Size → Style → Finish, each chip a cover key", () => {
+  const o = coverAddOptions("US1000085");
+  assert.equal(o.cur.key, "US1000085");
+  assert.ok(o.sizes.find((c) => c.key === "43").on);
+  assert.equal(o.sizes.find((c) => c.key === "27").next, "676797048", "the drafted finish follows a size change, stocked first");
+  assert.equal(o.styles.find((c) => c.key === "tileable").next, "US1000087");
+  assert.ok(o.finishes.every((c) => item(c.next).len === 43));
+  const pt = coverAddOptions();
+  assert.equal(pt.cur.key, SKU.coverSS);
+  assert.equal(pt.styles.length, 0, "a point cover has no style row");
+  assert.ok(pt.finishes.every((c) => item(c.next).sub === "point"));
+});
+
+test("sessionFromRows: a placed kit's added lines come off the totals — never an override or a second extra", () => {
+  const k = kitFor("US9100004", { manual: [{ key: "US3000004", qty: 2, group: "addon" }, { key: SKU.panelDefault, qty: 1, group: "walls" }] });
+  const rows = lineItems(k);
+  assert.deepEqual(sessionFromRows(k.lines, rows), { qtyOv: {}, manual: [] });
+  const panel = k.lines.find((l) => l.item.key === SKU.panelDefault && !l.added);
+  const bumped = rows.map((r, i) => (k.lines[i] === panel ? { ...r, qty: String(panel.qty + 1) } : r));
+  assert.deepEqual(sessionFromRows(k.lines, bumped), { qtyOv: { [SKU.panelDefault]: panel.qty + 1 }, manual: [] });
 });
