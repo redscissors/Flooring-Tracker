@@ -129,3 +129,31 @@ export const keyedNote = (rows, erpKeyed) => {
   ];
   return `${keyed} of ${total} keyed · ${parts.join(", ")}`;
 };
+
+// --- the Clean header's ERP status (2026-09-27) -----------------------------
+
+export const erpLabel = (nos) => (nos?.length ? `ERP ${nos[nos.length - 1]}${nos.length > 1 ? ` +${nos.length - 1}` : ""}` : "");
+
+// Materials lines have no stable id of their own, so the panel mints one per
+// kind + product and suffixes repeats. The header's line count mints the same
+// way; both must go through this or a stamp stops matching its line.
+export const matIdMaker = () => {
+  const seen = new Set();
+  return (m) => {
+    let id = `mat|${m.kind}|${m.product}`;
+    while (seen.has(id)) id += "#";
+    seen.add(id);
+    return id;
+  };
+};
+
+// `lines` are { id, copyable } over the job's unmerged order-entry lines (the
+// ids the panel stamps). Done means every copyable line sits on a live order.
+export const erpStatus = (orders, erpKeyed, lines) => {
+  const nos = normErpOrders(orders).map((o) => o.no);
+  if (!nos.length) return { nos: [], keyed: 0, total: 0, left: 0, done: false };
+  const live = new Set(nos);
+  const list = (lines || []).filter((l) => l.copyable);
+  const keyed = list.filter((l) => live.has(erpKeyed?.[l.id]?.no)).length;
+  return { nos, keyed, total: list.length, left: list.length - keyed, done: list.length > 0 && keyed === list.length };
+};

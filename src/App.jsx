@@ -36,7 +36,7 @@ import { MobileSheet, MobileProductRow, MobileRowSheet, MobileProjectBand } from
 import { TeamTodos } from "./TeamTodos.jsx";
 import { EstimatePaper, PRINT_DASH } from "./EstimatePrint.jsx";
 import { useToast } from "./usetoast.js";
-import { ProjectHeaderBar, ProjectHeaderClassic } from "./projectheader.jsx";
+import { ProjectHeaderBar, ProjectHeaderClassic, ProjectHeaderClean } from "./projectheader.jsx";
 import { useDirectory, attPath, normProfile, vMeta } from "./usedirectory.js";
 import { useBooks } from "./usebooks.js";
 import { useBookStock } from "./usebookstock.js";
@@ -59,7 +59,7 @@ import { useVersions } from "./useversions.js";
 import { useJobShowers } from "./usejobshowers.js";
 import { SfPartsMenu, SfPartsChips } from "./SfPartsMenu.jsx";
 import { sfPartsState } from "./sfparts.js";
-import { addErpOrder, removeErpOrder, stampErpLines, clearErpStamps } from "./erporders.js";
+import { addErpOrder, removeErpOrder, stampErpLines, clearErpStamps, matIdMaker, erpStatus } from "./erporders.js";
 // Heavy secondary surfaces ship as their own chunks (ADR 0026 rule 5) so
 // feature work on them stops growing the boot download. Both are conditional
 // overlays; a null Suspense fallback reads as normal open latency.
@@ -275,10 +275,13 @@ export default function App({ user, onSignOut }) {
   // in sync when the user changes it. "system" clears both classes and lets the
   // prefers-color-scheme block in index.css decide.
   const [theme, setTheme] = useState(() => { try { return localStorage.getItem("ft-theme") || "system"; } catch { return "system"; } });
-  // Desktop header layout: "bar" (one-bar, 2026-07-21) | "classic" — per-device
-  // like the theme, switched in Settings → General.
-  const [headerLayout, setHeaderLayout] = useState(() => { try { return localStorage.getItem("ft-header") || "bar"; } catch { return "bar"; } });
-  useEffect(() => { try { localStorage.setItem("ft-header", headerLayout); } catch {} }, [headerLayout]);
+  // Desktop header layout: "bar" (one-bar, 2026-07-21) | "classic" | "clean"
+  // (on trial 2026-09-27). Per user (ui.header, Settings → General) so a person
+  // trying Clean sees it on every device; until they pick, this device's old
+  // per-device choice stands.
+  const [headerPick, setHeaderPick] = useState(null);
+  const headerLayout = headerPick || appBlobRef.current?.ui?.header || (() => { try { return localStorage.getItem("ft-header") || "bar"; } catch { return "bar"; } })();
+  const setHeaderLayout = (v) => { setHeaderPick(v); saveUiPref({ header: v }); try { localStorage.setItem("ft-header", v); } catch {} };
   const themedOnce = useRef(false);
   useEffect(() => {
     try { localStorage.setItem("ft-theme", theme); } catch {}
@@ -1295,6 +1298,43 @@ export default function App({ user, onSignOut }) {
   }, [sel, tv.proj, optsUsed, tSet, wSet, settings, books]);
   const wholeJob = (slot) => (buckets ? buckets.shared.grandTotal + buckets[slot].grandTotal : grandTotal);
   const optionBadges = optsUsed.length ? optsUsed.map((s) => ({ slot: s, label: optionShort(sel, s), color: OPTION_COLOR[s], total: wholeJob(s) })) : null;
+  // Every order-entry line the panel can stamp, unmerged and unscoped, so the
+  // Clean header can say how much of the job is keyed. Ids and the copyable
+  // rule follow the panel's rows below (orderEntryRow / the materials run /
+  // freightOrderRow).
+  const erpLines = () => {
+    const out = [];
+    const matId = matIdMaker();
+    sel.categories.forEach((a) => a.products.forEach((p) => { if (!rowBlank(p)) out.push({ id: p.id, copyable: isSpecialOrder(p, stockBookIds, stockSkus) || !!p.sku }); }));
+    (T.matAll || []).forEach((m) => out.push(isSpecialMat(m, stockBookIds) ? { id: `mat|${m.kind}|${m.product}`, copyable: true } : { id: matId(m), copyable: !!m.sku }));
+    (T.fList || []).forEach((l) => out.push({ id: `freight|${l.bookId}`, copyable: true }));
+    return out;
+  };
+  // The desktop project header — whichever layout this user picked.
+  const deskHeader = () => {
+    const cust = data.people.find((c) => c.id === sel.customerId);
+    // Tab out of the header lands on the first area's name; with no
+    // areas yet it falls back to the Add-area bar below the header.
+    const nameTabRef = { get current() { return areaRefs.current[sel.categories[0]?.id] || addAreaRef.current; } };
+    const hp = {
+      sel, cust, builderName: cust ? builderNameOf(cust.builderId) : "", profile, tv, grandTotal, optionBadges, freightCost, saveOk, settings, jobWasteUI, updateProject,
+      onOpenCustomer: () => cust && setCustModal(cust.id), onPromote: () => { setPromoteId(sel.id); setPromoteQ(""); },
+      nameRef, nameTabRef, orderEntryRef, focusName,
+      namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion,
+      openAttachment, delAttachment, attRef, addAttachment,
+      setShowVersions, setConfirm,
+      samples: sampleCounts(projSamples), onOpenSamples: () => { setShowSamples(true); refreshSampleRequests(); },
+      // Every header layout calls these with (true) / ("order") respectively —
+      // wrapped here so projectheader.jsx needs no changes to route through
+      // the option scope picker (Task 8). "estimate" passes straight through.
+      setShowOrderCopy: () => askOrderScope("entry"),
+      setPrintMode: (m) => (m === "order" ? askOrderScope("sheet") : setPrintMode(m)),
+    };
+    if (headerLayout === "classic") return <ProjectHeaderClassic {...hp} />;
+    if (headerLayout !== "clean") return <ProjectHeaderBar {...hp} />;
+    return <ProjectHeaderClean {...hp} preview={viewTab === "preview"} onTogglePreview={() => setViewTab((t) => (t === "preview" ? "edit" : "preview"))}
+      erp={sel.erpOrders?.length ? erpStatus(sel.erpOrders, sel.erpKeyed, erpLines()) : null} />;
+  };
   // Order entry + order sheet ask which option is being ordered when the job
   // has any (Task 8); a job with no options skips straight to "all" — byte-
   // identical to the pre-options flow.
@@ -1573,41 +1613,24 @@ export default function App({ user, onSignOut }) {
               {/* Edit / Print preview tabs are a desk thing (Fold 5 header
                   2026-09-15): on the phone the ⋯ sheet prints, and the area
                   menu's "Print this option…" prints straight away. */}
-              {isWide && (
+              {isWide && headerLayout !== "clean" && (
                 <div className="flex items-center gap-1 mb-3 border-b border-slate-200">
                   {[["edit", "Edit"], ["preview", "Print preview"]].map(([k, label]) => (
                     <button key={k} onClick={() => setViewTab(k)} className={"px-4 py-2 text-sm font-semibold -mb-px border-b-2 transition " + (viewTab === k ? "" : "border-transparent text-slate-400 hover:text-slate-600")} style={viewTab === k ? { color: "var(--ft-brand)", borderColor: "var(--ft-brand)" } : {}}>{label}</button>
                   ))}
                 </div>
               )}
+              {/* Header card (desktop): three layouts behind a per-user switch
+                  (Settings → General) — the one-bar (2026-07-21,
+                  .scratch/mockups/header-redesign-2026-07-21.html), the
+                  print-sheet classic it replaced, and Clean (2026-09-27), all
+                  in projectheader.jsx. Clean sits above the edit/preview split
+                  because it stays on screen in both; the other two live inside
+                  the edit view as before. Mobile keeps its own band below. */}
+              {isWide && headerLayout === "clean" && deskHeader()}
               {/* Edit view stays mounted (hidden, not unmounted) so field focus and in-progress typing survive tab flips. */}
               <div className={viewTab === "edit" ? "" : "hidden"}>
-              {/* Header card (desktop): two layouts behind a per-device switch
-                  (Settings → General, "ft-header") — the one-bar (2026-07-21,
-                  .scratch/mockups/header-redesign-2026-07-21.html) and the
-                  print-sheet classic it replaced, both in projectheader.jsx.
-                  Mobile keeps the stat strip + project sheet below. */}
-              {isWide && (() => {
-                const cust = data.people.find((c) => c.id === sel.customerId);
-                // Tab out of the header lands on the first area's name; with no
-                // areas yet it falls back to the Add-area bar below the header.
-                const nameTabRef = { get current() { return areaRefs.current[sel.categories[0]?.id] || addAreaRef.current; } };
-                const hp = {
-                  sel, cust, builderName: cust ? builderNameOf(cust.builderId) : "", profile, tv, grandTotal, optionBadges, freightCost, saveOk, settings, jobWasteUI, updateProject,
-                  onOpenCustomer: () => cust && setCustModal(cust.id), onPromote: () => { setPromoteId(sel.id); setPromoteQ(""); },
-                  nameRef, nameTabRef, orderEntryRef, focusName,
-                  namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion,
-                  openAttachment, delAttachment, attRef, addAttachment,
-                  setShowVersions, setConfirm,
-                  samples: sampleCounts(projSamples), onOpenSamples: () => { setShowSamples(true); refreshSampleRequests(); },
-                  // Both header layouts call these with (true) / ("order") respectively —
-                  // wrapped here so projectheader.jsx needs no changes to route through
-                  // the option scope picker (Task 8). "estimate" passes straight through.
-                  setShowOrderCopy: () => askOrderScope("entry"),
-                  setPrintMode: (m) => (m === "order" ? askOrderScope("sheet") : setPrintMode(m)),
-                };
-                return headerLayout === "classic" ? <ProjectHeaderClassic {...hp} /> : <ProjectHeaderBar {...hp} />;
-              })()}
+              {isWide && headerLayout !== "clean" && deskHeader()}
 
               {/* Mobile shell (2026-07-16, .scratch/mockups/mobile-v2; header
                   reworked for the Fold 5 cover screen 2026-09-15,
@@ -3047,12 +3070,10 @@ export default function App({ user, onSignOut }) {
         (oeCats || []).forEach((a, ai) => a.products.forEach((p) => { if (!rowBlank(p)) rows.push(orderEntryRow(p, wSet, areaLabel(a, ai), descLimit, stockBookIds, bookBrands, stockSkus)); }));
         // A grout color from a family's order-book source is a vendor order,
         // not a warehouse pull — it files with the special orders.
-        const matIds = new Set();
+        const matId = matIdMaker();
         const mats = oeT.matAll.filter((m) => !isSpecialMat(m, stockBookIds)).map((m) => {
           const { qty, qtyAssumed } = orderQty(m.order);
-          let id = `mat|${m.kind}|${m.product}`;
-          while (matIds.has(id)) id += "#";
-          matIds.add(id);
+          const id = matId(m);
           return { id, sku: m.sku || "", qty, qtyAssumed, unitCode: unitCode(m.unit), qtyText: `${qty} ${u1(qty, m.unit)}`, name: m.product, kind: m.kind, area: "" };
         });
         const specialMats = oeT.matAll.filter((m) => isSpecialMat(m, stockBookIds)).map((m) => matOrderRow(m, descLimit, bookBrands));

@@ -402,7 +402,7 @@ export function MetaChip({ icon: Icon, label, value, active, onClick }) {
 // salesperson (or the signed-in profile on pre-snapshot jobs) and opens an
 // anchored editor to change it. Fields edit live like the rest of the app;
 // "Use my details" restamps the whole snapshot from the current profile.
-export function SalespersonPop({ value, fallback, onChange, alignRight, small }) {
+export function SalespersonPop({ value, fallback, onChange, alignRight, small, plain }) {
   const [open, setOpen] = useState(false);
   const anchorRef = useRef(null);
   // The box grows out of the whole salesperson card (the name button's
@@ -416,7 +416,8 @@ export function SalespersonPop({ value, fallback, onChange, alignRight, small })
   const box = pos && growBox(pos, 220, alignRight ? "left" : "right");
   return (
     <>
-      <button ref={anchorRef} onClick={(e) => { cardRef.current = e.currentTarget.parentElement; setOpen((o) => !o); }} aria-expanded={open} title="Salesperson — locked in when the project was created. Click to change." className={"min-w-0 max-w-full truncate hover:text-indigo-700 text-left" + (small ? " font-bold" : " ft-serif")} style={{ fontSize: small ? 11.5 : 17, lineHeight: 1.2, borderBottom: "1px dashed var(--ft-border-strong)", alignSelf: small ? "flex-start" : undefined }}>
+      <button ref={anchorRef} onClick={(e) => { cardRef.current = e.currentTarget.parentElement; setOpen((o) => !o); }} aria-expanded={open} title="Salesperson — locked in when the project was created. Click to change." className={plain ? "min-w-0 max-w-full truncate text-left hover:text-[color:var(--ft-text)]" : "min-w-0 max-w-full truncate hover:text-indigo-700 text-left" + (small ? " font-bold" : " ft-serif")}
+        style={plain ? { lineHeight: 1.2 } : { fontSize: small ? 11.5 : 17, lineHeight: 1.2, borderBottom: "1px dashed var(--ft-border-strong)", alignSelf: small ? "flex-start" : undefined }}>
         {sp.name || sp.email || "Set salesperson"}
       </button>
       {open && pos && (
@@ -538,7 +539,7 @@ export function WasteBar({ w, dflt, onChange, className = "" }) {
 
 // Files, collapsed to a paperclip chip (spec 2026-07-16): the old dashed box
 // moved into an anchored popover so header column 1 can hold the pricing bars.
-export function FilesPop({ attachments, onOpen, onDelete, onAdd, mini, tip }) {
+export function FilesPop({ attachments, onOpen, onDelete, onAdd, mini, tip, triggerClass }) {
   const [open, setOpen] = useState(false);
   const anchorRef = useRef(null);
   const panelRef = useRef(null);
@@ -550,9 +551,9 @@ export function FilesPop({ attachments, onOpen, onDelete, onAdd, mini, tip }) {
     <>
       {/* mini = the one-bar header's 45×26 square with a count badge and the
           square hover-tip card in place of the native title */}
-      <button ref={anchorRef} onClick={() => setOpen((o) => !o)} aria-expanded={open} data-tip={mini ? tip : undefined} title={mini ? undefined : `Files (not printed)${n ? ` — ${n}` : ""}`}
-        className={mini ? "ft-tip relative w-[45px] h-[26px] flex items-center justify-center rounded-md hover:bg-slate-50" : "h-[30px] flex-1 flex items-center justify-center gap-1 rounded-md border border-slate-200 text-[11px] text-slate-600 hover:bg-slate-50"}
-        style={mini ? { border: "1px solid var(--ft-border-strong)" } : undefined}>
+      <button ref={anchorRef} onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label={triggerClass ? "Files" : undefined} data-tip={mini ? tip : undefined} title={mini ? undefined : `Files (not printed)${n ? ` — ${n}` : ""}`}
+        className={triggerClass || (mini ? "ft-tip relative w-[45px] h-[26px] flex items-center justify-center rounded-md hover:bg-slate-50" : "h-[30px] flex-1 flex items-center justify-center gap-1 rounded-md border border-slate-200 text-[11px] text-slate-600 hover:bg-slate-50")}
+        style={mini && !triggerClass ? { border: "1px solid var(--ft-border-strong)" } : undefined}>
         <Paperclip size={mini ? 13 : 14} />
         {n > 0 && (mini
           ? <span className="absolute rounded-full font-bold" style={{ top: -6, right: -6, fontSize: 10, padding: "1px 5px", background: "var(--ft-sand)", color: "var(--ft-muted)", border: "1px solid var(--ft-border)" }}>{n}</span>
