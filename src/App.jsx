@@ -276,7 +276,7 @@ export default function App({ user, onSignOut }) {
   // prefers-color-scheme block in index.css decide.
   const [theme, setTheme] = useState(() => { try { return localStorage.getItem("ft-theme") || "system"; } catch { return "system"; } });
   // Desktop header layout: "bar" (one-bar, 2026-07-21) | "classic" | "clean"
-  // (on trial 2026-09-27). Per user (ui.header, Settings → General) so a person
+  // | "cleancompact" (both on trial 2026-09-27). Per user (ui.header, Settings → General) so a person
   // trying Clean sees it on every device; until they pick, this device's old
   // per-device choice stands.
   const [headerPick, setHeaderPick] = useState(null);
@@ -300,18 +300,20 @@ export default function App({ user, onSignOut }) {
   }, [theme]);
   const [isWide, setIsWide] = useState(() => typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 768px)").matches : true);
   // Clean's area cards ride the same per-user header switch (.scratch/159_clean-editor).
-  const cleanCards = isWide && headerLayout === "clean";
+  const cleanHead = headerLayout === "clean" || headerLayout === "cleancompact";
+  const cleanCards = isWide && cleanHead;
+  const cleanBand = isWide && headerLayout === "cleancompact";
   // Clean pins its header in a band exactly as tall as the rail's logo block,
   // so the band's bottom line continues the logo's straight across the top.
   const railHeadRef = useRef(null);
   const [railHeadH, setRailHeadH] = useState(0);
   useLayoutEffect(() => {
     const el = railHeadRef.current;
-    if (!el || !cleanCards) return;
+    if (!el || !cleanBand) return;
     const ro = new ResizeObserver(() => setRailHeadH(el.getBoundingClientRect().height));
     ro.observe(el);
     return () => ro.disconnect();
-  }, [cleanCards]);
+  }, [cleanBand]);
   const [custChip, setCustChip] = useState(null); // which contact chip is expanded (customer view)
   const [viewTab, setViewTab] = useState("edit"); // project detail: "edit" | "preview" (on-screen estimate paper)
   const [projSheet, setProjSheet] = useState(false); // mobile shell: project bottom sheet
@@ -1344,8 +1346,8 @@ export default function App({ user, onSignOut }) {
       setPrintMode: (m) => (m === "order" ? askOrderScope("sheet") : setPrintMode(m)),
     };
     if (headerLayout === "classic") return <ProjectHeaderClassic {...hp} />;
-    if (headerLayout !== "clean") return <ProjectHeaderBar {...hp} />;
-    return <ProjectHeaderClean {...hp} ping={ping} preview={viewTab === "preview"} onTogglePreview={() => setViewTab((t) => (t === "preview" ? "edit" : "preview"))}
+    if (!cleanHead) return <ProjectHeaderBar {...hp} />;
+    return <ProjectHeaderClean {...hp} ping={ping} compact={headerLayout === "cleancompact"} preview={viewTab === "preview"} onTogglePreview={() => setViewTab((t) => (t === "preview" ? "edit" : "preview"))}
       erp={sel.erpOrders?.length ? erpStatus(sel.erpOrders, sel.erpKeyed, erpLines()) : null} />;
   };
   // Order entry + order sheet ask which option is being ordered when the job
@@ -1623,7 +1625,7 @@ export default function App({ user, onSignOut }) {
             <div className="h-full flex items-center justify-center text-slate-400 text-sm">Loading {sel.name || "customer"}…</div>
           ) : (
             <>
-            {cleanCards && (
+            {cleanBand && (
               <div className="sticky top-0 z-30 border-b border-slate-100" style={{ height: railHeadH || 73, background: "var(--ft-cream)" }}>
                 <div className="h-full max-w-4xl mx-auto px-5">{deskHeader()}</div>
               </div>
@@ -1632,7 +1634,7 @@ export default function App({ user, onSignOut }) {
               {/* Edit / Print preview tabs are a desk thing (Fold 5 header
                   2026-09-15): on the phone the ⋯ sheet prints, and the area
                   menu's "Print this option…" prints straight away. */}
-              {isWide && headerLayout !== "clean" && (
+              {isWide && !cleanHead && (
                 <div className="flex items-center gap-1 mb-3 border-b border-slate-200">
                   {[["edit", "Edit"], ["preview", "Print preview"]].map(([k, label]) => (
                     <button key={k} onClick={() => setViewTab(k)} className={"px-4 py-2 text-sm font-semibold -mb-px border-b-2 transition " + (viewTab === k ? "" : "border-transparent text-slate-400 hover:text-slate-600")} style={viewTab === k ? { color: "var(--ft-brand)", borderColor: "var(--ft-brand)" } : {}}>{label}</button>
@@ -1643,12 +1645,14 @@ export default function App({ user, onSignOut }) {
                   (Settings → General) — the one-bar (2026-07-21,
                   .scratch/mockups/header-redesign-2026-07-21.html), the
                   print-sheet classic it replaced, and Clean (2026-09-27), all
-                  in projectheader.jsx. Clean is pinned in the band above this
-                  column (on screen in both edit and preview); the other two
-                  live inside the edit view. Mobile keeps its own band below. */}
+                  in projectheader.jsx. Clean sits above the edit/preview split
+                  (Clean compact is pinned in the band above this column) so it
+                  stays on screen in both; the other two live inside the edit
+                  view. Mobile keeps its own band below. */}
+              {isWide && headerLayout === "clean" && deskHeader()}
               {/* Edit view stays mounted (hidden, not unmounted) so field focus and in-progress typing survive tab flips. */}
               <div className={viewTab === "edit" ? "" : "hidden"}>
-              {isWide && headerLayout !== "clean" && deskHeader()}
+              {isWide && !cleanHead && deskHeader()}
 
               {/* Mobile shell (2026-07-16, .scratch/mockups/mobile-v2; header
                   reworked for the Fold 5 cover screen 2026-09-15,

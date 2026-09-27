@@ -233,6 +233,16 @@ h1 is now THE Clean header; h2, h3, the old tall stacked layout and the
 measured to the rail logo block (desktop only — the phone keeps its band).
 `header-preview.html` wraps the demo in a 73px box with the same line.
 
+## Round 2j — two Clean choices (2026-09-27)
+
+Owner: keep the pinned two-row header as "Clean compact" and bring back the
+taller Clean header from just before it, as its own choice. Settings →
+General → Project header is now One-bar / Classic / Clean / Clean compact
+(`ui.header` "cleancompact" is new; "clean" keeps meaning the tall one, so
+anyone already on the trial keeps what they had). Both get the Clean area
+cards and lines. Shots `90-layout-clean`, `91-layout-cleancompact`,
+`92-settings-picker`.
+
 ## Round 2 — open: product rows
 
 What the mockups show (every board uses the same card treatment; the frame

@@ -27,7 +27,7 @@ src/
                     # ONE `updateProject` with compareOptionsPatch's single
                     # patch, wired as `onQuoteOptions` on both job-context
                     # vendor mounts (never on the Apps-hub copies).
-                    # `cleanCards` (isWide && headerLayout "clean", 2026-09-27)
+                    # `cleanCards` (isWide && either Clean layout, 2026-09-27)
                     # swaps the area frame for Clean's cards (the regular
                     # slate-200 card border): one slim tan bar
                     # per area carrying name · column labels · subtotal · ⋯
@@ -247,10 +247,13 @@ src/
                     # `ProjectHeaderClassic` (the print-sheet original, kept
                     # whole so the team can flip back without a revert) and
                     # `ProjectHeaderClean` (on trial 2026-09-27,
-                    # .scratch/159_clean-editor): two rows sized to the rail
-                    # logo block, pinned by App in a sticky band whose bottom
-                    # line continues the logo's (rail height measured with a
-                    # ResizeObserver). Row 1: customer · project (name · N ·
+                    # .scratch/159_clean-editor), two choices: "clean" (tall:
+                    # 30px customer headline over the project line, then the
+                    # bar) and "cleancompact" (`compact`: two rows sized to the
+                    # rail logo block, pinned by App in a sticky band whose
+                    # bottom line continues the logo's — rail height measured
+                    # with a ResizeObserver). Both share the pieces and the
+                    # area cards. Row 1: customer · project (name · N ·
                     # ERP chip · address · notes — the address is the project's when set,
                     # else the customer's, which opens the customer; the
                     # project address edits in an AddressField popover from
