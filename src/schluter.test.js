@@ -2,7 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
 import { FINISH_LABEL, ovKey, rowItemEntry, sessionFromRows, classify, catalogOf, coverageOf, trayCandidates, pickRolls, pickFrom, buildKit, buildFromMarker, linesTotal, tierPrice, lineItems, orderCopyLines, entryOpening, openRuns, boardPlan, boardSheets, expandBoardFaces, normBench, benchTrayRoom, slotOf, resolveDrain, drainOptions, pointGrateLabel,
-  resolveMembrane, membraneOptions, resolveBand, bandOptions, bandWidthLabel } from "./schluter.js";
+  resolveMembrane, membraneOptions, resolveBand, bandOptions, bandWidthLabel,
+  addedGroup, addedLines, setAddedQty, addParts, addPartOf, addRollOptions, drainAddOptions } from "./schluter.js";
 import { isSlot } from "./slots.js";
 
 const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
@@ -1358,4 +1359,102 @@ test("resolveBand with no width choice stays on the narrowest width carried, wha
     }
   }
   assert.deepEqual(picks(resolveBand({ width: "185" }, 120, first185, { source: "all" })), [["KEBA100/185", 2]]);
+});
+
+// --- added lines (ticket 158 Phase 1c) ---------------------------------------
+
+const sk = (sku) => CAT.find((i) => i.sku === sku);
+
+test("addedGroup: a row's own g wins; an old row files where the kit bills the part", () => {
+  assert.equal(addedGroup({ sku: "KEBA100/125" }, sk("KEBA100/125")), "Seams");
+  assert.equal(addedGroup({ sku: "KERECK/FI2" }, sk("KERECK/FI2")), "Seams");
+  assert.equal(addedGroup({ sku: "KB1212202440" }, sk("KB1212202440")), "Walls");
+  assert.equal(addedGroup({ sku: "KERDI200/10M" }, sk("KERDI200/10M")), "Walls");
+  assert.equal(addedGroup({ sku: "KB12SN305508A1" }, sk("KB12SN305508A1")), "Extras");
+  assert.equal(addedGroup({ sku: "SLRSETA50W" }, sk("SLRSETA50W")), "Setting");
+  assert.equal(addedGroup({ sku: "KERDIFIX/BW" }, sk("KERDIFIX/BW")), "Setting");
+  assert.equal(addedGroup({ sku: "KD4GRKECS" }, sk("KD4GRKECS")), "Drain");
+  assert.equal(addedGroup({ sku: "KBSC115150970" }, sk("KBSC115150970")), "Curb");
+  assert.equal(addedGroup({ sku: "KB1212202440", g: "Extras" }, sk("KB1212202440")), "Extras", "a board added under Extras stays a bench board");
+  assert.equal(addedGroup({ sku: "KB1212202440", g: "Nowhere" }, sk("KB1212202440")), "Walls", "an unknown g falls back");
+});
+
+test("addedLines: each row is its own manual line with its group's slot", () => {
+  const l = addedLines([{ sku: "KB1212202440", qty: 2, g: "Extras" }, { sku: "KB1212202440", qty: 1 }, { sku: "NOPE", qty: 1 }, { sku: "KEBA100/125", qty: 0 }], CAT);
+  assert.deepEqual(l.map((x) => [x.g, x.item.sku, x.qty, x.slot, x.manual]),
+    [["Extras", "KB1212202440", 2, "bench", true], ["Walls", "KB1212202440", 1, "wallBoard", true]]);
+});
+
+test("buildFromMarker: an added line with a kit line's part stays its own line; the kit line is untouched", () => {
+  const c = cfg({});
+  const kit = buildKit(c, CAT, { source: "all" });
+  const band = kit.lines.find((l) => l.g === "Seams" && l.item.lf);
+  const b = buildFromMarker({ mode: "custom", cfg: { ...c, manual: [{ sku: band.item.sku, qty: 2, g: "Seams" }] } }, CAT);
+  const same = b.lines.filter((l) => l.item.sku === band.item.sku);
+  assert.deepEqual(same.map((l) => [l.g, l.qty, !!l.manual]), [["Seams", band.qty, false], ["Seams", 2, true]]);
+});
+
+test("setAddedQty: rows key on group + sku; 0 removes; order kept", () => {
+  let m = setAddedQty([], "Walls", "KB1212202440", 1, CAT);
+  m = setAddedQty(m, "Extras", "KB1212202440", 2, CAT);
+  m = setAddedQty(m, "Walls", "KB1212202440", 3, CAT);
+  assert.deepEqual(m, [{ sku: "KB1212202440", qty: 3, g: "Walls" }, { sku: "KB1212202440", qty: 2, g: "Extras" }]);
+  assert.deepEqual(setAddedQty(m, "Walls", "KB1212202440", 0, CAT), [{ sku: "KB1212202440", qty: 2, g: "Extras" }]);
+  assert.deepEqual(setAddedQty([{ sku: "KEBA100/125", qty: 1 }], "Seams", "KEBA100/125", 2, CAT), [{ sku: "KEBA100/125", qty: 2, g: "Seams" }], "an old row with no g is the same row");
+});
+
+test("addParts / addPartOf: each group's '+' parts, only those the catalog carries", () => {
+  const keys = (g, c = CAT) => addParts(g, c).map((p) => p.key);
+  assert.deepEqual(keys("Drain"), ["drain", "grate", "body", "flange"]);
+  assert.deepEqual(addParts("Drain", CAT, { linear: false }).map((p) => p.key), ["grate", "body", "flange"], "a point build's Drain + leads with the grate");
+  assert.deepEqual(keys("Walls"), ["board", "membrane", "fastener"]);
+  assert.deepEqual(keys("Seams"), ["band", "corners"]);
+  assert.deepEqual(keys("Extras"), ["niche", "bench", "other"]);
+  assert.deepEqual(keys("Setting"), ["setting"]);
+  assert.deepEqual(keys("Drain", CAT.filter((i) => i.part !== "channel")), ["grate", "flange"], "no channel or body — no Drain or Body part");
+  assert.equal(addPartOf("Walls", sk("KB1212202440")).key, "board");
+  assert.equal(addPartOf("Extras", sk("KB1212202440")).key, "bench");
+  assert.equal(addPartOf("Seams", sk("KEBA100/125")).key, "band");
+  assert.equal(addPartOf("Walls", sk("KERDI200/10M")).key, "membrane");
+  assert.equal(addPartOf("Drain", sk("KLVRID3EB244")).key, "body");
+});
+
+test("addRollOptions: Width → Roll with no Auto; a width alone lands on its first roll", () => {
+  const o = addRollOptions("band", {}, CAT, { source: "all" });
+  assert.ok(!o.rolls.some((r) => r.key === "auto"));
+  assert.ok(o.choice.roll, "the draft always names a roll");
+  assert.equal(o.item.roll, o.choice.roll);
+  const pinned = addRollOptions("band", { width: o.item.width, roll: "10M" }, CAT, { source: "all" });
+  assert.equal(pinned.item.sku, "KEBA100/125/10M");
+  assert.ok(pinned.rolls.find((r) => r.key === "10M").on);
+  const mem = addRollOptions("membrane", { wide: true }, CAT, { source: "all" });
+  assert.equal(mem.item.wide, true);
+  assert.ok(!mem.rolls.some((r) => r.key === "auto"));
+});
+
+test("drainAddOptions: a Length row in place of the pan fit; the lines are what one drain adds", () => {
+  const v = drainAddOptions({ family: "vario" }, KLCAT, { source: "all" });
+  assert.deepEqual(v.lengths.map((l) => l.key), [...new Set(KLCAT.filter((i) => i.g === "drain" && i.part === "channel" && i.len).map((i) => i.len))].sort((a, b) => a - b).map(String));
+  assert.equal(v.len, v.lengths[v.lengths.length - 1].key * 1, "unset length = the longest");
+  assert.deepEqual(v.lines.map((l) => l.slot), ["drainBody", "flange"]);
+  const f = drainAddOptions({ family: "fixed", len: 48 }, KLCAT, { source: "all" });
+  assert.equal(f.len, 48);
+  assert.deepEqual(f.lines.map((l) => [l.slot, l.item.len]), [["drainBody", 48], ["grate", 48]]);
+  assert.ok(f.lengths.find((l) => l.key === "48").on);
+  const down = drainAddOptions({ family: "fixed", len: 50 }, KLCAT, { source: "all" });
+  assert.equal(down.len, 48, "a length the family isn't made at steps down");
+});
+
+test("sessionFromRows: the marker's added lines come off each total — a placed added line is never an override or a second extra", () => {
+  const c = cfg({});
+  const kit = buildKit(c, CAT, { source: "all" });
+  const band = kit.lines.find((l) => l.g === "Seams" && l.item.lf);
+  const manual = [{ sku: band.item.sku, qty: 2, g: "Seams" }, { sku: "KB12SN305508A1", qty: 1, g: "Extras" }];
+  const b = buildFromMarker({ mode: "custom", cfg: { ...c, manual } }, CAT);
+  const bill = b.lines.filter((l) => !l.noteOnly);
+  const rows = lineItems({ ...b, cfg: { ...c, manual } }, {});
+  assert.deepEqual(sessionFromRows(bill, rows, CAT), { qtyOv: {}, manual: [] });
+  // the sheet took one more band on the kit's line: only the kit line overrides
+  const bumped = rows.map((r, i) => (i === bill.findIndex((l) => l.item.sku === band.item.sku && !l.manual) ? { ...r, qty: String(band.qty + 1) } : r));
+  assert.deepEqual(sessionFromRows(bill, bumped, CAT), { qtyOv: { [ovKey(band)]: band.qty + 1 }, manual: [] });
 });
