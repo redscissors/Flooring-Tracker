@@ -10,7 +10,7 @@ import { rowItemKey, sessionFromRows,
   BENCH_H, BENCH_DEPTH, BENCH_CORNER_LEG,
   curbWidth, curbInsets, applyCurbInset,
   setStockSource, clearStockSource, stockSourceIsBook,
-  wediSlotOf,
+  wediSlotOf, coverPickApplies,
 } from "./wedi.js";
 import { isSlot } from "./slots.js";
 
@@ -1406,7 +1406,7 @@ test("an old marker's coverKey reopens through buildFromMarker as the same cover
   const lin = group("cover").find((c) => c.sub === "linear" && c.finish === "MB" && c.len === 43);
   const k = kitFor("US9310001", { coverKey: lin.key });
   const back = buildFromMarker({ mode: "kit", cfg: { ...k.cfg, coverKey: lin.key, coverPick: undefined } });
-  assert.equal(back.lines.find((l) => l.item.group === "cover").item.finish, "MB");
+  assert.equal(back.lines.find((l) => l.item.group === "cover").item.key, "US1000083");
 });
 
 test("coverStyles groups a length's linear covers by style", () => {
@@ -1414,4 +1414,28 @@ test("coverStyles groups a length's linear covers by style", () => {
   assert.ok(s.solid.some((c) => c.finish === "SS"));
   assert.ok(s.perforated.some((c) => c.finish === "SSP"));
   assert.ok(s.tileable.some((c) => c.finish === "T"));
+});
+
+// --- 1a carry-overs (ticket 158 Phase 1b §5) ---------------------------------
+
+test("a point { key } cover pick lands through kitFor and rides the marker", () => {
+  const k = kitFor("US9100004", { coverPick: { key: "US1000058" } });
+  assert.equal(k.lines.find((l) => l.item.group === "cover").item.key, "US1000058");
+  assert.deepEqual(k.cfg.coverPick, { key: "US1000058" });
+});
+
+test("the cover frame re-sizes with the cover: the same MB choice on a 43″ and a 27″ channel", () => {
+  const drain = (pan) => kitFor(pan, { coverPick: { finish: "MB" }, coverFrame: "MB" }).lines
+    .filter((l) => l.item.group === "cover" || l.item.group === "coverFrame").map((l) => [l.item.key, l.item.len]);
+  assert.deepEqual(drain("US9310001"), [["US1000083", 43], ["US1000089", 43]]);
+  assert.deepEqual(drain("US9310002"), [["US1000082", 27], ["US1000088", 27]]);
+});
+
+test("coverPickApplies: a point pick on a linear pan, or a finish on a point pan, is inert", () => {
+  assert.equal(coverPickApplies({ finish: "MB" }, "US9310001"), true);
+  assert.equal(coverPickApplies({ key: "US1000058" }, "US9310001"), false);
+  assert.equal(coverPickApplies({ key: "US1000058" }, "US9100004"), true);
+  assert.equal(coverPickApplies({ finish: "MB" }, "US9100004"), false);
+  assert.equal(coverPickApplies({ finish: "MB" }, "US9320002"), true);
+  assert.equal(coverPickApplies(undefined, "US9100004"), false);
 });

@@ -17,9 +17,9 @@ import { TIER_COLOR } from "./uiconst.js";
 import {
   trayCandidates, pickRolls, buildKit, tierPrice, coverageOf, lineItems, orderCopyLines, normBench, benchTrayRoom,
   boardPlan, expandBoardFaces, wallArea, halfBoardPool, buildFromMarker, ovKey, sessionFromRows, slotOf, drainOptions,
-  resolveDrain, FINISH_LABEL, VARIO_DESIGN,
+  resolveDrain, FINISH_LABEL, VARIO_DESIGN, pointGrateLabel,
 } from "./schluter.js";
-import { SwapPop, fmDelta } from "./swappop.jsx";
+import { SwapPop, fmDelta, inchGlyph } from "./swappop.jsx";
 import { mortarItemFrom, MORTAR_BED_SF_PER_BAG } from "./schluteradapter.js";
 import { useSchluterCatalog } from "./useschlutercatalog.js";
 import { normKitBasketEntry } from "./model.js";
@@ -764,7 +764,7 @@ export default function SchluterConfigurator({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [catReady, cat]);
   const mode = kitPick && !manual.length && !benches.length && !liveXwalls.length && !cfg.drainX && !cfg.drainY
-    && !(cfg.corners || []).length && !cfg.maxIn && !cfg.ramp && !cfg.swaps && !cfg.drainPick ? "kit" : "custom";
+    && !(cfg.corners || []).length && !cfg.maxIn && !cfg.ramp && !cfg.swaps && !(cfg.drainPick && build?.drainFit) ? "kit" : "custom";
   // the saved marker records the PICKED tray too — Reconfigure must reopen on
   // the candidate that was quoted, not whatever ranks first that day
   const markCfg = useMemo(() => ({ ...cfg, manual, source, pick: pickCand?.tray?.sku || null }), [cfg, manual, source, pickCand]);
@@ -1015,7 +1015,7 @@ export default function SchluterConfigurator({
   // overwrite rule) — an untouched kit-to-kit hop stays one click.
   const kitDirty = manual.length > 0 || benches.length > 0 || liveXwalls.length > 0
     || (cfg.corners || []).length > 0 || !!cfg.maxIn || !!cfg.ramp || !!cfg.drainX || !!cfg.drainY
-    || Object.keys(qtyOv).length > 0 || Object.keys(swaps).length > 0 || !!drainPick
+    || Object.keys(qtyOv).length > 0 || Object.keys(swaps).length > 0 || (!!drainPick && !!build?.drainFit)
     || walls.some((x) => x.len !== "" || x.h !== "" || !x.on || !!x.faces)
     || tileNum > 0 || (!kitPick && pick != null);
   const tryKit = (t) => { if (kitDirty) setConfirmKit(t); else pickKit(t); };
@@ -2141,7 +2141,7 @@ export default function SchluterConfigurator({
       if (!pick) return null;
       const rest = cur.filter((l) => l.item.part !== "grate").map((l) => ({ ...l, qty: l.autoQty ?? l.qty }));
       const chips = list.map((e) => ({
-        key: e.sku, label: shown(e.name).replace(/^kerdi-drain\s+grate\s*/i, "") || shown(e.name),
+        key: e.sku, label: pointGrateLabel(e), so: !e.stock,
         ok: true, on: e.sku === swap.draft, onPick: () => setDraft(e.sku),
         title: [e.sku, e.stock ? "stock" : "special order", fm(tierOf(e))].join(" · "),
       }));
@@ -2179,7 +2179,7 @@ export default function SchluterConfigurator({
         title: st.ok ? "" : "not made at this length",
         onPick: () => setDraft(fam === "vario" ? keepFinish({ ...draft, design: st.key })
           : fam === "frameless" ? { family: fam, offset: st.key === "offset" } : { family: fam, style: st.key }) })) },
-      { label: "Frame", chips: o.frames.map((f) => ({ key: f.key, label: f.key.replace(/"/g, "″"), ok: f.ok,
+      { label: "Frame", chips: o.frames.map((f) => ({ key: f.key, label: inchGlyph(f.key), ok: f.ok,
         on: f.key === (draft.frame || got?.frame), title: f.ok ? "" : "not made in this style / length",
         onPick: () => setDraft(keepFinish({ ...draft, frame: f.key })) })) },
       { label: "Finish", chips: o.finishes.map((f) => ({ key: f.key, label: f.label, ok: f.ok,
@@ -2198,7 +2198,7 @@ export default function SchluterConfigurator({
       what = res.family === "frameless"
         ? `${res.len}″ ${g.offset ? "offset " : ""}body + frameless tileable grate`
         : `${res.len}″ body + ${res.len}″ ${low(o.styles.find((st) => st.key === (g.lock ? "lock" : g.style))?.label || g.style)} grate`
-          + (g.frame ? `, ${g.frame.replace(/"/g, "″")} frame` : "") + (g.finish ? ", " + low(FINISH_LABEL[g.finish] || g.finish) : "");
+          + (g.frame ? `, ${inchGlyph(g.frame)} frame` : "") + (g.finish ? ", " + low(FINISH_LABEL[g.finish] || g.finish) : "");
       why = [l0.note, l1.note].filter(Boolean).join(" · ");
     }
     return (

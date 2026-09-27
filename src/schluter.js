@@ -970,6 +970,14 @@ export function drainOptions(choice, panW, cat, { source } = {}) {
   return { family, families, styles, frames, finishes, fit, result: resolveDrain(c, panW, cat, { source }) };
 }
 
+/** A point grate's chip label — size, design and finish ("4″ floral, brushed"), not the row's "kit 4" floral brushed SS". */
+export function pointGrateLabel(e) {
+  const s = String((e && e.name) || "").replace(/^schluter\s+(?:—\s*)?/i, "").replace(/^kerdi-drain\s+/i, "")
+    .replace(/\b(grate|kit)\b/gi, "").replace(/\s+(brushed|polished)\s+(ss|stainless(\s+steel)?)\b/i, ", $1")
+    .replace(/"/g, "″").replace(/\s{2,}/g, " ").trim();
+  return s || (e && e.sku) || "";
+}
+
 export function buildKit(cfg, cat, { source, pick } = {}) {
   const L = [];
   const add = (g, item, qty, note) => {

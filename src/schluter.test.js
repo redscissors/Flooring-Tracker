@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
-import { ovKey, rowItemEntry, sessionFromRows, classify, catalogOf, coverageOf, trayCandidates, pickRolls, pickFrom, buildKit, buildFromMarker, linesTotal, tierPrice, lineItems, orderCopyLines, entryOpening, openRuns, boardPlan, boardSheets, expandBoardFaces, normBench, benchTrayRoom, slotOf, resolveDrain, drainOptions } from "./schluter.js";
+import { ovKey, rowItemEntry, sessionFromRows, classify, catalogOf, coverageOf, trayCandidates, pickRolls, pickFrom, buildKit, buildFromMarker, linesTotal, tierPrice, lineItems, orderCopyLines, entryOpening, openRuns, boardPlan, boardSheets, expandBoardFaces, normBench, benchTrayRoom, slotOf, resolveDrain, drainOptions, pointGrateLabel } from "./schluter.js";
 import { isSlot } from "./slots.js";
 
 const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
@@ -1128,4 +1128,50 @@ test("a drain choice survives the marker: buildFromMarker bills the same drain",
   assert.deepEqual(back.lines.filter((l) => l.g === "Drain").map((l) => l.item.sku), live.lines.filter((l) => l.g === "Drain").map((l) => l.item.sku));
   const old = buildFromMarker({ mode: "custom", cfg: { ...cfg({ w: 55, d: 55, drain: "linear" }), source: "all" } }, KLCAT);
   assert.equal(old.drainFit.family, "vario");
+});
+
+// --- 1a carry-overs (ticket 158 Phase 1b §5) ---------------------------------
+
+test("resolveDrain at a 36″ pan: Vario cuts the 48″ channel, fixed steps to 20″, frameless falls back", () => {
+  const v = resolveDrain(null, 36, KLCAT, { source: "all" });
+  assert.deepEqual([v.family, v.len, skus(v)], ["vario", 48, ["KLVRID5EB122", "KLVR2FLK"]]);
+  assert.match(v.lines[0].note, /^cut to 36"/);
+  const f = resolveDrain({ family: "fixed", style: "solid" }, 36, KLCAT, { source: "all" });
+  assert.deepEqual([f.family, f.len, f.gap, skus(f)], ["fixed", 20, 16, ["SLRKL1V60E50", "SLRKL1AR19EB50"]]);
+  assert.equal(f.lines[0].note, 'stepped down from 24" — Solid made to 20"');
+  for (const offset of [false, true]) {
+    const fl = resolveDrain({ family: "frameless", offset }, 36, KLCAT, { source: "all" });
+    assert.equal(fl.family, "vario");
+    assert.equal(fl.fallback, "frameless can't be made here: no frameless grate matches a body length that fits");
+  }
+});
+
+test("resolveDrain: a stocked grate beats a cheaper special-order one at the same length only under stock", () => {
+  const cat = catalogOf([...FIXTURE_ITEMS, ...KL_ROWS, { sku: "KL1AR19EB130", name: "stocked twin", price: 500, cost: 333.33, stock: true }]);
+  const c = { family: "fixed", style: "solid", finish: "EB" };
+  assert.deepEqual(skus(resolveDrain(c, 55, cat, { source: "all" })), ["SLRKL1V60E130", "SLRKL1AR19EB130"]);
+  const st = resolveDrain(c, 55, cat, { source: "stock" });
+  assert.deepEqual(skus(st), ["SLRKL1V60E130", "KL1AR19EB130"]);
+  assert.equal(st.lines[1].item.stock, true);
+});
+
+test("drainOptions: fit is 0 when no KERDI-LINE body fits, and no fixed style is ok", () => {
+  const o = drainOptions({ family: "fixed" }, 18, KLCAT, { source: "all" });
+  assert.equal(o.fit, 0);
+  assert.ok(o.styles.length > 0 && o.styles.every((s) => !s.ok));
+});
+
+test("a drainPick on a point tray is inert: no drainFit, the bill of no pick", () => {
+  const bill = (b) => b.lines.map((l) => (l.item.sku || l.item.name) + "×" + l.qty);
+  const plain = buildKit(cfg({}), KLCAT, { source: "all" });
+  const inert = buildKit(cfg({ drainPick: { family: "fixed", style: "solid" } }), KLCAT, { source: "all" });
+  assert.equal(inert.drainFit, null);
+  assert.deepEqual(bill(inert), bill(plain));
+});
+
+test("pointGrateLabel reads size, design and finish, not the row's catalog words", () => {
+  assert.equal(pointGrateLabel(by("KDIF4GRKEBD5")), "4″ floral, brushed");
+  assert.equal(pointGrateLabel(by("KD4GRKE")), "4″ stainless");
+  assert.equal(pointGrateLabel(by("KD4GRKECS")), "4″ tileable");
+  assert.equal(pointGrateLabel({ name: 'Schluter Kerdi-Drain Grate Kit 4" Floral Brushed Ss' }), "4″ Floral, Brushed");
 });

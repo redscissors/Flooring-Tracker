@@ -5043,6 +5043,13 @@ export function coverStyles(len) {
   return out;
 }
 
+/** Whether a saved coverPick bills on this pan — a point `{ key }` on a linear pan, or a `{ finish }` on a point pan, is kept but inert. */
+export function coverPickApplies(pick, panKey) {
+  const pan = typeof panKey === "string" ? item(panKey) : panKey;
+  if (!pick || !pan) return false;
+  return familyOf(pan) === "linear" ? !!pick.finish : !!pick.key;
+}
+
 // wedi's channel frame is a trim ring the linear cover drops into — a design
 // pick, never part of the house kit, so it rides in as an add-on. wedi lists
 // no perforated frame: a perforated cover wears the plain frame of its own

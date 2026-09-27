@@ -8,6 +8,12 @@ const money = (n) => "$" + (+n).toLocaleString("en-US", { minimumFractionDigits:
 /** The summary strip's change against the committed line: "+$12.30", "−$4.00", "±0". */
 export const fmDelta = (d) => (d > 0 ? "+" : d < 0 ? "−" : "±") + (d ? money(Math.abs(d)) : "0");
 
+const GLYPH = { "1/8": "⅛", "1/4": "¼", "3/8": "⅜", "1/2": "½", "5/8": "⅝", "3/4": "¾", "7/8": "⅞" };
+/** Inch text for a chip: '3/4"' → "¾″", '1-1/8"' → "1⅛″"; other fractions keep their digits. */
+export const inchGlyph = (s) => String(s || "")
+  .replace(/(?:(\d+)[-\s])?(\d+\/\d+)/g, (m, whole, f) => (GLYPH[f] ? (whole || "") + GLYPH[f] : m))
+  .replace(/"/g, "″");
+
 export function SwapPop({ at, className = "", title, rows, summary, onUse, onClose }) {
   return (
     <PopMenu at={at} width={460} pad={10} z={90} onClose={onClose}>
@@ -17,12 +23,13 @@ export function SwapPop({ at, className = "", title, rows, summary, onUse, onClo
           <div key={r.label} className="flex items-center gap-2 my-1.5 flex-wrap">
             <span className="w-[64px] text-[10px] font-extrabold uppercase tracking-wider text-slate-500">{r.label}</span>
             {r.chips.map((c) => (
-              <button key={c.key} type="button" title={c.title || ""} disabled={!c.ok}
+              <button key={c.key} type="button" title={c.title || (c.so ? "special order" : "")} disabled={!c.ok}
                 onClick={() => c.ok && c.onPick()}
                 className={"rounded-full px-2.5 py-0.5 font-bold border "
                   + (c.on ? "bg-[color:var(--ft-brand)] border-[color:var(--ft-brand)] text-white"
                     : c.ok ? "border-slate-400 bg-white" : "border-dashed border-slate-300 text-slate-400 cursor-not-allowed")}
                 data-drain-chip={r.label + ":" + c.key}>
+                {c.so && <span className="inline-block w-1.5 h-1.5 rounded-full mr-1 align-middle bg-[color:var(--s-rust,#B4552D)]" data-so-dot />}
                 {c.label}
               </button>
             ))}

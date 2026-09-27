@@ -22,7 +22,7 @@ import {
   tierPrice, lineItems, coverFrames, inch, round2, SKU, coverageOf, MODULE_DEPTH, MODEXT_DEPTH,
   FINISHES, GROUP_LABEL, BUILDER_MULT, SO_MIN_NET,
   normBench, benchPremades, benchPanRoom, benchPanPlan, smallerPanFor,
-  BENCH_CORNER_LBL, buildFromMarker, sessionFromRows, wediSlotOf, coverStyles, legacyCoverPick,
+  BENCH_CORNER_LBL, buildFromMarker, sessionFromRows, wediSlotOf, coverStyles, legacyCoverPick, coverPickApplies,
 } from "./wedi.js";
 import { SwapPop, fmDelta } from "./swappop.jsx";
 import { TopDown, Iso, railSplit, RAIL_DESIGN_W, curbHeight } from "./showerdraw.jsx";
@@ -927,7 +927,8 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   const geomDirty = wallsTouched || extraWalls.length > 0 || Object.values(corners).some(Boolean) || wallFlip || +wallH !== 96;
   const kitDirty = !!panKey && (geomDirty || Object.keys(qtyOv).length > 0 || manual.length > 0 || addons.length > 0
     || benches.length > 0
-    || opts.panelKey !== undefined || opts.curbKey !== undefined || opts.coverPick !== undefined
+    || opts.panelKey !== undefined || opts.curbKey !== undefined
+    || coverPickApplies(opts.coverPick, panKey)
     || opts.coverFrame !== undefined
     || opts.sealantForm !== "tube" || opts.recess !== undefined);
 
