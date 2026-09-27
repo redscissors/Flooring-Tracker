@@ -3,7 +3,7 @@
 // only usejobshowers.js may load it, via import().
 // Known limitation: wedi sizes come from whichever catalog is installed — the
 // transcribed fallback until a wedi popup installs the live book this session.
-import { item, normBench, curbRuns, curbWidth, curbInsets, expandWallFaces, panRoomDims } from "./wedi.js";
+import { item, normBench, curbRuns, curbWidth, curbInsets, expandWallFaces, panRoomDims, markerCurbKey } from "./wedi.js";
 import { classify, cfgBenches, wallArea } from "./schluter.js";
 import { schluterCurb } from "./schluterdraw.js";
 import { curbHeight, benchFootprint } from "./showerdraw.js";
@@ -91,12 +91,14 @@ export function wediPieces(cfg) {
   const walls = cfg.walls || [];
   const benches = (cfg.benches || []).map((b) => normBench(b, room));
   const bs = benchSq(benches);
-  const inset = cfg.maxIn && cfg.curbKey ? curbInsets(room, walls, cfg.curbKey, cfg.tileT) : null;
+  // a 1b marker names a curb choice, not a part (ADR 0049) — resolve it as the engine does
+  const curbKey = markerCurbKey(cfg);
+  const inset = cfg.maxIn && curbKey ? curbInsets(room, walls, curbKey, cfg.tileT) : null;
   const floor = floorSq(room, inset
     ? { x0: inset.left, y0: inset.back, x1: room.w - inset.right, y1: room.d - inset.entry }
     : { x0: 0, y0: 0, x1: room.w, y1: room.d }, benches);
-  const c = cfg.curbKey ? item(cfg.curbKey) : null;
-  const curb = !cfg.curbKey ? 0
+  const c = curbKey ? item(curbKey) : null;
+  const curb = !curbKey ? 0
     : c ? curbRuns(room, walls, cfg.corners, benches).openLen * (curbWidth(c) + 2 * curbHeight(c)) : null;
   let niche = 0;
   for (const a of cfg.addons || []) {
@@ -104,7 +106,7 @@ export function wediPieces(cfg) {
     niche = niche === null || s === null ? null : niche + s;
   }
   return {
-    w: room.w, d: room.d, curbed: !!cfg.curbKey,
+    w: room.w, d: room.d, curbed: !!curbKey,
     pieces: assemble({
       walls: expandWallFaces(walls).reduce((s, w) => s + (+w.len || 0) * (+w.h || 0), 0) + bs.face,
       floor, curb, niche, benchTop: bs.top,

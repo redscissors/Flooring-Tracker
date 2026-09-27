@@ -11,6 +11,7 @@ import { rowItemKey, sessionFromRows,
   curbWidth, curbInsets, applyCurbInset,
   setStockSource, clearStockSource, stockSourceIsBook,
   wediSlotOf, coverPickApplies,
+  resolveCurb, legacyCurbPick, curbOptions, curbPickOf, markerCurbKey,
 } from "./wedi.js";
 import { isSlot } from "./slots.js";
 
@@ -1438,4 +1439,100 @@ test("coverPickApplies: a point pick on a linear pan, or a finish on a point pan
   assert.equal(coverPickApplies({ finish: "MB" }, "US9100004"), false);
   assert.equal(coverPickApplies({ finish: "MB" }, "US9320002"), true);
   assert.equal(coverPickApplies(undefined, "US9100004"), false);
+});
+
+// --- Phase 1b: the curb choice (ticket 158) ----------------------------------
+
+const curbAt = (r) => [r.item ? r.item.key : null, r.qty];
+
+test("resolveCurb: each style × Auto across the 60″ boundary, fundo and linear", () => {
+  const got = {};
+  for (const fam of ["fundo", "linear"]) for (const sub of ["full", "lean", "at", "cap"])
+    got[fam + ":" + sub] = [curbAt(resolveCurb({ sub }, 60, fam)), curbAt(resolveCurb({ sub }, 72, fam))];
+  assert.deepEqual(got, {
+    "fundo:full": [["US3000039", 1], ["US3000041", 1]],
+    "fundo:lean": [["US3000038", 1], ["US3000040", 1]],
+    "fundo:at": [["US3000049", 1], ["US3000049", 2]],
+    "fundo:cap": [["US3000008", 1], ["US3000010", 1]],
+    "linear:full": [["US3000039", 1], ["US3000039", 2]],
+    "linear:lean": [["US3000038", 1], ["US3000038", 2]],
+    "linear:at": [["US3000049", 1], ["US3000049", 2]],
+    "linear:cap": [["US3000008", 1], ["US3000008", 2]],
+  });
+});
+
+test("resolveCurb: no pick is the recipe; a pinned length, none, AT profiles, and a style not made at the rule length", () => {
+  assert.deepEqual(curbAt(resolveCurb(undefined, 60, "fundo")), ["US3000038", 1]);
+  assert.deepEqual(curbAt(resolveCurb(undefined, 72, "fundo")), ["US3000040", 1]);
+  assert.deepEqual(curbAt(resolveCurb(undefined, 72, "linear")), ["US3000038", 2]);
+  assert.deepEqual(curbAt(resolveCurb(undefined, 72, "curbless")), [null, 0]);
+  assert.deepEqual(curbAt(resolveCurb({ sub: "lean" }, 72, "curbless")), ["US3000040", 1]);
+  assert.deepEqual(curbAt(resolveCurb({ sub: "full", len: 60 }, 72, "fundo")), ["US3000039", 2]);
+  assert.deepEqual(curbAt(resolveCurb({ none: true }, 60, "fundo")), [null, 0]);
+  assert.deepEqual(curbAt(resolveCurb({ sub: "at", profile: "full" }, 60, "fundo")), ["US3000048", 1]);
+  const at = resolveCurb({ sub: "at" }, 72, "fundo");
+  assert.deepEqual(curbAt(at), ["US3000049", 2]);
+  assert.equal(at.note, 'AT not made at 96" — 60" used · 72" of open edge — cut to fit');
+  assert.equal(resolveCurb({ sub: "full" }, 72, "fundo").note, 'cut to 72"');
+});
+
+test("legacyCurbPick: the recipe's own curb reads as no pick; null is none; any other curb keeps its length", () => {
+  assert.equal(legacyCurbPick(undefined, "fundo", 60), undefined);
+  assert.equal(legacyCurbPick("US3000038", "fundo", 60), undefined);
+  assert.deepEqual(legacyCurbPick("US3000038", "fundo", 72), { sub: "lean", len: 60 });
+  assert.equal(legacyCurbPick("US3000040", "fundo", 72), undefined);
+  assert.equal(legacyCurbPick("US3000038", "linear", 72), undefined);
+  assert.deepEqual(legacyCurbPick(null, "fundo", 60), { none: true });
+  assert.equal(legacyCurbPick(null, "curbless", 60), undefined);
+  assert.deepEqual(legacyCurbPick("US3000049", "fundo", 60), { sub: "at", len: 60, profile: "lean" });
+  assert.equal(legacyCurbPick("NOPE", "fundo", 60), undefined);
+});
+
+test("curbOptions: Style → Profile (AT only) → Length; Auto first, a length not made is not ok", () => {
+  const o = curbOptions(undefined, 60, "fundo");
+  assert.deepEqual(o.styles.map((c) => [c.key, c.on]), [["full", false], ["lean", true], ["at", false], ["cap", false], ["none", false]]);
+  assert.deepEqual(o.profiles, []);
+  assert.deepEqual(o.lengths.map((c) => [c.key, c.ok, c.on]), [["auto", true, true], ["60", true, false], ["96", true, false]]);
+  assert.equal(o.recipe, true);
+  const at = curbOptions({ sub: "at" }, 72, "fundo");
+  assert.deepEqual(at.profiles.map((c) => [c.key, c.on]), [["full", false], ["lean", true]]);
+  assert.deepEqual(at.profiles[0].next, { sub: "at", profile: "full" });
+  assert.deepEqual(at.lengths.map((c) => [c.key, c.ok]), [["auto", true], ["60", true], ["96", false]]);
+  assert.equal(at.recipe, false);
+  const cap = curbOptions({ sub: "cap", len: 96 }, 72, "fundo");
+  assert.deepEqual(cap.lengths.map((c) => [c.key, c.so, c.on]), [["auto", false, false], ["60", false, false], ["96", true, true]]);
+  assert.equal(curbOptions({ none: true }, 60, "curbless").recipe, true);
+  assert.equal(curbOptions({ none: true }, 60, "fundo").recipe, false);
+});
+
+test("kitFor: curbPick is written only when picked, never curbKey; a style re-fits when the opening grows", () => {
+  const plain = kitFor("US9100004", { room: { w: 60, d: 36 } });
+  assert.equal("curbKey" in plain.cfg, false);
+  assert.equal("curbPick" in plain.cfg, false);
+  assert.deepEqual(plain.curbFit, { openLen: 60, fam: "fundo" });
+  const curbLines = (k) => k.lines.filter((l) => l.item.group === "curb").map((l) => [l.item.key, l.qty]);
+  const at60 = kitFor("US9100004", { room: { w: 60, d: 36 }, curbPick: { sub: "full" } });
+  assert.deepEqual(curbLines(at60), [["US3000039", 1]]);
+  assert.deepEqual(at60.cfg.curbPick, { sub: "full" });
+  assert.deepEqual(curbLines(kitFor("US9100004", { room: { w: 84, d: 36 }, curbPick: { sub: "full" } })), [["US3000041", 1]]);
+});
+
+test("an old marker saved with the default 60″ curb re-fits to 96″ once the opening grows (the 1b bug)", () => {
+  const old = { ...kitFor("US9100004", { room: { w: 60, d: 36 } }).cfg, curbKey: "US3000038", panelKey: "US8000017" };
+  const pick = curbPickOf(old);
+  assert.equal(pick, undefined);
+  const grown = kitFor("US9100004", { room: { w: 72, d: 36 }, curbPick: pick });
+  assert.deepEqual(grown.lines.filter((l) => l.item.group === "curb").map((l) => [l.item.key, l.qty]), [["US3000040", 1]]);
+  assert.deepEqual(curbPickOf({ ...old, curbKey: "US3000039" }), { sub: "full", len: 60 });
+});
+
+test("markerCurbKey: the curb a marker bills — legacy key as saved, else the choice resolved at its opening", () => {
+  const k = kitFor("US9100004", { room: { w: 60, d: 36 } });
+  assert.equal(markerCurbKey(k.cfg), "US3000038");
+  assert.equal(markerCurbKey({ ...k.cfg, curbPick: { sub: "full" } }), "US3000039");
+  assert.equal(markerCurbKey(kitFor("US9100004", { room: { w: 84, d: 36 }, curbPick: { sub: "full" } }).cfg), "US3000041");
+  assert.equal(markerCurbKey({ ...k.cfg, curbPick: { none: true } }), null);
+  assert.equal(markerCurbKey({ ...k.cfg, curbKey: "US3000008" }), "US3000008");
+  assert.equal(markerCurbKey(kitFor("US9200003").cfg), null);
+  assert.equal(markerCurbKey(kitFor("US9100006").cfg), "US3000040");
 });
