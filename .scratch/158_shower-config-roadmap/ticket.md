@@ -90,20 +90,39 @@ per group → 1d shared names / Compare alignment (owner). **1a DONE
 
 The Vario pan-width rule shipped early in PR #436.
 
-**Carry into 1b (review minors deferred from 1a):**
-- Move the Δ formatter duplicated in both popups into `drainswap.jsx`.
-- An inert carried pick (Schluter `drainPick` on a point build; a wedi pick
-  on the wrong pan type) still forces custom/kitDirty and rides the marker —
-  gate on whether it bills.
-- Point-grate chip labels ("kit 4″ floral brushed SS") and no SO marker on
-  chips; frame chips "3/4″" vs "¾″"; wedi finish chips repeat the style.
-- Schluter kit-card thumbnails draw Vario at full width under a fixed pick.
-- Tests: families at 36″; stocked vs SO at the same length; `fit === 0`;
-  a point `{key}` through `kitFor`; wedi frame re-sizes with cover length;
-  the wedi round-trip asserting the SKU, not just the finish.
+**1b DONE (2026-09-27):**
+
+- **Spec:** `docs/superpowers/specs/2026-09-26-swap-every-line-design.md`
+- **Plan:** `docs/superpowers/plans/2026-09-27-swap-every-line.md`
+- **ADR:** `docs/adr/0049-configurator-swaps-remember-the-choice.md` (amended)
+- **Proof:** `.scratch/158_shower-config-roadmap/p1b/`
+- **PR:** [redscissors/Flooring-Tracker#438](https://github.com/redscissors/Flooring-Tracker/pull/438)
+
+**Carry into 1c+ (what's left):**
+- Schluter kit-card thumbnails draw Vario at full width under a fixed drain
+  pick.
 - Wording: Vario substitution note on a finish-only miss; fixed-fallback
   reason (double space, offset case); Vario design swap on >96″ pans has no
   note; `schluterDiag` doc comment.
+- wedi finish chips repeat the style.
+- **Owner call (1b):** the no-choice KERDI-BAND pick searches every width,
+  so under Full catalog the landed width can depend on registry row order
+  (e.g. an SO 7¼″ over a stocked 5″). Proposed: no choice = the narrowest
+  width carried, stock-first. Changes default bills, so it waits for the owner.
+- **Owner call (1b):** a stale wedi `curbKey` bills the recipe curb (R2) but
+  tile sf reads the saved key ("enter manually"). If R2 stands, make
+  `markerCurbKey` fall through to the recipe for an unknown key.
+- 1b review minors: spec line on `canSwap` ("counts only the Stock-only
+  pool") is stale — it now also counts the committed sku; a Browse-added line
+  that merges into a kit line of the same key keeps its ⇄; the curb drawing
+  draws a Browse-added curb on a curbless kit; `markerOpen()` extraction in
+  wedi.js; the Walls one-size swap duplicates `wrapBoard` inline; stale-pick
+  note says "not in the book" for a key that is in the book but isn't a kit;
+  test gaps (membrane `so`, stock-source options, roll-only band, bench
+  round-trip, SO fastener under stock).
+- Pre-existing: bench lines sharing a board sku share one hand-set qty; the
+  drawing labels a Schluter build-up bench "2″ wedi"; the build prints a CSS
+  minify warning (`Expected identifier but found "-"`).
 
 Every build line belongs to a named slot, identical for both brands: Tray ·
 Drain body · Grate/cover · Flange · Wall board · Wall membrane · Seam/band ·

@@ -98,10 +98,14 @@ function SearchStrip() {
   );
 }
 
+// ?seed=<json> — open the popup on a hand-written saved marker ({ mode, cfg }),
+// so the drive can reopen a marker shape the UI no longer writes.
+const URL_SEED = (() => { try { return JSON.parse(new URLSearchParams(location.search).get("seed")); } catch { return null; } })();
+
 function Harness() {
   const [cats, setCats] = useState([{ ...newArea(), name: "Master bath", products: [newProduct()] }]);
   const [basket, setBasket] = useState([]);
-  const [pop, setPop] = useState({ aid: null, pid: null, seed: null, n: 0 });
+  const [pop, setPop] = useState({ aid: null, pid: null, seed: URL_SEED, n: 0 });
   const aid = pop.aid || cats[0].id, pid = pop.pid || cats[0].products.at(-1).id;
   const row = cats.find((a) => a.id === aid)?.products.find((p2) => p2.id === pid);
   return (<>

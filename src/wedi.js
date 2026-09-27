@@ -4455,7 +4455,7 @@ function sealantItem(form, six20) {
   return item(form === "tube" ? SKU.sealantTube : SKU.sealantSausage);
 }
 
-export function figureConsumables(panelSf, form) {
+export function figureConsumables(panelSf, form, fastenerKey) {
   const sf = Math.max(0, +panelSf || 0);
   form = form === "tube" ? "tube" : "sausage";
   const oz = round2(sf * CONSUMABLES.sealantOzPerSf);
@@ -4470,11 +4470,20 @@ export function figureConsumables(panelSf, form) {
     // Today both codes survive a thinned book because WEDI_SO also carries
     // them — 22 of the 24 SKU.* constants have that pricelist twin. 8b retires
     // WEDI_SO, and then they don't.
-    const fastenerKit = item(SKU.fastenerKit);
+    // a swapped kit (Phase 1b) counts by its own "N ct"; the house kit keeps the recipe's 100.
+    // Honoured only when it's one of the boxed kits (fastenerKits()) — a stray
+    // fastener SKU (a washer master pack) is not a kit swap and falls back like
+    // an unrecognized key, never silently substituted.
+    const picked = fastenerKey ? item(fastenerKey) : null;
+    const honoured = picked && fastenerKits().some((f) => f.key === picked.key) ? picked : null;
+    const fastenerKit = honoured || item(SKU.fastenerKit);
+    const fastenerStale = !!fastenerKey && !honoured;
+    const ctM = honoured && honoured.key !== SKU.fastenerKit ? /(\d+)\s*ct/i.exec(honoured.sizeText || "") : null;
     const sealant = sealantItem(form, false);
     if (fastenerKit) lines.push({
-      item: fastenerKit, qty: Math.ceil(fastenerCount / CONSUMABLES.fastenerKitCt),
-      group: "install", auto: true, note: "",
+      item: fastenerKit, qty: Math.ceil(fastenerCount / (ctM ? +ctM[1] : CONSUMABLES.fastenerKitCt)),
+      group: "install", auto: true,
+      note: fastenerStale ? fastenerKey + " not in the book — house kit" : "",
     });
     if (sealant) lines.push({
       item: sealant, qty: Math.ceil(oz / per),
@@ -5043,6 +5052,13 @@ export function coverStyles(len) {
   return out;
 }
 
+/** Whether a saved coverPick bills on this pan — a point `{ key }` on a linear pan, or a `{ finish }` on a point pan, is kept but inert. */
+export function coverPickApplies(pick, panKey) {
+  const pan = typeof panKey === "string" ? item(panKey) : panKey;
+  if (!pick || !pan) return false;
+  return familyOf(pan) === "linear" ? !!pick.finish : !!pick.key;
+}
+
 // wedi's channel frame is a trim ring the linear cover drops into — a design
 // pick, never part of the house kit, so it rides in as an add-on. wedi lists
 // no perforated frame: a perforated cover wears the plain frame of its own
@@ -5069,6 +5085,167 @@ export function coverFrameFor(cover, finish) {
     if (hit) return hit;
   }
   return match[0] || null;
+}
+
+// ---------------------------------------------------------------------------
+// Curb choice (ticket 158 Phase 1b, ADR 0049): `cfg.curbPick` names a style
+// and optionally a length — never a part — so the recipe's length rule re-runs
+// every build and a grown opening re-fits. The AT style comes as a full-foam
+// and a lean piece at one length, so an AT choice may also name its `profile`.
+
+const CURB_STYLES = [["full", "Full"], ["lean", "Lean"], ["at", "AT"], ["cap", "Cap"]];
+const CURB_WORD = Object.fromEntries(CURB_STYLES);
+export const curbProfile = (c) => (/lean/i.test(c.name) ? "lean" : "full");
+
+// The length Auto takes: a linear pan 60", multiplied to cover; a fundo pan
+// (and any other family a curb is picked onto) 60" up to a 60" opening, else 96".
+const curbRuleLen = (fam, openLen) => (fam === "linear" ? 60 : openLen > 60 ? 96 : 60);
+
+const openLenOf = (dims, walls, corners, benches) =>
+  curbRuns(dims, walls, corners, benches).openLen || (benches.length ? 0 : dims.w);
+
+/**
+ * A curb choice → the curb line for `openLen` of open edge on a pan of family
+ * `fam`. No choice is the recipe: the lean curb on fundo and linear pans, no
+ * curb on the rest. `{ none: true }` bills none. A style not made at the
+ * wanted length takes its longest made length, multiplied, and says so; a
+ * style the books don't carry falls back to lean with a note.
+ */
+export function resolveCurb(pick, openLen, fam) {
+  const none = { item: null, qty: 0, note: "", len: 0 };
+  if (pick && pick.none) return none;
+  if (!pick && fam !== "fundo" && fam !== "linear") return none;
+  const all = group("curb").filter((c) => c.len);
+  let sub = (pick && pick.sub) || "lean", missing = "";
+  let inStyle = all.filter((c) => c.sub === sub && (!pick || !pick.profile || curbProfile(c) === pick.profile));
+  if (!inStyle.length && sub !== "lean") {
+    missing = (CURB_WORD[sub] || sub) + " curb not in the books — lean used";
+    sub = "lean";
+    inStyle = all.filter((c) => c.sub === "lean");
+  }
+  if (!inStyle.length) return none;
+  const want = (pick && pick.len) || curbRuleLen(fam, openLen);
+  const lens = [...new Set(inStyle.map((c) => c.len))].sort((a, b) => a - b);
+  const len = lens.includes(want) ? want : lens[lens.length - 1];
+  const it = inStyle.filter((c) => c.len === len).sort(byStockThenPrice)[0];
+  const qty = openLen > 0 ? Math.max(1, Math.ceil((openLen - 0.01) / len)) : 0;
+  const fit = qty > 1 ? round2(openLen) + '" of open edge — cut to fit' : len > openLen ? "cut to " + round2(openLen) + '"' : "";
+  const why = missing || (len !== want ? (CURB_WORD[sub] || sub) + ' not made at ' + want + '" — ' + len + '" used' : "");
+  return { item: it, qty, note: [why, fit].filter(Boolean).join(" · "), len };
+}
+
+/** An old marker's resolved curbKey → the choice it stands for at this pan and opening; the recipe's own curb reads as no choice. */
+export function legacyCurbPick(key, fam, openLen) {
+  if (key === undefined) return undefined;
+  const def = resolveCurb(undefined, openLen, fam).item;
+  if (key === null) return def ? { none: true } : undefined;
+  if (def && key === def.key) return undefined;
+  const c = item(key);
+  if (!c || c.group !== "curb" || !c.len) return undefined;
+  return { sub: c.sub, len: c.len, ...(c.sub === "at" ? { profile: curbProfile(c) } : {}) };
+}
+
+// A choice that bills exactly what no choice would, so Use this stores none.
+const curbIsRecipe = (pick, fam) => (fam === "fundo" || fam === "linear"
+  ? !pick || (pick.sub === "lean" && !pick.len && !pick.profile)
+  : !pick || !!pick.none);
+
+/**
+ * The curb popover's rows — Style (plus No curb) → Profile (AT only) →
+ * Length (Auto first) — each chip's `next` the choice it drafts and its `ok`
+ * whether the style is made at that length. `recipe` says the draft bills
+ * what no choice would.
+ */
+export function curbOptions(pick, openLen, fam) {
+  const all = group("curb").filter((c) => c.len);
+  const result = resolveCurb(pick, openLen, fam);
+  const cur = result.item;
+  const sub = cur ? cur.sub : null;
+  const soAll = (list) => list.length > 0 && !list.some((c) => c.stock);
+  const styles = [
+    ...CURB_STYLES.filter(([k]) => all.some((c) => c.sub === k)).map(([key, label]) => ({
+      key, label, ok: true, so: soAll(all.filter((c) => c.sub === key)), on: key === sub, next: { sub: key },
+    })),
+    { key: "none", label: "No curb", ok: true, so: false, on: !cur, next: { none: true } },
+  ];
+  const inStyle = sub ? all.filter((c) => c.sub === sub) : [];
+  const profs = [...new Set(inStyle.map(curbProfile))];
+  const prof = cur && profs.length > 1 ? curbProfile(cur) : null;
+  const profiles = prof ? profs.map((p) => ({
+    key: p, label: p === "lean" ? "Lean" : "Full foam", ok: true, so: soAll(inStyle.filter((c) => curbProfile(c) === p)),
+    on: p === prof, next: { ...pick, sub, profile: p },
+  })) : [];
+  const inProf = prof ? inStyle.filter((c) => curbProfile(c) === prof) : inStyle;
+  const base = sub ? { sub, ...(prof && pick && pick.profile ? { profile: prof } : {}) } : null;
+  const lengths = sub ? [
+    { key: "auto", label: "Auto", ok: true, so: false, on: !(pick && pick.len), next: base },
+    ...[...new Set(all.map((c) => c.len))].sort((a, b) => a - b).map((L) => {
+      const at = inProf.filter((c) => c.len === L);
+      return { key: String(L), label: L + '"', ok: at.length > 0, so: soAll(at), on: !!(pick && pick.len === L), next: { ...base, len: L } };
+    }),
+  ] : [];
+  return { styles, profiles, lengths, result, recipe: curbIsRecipe(pick, fam) };
+}
+
+/** The curb a saved marker bills (tile sf reads it): a legacy curbKey as saved, else the choice resolved at the marker's own opening. */
+export function markerCurbKey(cfg) {
+  const pan = cfg && cfg.panKey ? item(cfg.panKey) : null;
+  if (!pan) return null;
+  if (!cfg.curbPick && cfg.curbKey !== undefined) return cfg.curbKey;
+  const room = cfg.room ? { w: +cfg.room.w || 0, d: +cfg.room.d || 0 } : panRoomDims(pan);
+  const walls = cfg.walls && cfg.walls.length ? cfg.walls : defaultWalls(pan, cfg.room || null);
+  const benches = (cfg.benches || []).map((b) => normBench(b, room));
+  const r = resolveCurb(cfg.curbPick, openLenOf(room, walls, cfg.corners, benches), familyOf(pan));
+  return r.item ? r.item.key : null;
+}
+
+/** A marker's curb choice for the popup: its curbPick, else an old curbKey translated at the marker's own opening. */
+export function curbPickOf(cfg) {
+  if (!cfg || cfg.curbPick) return cfg ? cfg.curbPick : undefined;
+  const pan = cfg.panKey ? item(cfg.panKey) : null;
+  if (!pan || cfg.curbKey === undefined) return undefined;
+  const room = cfg.room ? { w: +cfg.room.w || 0, d: +cfg.room.d || 0 } : panRoomDims(pan);
+  const walls = cfg.walls && cfg.walls.length ? cfg.walls : defaultWalls(pan, cfg.room || null);
+  const benches = (cfg.benches || []).map((b) => normBench(b, room));
+  return legacyCurbPick(cfg.curbKey, familyOf(pan), openLenOf(room, walls, cfg.corners, benches));
+}
+
+// Wall panels by Type → Thickness → Size (ticket 158 Phase 1b). The part is
+// the choice (the sheet count re-fits), so each chip names the panel it lands
+// on: stocked first, then the cheapest — a special-order twin of a stocked
+// sheet is never a chip.
+const PANEL_TYPE = { board: "Standard", vapor: "Vapor 85", kit: "Panel kit" };
+const panelSize = (p) => p.w + "x" + p.d;
+export const panelSheets = (sf, panel) => (panel && panel.sf ? Math.ceil(sf / panel.sf) : 0);
+
+/** The wall-panel popover's rows for the drafted panel `key` (the house panel when none). */
+export function panelOptions(key) {
+  const all = group("panel").filter((p) => p.sf > 0);
+  const cur = (key && all.find((p) => p.key === key)) || item(SKU.panelDefault);
+  if (!cur) return { cur: null, types: [], thicknesses: [], sizes: [] };
+  const best = (list) => list.slice().sort(byStockThenPrice)[0] || null;
+  const chip = (key2, label, p, on) => ({ key: key2, label, ok: !!p, so: !!p && !p.stock, on, next: p ? p.key : null });
+  const types = [...new Set(all.map((p) => p.sub))].map((s) => {
+    const l = all.filter((p) => p.sub === s);
+    const p = best(l.filter((x) => x.t === cur.t && panelSize(x) === panelSize(cur))) || best(l.filter((x) => x.t === cur.t)) || best(l);
+    return chip(s, PANEL_TYPE[s] || s, p, s === cur.sub);
+  });
+  const inType = all.filter((p) => p.sub === cur.sub);
+  const thicknesses = [...new Set(inType.map((p) => p.t))].sort((a, b) => a - b).map((t) => {
+    const l = inType.filter((p) => p.t === t);
+    return chip(String(t), inch(t) + '"', best(l.filter((x) => panelSize(x) === panelSize(cur))) || best(l), t === cur.t);
+  });
+  const inThick = inType.filter((p) => p.t === cur.t);
+  const sizes = [...new Set(inThick.map(panelSize))].map((s) => {
+    const p = best(inThick.filter((x) => panelSize(x) === s));
+    return chip(s, ftLbl(p.w) + "×" + ftLbl(p.d), p, s === panelSize(cur));
+  });
+  return { cur, types, thicknesses, sizes };
+}
+
+/** The fastener kits a build can take in place of the house kit — screws and washers boxed together. */
+export function fastenerKits() {
+  return group("fastener").filter((f) => /kit/i.test(f.name) && f.sub !== "vapor");
 }
 
 /**
@@ -5119,7 +5296,10 @@ export function kitFor(panKey, opts) {
   const room = opts.room || (option ? { w: option.room.w, d: option.room.d } : null);
   const walls = opts.walls || defaultWalls(pan, room, opts.wallHeight);
   const form = opts.sealantForm === "tube" ? "tube" : "sausage";
-  const panel = item(opts.panelKey || SKU.panelDefault) || item(SKU.panelDefault);
+  const panelPick = opts.panelKey ? item(opts.panelKey) : null;
+  const validPanel = !!(panelPick && panelPick.group === "panel" && panelPick.sf > 0);
+  const panel = validPanel ? panelPick : item(SKU.panelDefault);
+  const panelStale = !!opts.panelKey && !validPanel;
   const lines = [], hints = [];
   const roomDims = room || panRoomDims(pan);
   const benches = (opts.benches || []).map((x) => normBench(x, roomDims));
@@ -5193,11 +5373,12 @@ export function kitFor(panKey, opts) {
   }
 
   // --- walls -----------------------------------------------------------------
-  const sheets = panel && panel.sf ? Math.ceil(panelSf / panel.sf) : 0;
+  const sheets = panelSheets(panelSf, panel);
   // A live book can drop the default panel; the floor in usewedicatalog.js
   // refuses such a book, and this is the belt to that brace.
   if (panel) push(lines, panel, sheets, "walls",
-    round2(panelSf) + " sf of wall — " + (panel.sf || 0) + " sf/sheet", true);
+    round2(panelSf) + " sf of wall — " + (panel.sf || 0) + " sf/sheet"
+      + (panelStale ? " · " + opts.panelKey + " not in the book — default panel used" : ""), true);
   else hints.push("no-panel");
 
   // --- benches ---------------------------------------------------------------
@@ -5208,19 +5389,11 @@ export function kitFor(panKey, opts) {
   // The curb runs the room's OPEN perimeter — every edge run no wall covers —
   // minus what the benches take, so turning a wall off (or shortening it)
   // grows the curb to match and a bench shrinks it.
-  const openLen = curbRuns(roomDims, walls, opts.corners, benches).openLen
-    || (benches.length ? 0 : roomDims.w);
-  let curbKey = opts.curbKey;
-  if (curbKey === undefined && fam === "fundo") curbKey = openLen > 60 ? SKU.curbLean96 : SKU.curbLean60;
-  if (curbKey === undefined && fam === "linear") curbKey = SKU.curbLean60;
-  if (curbKey && openLen > 0) {
-    const curb = item(curbKey);
-    const per = curb && curb.len ? curb.len : 0;
-    const n = per ? Math.max(1, Math.ceil((openLen - 0.01) / per)) : 1;
-    push(lines, curb, n, "floor",
-      n > 1 ? round2(openLen) + '" of open edge — cut to fit'
-        : per > openLen ? "cut to " + round2(openLen) + '"' : "", true);
-  }
+  const openLen = openLenOf(roomDims, walls, opts.corners, benches);
+  // an old marker's resolved curbKey reads as the choice it stood for (ADR 0049)
+  const curbPick = opts.curbPick !== undefined ? opts.curbPick : legacyCurbPick(opts.curbKey, fam, openLen);
+  const curb = resolveCurb(curbPick, openLen, fam);
+  if (curb.item && curb.qty > 0) push(lines, curb.item, curb.qty, "floor", curb.note, true);
 
   // --- drain finish ----------------------------------------------------------
   const coverPick = opts.coverPick || legacyCoverPick(opts.coverKey);
@@ -5253,7 +5426,8 @@ export function kitFor(panKey, opts) {
   // --- consumables + install -------------------------------------------------
   // Bench surfaces (tops + faces, framed wraps) seal and fasten like wall
   // panel; premades whose kit already includes the sealant contribute nothing.
-  const con = figureConsumables(panelSf + bl.surfSf, form);
+  const con = figureConsumables(panelSf + bl.surfSf, form, opts.fastenerKey);
+  const fastener = con.lines.find((l) => l.item.group === "fastener");
   con.lines.forEach((l) => { lines.push(l); });
   push(lines, SKU.collarValve, 1, "install", "mixing valve", true);
   push(lines, SKU.collarPipe, 1, "install", "shower arm / pipe", true);
@@ -5286,8 +5460,10 @@ export function kitFor(panKey, opts) {
   });
   lines.forEach((l) => { l.slot = wediSlotOf(l); });
   const cfg = {
-    panKey: pan.key, walls: cfgWalls, panelKey: panel ? panel.key : null,
-    curbKey: curbKey || null,
+    panKey: pan.key, walls: cfgWalls,
+    ...(panel && panel.key !== SKU.panelDefault ? { panelKey: panel.key } : {}),
+    ...(curbPick ? { curbPick } : {}),
+    ...(fastener && fastener.item.key !== SKU.fastenerKit ? { fastenerKey: fastener.item.key } : {}),
     ...(coverPick ? { coverPick } : {}),
     coverFrame: frame ? frame.finish : null,
     sealantForm: form, recess: recess,
@@ -5301,7 +5477,7 @@ export function kitFor(panKey, opts) {
 
   return {
     pan: pan, lines: lines, panelSf: round2(panelSf), factory: factory, hints: hints,
-    mode: opts.mode || (option ? "custom" : "kit"), cfg: cfg,
+    mode: opts.mode || (option ? "custom" : "kit"), cfg: cfg, curbFit: { openLen, fam },
     consumables: con, soNet: round2(soNet), benches: benches, panPlan: panPlan,
   };
 }
@@ -5331,7 +5507,7 @@ export function buildFromMarker(marker) {
     walls: cfg.walls && cfg.walls.length ? cfg.walls.map((w) => ({ ...w })) : undefined,
     wallHeight: cfg.walls && cfg.walls[0] ? +cfg.walls[0].h : undefined,
     panelKey: cfg.panelKey || undefined,
-    curbKey: cfg.curbKey,
+    curbPick: cfg.curbPick, curbKey: cfg.curbKey, fastenerKey: cfg.fastenerKey,
     coverPick: cfg.coverPick || legacyCoverPick(cfg.coverKey),
     coverFrame: cfg.coverFrame || undefined,
     sealantForm: cfg.sealantForm, recess: cfg.recess,

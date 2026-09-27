@@ -103,3 +103,11 @@ test("jobShowers keeps an unmeasurable kit on the list, marked unmeasured", () =
   const cats = [{ id: "a1", name: "Master Bath", products: [{ id: "r1", kitId: "k1", wedi: { mode: "custom", cfg: { ...base, panKey: "NOPE" } } }] }];
   assert.deepEqual(jobShowers(cats), [{ key: "k1", vendor: "wedi", areaName: "Master Bath", size: "", curbed: false, pieces: [], unmeasured: true }]);
 });
+
+test("wedi: a 1b marker (a curb choice, no curbKey) tiles the curb that choice bills", () => {
+  assert.deepEqual(sf(wediPieces(base)), { walls: 88, floor: 15, curb: 3.8 });
+  assert.equal(wediPieces(base).curbed, true);
+  assert.deepEqual(sf(wediPieces({ ...base, curbPick: { sub: "cap" } })), { walls: 88, floor: 15, curb: 6.1 });
+  assert.equal(wediPieces({ ...base, curbPick: { none: true } }).curbed, false);
+  assert.equal(sf(wediPieces({ ...base, curbPick: { sub: "cap" }, maxIn: true, tileT: 0.375 })).floor, 13.2);
+});

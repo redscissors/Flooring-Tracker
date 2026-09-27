@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
-import { ovKey, rowItemEntry, sessionFromRows, classify, catalogOf, coverageOf, trayCandidates, pickRolls, pickFrom, buildKit, buildFromMarker, linesTotal, tierPrice, lineItems, orderCopyLines, entryOpening, openRuns, boardPlan, boardSheets, expandBoardFaces, normBench, benchTrayRoom, slotOf, resolveDrain, drainOptions } from "./schluter.js";
+import { ovKey, rowItemEntry, sessionFromRows, classify, catalogOf, coverageOf, trayCandidates, pickRolls, pickFrom, buildKit, buildFromMarker, linesTotal, tierPrice, lineItems, orderCopyLines, entryOpening, openRuns, boardPlan, boardSheets, expandBoardFaces, normBench, benchTrayRoom, slotOf, resolveDrain, drainOptions, pointGrateLabel,
+  resolveMembrane, membraneOptions, resolveBand, bandOptions, bandWidthLabel } from "./schluter.js";
 import { isSlot } from "./slots.js";
 
 const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
@@ -1128,4 +1129,214 @@ test("a drain choice survives the marker: buildFromMarker bills the same drain",
   assert.deepEqual(back.lines.filter((l) => l.g === "Drain").map((l) => l.item.sku), live.lines.filter((l) => l.g === "Drain").map((l) => l.item.sku));
   const old = buildFromMarker({ mode: "custom", cfg: { ...cfg({ w: 55, d: 55, drain: "linear" }), source: "all" } }, KLCAT);
   assert.equal(old.drainFit.family, "vario");
+});
+
+// --- 1a carry-overs (ticket 158 Phase 1b §5) ---------------------------------
+
+test("resolveDrain at a 36″ pan: Vario cuts the 48″ channel, fixed steps to 20″, frameless falls back", () => {
+  const v = resolveDrain(null, 36, KLCAT, { source: "all" });
+  assert.deepEqual([v.family, v.len, skus(v)], ["vario", 48, ["KLVRID5EB122", "KLVR2FLK"]]);
+  assert.match(v.lines[0].note, /^cut to 36"/);
+  const f = resolveDrain({ family: "fixed", style: "solid" }, 36, KLCAT, { source: "all" });
+  assert.deepEqual([f.family, f.len, f.gap, skus(f)], ["fixed", 20, 16, ["SLRKL1V60E50", "SLRKL1AR19EB50"]]);
+  assert.equal(f.lines[0].note, 'stepped down from 24" — Solid made to 20"');
+  for (const offset of [false, true]) {
+    const fl = resolveDrain({ family: "frameless", offset }, 36, KLCAT, { source: "all" });
+    assert.equal(fl.family, "vario");
+    assert.equal(fl.fallback, "frameless can't be made here: no frameless grate matches a body length that fits");
+  }
+});
+
+test("resolveDrain: a stocked grate beats a cheaper special-order one at the same length only under stock", () => {
+  const cat = catalogOf([...FIXTURE_ITEMS, ...KL_ROWS, { sku: "KL1AR19EB130", name: "stocked twin", price: 500, cost: 333.33, stock: true }]);
+  const c = { family: "fixed", style: "solid", finish: "EB" };
+  assert.deepEqual(skus(resolveDrain(c, 55, cat, { source: "all" })), ["SLRKL1V60E130", "SLRKL1AR19EB130"]);
+  const st = resolveDrain(c, 55, cat, { source: "stock" });
+  assert.deepEqual(skus(st), ["SLRKL1V60E130", "KL1AR19EB130"]);
+  assert.equal(st.lines[1].item.stock, true);
+});
+
+test("drainOptions: fit is 0 when no KERDI-LINE body fits, and no fixed style is ok", () => {
+  const o = drainOptions({ family: "fixed" }, 18, KLCAT, { source: "all" });
+  assert.equal(o.fit, 0);
+  assert.ok(o.styles.length > 0 && o.styles.every((s) => !s.ok));
+});
+
+test("a drainPick on a point tray is inert: no drainFit, the bill of no pick", () => {
+  const bill = (b) => b.lines.map((l) => (l.item.sku || l.item.name) + "×" + l.qty);
+  const plain = buildKit(cfg({}), KLCAT, { source: "all" });
+  const inert = buildKit(cfg({ drainPick: { family: "fixed", style: "solid" } }), KLCAT, { source: "all" });
+  assert.equal(inert.drainFit, null);
+  assert.deepEqual(bill(inert), bill(plain));
+});
+
+test("pointGrateLabel reads size, design and finish, not the row's catalog words", () => {
+  assert.equal(pointGrateLabel(by("KDIF4GRKEBD5")), "4″ floral, brushed");
+  assert.equal(pointGrateLabel(by("KD4GRKE")), "4″ stainless");
+  assert.equal(pointGrateLabel(by("KD4GRKECS")), "4″ tileable");
+  assert.equal(pointGrateLabel({ name: 'Schluter Kerdi-Drain Grate Kit 4" Floral Brushed Ss' }), "4″ Floral, Brushed");
+});
+
+// --- Phase 1b: membrane + band choices (ticket 158) -------------------------
+
+// Test-shaped 7¼″ KERDI-BAND rows (KEBA100/185 — the width code is the mm):
+// the fixture carries only the 5″ band.
+const BAND_185 = [
+  { sku: "KEBA100/185/5M", name: "KERDI-BAND 7-1/4\" seam band", price: 29.5, cost: 19.67, stock: false, size: "16'5\" roll" },
+  { sku: "KEBA100/185", name: "KERDI-BAND 7-1/4\" seam band", price: 139.8, cost: 93.2, stock: false, size: "98'5\" roll" },
+];
+const BCAT = catalogOf([...FIXTURE_ITEMS, ...BAND_185]);
+const picks = (r) => r.lines.map((p) => [p.item.sku, p.qty]);
+
+test("KERDI rolls and bands carry their roll code; bands their width code", () => {
+  assert.equal(by("KERDI200/10M").roll, "10M");
+  assert.equal(by("KERDI200").roll, "30M");
+  assert.equal(by("KERDI200200/15M").roll, "15M");
+  assert.deepEqual([by("KEBA100/125/5M").width, by("KEBA100/125/5M").roll], ["125", "5M"]);
+  assert.deepEqual([by("KEBA100/125").width, by("KEBA100/125").roll], ["125", "30M"]);
+  const wide = classify({ sku: "SLRKEBA100/185", name: "" });
+  assert.deepEqual([wide.width, wide.lf, wide.roll], ["185", 98, "30M"]);
+  assert.equal(bandWidthLabel("125"), '5"');
+  assert.equal(bandWidthLabel("185"), '7-1/4"');
+});
+
+test("buildKit reports the membrane and band needs the popover resolves against", () => {
+  const b = buildKit(cfg({}), CAT, { source: "all" });
+  assert.equal(round2(b.need.wallSf), 87.27);   // 79.33 sf of wall + 10% laps
+  assert.equal(round2(b.need.bandLf), 29.56);   // 2 × (60 + 38) / 12 + 79.33 / 6
+});
+
+test("resolveMembrane: no choice is pickRolls; standard, wide and a pinned roll", () => {
+  assert.deepEqual(picks(resolveMembrane(null, 87.27, CAT, { source: "all" })), [["KERDI200/10M", 1]]);
+  assert.deepEqual(picks(resolveMembrane({ wide: true }, 87.27, CAT, { source: "all" })), [["KERDI200200/15M", 1]]);
+  assert.deepEqual(picks(resolveMembrane({ wide: false, roll: "5M" }, 87.27, CAT, { source: "all" })), [["KERDI200/5M", 2]]);
+  assert.deepEqual(picks(resolveMembrane({ wide: true }, 400, CAT, { source: "all" })), [["KERDI200200/15M", 2]]);
+});
+
+test("resolveMembrane: Auto re-fits the mix when the wall area grows; a pinned roll only re-counts", () => {
+  assert.deepEqual(picks(resolveMembrane({}, 300, CAT, { source: "all" })), [["KERDI200", 1]]);
+  assert.deepEqual(picks(resolveMembrane({}, 400, CAT, { source: "all" })), [["KERDI200", 1], ["KERDI200/10M", 1]]);
+  assert.deepEqual(picks(resolveMembrane({ roll: "10M" }, 400, CAT, { source: "all" })), [["KERDI200/10M", 4]]);
+});
+
+test("resolveMembrane: a width or roll the books don't carry falls back and says so", () => {
+  const noWide = resolveMembrane({ wide: true }, 87.27, CAT.filter((i) => !i.wide), { source: "all" });
+  assert.deepEqual(picks(noWide), [["KERDI200/10M", 1]]);
+  assert.equal(noWide.subst, "no wide roll in the books — standard used");
+  const noRoll = resolveMembrane({ roll: "12M" }, 87.27, CAT, { source: "all" });
+  assert.deepEqual(picks(noRoll), [["KERDI200/10M", 1]]);
+  assert.equal(noRoll.subst, "no 12M roll in the books — best fit used");
+});
+
+test("resolveMembrane: stock only prefers stocked rolls and still lands a special-order pin, flagged", () => {
+  const so10 = soFlip(["KERDI200/10M"]);
+  assert.deepEqual(picks(resolveMembrane({}, 87.27, so10, { source: "stock" })), [["KERDI200/20M", 1]]);
+  const pinned = resolveMembrane({ roll: "10M" }, 87.27, so10, { source: "stock" });
+  assert.deepEqual(picks(pinned), [["KERDI200/10M", 1]]);
+  assert.equal(pinned.lines[0].item.stock, false);
+});
+
+test("membraneOptions: Width then Roll, each chip's next the choice it drafts", () => {
+  const o = membraneOptions({ wide: false }, 87.27, CAT, { source: "all" });
+  assert.deepEqual(o.widths.map((c) => [c.key, c.label, c.ok, c.on]), [["standard", "Standard 1 m", true, true], ["wide", "Wide 2 m", true, false]]);
+  assert.deepEqual(o.rolls.map((c) => [c.key, c.label, c.on]), [
+    ["auto", "Auto", true], ["5M", "5 m · 54 sf", false], ["7M", "7 m · 75 sf", false],
+    ["10M", "10 m · 108 sf", false], ["20M", "20 m · 215 sf", false], ["30M", "30 m · 323 sf", false]]);
+  assert.deepEqual(o.rolls[1].next, { wide: false, roll: "5M" });
+  assert.deepEqual(membraneOptions({ wide: true }, 87.27, CAT, { source: "all" }).rolls.map((c) => c.key), ["auto", "15M"]);
+});
+
+test("resolveBand: no choice is today's rule; each width, a pinned roll, multiples", () => {
+  assert.deepEqual(picks(resolveBand(null, 29.56, BCAT, { source: "all" })), [["KEBA100/125/10M", 1]]);
+  assert.deepEqual(picks(resolveBand({ width: "185" }, 29.56, BCAT, { source: "all" })), [["KEBA100/185", 1]]);
+  assert.deepEqual(picks(resolveBand({ width: "125", roll: "5M" }, 29.56, BCAT, { source: "all" })), [["KEBA100/125/5M", 2]]);
+  assert.deepEqual(picks(resolveBand({ width: "185", roll: "5M" }, 29.56, BCAT, { source: "all" })), [["KEBA100/185/5M", 2]]);
+  assert.deepEqual(picks(resolveBand({ width: "125" }, 120, BCAT, { source: "all" })), [["KEBA100/125", 2]]);
+});
+
+test("resolveBand: a width or roll the books don't carry falls back and says so; stock only lands SO flagged", () => {
+  const w = resolveBand({ width: "250" }, 29.56, BCAT, { source: "all" });
+  assert.deepEqual(picks(w), [["KEBA100/125/10M", 1]]);
+  assert.equal(w.subst, 'no 10" band in the books — another width used');
+  const r = resolveBand({ width: "185", roll: "10M" }, 29.56, BCAT, { source: "all" });
+  assert.deepEqual(picks(r), [["KEBA100/185", 1]]);
+  assert.equal(r.subst, "no 10M roll in the books — best fit used");
+  const so = resolveBand({ width: "185" }, 29.56, BCAT, { source: "stock" });
+  assert.equal(so.lines[0].item.stock, false);
+});
+
+test("bandOptions: widths off the books, the resolved width lit, Auto keeps no choice", () => {
+  const o = bandOptions(null, 29.56, BCAT, { source: "all" });
+  assert.deepEqual(o.widths.map((c) => [c.key, c.label, c.so, c.on]), [["125", '5"', false, true], ["185", '7-1/4"', true, false]]);
+  assert.deepEqual(o.rolls.map((c) => [c.key, c.label, c.on]), [["auto", "Auto", true], ["5M", "5 m · 16 lf", false], ["10M", "10 m · 33 lf", false], ["30M", "30 m · 98 lf", false]]);
+  assert.deepEqual(o.rolls[0].next, {});
+  assert.deepEqual(o.rolls[1].next, { width: "125", roll: "5M" });
+  assert.deepEqual(bandOptions({ width: "185" }, 29.56, BCAT, { source: "all" }).rolls.map((c) => c.key), ["auto", "5M", "30M"]);
+});
+
+test("membraneOptions: a stale wide choice with no wide rolls in the books lights the landed standard chip, and offers usable rolls", () => {
+  const noWide = CAT.filter((i) => !i.wide);
+  const o = membraneOptions({ wide: true }, 87.27, noWide, { source: "all" });
+  assert.deepEqual(o.widths.map((c) => [c.key, c.on, c.ok]), [["standard", true, true], ["wide", false, false]]);
+  assert.ok(o.rolls.some((r) => r.key !== "auto" && r.ok), "the roll row must offer a usable chip, not just Auto");
+  assert.deepEqual(picks(o.result), [["KERDI200/10M", 1]]);
+});
+
+test("membraneOptions: a roll the books don't carry falls back to Auto lit, not nothing", () => {
+  const o = membraneOptions({ roll: "12M" }, 87.27, CAT, { source: "all" });
+  assert.equal(o.rolls.find((r) => r.key === "auto").on, true);
+  assert.ok(o.rolls.find((r) => r.key === "10M").ok);
+  assert.deepEqual(picks(o.result), [["KERDI200/10M", 1]]);
+});
+
+test("bandOptions: a width the books don't carry lights the landed width, not a dead chip", () => {
+  const o = bandOptions({ width: "250" }, 29.56, BCAT, { source: "all" });
+  assert.deepEqual(o.widths.map((c) => [c.key, c.on]), [["125", true], ["185", false]]);
+  assert.ok(o.rolls.some((r) => r.key !== "auto" && r.ok), "the roll row must offer a usable chip, not just Auto");
+  assert.deepEqual(picks(o.result), [["KEBA100/125/10M", 1]]);
+});
+
+test("buildKit bills the membrane and band choices; the defaults don't move with a second band width in the books", () => {
+  const m = buildKit(cfg({ swaps: { membrane: { wide: false, roll: "5M" } } }), CAT, { source: "all" });
+  assert.deepEqual(m.lines.filter((l) => l.g === "Walls" && l.item.g === "membrane").map((l) => [l.item.sku, l.qty]), [["KERDI200/5M", 2]]);
+  const b = buildKit(cfg({ swaps: { band: { width: "185" } } }), BCAT, { source: "all" });
+  assert.deepEqual(b.lines.filter((l) => l.g === "Seams").map((l) => [l.item.sku, l.qty]), [["KEBA100/185", 1]]);
+  const plain = buildKit(cfg({}), BCAT, { source: "all" });
+  assert.deepEqual(plain.lines.filter((l) => l.g === "Seams").map((l) => [l.item.sku, l.qty]), [["KEBA100/125/10M", 1]]);
+  const miss = buildKit(cfg({ swaps: { membrane: { roll: "12M" } } }), CAT, { source: "all" });
+  assert.match(miss.lines.find((l) => l.item.g === "membrane").note, /^no 12M roll in the books — best fit used · 79 sf of wall/);
+});
+
+// --- Phase 1b: fastener and bench list swaps (ticket 158) --------------------
+
+test("cfg.swaps.fastener picks the pack; its count re-fits; a stale sku falls back", () => {
+  const f = (c) => buildKit(c, CAT, { source: "all" }).lines.filter((l) => l.item.fastener).map((l) => [l.item.sku, l.qty]);
+  assert.deepEqual(f(cfg({ wallSys: "board" })), [["KBZS35GT32Z100", 2]]);
+  assert.deepEqual(f(cfg({ wallSys: "board", swaps: { fastener: "KBZS35GT32Z" } })), [["KBZS35GT32Z", 4]]);
+  assert.deepEqual(f(cfg({ wallSys: "board", swaps: { fastener: "NOPE" } })), [["KBZS35GT32Z100", 2]]);
+});
+
+test("bench board picks ride each bench row; bench lines carry their bench index", () => {
+  const ex = (c) => buildKit(c, CAT, { source: "all" }).lines.filter((l) => l.g === "Extras").map((l) => [l.item.sku, l.qty, l.bench]);
+  assert.deepEqual(ex(cfg({ benches: [{ kind: "wall", side: "back", build: "framed" }, { kind: "wall", side: "left", build: "site" }] })),
+    [["KB1212202440", 1, 0], ["KB506252440", 2, 1]]);
+  assert.deepEqual(ex(cfg({ benches: [{ kind: "wall", side: "back", build: "framed", board: "KB1212201625" }, { kind: "wall", side: "left", build: "site", board: "NOPE" }] })),
+    [["KB1212201625", 1, 0], ["KB506252440", 2, 1]]);
+  assert.equal(normBench({ kind: "wall", side: "back", build: "framed", board: "KB1212201625" }, { w: 60, d: 38 }, CAT).board, "KB1212201625");
+  assert.equal(normBench({ kind: "corner", corner: "bl", board: "KB506252440" }, { w: 60, d: 38 }, CAT).board, "KB506252440");
+  assert.equal(normBench({ kind: "wall", side: "back", part: "KBSB4101220RA", board: "KB506252440" }, { w: 60, d: 38 }, CAT).board, undefined);
+});
+
+test("every 1b pick survives the marker: buildFromMarker bills the same lines", () => {
+  const bill = (b) => b.lines.filter((l) => !l.noteOnly).map((l) => (l.item.sku || l.item.name) + "×" + l.qty);
+  for (const [c, cat] of [
+    [cfg({ swaps: { membrane: { wide: true } } }), CAT],
+    [cfg({ swaps: { band: { width: "185", roll: "5M" } } }), BCAT],
+    [cfg({ wallSys: "board", swaps: { fastener: "KBZS35GT32Z" } }), CAT],
+    [cfg({ benches: [{ kind: "wall", side: "back", build: "framed", board: "KB1212201625" }] }), CAT],
+  ]) {
+    const live = buildKit(c, cat, { source: "all" });
+    const back = buildFromMarker({ mode: "custom", cfg: { ...c, source: "all" } }, cat);
+    assert.deepEqual(bill(back), bill(live), JSON.stringify(c.swaps || c.benches));
+  }
 });
