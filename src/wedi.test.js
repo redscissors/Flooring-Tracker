@@ -12,6 +12,7 @@ import { rowItemKey, sessionFromRows,
   setStockSource, clearStockSource, stockSourceIsBook,
   wediSlotOf, coverPickApplies,
   resolveCurb, legacyCurbPick, curbOptions, curbPickOf, markerCurbKey,
+  panelOptions, panelSheets, fastenerKits,
 } from "./wedi.js";
 import { isSlot } from "./slots.js";
 
@@ -1535,4 +1536,53 @@ test("markerCurbKey: the curb a marker bills — legacy key as saved, else the c
   assert.equal(markerCurbKey({ ...k.cfg, curbKey: "US3000008" }), "US3000008");
   assert.equal(markerCurbKey(kitFor("US9200003").cfg), null);
   assert.equal(markerCurbKey(kitFor("US9100006").cfg), "US3000040");
+});
+
+// --- Phase 1b: wall panel and fastener kit choices (ticket 158) -------------
+
+test("panelOptions: Type → Thickness → Size, each chip landing on a stocked panel first", () => {
+  const o = panelOptions(undefined);
+  assert.equal(o.cur.key, "US8000017");
+  assert.deepEqual(o.types.map((c) => [c.key, c.label, c.next, c.so, c.on]), [
+    ["board", "Standard", "US8000017", false, true], ["vapor", "Vapor 85", "US8000026", false, false], ["kit", "Panel kit", "US4000001", true, false]]);
+  assert.deepEqual(o.thicknesses.map((c) => [c.label, c.next, c.so]), [
+    ['1/8"', "US8000006", false], ['1/4"', "US8000013", false], ['1/2"', "US8000017", false], ['5/8"', "US8000011", true],
+    ['3/4"', "US8000018", true], ['1"', "US8000022", false], ['1 1/2"', "US8000019", true], ['2"', "US8000020", false]]);
+  assert.deepEqual(o.sizes.map((c) => [c.key, c.label, c.next, c.so, c.on]), [
+    ["36x60", "3'×5'", "US8000017", false, true], ["48x96", "4'×8'", "US8000015", false, false],
+    ["48x60", "4'×5'", "US8000014", false, false], ["32x48", "2'8\"×4'", "US8000032", true, false]]);
+  // the special-order 4×8 twin never becomes a chip — its size chip lands the stocked sheet
+  assert.deepEqual(panelOptions("US8000010").sizes.find((c) => c.key === "48x96"), { key: "48x96", label: "4'×8'", ok: true, so: false, on: true, next: "US8000015" });
+});
+
+test("kitFor: panelKey is written only when picked; the sheet count re-fits", () => {
+  assert.equal("panelKey" in kitFor("US9100004").cfg, false);
+  assert.equal("panelKey" in kitFor("US9100004", { panelKey: SKU.panelDefault }).cfg, false);
+  const k = kitFor("US9100004", { room: { w: 60, d: 36 }, panelKey: "US8000015" });
+  assert.equal(k.cfg.panelKey, "US8000015");
+  assert.deepEqual(k.lines.filter((l) => l.item.group === "panel").map((l) => [l.item.key, l.qty]), [["US8000015", 3]]);
+  assert.equal(panelSheets(96, item("US8000015")), 3);
+});
+
+test("fastener kits: the two boxed kits; a pick bills by its own count and rides the marker", () => {
+  assert.deepEqual(fastenerKits().map((f) => f.key), ["US5000070", "US5000086"]);
+  const f = (k) => k.lines.filter((l) => l.item.group === "fastener").map((l) => [l.item.key, l.qty]);
+  const k = kitFor("US9100004", { fastenerKey: "US5000086" });
+  assert.deepEqual(f(k), [["US5000086", 1]]);
+  assert.equal(k.cfg.fastenerKey, "US5000086");
+  assert.equal("fastenerKey" in kitFor("US9100004").cfg, false);
+  assert.deepEqual(f(kitFor("US9100004", { fastenerKey: "NOPE" })), [["US5000070", 1]]);
+  const walls = [{ len: 72, h: 96, side: "back" }, { len: 72, h: 96, side: "left" }, { len: 72, h: 96, side: "right" }];
+  assert.deepEqual(f(kitFor("US9100016", { walls, fastenerKey: "US5000086" })), [["US5000086", 2]]);
+});
+
+test("every 1b wedi pick survives the marker: lineItems → buildFromMarker bills the same, cfg stable", () => {
+  for (const opts of [{ curbPick: { sub: "cap", len: 96 } }, { curbPick: { none: true } }, { curbPick: { sub: "at", profile: "full" } },
+    { panelKey: "US8000026" }, { fastenerKey: "US5000086" }]) {
+    const k = kitFor("US9100004", { room: { w: 60, d: 36 }, ...opts });
+    const rows = lineItems(k, {});
+    const back = buildFromMarker({ mode: rows[0].wedi.mode, cfg: rows[0].wedi.cfg });
+    assert.deepEqual(back.lines.map((l) => l.item.key + "×" + l.qty), k.lines.map((l) => l.item.key + "×" + l.qty), JSON.stringify(opts));
+    assert.deepEqual(back.cfg, k.cfg, JSON.stringify(opts));
+  }
 });

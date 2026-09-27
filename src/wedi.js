@@ -4455,7 +4455,7 @@ function sealantItem(form, six20) {
   return item(form === "tube" ? SKU.sealantTube : SKU.sealantSausage);
 }
 
-export function figureConsumables(panelSf, form) {
+export function figureConsumables(panelSf, form, fastenerKey) {
   const sf = Math.max(0, +panelSf || 0);
   form = form === "tube" ? "tube" : "sausage";
   const oz = round2(sf * CONSUMABLES.sealantOzPerSf);
@@ -4470,10 +4470,13 @@ export function figureConsumables(panelSf, form) {
     // Today both codes survive a thinned book because WEDI_SO also carries
     // them — 22 of the 24 SKU.* constants have that pricelist twin. 8b retires
     // WEDI_SO, and then they don't.
-    const fastenerKit = item(SKU.fastenerKit);
+    // a swapped kit (Phase 1b) counts by its own "N ct"; the house kit keeps the recipe's 100
+    const picked = fastenerKey ? item(fastenerKey) : null;
+    const fastenerKit = picked && picked.group === "fastener" ? picked : item(SKU.fastenerKit);
+    const ctM = picked && picked === fastenerKit ? /(\d+)\s*ct/i.exec(fastenerKit.sizeText || "") : null;
     const sealant = sealantItem(form, false);
     if (fastenerKit) lines.push({
-      item: fastenerKit, qty: Math.ceil(fastenerCount / CONSUMABLES.fastenerKitCt),
+      item: fastenerKit, qty: Math.ceil(fastenerCount / (ctM ? +ctM[1] : CONSUMABLES.fastenerKitCt)),
       group: "install", auto: true, note: "",
     });
     if (sealant) lines.push({
@@ -5201,6 +5204,44 @@ export function curbPickOf(cfg) {
   return legacyCurbPick(cfg.curbKey, familyOf(pan), openLenOf(room, walls, cfg.corners, benches));
 }
 
+// Wall panels by Type → Thickness → Size (ticket 158 Phase 1b). The part is
+// the choice (the sheet count re-fits), so each chip names the panel it lands
+// on: stocked first, then the cheapest — a special-order twin of a stocked
+// sheet is never a chip.
+const PANEL_TYPE = { board: "Standard", vapor: "Vapor 85", kit: "Panel kit" };
+const panelSize = (p) => p.w + "x" + p.d;
+export const panelSheets = (sf, panel) => (panel && panel.sf ? Math.ceil(sf / panel.sf) : 0);
+
+/** The wall-panel popover's rows for the drafted panel `key` (the house panel when none). */
+export function panelOptions(key) {
+  const all = group("panel").filter((p) => p.sf > 0);
+  const cur = (key && all.find((p) => p.key === key)) || item(SKU.panelDefault);
+  if (!cur) return { cur: null, types: [], thicknesses: [], sizes: [] };
+  const best = (list) => list.slice().sort(byStockThenPrice)[0] || null;
+  const chip = (key2, label, p, on) => ({ key: key2, label, ok: !!p, so: !!p && !p.stock, on, next: p ? p.key : null });
+  const types = [...new Set(all.map((p) => p.sub))].map((s) => {
+    const l = all.filter((p) => p.sub === s);
+    const p = best(l.filter((x) => x.t === cur.t && panelSize(x) === panelSize(cur))) || best(l.filter((x) => x.t === cur.t)) || best(l);
+    return chip(s, PANEL_TYPE[s] || s, p, s === cur.sub);
+  });
+  const inType = all.filter((p) => p.sub === cur.sub);
+  const thicknesses = [...new Set(inType.map((p) => p.t))].sort((a, b) => a - b).map((t) => {
+    const l = inType.filter((p) => p.t === t);
+    return chip(String(t), inch(t) + '"', best(l.filter((x) => panelSize(x) === panelSize(cur))) || best(l), t === cur.t);
+  });
+  const inThick = inType.filter((p) => p.t === cur.t);
+  const sizes = [...new Set(inThick.map(panelSize))].map((s) => {
+    const p = best(inThick.filter((x) => panelSize(x) === s));
+    return chip(s, ftLbl(p.w) + "×" + ftLbl(p.d), p, s === panelSize(cur));
+  });
+  return { cur, types, thicknesses, sizes };
+}
+
+/** The fastener kits a build can take in place of the house kit — screws and washers boxed together. */
+export function fastenerKits() {
+  return group("fastener").filter((f) => /kit/i.test(f.name) && f.sub !== "vapor");
+}
+
 /**
  * What one unit covers — { n, unit: "sf" | "lf" } for rolls, membranes and
  * panels (sf) and tapes (lf), null otherwise (ticket 158 P0-3). S-DRY
@@ -5323,7 +5364,7 @@ export function kitFor(panKey, opts) {
   }
 
   // --- walls -----------------------------------------------------------------
-  const sheets = panel && panel.sf ? Math.ceil(panelSf / panel.sf) : 0;
+  const sheets = panelSheets(panelSf, panel);
   // A live book can drop the default panel; the floor in usewedicatalog.js
   // refuses such a book, and this is the belt to that brace.
   if (panel) push(lines, panel, sheets, "walls",
@@ -5375,7 +5416,8 @@ export function kitFor(panKey, opts) {
   // --- consumables + install -------------------------------------------------
   // Bench surfaces (tops + faces, framed wraps) seal and fasten like wall
   // panel; premades whose kit already includes the sealant contribute nothing.
-  const con = figureConsumables(panelSf + bl.surfSf, form);
+  const con = figureConsumables(panelSf + bl.surfSf, form, opts.fastenerKey);
+  const fastener = con.lines.find((l) => l.item.group === "fastener");
   con.lines.forEach((l) => { lines.push(l); });
   push(lines, SKU.collarValve, 1, "install", "mixing valve", true);
   push(lines, SKU.collarPipe, 1, "install", "shower arm / pipe", true);
@@ -5408,8 +5450,10 @@ export function kitFor(panKey, opts) {
   });
   lines.forEach((l) => { l.slot = wediSlotOf(l); });
   const cfg = {
-    panKey: pan.key, walls: cfgWalls, panelKey: panel ? panel.key : null,
+    panKey: pan.key, walls: cfgWalls,
+    ...(panel && panel.key !== SKU.panelDefault ? { panelKey: panel.key } : {}),
     ...(curbPick ? { curbPick } : {}),
+    ...(fastener && fastener.item.key !== SKU.fastenerKit ? { fastenerKey: fastener.item.key } : {}),
     ...(coverPick ? { coverPick } : {}),
     coverFrame: frame ? frame.finish : null,
     sealantForm: form, recess: recess,
@@ -5453,7 +5497,7 @@ export function buildFromMarker(marker) {
     walls: cfg.walls && cfg.walls.length ? cfg.walls.map((w) => ({ ...w })) : undefined,
     wallHeight: cfg.walls && cfg.walls[0] ? +cfg.walls[0].h : undefined,
     panelKey: cfg.panelKey || undefined,
-    curbPick: cfg.curbPick, curbKey: cfg.curbKey,
+    curbPick: cfg.curbPick, curbKey: cfg.curbKey, fastenerKey: cfg.fastenerKey,
     coverPick: cfg.coverPick || legacyCoverPick(cfg.coverKey),
     coverFrame: cfg.coverFrame || undefined,
     sealantForm: cfg.sealantForm, recess: cfg.recess,
