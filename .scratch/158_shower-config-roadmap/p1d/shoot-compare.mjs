@@ -93,6 +93,34 @@ console.log("Schluter column total:", sTot);
 if (!new RegExp("B \\| Schluter — \\d+ lines \\| \\" + sTot).test(modal)) fail("option B's total isn't the column's total");
 await shot("c5-quote-options", false);
 
+// --- Stock only (the popups' default): the mirror pools like the popups — a
+// part with nothing stocked still offers all of it, so no group wedi has parts
+// for reads "No wedi … in the book". wedi's fixture book has no Extras parts,
+// so Extras is the one group that row may name.
+await pg.goto("http://localhost:5199/schluter-preview.html");
+await pg.waitForSelector("[data-schluter-tray]", { timeout: 20000 }); await pg.waitForTimeout(600);
+if ((await pg.locator("[data-source-toggle]").getAttribute("aria-pressed")) !== "true") fail("the Schluter popup didn't open on Stock only");
+const tray = pg.locator("[data-schluter-tray='KST965/1525']");
+await ((await tray.count()) ? tray.first() : pg.locator("[data-schluter-tray]").first()).click(); await pg.waitForTimeout(800);
+await plus("Niches"); await pg.locator("[data-add-row]").first().click(); await pg.waitForTimeout(400);
+const hasExtras = (await pg.locator('[data-add-group="Extras"]').count()) > 0;
+if (hasExtras) { await plus("Extras"); await pg.locator("[data-add-row]").first().click(); await pg.waitForTimeout(400); }
+await toCompare();
+const soLines = (await pg.locator("[data-mirror-line]").allInnerTexts()).map(flat);
+const soPlus = (await pg.locator("[data-mirror-plus]").allInnerTexts()).map(flat);
+console.log("stock only — mirrored:", soLines.join(" || "), "| '+' rows:", soPlus.join(" || "), "| Extras added:", hasExtras);
+if (!soLines.some((t) => /for .*niche/i.test(t))) fail("Stock only: the added niche did not mirror onto wedi");
+if (soPlus.some((t) => /No wedi (?!extras?\b)\S+ in the book/.test(t))) fail("Stock only: a group wedi has parts for reads 'No wedi … in the book'");
+if (soLines.length + soPlus.length !== (hasExtras ? 2 : 1)) fail("Stock only: a host added line has no mirror row");
+await shot("c6-stock-only");
+
+// the picker's rows read size · part number · stock (spec §4)
+await pg.locator("[data-mirror-line]").first().locator("[data-mirror-swap]").click(); await pg.waitForSelector("[data-add-pop]"); await pg.waitForTimeout(300);
+const rowSmall = await pg.locator("[data-mirror-row] small").allInnerTexts();
+console.log("picker rows:", rowSmall.slice(0, 4).join(" || "));
+if (!rowSmall.some((t) => /^interior .+ · US\d+ · (stock|special order)$/.test(t))) fail("the picker rows don't show the size");
+await shot("c7-picker-sizes", false);
+
 await b.close();
 if (err) { console.error("— checks FAILED"); process.exit(1); }
 console.log("— all checks passed");

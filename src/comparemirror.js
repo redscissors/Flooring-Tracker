@@ -1,7 +1,7 @@
 // comparemirror — how Compare finds the other brand's part for a line added
 // by hand (ticket 158 Phase 1d). Pure: items in, sizes and rankings out. It
 // never imports an engine; comparekit hands it each part's brand, slot and
-// coverage, so comparekit stays the one module that reads both engines.
+// coverage, so the mirror's engine reads stay in comparekit.
 //
 // A part is { item, brand: "wedi"|"schluter", slot, cov: {n, unit}|null }.
 

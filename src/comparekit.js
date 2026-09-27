@@ -210,7 +210,10 @@ export function mirrorParts(brand, grp, { cat, source } = {}) {
   const items = wedi ? wediCatalog() : cat || [];
   return ((wedi ? WEDI_ADD_PARTS : ADD_PARTS)[grp] || []).filter((p) => p.hit).map((p) => {
     const g = wedi ? p.group : p.g;
-    const list = items.filter((e) => p.hit(e) && (source !== "stock" || e.stock));
+    // Stock only narrows a part to its stocked items unless it has none — the popups' pool rule
+    const hits = items.filter(p.hit);
+    const st = hits.filter((e) => e.stock);
+    const list = source === "stock" && st.length ? st : hits;
     return {
       key: p.key, label: p.label, g,
       parts: list.map((e) => asPart(brand, e, wedi ? wediSlotOf({ item: e, group: g }) : slotOf(g, e), g)),

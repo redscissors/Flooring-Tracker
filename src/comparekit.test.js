@@ -296,6 +296,15 @@ test("mirror parts are the brand's own '+' parts for the group, pooled by source
   assert.ok(stock.length < all.length && stock.every((c) => c.item.stock));
 });
 
+test("Stock only pools a part the way the popups do: a part with nothing stocked still offers all of it", () => {
+  const all = mirrorParts("schluter", "extras", { cat: CAT, source: "all" });
+  const stock = mirrorParts("schluter", "extras", { cat: CAT, source: "stock" });
+  assert.ok(all.length && all.every((p) => p.parts.every((c) => !c.item.stock)), "the fixture's Extras 'other' parts are all special order");
+  assert.deepEqual(stock.map((p) => [p.key, p.parts.length]), all.map((p) => [p.key, p.parts.length]));
+  const tray = mirrorParts("schluter", "base", { cat: CAT, source: "stock" }).find((p) => p.key === "tray");
+  assert.ok(tray.parts.length && tray.parts.every((c) => c.item.stock), "a part with stocked items still pools to them");
+});
+
 test("a Schluter niche mirrors to the nearest wedi interior; the picker's list agrees with the match", () => {
   const plan = mirrorPlan(schHost([{ sku: "KB12SN305508A1", qty: 2, g: "Extras" }]), "schluter", {}, { cat: CAT });
   assert.equal(plan.brand, "wedi");
@@ -331,6 +340,10 @@ test("Stock only pools the auto-match; a hand pick stands", () => {
   assert.ok(so, "the fixture carries a special-order niche");
   const auto = mirrorPlan(host, "schluter", {}, { cat: CAT, source: "stock" });
   assert.ok(auto.entries[0].match.item.stock);
+  const bench = schHost([{ sku: "KBSB410TA", qty: 1, g: "Extras" }]);
+  const [full] = mirrorPlan(bench, "schluter", {}, { cat: CAT }).entries;
+  const [pooled] = mirrorPlan(bench, "schluter", {}, { cat: CAT, source: "stock" }).entries;
+  assert.ok(!full.match.item.stock && pooled.match.item.stock && pooled.match.id !== full.match.id, "Stock only moves the bench match onto a stocked seat");
   const picked = mirrorPlan(host, "schluter", { "Extras|KB12SN305508A1": { pick: { g: "addon", id: so.id, qty: 3 } } }, { cat: CAT, source: "stock" });
   assert.deepEqual([picked.entries[0].kind, picked.entries[0].match.id, picked.entries[0].qty], ["picked", so.id, 3]);
 });

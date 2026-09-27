@@ -93,7 +93,7 @@ const CSS = `
 .cmp-pick .sdot{flex:none;width:6px;height:6px;border-radius:50%;background:var(--ft-brand)}
 .cmp-pick .sdot.so{background:transparent;border:1.3px solid var(--ft-faint)}
 .cmp-pick .srow .n{flex:1;min-width:0;font-size:11.5px;font-weight:700;color:var(--ft-text);line-height:1.3}
-.cmp-pick .srow .n small{display:block;font-size:9.5px;color:var(--ft-faint);font-weight:600}
+.cmp-pick .srow .n small{display:block;font-size:9.5px;color:var(--ft-faint);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cmp-pick .more{padding:6px 8px;font-size:9.5px;color:var(--ft-faint);font-weight:600}
 .cmp-pick .srow .p{font-size:11.5px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--ft-text)}
 `;
@@ -431,7 +431,7 @@ export default function CompareTab({
                 <button key={c.g + c.id} type="button" className={"srow" + (c.id === cur.id ? " on" : "")} data-mirror-row={c.id}
                   onClick={() => setP({ id: c.id, qty: qtyOf(c) })}>
                   <span className={"sdot" + (c.item.stock ? "" : " so")} />
-                  <span className="n">{c.item.name}<small>{[c.id, c.item.stock ? "stock" : "special order"].join(" · ")}</small></span>
+                  <span className="n">{c.item.name}<small>{[c.brand === "wedi" ? c.item.sizeText : c.item.size, c.id, c.item.stock ? "stock" : "special order"].filter(Boolean).join(" · ")}</small></span>
                   <span className="p">{fm(price(c))}</span>
                 </button>
               ))}

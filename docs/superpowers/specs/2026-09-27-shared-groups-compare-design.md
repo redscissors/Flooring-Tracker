@@ -460,6 +460,11 @@ From the build:
   to the Compare code.** CompareTab.jsx (both engines' `lineItems`),
   showersf.js and orderlines.js already imported both before 1d. The mirror's
   engine reads live in comparekit; comparemirror imports no engine.
+- **The mirror pools Stock only the way the popups do.** Each part narrows to
+  its stocked items when it has any, else keeps all of them (Schluter `pool`,
+  wedi `bySource`). A group with nothing stocked still offers its parts, so
+  under Stock only it never reads "No … in the book" and loses its "+". The
+  auto-match and the picker share the one pool. (Final review.)
 
 ## Out of scope (1d)
 
