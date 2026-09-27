@@ -191,7 +191,7 @@ Panel. Compare builds the other brand on the host's wall system, closing ADR
 - **ADR:** `docs/adr/0051-wedi-membrane-is-s-dry.md` (new; ADR 0034 and ADR
   0049 amended)
 - **Proof:** `.scratch/158_shower-config-roadmap/p2/`
-- **PR:** pending — this branch (`claude/shower-config-phase-1d-eafhd0`)
+- **PR:** #446 (`claude/shower-config-phase-1d-eafhd0`)
 
 **Phase 2 is complete.** Next is Phase 3 (4-way compare); start from
 `.scratch/handoffs/shower-config-phase3-2026-09-27.md`.
