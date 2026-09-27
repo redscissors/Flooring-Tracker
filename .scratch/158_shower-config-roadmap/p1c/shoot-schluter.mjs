@@ -90,6 +90,24 @@ if (!/PART \| Drain/.test(drainPop) || !/LENGTH/.test(drainPop)) fail("the linea
 await shot("s6-drain-add");
 await pg.keyboard.press("Escape");
 
+// KERDI-BOARD walls: the Walls header's + sits beside Fit | One size, no overlap
+await pg.goto("http://localhost:5199/schluter-preview.html");
+await pg.waitForSelector("[data-schluter-tray]", { timeout: 20000 }); await pg.waitForTimeout(600);
+await pg.locator("[data-source-toggle]").click(); await pg.waitForTimeout(600); // Full catalog
+await pg.locator("[data-schluter-kits-board]").click(); await pg.waitForTimeout(300);
+await pg.locator("[data-schluter-tray='KST965/1525']").first().click(); await pg.waitForTimeout(800);
+const wallsAdd = pg.locator('[data-add-group="Walls"]');
+const wallsFit = pg.locator('[data-schluter-fit]');
+if (!(await wallsAdd.isVisible())) fail("Walls + is not visible on a KERDI-BOARD build");
+if (!(await wallsFit.isVisible())) fail("the Fit toggle is not visible on a KERDI-BOARD build");
+const addBox = await wallsAdd.boundingBox();
+const fitBox = await wallsFit.boundingBox();
+const overlaps = addBox && fitBox &&
+  addBox.x < fitBox.x + fitBox.width && addBox.x + addBox.width > fitBox.x &&
+  addBox.y < fitBox.y + fitBox.height && addBox.y + addBox.height > fitBox.y;
+if (overlaps) fail("the Walls + overlaps the Fit | One size toggle");
+await shot("s7-walls-board-header");
+
 await b.close();
 if (err) { console.error("— FAILED"); process.exit(1); }
 console.log("— all checks passed");
