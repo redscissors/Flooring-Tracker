@@ -17,7 +17,7 @@ import { TIER_COLOR } from "./uiconst.js";
 import {
   trayCandidates, pickRolls, buildKit, tierPrice, coverageOf, lineItems, orderCopyLines, normBench, benchTrayRoom,
   boardPlan, expandBoardFaces, wallArea, halfBoardPool, buildFromMarker, ovKey, sessionFromRows, slotOf, drainOptions,
-  resolveDrain, FINISH_LABEL, VARIO_DESIGN, pointGrateLabel,
+  resolveDrain, FINISH_LABEL, VARIO_DESIGN, pointGrateLabel, membraneOptions, bandOptions, bandWidthLabel,
 } from "./schluter.js";
 import { SwapPop, fmDelta, inchGlyph } from "./swappop.jsx";
 import { mortarItemFrom, MORTAR_BED_SF_PER_BAG } from "./schluteradapter.js";
@@ -975,9 +975,11 @@ export default function SchluterConfigurator({
   const byShelf = (a, b2) => (b2.stock ? 1 : 0) - (a.stock ? 1 : 0) || tierPrice(a, "retail", {}) - tierPrice(b2, "retail", {});
 
   // The wedi ⇄ swap popovers (round 9): a line whose role has real
-  // alternatives takes a hand pick — the curb and the One-size wall board
-  // (under Fit the PLAN chooses the sheets, so the board line doesn't swap —
-  // the wedi rule). Drain lines open the stepped drain popover instead.
+  // alternatives takes a hand pick — the curb, the One-size wall board, the
+  // fastener pack and a bench's board or premade (under Fit the PLAN chooses
+  // the sheets, so the wall board line doesn't swap — the wedi rule). Drain,
+  // membrane and band lines open the stepped popovers instead.
+  const setBenchPick = (bi, patch) => setBenches((xs) => xs.map((b, j) => (j === bi ? { ...b, ...patch } : b)));
   const swapChoices = (l) => {
     const e = l.item;
     if (l.noteOnly) return null;
@@ -991,6 +993,33 @@ export default function SchluterConfigurator({
       list: pool(halfBoardPool(cat, "all")).sort(byShelf),
       set: (sku) => setSwaps((o) => ({ ...o, board: sku })),
     };
+    if (l.g === "Walls" && e.fastener) return {
+      title: "Board fasteners",
+      list: pool(cat.filter((i) => i.fastener)).sort(byShelf),
+      set: (sku) => setSwaps((o) => ({ ...o, fastener: sku })),
+    };
+    // bench lines carry their bench's index (buildKit): the pick rides that bench row
+    if (l.bench != null && e.g === "board") return {
+      title: e.thick2 ? "Bench build-up board" : "Bench wrap board",
+      list: pool(cat.filter((i) => i.g === "board" && !i.fastener && i.sf && !!i.thick2 === !!e.thick2)).sort(byShelf),
+      set: (sku) => setBenchPick(l.bench, { board: sku }),
+    };
+    if (l.bench != null && e.extra === "bench") return {
+      title: "Premade bench",
+      list: pool(cat.filter((i) => i.extra === "bench" && !!(i.bench && i.bench.corner) === !!(e.bench && e.bench.corner))).sort(byShelf),
+      set: (sku) => setBenchPick(l.bench, { part: sku }),
+    };
+    return null;
+  };
+  // ⇄ shows only where the catalog offers a real alternative
+  const canSwap = (l) => { const ch = swapChoices(l); return !!ch && ch.list.length > 1; };
+
+  // KERDI membrane and KERDI-BAND lines open the stepped popover (Phase 1b):
+  // Width → Roll, the choice riding cfg.swaps.membrane / cfg.swaps.band.
+  const steppedKind = (l) => {
+    if (l.noteOnly || !build) return null;
+    if (l.g === "Walls" && l.item.g === "membrane") return cat.filter((i) => i.g === "membrane").length > 1 ? "membrane" : null;
+    if (l.g === "Seams" && l.item.g === "seam" && l.item.lf) return cat.filter((i) => i.g === "seam" && i.lf).length > 1 ? "band" : null;
     return null;
   };
 
@@ -1003,11 +1032,14 @@ export default function SchluterConfigurator({
   const panW = benchTrayRoom(normBenches, cfg).w;
   const openSwap = (l, ev) => {
     const kind = drainKind(l);
+    const stepped = !kind && steppedKind(l);
     const grate = kind === "point" && build.lines.find((x) => x.g === "Drain" && x.item.part === "grate");
     setSwap({
-      key: l.item.sku || l.item.name, rect: ev.currentTarget.getBoundingClientRect(), anchor: ev.currentTarget.closest(".bline"),
+      key: l.item.sku || l.item.name, g: l.g, bench: l.bench,
+      rect: ev.currentTarget.getBoundingClientRect(), anchor: ev.currentTarget.closest(".bline"),
       ...(kind === "linear" ? { drain: kind, draft: { ...(drainPick || { family: "vario" }) } }
-        : kind === "point" ? { drain: kind, draft: grate ? grate.item.sku : pointGrates()[0].sku } : {}),
+        : kind === "point" ? { drain: kind, draft: grate ? grate.item.sku : pointGrates()[0].sku }
+          : stepped ? { stepped, draft: { ...(swaps[stepped] || {}) } } : {}),
     });
   };
 
@@ -1565,7 +1597,7 @@ export default function SchluterConfigurator({
                           {!l.noteOnly && !e.stock && <span className="sotag">special order</span>}</div>
                         <div className="m" title={meta.join(" · ") || undefined}>{meta.map((s2, k) => (k ? " · " + s2 : <b key="k">{s2}</b>))}</div>
                       </div>
-                      {(drainKind(l) || swapChoices(l)) && (
+                      {(drainKind(l) || steppedKind(l) || canSwap(l)) && (
                         <button className="swapb" title="swap" data-schluter-swapb={e.sku}
                           onClick={(ev) => openSwap(l, ev)}>⇄</button>
                       )}
@@ -1902,9 +1934,14 @@ export default function SchluterConfigurator({
       // worked (owner rule 2026-08-24)
       setTab("custom");
     });
-    const upd = geom((patch) => setBenches((xs) => xs.map((b) => (b === row ? { ...b, ...patch } : b))));
-    const del = geom(() => { setBenches((xs) => xs.filter((b) => b !== row)); setBenchMenu(null); });
     const norm = row ? normBench(row, cfg, cat) : null;
+    // a board pick belongs to one build: a ½″ wrap pick can't ride onto a 2″ build-up
+    const upd = geom((patch) => setBenches((xs) => xs.map((b) => {
+      if (b !== row) return b;
+      const { board, ...rest } = b;
+      return patch.build && patch.build !== norm.build ? { ...rest, ...patch } : { ...b, ...patch };
+    })));
+    const del = geom(() => { setBenches((xs) => xs.filter((b) => b !== row)); setBenchMenu(null); });
     const pres = pool(cat.filter((i) => i.g === "extra" && i.extra === "bench"
       && (benchMenu.kind === "corner") === !!(i.bench && i.bench.corner))).sort(byShelf);
     const framedNote = (() => {
@@ -2214,10 +2251,51 @@ export default function SchluterConfigurator({
 
   // The ⇄ swap popover — the wedi anchored panel: the line's alternatives,
   // stock tinted, the standing pick highlighted.
+  // The membrane / band popover — the drain popover's draft model: chips edit
+  // `swap.draft`, the Δ reads it against the lines the bill carries now, and
+  // Use this commits it (a draft that bills the default stores no pick).
+  const steppedPanel = () => {
+    const mem = swap.stepped === "membrane";
+    const draft = swap.draft || {};
+    const setDraft = (next) => setSwap((sw) => (sw ? { ...sw, draft: next } : sw));
+    const o = mem ? membraneOptions(draft, build.need.wallSf, cat, { source }) : bandOptions(draft, build.need.bandLf, cat, { source });
+    const g = mem ? "Walls" : "Seams";
+    const cur = build.lines.filter((l) => l.g === g && (mem ? l.item.g === "membrane" : l.item.lf));
+    const total = (lines) => round2(lines.reduce((t, l) => t + tierOf(l.item) * l.qty, 0));
+    const curTotal = total(cur), next = total(o.result.lines);
+    const d = round2(next - curTotal);
+    const chip = (c) => ({ ...c, onPick: () => setDraft(c.next) });
+    const rows = [
+      { label: "Width", chips: o.widths.map((c) => ({ ...chip(c), label: mem ? c.label : inchGlyph(c.label) })) },
+      { label: "Roll", chips: o.rolls.map(chip) },
+    ];
+    const lineWord = (p) => mem
+      ? `${p.qty} × ${p.item.wide ? "wide " : ""}${parseInt(p.item.roll, 10)} m roll · ${p.item.sf} sf`
+      : `${p.qty} × ${inchGlyph(bandWidthLabel(p.item.width))} band, ${parseInt(p.item.roll, 10)} m · ${p.item.lf} lf`;
+    const what = o.result.lines.map(lineWord).join(" + ") || "Nothing in the books";
+    const why = o.result.subst || (mem ? `${Math.round(build.need.wallSf)} sf of wall with laps` : `${Math.round(build.need.bandLf)} lf of seams + tray perimeter`);
+    const commit = mem ? (draft.wide || draft.roll ? draft : null) : (draft.width || draft.roll ? draft : null);
+    const r = swap.rect;
+    return (
+      <SwapPop at={{ anchor: swap.anchor, x: r.right - 470, y: r.bottom + 6 }} className="sch-swappanel"
+        title={mem ? "Swap the KERDI membrane" : "Swap the KERDI-BAND"} rows={rows} stockFirst={source === "stock"}
+        summary={{ what, why, delta: fmDelta(d), total: fm(next), up: d > 0 }}
+        onUse={() => {
+          setSwaps((sw) => { const n = { ...sw }; if (commit) n[swap.stepped] = commit; else delete n[swap.stepped]; return n; });
+          const keys = new Set([...cur, ...o.result.lines.map((p) => ({ g, item: p.item }))].map(ovKey));
+          setQtyOv((q) => Object.fromEntries(Object.entries(q).filter(([k]) => !keys.has(k))));
+          setSwap(null);
+        }}
+        onClose={() => setSwap(null)} />
+    );
+  };
+
   const swapPanel = (() => {
     if (!swap || !build) return null;
     if (swap.drain) return drainPanel();
-    const line = build.lines.find((l) => !l.noteOnly && (l.item.sku || l.item.name) === swap.key);
+    if (swap.stepped) return steppedPanel();
+    const line = build.lines.find((l) => !l.noteOnly && l.g === swap.g && l.bench === swap.bench
+      && (l.item.sku || l.item.name) === swap.key);
     if (!line) return null;
     const ch = swapChoices(line);
     if (!ch) return null;

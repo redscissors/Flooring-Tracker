@@ -106,6 +106,13 @@ eftRows.push(normOrderItem({
   sku, bookId: "bk_eft", unit: "PC", cost, size, description: lead(description), leadTime: "READY SHIP",
 })));
 
+// A second KERDI-BAND width (ticket 158 Phase 1b) so the band ⇄ shows a Width
+// row: the 7-1/4" full roll, special order. Illustrative cost, not an EFT figure.
+eftRows.push(normOrderItem({
+  sku: "SLRKEBA100/185", bookId: "bk_eft", unit: "RL", cost: 93.2, size: "98'5\" roll",
+  description: lead('Kerdi-Band 7-1/4" Seam Band'), leadTime: "READY SHIP",
+}));
+
 // The harness "sheet" — the placed rows as the job sheet holds them, with a
 // qty box per row and Reconfigure on each anchor, so the drive can prove a
 // sheet-edited quantity reopens as the popup's override (owner 2026-09-02).
