@@ -321,7 +321,7 @@ const CSS = `
 .wedi-pop .bg-h .addb{margin-left:auto;flex:none;border:1px solid var(--ft-border);background:var(--ft-card);border-radius:5px;color:var(--ft-muted);font-size:12px;font-weight:800;width:20px;height:18px;cursor:pointer;line-height:1;padding:0}
 .wedi-pop .bg-h .wallctl + .addb{margin-left:6px}
 .wedi-pop .bg-h .addb:hover{border-color:var(--ft-brand);color:var(--ft-brand-deep)}
-.wedi-pop .bline .addtag{font-size:8.5px;font-weight:800;color:var(--ft-brand-deep);background:var(--ft-brand-soft);border-radius:4px;padding:0 5px;margin-left:6px;vertical-align:1px;text-transform:lowercase}
+.wedi-pop .bline .addtag{font-size:8.5px;font-weight:800;color:var(--ft-brand-deep);background:var(--ft-brand-soft);border-radius:4px;padding:0 5px;margin-left:3px;vertical-align:1px}
 .wedi-pop .starb{flex:none;border:1px solid var(--ft-border);background:var(--ft-card);border-radius:5px;width:22px;height:22px;font-size:12px;color:var(--ft-faint);cursor:pointer;line-height:1;padding:0}
 .wedi-pop .starb.on{color:#C9A050;border-color:#C9A050}
 .wedi-pop .addchips{display:flex;flex-wrap:wrap;gap:5px;padding:5px 0 2px}
@@ -2002,7 +2002,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
             return (
               <div className="bgroup" key={bk[0]}>
                 <div className="bg-h">{bk[1]}
-                  {bk[0] === "walls" && (
+                  {bk[0] === "walls" && lines.length > 0 && (
                     <span className="wallctl">
                       <span className="pfseg">
                         <button className={panelFit ? "on" : ""} title="mixed sheet sizes, level courses, minimal vertical seams" onClick={() => setPanelFit(true)}>Fit</button>
@@ -2024,7 +2024,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
                     <div className="bline" key={e.key + l.group + (l.added ? "+" : "")}>
                       <div className="bn">
                         <div className="n"><FinDot e={e} />{unwedi(e.name)}
-                          {tagged && <span className="addtag" title="added by hand — doesn't re-figure when the room or kit changes" data-added-tag>added</span>}</div>
+                          {tagged && <>{" "}<span className="addtag" title="added by hand — doesn't re-figure when the room or kit changes" data-added-tag>added</span></>}</div>
                         {(() => {
                           // Contents lead, the auto note follows — the line truncates from
                           // the right, and "100 ct" is the part that must survive it.
@@ -2060,14 +2060,15 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
                       // one comes off on its own line's − or ⇄, never all at once
                       const many = ["niche", "seat", "bench", "shelf"].includes(ac[0]);
                       const count = many ? build.lines.reduce((t, l) => t + (l.item.group === ac[0] ? l.qty : 0), 0) : 0;
-                      const on = ac[0] === "gun" ? build.lines.some((l) => l.item.key === SKU.gun)
-                        : ac[0] === "recess" ? build.lines.some((l) => l.item.group === "recess" || l.item.group === "ramp")
-                          : build.lines.some((l) => l.item.group === ac[0]);
+                      // Recess kit / Cover frame are the kit's option: an added ramp or frame is its own line
+                      const kitOpt = ac[0] === "recess" || ac[0] === "coverFrame";
+                      const hit = (l) => !(kitOpt && l.added) && (ac[0] === "recess"
+                        ? l.item.group === "recess" || l.item.group === "ramp" : l.item.group === ac[0]);
+                      const on = ac[0] === "gun" ? build.lines.some((l) => l.item.key === SKU.gun) : build.lines.some(hit);
                       return (
                         <button key={ac[0]} className={"addchip" + (on ? " on" : "")} data-wedi-chip={ac[0]} onClick={(ev) => {
                           if (ac[0] === "gun") { toggleGun(); return; }
-                          const cur = !many && build.lines.find((l) => ac[0] === "recess"
-                            ? l.item.group === "recess" || l.item.group === "ramp" : l.item.group === ac[0]);
+                          const cur = !many && build.lines.find(hit);
                           if (cur) {
                             if (ac[0] === "recess") setOpts((o) => ({ ...o, recess: "none" }));
                             else if (ac[0] === "coverFrame") setOpts((o) => ({ ...o, coverFrame: undefined }));
@@ -2751,7 +2752,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
           {BUCKETS.flatMap((bk) => build.lines.filter((l) => l.group === bk[0]).map((l) => {
             const p = tierOf(l.item);
             return (
-              <tr key={bk[0] + l.item.key}>
+              <tr key={bk[0] + l.item.key + (l.added ? "+" : "")}>
                 <td>{l.item.stock ? l.item.erp : "wedi " + l.item.us}</td>
                 <td>{unwedi(l.item.name)}</td><td>{l.item.sizeText || ""}</td>
                 <td className="num">{l.qty}</td><td className="num">{fm(p)}</td><td className="num">{fm(round2(p * l.qty))}</td>
