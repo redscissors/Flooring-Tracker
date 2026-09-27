@@ -191,6 +191,15 @@ slate blue, berry, teal, violet, ochre, magenta, sky, brick, graphite,
 mauve, navy, walnut. Waiting on approval before touching OPTION_COLOR (it
 is shared by every layout, the Order summary and the phone).
 
+## Round 2f — per-option colors applied everywhere (2026-09-27)
+
+Owner approved the palette with the stronger bar tint. `OPTION_COLOR`
+(src/options.js) now maps A–L to their own colors; ADR 0031 amended. Clean's
+option bars mix 24% of the color into the tan. Reaches every layout: header
+option chips, compare tabs, Order summary, the option print bands. Shots
+`60-option-colors-clean`, `61-option-colors-print-preview`,
+`62-option-colors-onebar`.
+
 ## Round 2 — open: product rows
 
 What the mockups show (every board uses the same card treatment; the frame

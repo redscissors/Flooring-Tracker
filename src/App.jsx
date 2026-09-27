@@ -1776,7 +1776,7 @@ export default function App({ user, onSignOut }) {
                       return (
                         <div onContextMenu={(e) => { e.preventDefault(); setAreaMenu({ aid: a.id, x: e.clientX, y: e.clientY, clean: true }); }}
                           style={{ display: "grid", gridTemplateColumns: GRID_COLS, alignItems: "center", height: 30, borderBottom: "1px solid var(--ft-border-soft)", fontSize: 9, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--ft-faint)",
-                            background: oc ? `color-mix(in srgb, ${oc.main} 16%, var(--ft-area-head))` : "var(--ft-area-head)" }}>
+                            background: oc ? `color-mix(in srgb, ${oc.main} 24%, var(--ft-area-head))` : "var(--ft-area-head)" }}>
                           <div className="flex items-center gap-2 min-w-0 normal-case tracking-normal" style={{ gridColumn: "1 / 3", padding: "0 4px 0 6px", color: "var(--ft-text)" }}>
                             {oc && <button tabIndex={-1} onClick={(e) => menuAt(e)} title={`${optionTitle(sel, a.option)} — press to change`} className="ft-noprint shrink-0 w-[18px] h-[18px] rounded flex items-center justify-center text-[10.5px] font-extrabold" style={{ background: oc.main, color: "#fff" }}>{a.option}</button>}
                             <button tabIndex={-1} onPointerDown={(e) => startAreaDrag(e, a.id, ai)} title="Drag to reorder areas" className="ft-noprint p-0.5 rounded touch-none cursor-grab text-slate-400 hover:text-slate-600 opacity-0 group-hover:opacity-100 focus:opacity-100 shrink-0"><AlignJustify size={12} /></button>
