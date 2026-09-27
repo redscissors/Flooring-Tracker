@@ -384,7 +384,8 @@ New `.scratch/158_shower-config-roadmap/p1d/` scripts (`shoot-schluter.mjs`,
 Calls the plan author made while prototyping (the plan's "Rulings made while
 prototyping", `docs/superpowers/plans/2026-09-27-shared-groups-compare.md`) and
 the controller ruled on during execution (ledger:
-`.superpowers/sdd/2026-09-27-shared-groups-compare/progress.md`).
+`.superpowers/sdd/2026-09-27-shared-groups-compare/progress.md`, session
+ledger, not committed).
 
 From the plan:
 

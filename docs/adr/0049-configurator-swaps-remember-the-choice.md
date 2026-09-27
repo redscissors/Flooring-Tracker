@@ -172,8 +172,8 @@ books no longer carry. The owner confirmed this on 2026-09-27, and tile sf
 4. **Compare's other column holds session state.** Each line the host build
    added by hand is mirrored onto the other brand:
    - by default the nearest-size part in the same slot (niche, bench, curb,
-     tray, wall board, wall membrane, seam), stock before special order, qty
-     by coverage where both parts have it;
+     tray, wall board, wall membrane, seam) — nearest size, stock breaking
+     ties — qty by coverage where both parts have it;
    - otherwise a "+" that opens a picker of that brand's "+" parts for the
      group;
    - hand picks and drops live in the host popup's `mirror` state

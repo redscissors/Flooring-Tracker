@@ -116,7 +116,8 @@ approval gate applies.
 ## Deferred from 1d
 
 One line each; the full list is in
-`.superpowers/sdd/2026-09-27-shared-groups-compare/progress.md`.
+`.superpowers/sdd/2026-09-27-shared-groups-compare/progress.md` (session
+ledger, not committed).
 - `groupOf`'s Extras fallback is positional (`GROUPS[last]`); key it on
   `"extras"`.
 - The "+ lands back in its group" tests are near-circular (`plusPart` bakes

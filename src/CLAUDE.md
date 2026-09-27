@@ -2117,9 +2117,8 @@ src/
                     # delete/reconfigure run the real model.js paths over
                     # local state; not part of the app build
   comparekit.js     # one room priced in BOTH shower systems (phase 5,
-                    # ADR 0034) — the first module allowed to import wedi.js
-                    # and schluter.js together, and outside the compare chunk
-                    # the only one that should: it owns the mapping and nothing
+                    # ADR 0034) — where the Compare tab's engine reads live
+                    # (the 1d mirror included): it owns the mapping and nothing
                     # else, so neither engine has to learn about the other and
                     # neither engine's pinned totals can move. A neutral room
                     # ({w,d,curbed,drain,walls[{side,on,len,h}]}) sits between
@@ -2175,9 +2174,12 @@ src/
   comparemirror.js  # how Compare sizes and ranks the other brand's parts for
                     # a hand-added line (ticket 158 Phase 1d, ADR 0049) —
                     # pure and ENGINE-FREE: comparekit hands it parts
-                    # (`{ brand, item, slot, g, id, cov, retail }`), so
-                    # comparekit stays the one Compare module reading both
-                    # engines. `sizeOf` reads a comparable size per sized
+                    # (`{ brand, item, slot, g, id, cov, retail }`) and it
+                    # imports no engine; the mirror's engine reads live in
+                    # comparekit. (Other modules import both engines for
+                    # their own ends: CompareTab.jsx both `lineItems` for the
+                    # quote-options payload, showersf.js and orderlines.js
+                    # outside Compare.) `sizeOf` reads a comparable size per sized
                     # slot (niche interior W×H — wedi's size text, Schluter's
                     # `KB..SN<mm><mm>` SKU only, so the lighted niche never
                     # sizes; bench footprint; curb len; tray W×D; wall board
@@ -2203,8 +2205,8 @@ src/
                     # and leaves the live build standing. The popup passes its
                     # raw live cfg as `hostCfg`, the NEUTRAL ROOM derived HERE
                     # (roomFromWedi/roomFromSchluter) — the popups must never
-                    # import comparekit themselves, so the two engines only ever
-                    # meet inside this lazy chunk. The HOST column shows that
+                    # import comparekit themselves, so Compare's two-engine
+                    # code stays inside this lazy chunk. The HOST column shows that
                     # popup's build as it stands; the other column is that
                     # engine's derived house kit for the same room. A column
                     # that can't be built (no wedi pan solves the room, no
