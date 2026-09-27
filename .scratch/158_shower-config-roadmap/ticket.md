@@ -83,7 +83,7 @@ per group → 1d shared names / Compare alignment (owner). **1a DONE
 - **Spec:** `docs/superpowers/specs/2026-09-26-drain-slot-design.md`
 - **Plan:** `docs/superpowers/plans/2026-09-26-drain-slot.md`
 - **Mockup:** `.scratch/mockups/drain-swap-2026-09-26.html` (layout A)
-- **Handoffs:** `.scratch/handoffs/shower-config-phase1a-2026-09-26.md` (1a); `.scratch/handoffs/shower-config-phase1c-2026-09-27.md` (1c); **next:** `.scratch/handoffs/shower-config-phase1d-2026-09-27.md` (1d onward)
+- **Handoffs:** `.scratch/handoffs/shower-config-phase1a-2026-09-26.md` (1a); `.scratch/handoffs/shower-config-phase1c-2026-09-27.md` (1c); `.scratch/handoffs/shower-config-phase1d-2026-09-27.md` (1d); **next:** `.scratch/handoffs/shower-config-phase2-2026-09-27.md` (Phase 2 onward)
 - **ADR:** `docs/adr/0049-configurator-swaps-remember-the-choice.md`
 - **Proof:** `.scratch/158_shower-config-roadmap/p1a/`
 - **PR:** [redscissors/Flooring-Tracker#437](https://github.com/redscissors/Flooring-Tracker/pull/437)
@@ -108,7 +108,26 @@ retire into it; several wedi niches.
 - **Proof:** `.scratch/158_shower-config-roadmap/p1c/`
 - **PR:** [redscissors/Flooring-Tracker#441](https://github.com/redscissors/Flooring-Tracker/pull/441)
 
-**Carry into 1d+ (what's left):**
+**1d DONE (2026-09-27):** both bills, both print sheets and Compare draw one
+group list from `slots.js` (Base · Drain · Curb · Walls · Seams · Niches ·
+Bench · Setting · Extras), derived from each line's slot; the engines' own
+groups stay internal keys, so no saved bill moves. wedi fasteners moved to
+Walls. Compare lines both brands up by group band and slot row, and mirrors
+every hand-added line onto the other brand (nearest size in the same slot, or
+a "+" that opens that brand's picker), priced by that engine and carried into
+option B.
+
+- **Spec:** `docs/superpowers/specs/2026-09-27-shared-groups-compare-design.md`
+- **Plan:** `docs/superpowers/plans/2026-09-27-shared-groups-compare.md`
+- **ADR:** `docs/adr/0049-configurator-swaps-remember-the-choice.md` (amended; ADR 0034 cross-referenced)
+- **Proof:** `.scratch/158_shower-config-roadmap/p1d/`
+- **PR:** [redscissors/Flooring-Tracker#444](https://github.com/redscissors/Flooring-Tracker/pull/444)
+
+**Phase 1 is complete** (1a–1d). Next is Phase 2 (Board vs Membrane); start
+from `.scratch/handoffs/shower-config-phase2-2026-09-27.md`.
+
+**Carry into Phase 2+ (what's left; the 1d deferrals are in the Phase 2
+handoff):**
 - Schluter kit-card thumbnails draw Vario at full width under a fixed drain
   pick.
 - Wording: Vario substitution note on a finish-only miss; fixed-fallback

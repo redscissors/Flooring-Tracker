@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { rowItemKey, sessionFromRows,
-  addedRows, setAddedRow, wediBucketOf, wediAddParts, wediAddPartOf, curbAddOptions, coverAddOptions,
+  addedRows, setAddedRow, wediBucketOf, WEDI_ADD_PARTS, wediAddParts, wediAddPartOf, curbAddOptions, coverAddOptions,
   catalog, item, group, pans, curbs, kitFor, buildFromMarker, solve, figureConsumables, panelPlan,
   openEdges, openCorners, curbRuns, wallSpans, expandWallFaces, WALL_THICK, panThick, BROWSE_SECTIONS, sectionHit,
   tierPrice, lineItems, factoryKit, linearCoverFor, legacyCoverPick, coverStyles, coverFrames, coverFrameFor, dims, round2, inch,
@@ -15,7 +15,7 @@ import { rowItemKey, sessionFromRows,
   resolveCurb, legacyCurbPick, curbOptions, curbPickOf, markerCurbKey,
   panelOptions, panelSheets, fastenerKits,
 } from "./wedi.js";
-import { isSlot } from "./slots.js";
+import { isSlot, groupOf } from "./slots.js";
 
 // Ported whole from the prototype's self-test
 // (.scratch/066_wedi-configurator/proto-engine.js) — 135 assertions, section
@@ -1671,15 +1671,32 @@ test("setAddedRow: rows key on bucket + key; 0 removes; order kept", () => {
   assert.deepEqual(setAddedRow([{ key: SKU.panelDefault, qty: 1 }], "walls", SKU.panelDefault, 2), [{ key: SKU.panelDefault, qty: 2, group: "walls" }], "a groupless row is its default bucket's row");
 });
 
-test("wediAddParts / wediAddPartOf: each bucket's '+' parts", () => {
+test("wediAddParts / wediAddPartOf: each shared group's '+' parts", () => {
   const keys = (b) => wediAddParts(b).map((p) => p.key);
-  assert.deepEqual(keys("walls"), ["panel"]);
+  assert.deepEqual(keys("walls"), ["panel", "fastener"]);
   assert.deepEqual(keys("drain"), ["cover", "frame", "drainKit"].filter((k) => k !== "drainKit" || group("drainKit").length));
-  assert.ok(keys("addon").includes("niche") && keys("addon").includes("shelf"));
-  assert.ok(keys("floor").includes("curb"));
-  assert.equal(wediAddPartOf("addon", item("US3000004")).key, "niche");
+  assert.ok(keys("niches").includes("niche") && keys("niches").includes("shelf"));
+  assert.ok(keys("curb").includes("curb"));
+  assert.ok(keys("setting").includes("proSet"));
+  assert.equal(wediAddPartOf("niches", item("US3000004")).key, "niche");
   assert.equal(wediAddPartOf("bench", item("US3000002")).key, "bench");
-  assert.equal(wediAddPartOf("floor", item(SKU.curbLean60)).key, "curb");
+  assert.equal(wediAddPartOf("curb", item(SKU.curbLean60)).key, "curb");
+  assert.equal(wediAddPartOf("seams", item(SKU.proSet)), null, "PRO-SET is S-DRY by catalog group but a Setting part");
+  assert.equal(wediAddPartOf("setting", item(SKU.proSet)).group, "install");
+});
+
+test("every wedi '+' part lands back in the group that offered it", () => {
+  for (const [grp, parts] of Object.entries(WEDI_ADD_PARTS)) {
+    for (const p of parts) {
+      for (const e of catalog().filter(p.hit)) {
+        assert.equal(groupOf(wediSlotOf({ item: e, group: p.group })), grp, `${e.key} added by ${grp}/${p.key}`);
+      }
+    }
+  }
+});
+
+test("wedi fasteners fill the wall-board slot, beside the panels", () => {
+  assert.equal(wediSlotOf({ item: item(SKU.fastenerKit), group: "install" }), "wallBoard");
 });
 
 test("curbAddOptions: Style → Profile → Length with no Auto or No curb; the piece is one at a real length", () => {

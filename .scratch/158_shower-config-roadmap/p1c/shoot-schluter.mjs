@@ -24,7 +24,7 @@ await pg.locator("[data-schluter-tray='KST965/1525']").first().click(); await pg
 
 const groups = await pg.locator("[data-add-group]").evaluateAll((els) => els.map((e) => e.getAttribute("data-add-group")));
 console.log("+ on:", groups.join(", "));
-if (groups.join() !== "Base,Drain,Walls,Seams,Curb,Setting,Extras") fail("not every group has a +");
+if (groups.join() !== "Base,Drain,Curb,Walls,Seams,Niches,Bench,Setting,Extras") fail("not every group has a +");
 
 // a one-part group: a list, no Part row; a click adds 1 and closes
 await plus("Curb");

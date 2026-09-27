@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
 import { FINISH_LABEL, ovKey, rowItemEntry, sessionFromRows, classify, catalogOf, coverageOf, trayCandidates, pickRolls, pickFrom, buildKit, buildFromMarker, linesTotal, tierPrice, lineItems, orderCopyLines, entryOpening, openRuns, boardPlan, boardSheets, expandBoardFaces, normBench, benchTrayRoom, slotOf, resolveDrain, drainOptions, pointGrateLabel,
   resolveMembrane, membraneOptions, resolveBand, bandOptions, bandWidthLabel,
-  addedGroup, addedLines, setAddedQty, addParts, addPartOf, addRollOptions, drainAddOptions, applyBoardPlan, applyQtyOv } from "./schluter.js";
-import { isSlot } from "./slots.js";
+  addedGroup, addedLines, setAddedQty, ADD_PARTS, addParts, addPartOf, addRollOptions, drainAddOptions, applyBoardPlan, applyQtyOv } from "./schluter.js";
+import { isSlot, groupOf } from "./slots.js";
 
 const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -1403,20 +1403,38 @@ test("setAddedQty: rows key on group + sku; 0 removes; order kept", () => {
   assert.deepEqual(setAddedQty([{ sku: "KEBA100/125", qty: 1 }], "Seams", "KEBA100/125", 2, CAT), [{ sku: "KEBA100/125", qty: 2, g: "Seams" }], "an old row with no g is the same row");
 });
 
-test("addParts / addPartOf: each group's '+' parts, only those the catalog carries", () => {
+test("addParts / addPartOf: each shared group's '+' parts, only those the catalog carries", () => {
   const keys = (g, c = CAT) => addParts(g, c).map((p) => p.key);
-  assert.deepEqual(keys("Drain"), ["drain", "grate", "body", "flange"]);
-  assert.deepEqual(addParts("Drain", CAT, { linear: false }).map((p) => p.key), ["grate", "body", "flange"], "a point build's Drain + leads with the grate");
-  assert.deepEqual(keys("Walls"), ["board", "membrane", "fastener"]);
-  assert.deepEqual(keys("Seams"), ["band", "corners"]);
-  assert.deepEqual(keys("Extras"), ["niche", "bench", "other"]);
-  assert.deepEqual(keys("Setting"), ["setting"]);
-  assert.deepEqual(keys("Drain", CAT.filter((i) => i.part !== "channel")), ["grate", "flange"], "no channel or body — no Drain or Body part");
-  assert.equal(addPartOf("Walls", sk("KB1212202440")).key, "board");
-  assert.equal(addPartOf("Extras", sk("KB1212202440")).key, "bench");
-  assert.equal(addPartOf("Seams", sk("KEBA100/125")).key, "band");
-  assert.equal(addPartOf("Walls", sk("KERDI200/10M")).key, "membrane");
-  assert.equal(addPartOf("Drain", sk("KLVRID3EB244")).key, "body");
+  assert.deepEqual(keys("drain"), ["drain", "grate", "body", "flange"]);
+  assert.deepEqual(addParts("drain", CAT, { linear: false }).map((p) => p.key), ["grate", "body", "flange"], "a point build's Drain + leads with the grate");
+  assert.deepEqual(keys("base"), ["tray", "membrane"]);
+  assert.deepEqual(keys("curb"), ["curb"]);
+  assert.deepEqual(keys("walls"), ["board", "membrane", "fastener"]);
+  assert.deepEqual(keys("seams"), ["band", "corners"]);
+  assert.deepEqual(keys("niches"), ["niche"]);
+  assert.deepEqual(keys("bench"), ["bench"]);
+  assert.deepEqual(keys("setting"), ["setting"]);
+  assert.deepEqual(keys("extras"), ["other"]);
+  assert.deepEqual(keys("drain", CAT.filter((i) => i.part !== "channel")), ["grate", "flange"], "no channel or body — no Drain or Body part");
+  assert.equal(addPartOf("walls", sk("KB1212202440")).key, "board");
+  assert.equal(addPartOf("bench", sk("KB1212202440")).key, "bench");
+  assert.equal(addPartOf("seams", sk("KEBA100/125")).key, "band");
+  assert.equal(addPartOf("walls", sk("KERDI200/10M")).key, "membrane");
+  assert.equal(addPartOf("drain", sk("KLVRID3EB244")).key, "body");
+  assert.equal(addPartOf("niches", sk("KB12SN305508A1")).g, "Extras", "a niche + stores the engine's Extras group");
+  assert.equal(addPartOf("extras", sk("KB12SN305508A1")), null, "a niche is never an Other extra");
+});
+
+test("every Schluter '+' part lands back in the group that offered it", () => {
+  for (const [grp, parts] of Object.entries(ADD_PARTS)) {
+    for (const p of parts) {
+      if (!p.hit) continue;
+      for (const e of CAT.filter(p.hit)) {
+        const [line] = addedLines([{ sku: e.sku, qty: 1, g: p.g }], CAT);
+        assert.equal(groupOf(line.slot), grp, `${e.sku} added by ${grp}/${p.key} draws under ${groupOf(line.slot)}`);
+      }
+    }
+  }
 });
 
 test("addRollOptions: Width → Roll with no Auto; a width alone lands on its first roll", () => {
