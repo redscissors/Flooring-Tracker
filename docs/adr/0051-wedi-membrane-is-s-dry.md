@@ -47,8 +47,8 @@ does.
      whose `sdryRole` is `"cover"` and falls back to the stainless wedi
      cover, and `coverPickApplies` reads it the same way — the mirror of
      the S-DRY branch's own inert-pick guard. Stops an S-DRY cover carried
-     across a flip to Building Panel from billing over a wedi drain (owner
-     decision, made during the build).
+     across a flip to Building Panel from billing over a wedi drain (Task 5
+     review finding, made during the build).
 3. **The S-DRY fit (`sdryFit`), in rank order:**
    - one base, cut evenly;
    - a base + one 24×48 extension along an edge ≤ 48″;
@@ -82,7 +82,8 @@ does.
    - The backer (cement board or drywall, by others) is a build hint, a
      print note and a Compare note row — never a priced line.
 5. **No fit → the owner picks.** The Custom tab shows the reason and three
-   buttons:
+   answers, plus "S-DRY base, fit to the room" when a fit exists (the chip
+   can reopen the prompt after the room changes back into a fit):
    - a wedi pan + curb with S-DRY walls;
    - the nearest S-DRY base anyway, with a warning naming the shortfall;
    - back to Building Panel.

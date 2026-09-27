@@ -994,10 +994,11 @@ src/
                     # pan/extension floor joints: `figureConsumables` gained
                     # an optional 4th argument, `jointSf` — the floor
                     # footprint's bounding box (`floorSfOf`, not the sum of
-                    # the solver's overlapping edge strips) — which folds
-                    # into the same sealant line the walls already bill (no
-                    # fasteners on the floor; bench surfaces still take
-                    # them). An S-DRY cover pick carried onto a non-S-DRY pan
+                    # the solver's overlapping edge strips) — which figures
+                    # the one Joint & Seal line (floor joints plus any bench
+                    # surfaces; the walls bill none under Membrane, no
+                    # fasteners on the floor either). An S-DRY cover pick
+                    # carried onto a non-S-DRY pan
                     # stays inert: the wedi-pan branch of `kitFor` falls back
                     # to the stainless wedi cover for a `coverPick` whose
                     # `sdryRole` is `"cover"`, mirroring the S-DRY branch's
@@ -1191,12 +1192,12 @@ src/
                     # `sdryRole`/`sdrySlot` (role and slot off the SKU).
                     # Rates are wedi's published ones — see the Phase 2 spec's
                     # Sourced rates before changing any (sdry.test.js).
-                    # Each fit option's `badges` read the layout's ACTUAL
-                    # cuts (Task 7 fix, build amendment 23): any cut piece —
-                    # including an extension trimmed on the nearest option —
-                    # shows "Trim to fit"; only a fully uncut layout shows
-                    # "No cutting". The earlier version read the footprint-vs-
-                    # room delta, which disagreed with a cut extension.
+                    # Each fit option's `badges` end with the cut state, in
+                    # order (build amendment 23): the whole-footprint cut
+                    # text ("cut N″ off each side/end") when the layout's own
+                    # footprint is larger than the room; else "Trim to fit"
+                    # when any piece is cut — including an extension trimmed
+                    # on the nearest option; else "No cutting".
   WediConfigurator.jsx  # the wedi popup, a `React.lazy` chunk (ADR 0026) so the
                     # tables stay off boot. Carries the shared SourceSwitch
                     # (phase 4): Stock only re-solves an active custom room

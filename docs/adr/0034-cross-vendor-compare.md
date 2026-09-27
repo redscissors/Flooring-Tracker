@@ -120,7 +120,7 @@ explanatory cell, and the delta line hides itself.
 ## Open — owner calls this phase surfaced, not decided
 
 - ~~No like-for-like KERDI-BOARD toggle on the compare surface.~~ **Closed by
-  ADR 0051 (ticket 158 Phase 2, 2026-09-28):** the other column follows the
+  ADR 0051 (ticket 158 Phase 2, 2026-09-27):** the other column follows the
   host's wall system — wedi Building Panel faces KERDI-BOARD, wedi S-DRY
   faces KERDI membrane, and the Schluter host the other way round. Column
   headers name each side's system; the help tip's walls caveat is gone. A

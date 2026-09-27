@@ -340,7 +340,7 @@ prototyping the plan; 19–23 were made building it.
      (`wediCompareRows`).
 3. **Membrane drops, from the walls:**
    - the Building Panel line;
-   - the fastener kit and joint sealant, figured on wall sf;
+   - the fastener kit and joint sealant, figured on wall sf (see 22);
    - the wedi collars (`US5000000` / `US5000033`), replaced by the S-DRY
      collars;
    - the corner putty trowel (`US5000044`).
@@ -388,7 +388,7 @@ prototyping the plan; 19–23 were made building it.
       top option.
     - On the Kits tab, it refreshes the cards only.
     - A loaded S-DRY kit (no option) flipped to Building Panel clears the
-      build.
+      build (see 21).
     - A loaded wedi kit flipped to Membrane keeps its pan with S-DRY walls,
       and the chip says so.
     - The re-solve runs in an effect keyed on
@@ -436,9 +436,11 @@ prototyping the plan; 19–23 were made building it.
     surfaces still do); one Joint & Seal line. figureConsumables gained an
     optional 4th arg jointSf. S-DRY floors unchanged (their extension seams
     ride S-DRY tape). (Task 7 proof review, commit c9503ef.)
-23. **The S-DRY option badge reads the layout's actual cuts**: any cut piece
-    (incl. an extension trim on the nearest option) shows "Trim to fit"; only
-    an uncut layout shows "No cutting". (Task 7 proof review, commit c9503ef.)
+23. **The S-DRY option badge's cut state checks three cases in order**: the
+    whole-footprint cut text ("cut N″ off each side/end") when the layout's
+    own footprint is larger than the room; else "Trim to fit" for any cut
+    piece (incl. an extension trim on the nearest option); else "No cutting".
+    (Task 7 proof review, commit c9503ef.)
 
 Also: the final suite count is 1822 (the plan said 1814), because of the
 tests the build added.

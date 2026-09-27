@@ -190,7 +190,7 @@ books no longer carry. The owner confirmed this on 2026-09-27, and tile sf
 ADR 0034's `COMPARE_CATS` / `WEDI_CAT` retire with this: Compare rows are
 group bands with one row per slot.
 
-## Amendment — Phase 2 (2026-09-28): the wall system is a choice too
+## Amendment — Phase 2 (2026-09-27): the wall system is a choice too
 
 The wedi marker gains two ADR-0049 choices (ADR 0051): `cfg.wallSys`
 (`"membrane"`, absent = Building Panel) and `cfg.sdryBase` (`"wedi"`, absent =
