@@ -1586,3 +1586,39 @@ test("every 1b wedi pick survives the marker: lineItems → buildFromMarker bill
     assert.deepEqual(back.cfg, k.cfg, JSON.stringify(opts));
   }
 });
+
+// --- Phase 1b fix round 1: a stale panel/fastener pick says so, never drops silently ---
+
+test("figureConsumables: a fastenerKey that isn't one of the boxed kits falls back to the house kit with a note", () => {
+  assert.equal(lineFor(figureConsumables(100, "sausage"), SKU.fastenerKit).note, "", "no pick — no note");
+  assert.equal(lineFor(figureConsumables(100, "sausage", "US5000086"), "US5000086").note, "", "a boxed kit pick carries no note");
+  assert.equal(lineFor(figureConsumables(100, "sausage", SKU.fastenerKit), SKU.fastenerKit).note, "", "an explicit house-kit pick carries no note");
+  const nope = figureConsumables(100, "sausage", "NOPE");
+  assert.equal(lineFor(nope, SKU.fastenerKit).note, "NOPE not in the book — house kit", "an unrecognized key says so and bills the house kit");
+  // US5000009 is a real fastener-group SKU (a washer master pack) but not one of the two boxed kits
+  const other = figureConsumables(100, "sausage", "US5000009");
+  assert.equal(lineFor(other, SKU.fastenerKit).note, "US5000009 not in the book — house kit", "a non-kit fastener SKU takes the same stale path");
+});
+
+test("figureConsumables: an explicit house-kit pick keeps the recipe's 100 ct, never parses its own sizeText", () => {
+  const sf = 144; // fastenerCount = 144, so a 100-ct divisor gives 2 while any other misread would not
+  const byKey = (key) => lineFor(figureConsumables(sf, "sausage", key), SKU.fastenerKit).qty;
+  assert.equal(byKey(undefined), 2, "no pick — CONSUMABLES.fastenerKitCt");
+  assert.equal(byKey(SKU.fastenerKit), 2, "explicit house-kit pick — still CONSUMABLES.fastenerKitCt, not sizeText");
+});
+
+test("kitFor: a stale or non-panel panelKey falls back to the default panel with a note; a default build's notes are unchanged", () => {
+  const wallLine = (opts) => kitFor("US9100004", opts).lines.find((l) => l.item.group === "panel");
+  const k0 = kitFor("US9100004");
+  const w0 = wallLine(undefined);
+  assert.equal(w0.note, round2(k0.panelSf) + " sf of wall — " + (w0.item.sf || 0) + " sf/sheet", "default build's note is unchanged");
+  assert.equal(wallLine({ panelKey: "US8000015" }).note.includes("not in the book"), false, "a valid pick carries no stale note");
+  const nope = wallLine({ panelKey: "NOPE" });
+  assert.equal(nope.item.key, SKU.panelDefault);
+  assert.equal(nope.note.includes("NOPE not in the book — default panel used"), true);
+  // a real SKU that isn't a wall panel at all (a fastener kit) is just as stale
+  const notAPanel = wallLine({ panelKey: SKU.fastenerKit });
+  assert.equal(notAPanel.item.key, SKU.panelDefault);
+  assert.equal(notAPanel.note.includes(SKU.fastenerKit + " not in the book — default panel used"), true);
+  assert.equal("panelKey" in kitFor("US9100004", { panelKey: "NOPE" }).cfg, false, "a stale pick never rides the marker");
+});

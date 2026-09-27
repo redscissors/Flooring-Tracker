@@ -4470,14 +4470,20 @@ export function figureConsumables(panelSf, form, fastenerKey) {
     // Today both codes survive a thinned book because WEDI_SO also carries
     // them — 22 of the 24 SKU.* constants have that pricelist twin. 8b retires
     // WEDI_SO, and then they don't.
-    // a swapped kit (Phase 1b) counts by its own "N ct"; the house kit keeps the recipe's 100
+    // a swapped kit (Phase 1b) counts by its own "N ct"; the house kit keeps the recipe's 100.
+    // Honoured only when it's one of the boxed kits (fastenerKits()) — a stray
+    // fastener SKU (a washer master pack) is not a kit swap and falls back like
+    // an unrecognized key, never silently substituted.
     const picked = fastenerKey ? item(fastenerKey) : null;
-    const fastenerKit = picked && picked.group === "fastener" ? picked : item(SKU.fastenerKit);
-    const ctM = picked && picked === fastenerKit ? /(\d+)\s*ct/i.exec(fastenerKit.sizeText || "") : null;
+    const honoured = picked && fastenerKits().some((f) => f.key === picked.key) ? picked : null;
+    const fastenerKit = honoured || item(SKU.fastenerKit);
+    const fastenerStale = !!fastenerKey && !honoured;
+    const ctM = honoured && honoured.key !== SKU.fastenerKit ? /(\d+)\s*ct/i.exec(honoured.sizeText || "") : null;
     const sealant = sealantItem(form, false);
     if (fastenerKit) lines.push({
       item: fastenerKit, qty: Math.ceil(fastenerCount / (ctM ? +ctM[1] : CONSUMABLES.fastenerKitCt)),
-      group: "install", auto: true, note: "",
+      group: "install", auto: true,
+      note: fastenerStale ? fastenerKey + " not in the book — house kit" : "",
     });
     if (sealant) lines.push({
       item: sealant, qty: Math.ceil(oz / per),
@@ -5290,7 +5296,10 @@ export function kitFor(panKey, opts) {
   const room = opts.room || (option ? { w: option.room.w, d: option.room.d } : null);
   const walls = opts.walls || defaultWalls(pan, room, opts.wallHeight);
   const form = opts.sealantForm === "tube" ? "tube" : "sausage";
-  const panel = item(opts.panelKey || SKU.panelDefault) || item(SKU.panelDefault);
+  const panelPick = opts.panelKey ? item(opts.panelKey) : null;
+  const validPanel = !!(panelPick && panelPick.group === "panel" && panelPick.sf > 0);
+  const panel = validPanel ? panelPick : item(SKU.panelDefault);
+  const panelStale = !!opts.panelKey && !validPanel;
   const lines = [], hints = [];
   const roomDims = room || panRoomDims(pan);
   const benches = (opts.benches || []).map((x) => normBench(x, roomDims));
@@ -5368,7 +5377,8 @@ export function kitFor(panKey, opts) {
   // A live book can drop the default panel; the floor in usewedicatalog.js
   // refuses such a book, and this is the belt to that brace.
   if (panel) push(lines, panel, sheets, "walls",
-    round2(panelSf) + " sf of wall — " + (panel.sf || 0) + " sf/sheet", true);
+    round2(panelSf) + " sf of wall — " + (panel.sf || 0) + " sf/sheet"
+      + (panelStale ? " · " + opts.panelKey + " not in the book — default panel used" : ""), true);
   else hints.push("no-panel");
 
   // --- benches ---------------------------------------------------------------
