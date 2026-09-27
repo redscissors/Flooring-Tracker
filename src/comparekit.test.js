@@ -4,9 +4,13 @@ import { FIXTURE_ITEMS } from "./schluterfixture.js";
 import { catalogOf } from "./schluter.js";
 import { item, kitFor, SKU } from "./wedi.js";
 import {
-  COMPARE_CATS, roomFromSchluter, roomFromWedi, wediBuildFor, schluterBuildFor,
+  roomFromSchluter, roomFromWedi, wediBuildFor, schluterBuildFor,
   wediCompareRows, schluterCompareRows, compareTotals,
+  hostAddedLines, mirrorParts, mirrorCandidates, mirrorPlan, mirrorRow, pruneMirror, compareLayout,
 } from "./comparekit.js";
+import { GROUPS, SLOTS } from "./slots.js";
+import { lineItems as wediLineItems, buildFromMarker as wediFromMarker } from "./wedi.js";
+import { lineItems as schluterLineItems, buildFromMarker as schluterFromMarker } from "./schluter.js";
 
 const CAT = catalogOf(FIXTURE_ITEMS);
 
@@ -93,12 +97,16 @@ test("wediBuildFor returns a kit build whose cfg carries the solved pan", () => 
   assert.deepEqual(b.cfg.room, { w: 60, d: 38 });
 });
 
-test("wedi rows bucket into COMPARE_CATS, with a Walls panel line", () => {
+test("wedi rows file by shared group and slot, with a Walls panel line", () => {
   const rows = wediCompareRows(wediBuildFor(room60x38()));
-  rows.forEach((r) => assert.ok(COMPARE_CATS.includes(r.cat), r.cat + " is not a compare category"));
-  const walls = rows.filter((r) => r.cat === "Walls");
+  const keys = GROUPS.map((g) => g.key);
+  rows.forEach((r) => assert.ok(keys.includes(r.group) && SLOTS.includes(r.slot), r.name + " → " + r.group + "/" + r.slot));
+  const walls = rows.filter((r) => r.group === "walls" && /building panel/i.test(r.name));
   assert.equal(walls.length, 1);
-  assert.ok(/building panel/i.test(walls[0].name));
+  assert.equal(walls[0].slot, "wallBoard");
+  assert.equal(rows.find((r) => /fastener kit/i.test(r.name)).group, "walls", "fasteners sit with the panels");
+  assert.equal(rows.find((r) => /valve seal/i.test(r.name)).slot, "corners");
+  assert.ok(rows.every((r) => r.added === false), "a house kit has no added lines");
   assert.ok(walls[0].retail > 0);
   assert.ok(rows.every((r) => typeof r.est === "boolean"));
 });
@@ -106,7 +114,7 @@ test("wedi rows bucket into COMPARE_CATS, with a Walls panel line", () => {
 test("wedi rows carry the part number and the engine note as the sub line", () => {
   const b = wediBuildFor(room60x38());
   const rows = wediCompareRows(b);
-  const base = rows.find((r) => r.cat === "Base");
+  const base = rows.find((r) => r.group === "base");
   assert.equal(base.sub, b.pan.us);
   const sealant = rows.find((r) => /sealant/i.test(r.name));
   const line = b.lines.find((l) => l.item.group === "sealant");
@@ -117,7 +125,7 @@ test("wedi rows carry the part number and the engine note as the sub line", () =
 // configurators' own totals use ($54.66 × 0.82 = $44.82 a sheet, six sheets)
 test("wedi rows price through the engine's own tier lens, extended by qty", () => {
   const rows = wediCompareRows(wediBuildFor(room60x38()));
-  const panel = rows.find((r) => r.cat === "Walls");
+  const panel = rows.find((r) => r.slot === "wallBoard" && /building panel/i.test(r.name));
   assert.equal(panel.qty, 6);
   assert.deepEqual([panel.retail, panel.builder, panel.cost], [327.96, 268.92, 198.78]);
 });
@@ -126,7 +134,7 @@ test("wedi's PRO-SET bag files under Setting — no by-others thin-set note", ()
   const rows = wediCompareRows(wediBuildFor(room60x38()));
   const ps = rows.filter((r) => /PRO-SET/.test(r.name));
   assert.equal(ps.length, 1);
-  assert.deepEqual([ps[0].cat, ps[0].qty, ps[0].noteOnly], ["Setting", 1, false]);
+  assert.deepEqual([ps[0].group, ps[0].qty, ps[0].noteOnly], ["setting", 1, false]);
   assert.equal(rows.some((r) => r.noteOnly), false);
 });
 
@@ -135,7 +143,7 @@ test("wediCompareRows(null) is empty", () => {
 });
 
 test("an engine note quoting an allowance marks the row est", () => {
-  const rows = wediCompareRows({ lines: [{ item: item(SKU.sealantSausage), qty: 2, note: "field seal — allowance" }] });
+  const rows = wediCompareRows({ lines: [{ item: item(SKU.sealantSausage), qty: 2, note: "field seal — allowance", slot: "seam" }] });
   assert.equal(rows[0].est, true);
   assert.equal(rows[0].noteOnly, false);
 });
@@ -163,13 +171,16 @@ test("a room missing a side leaves that schluter wall off", () => {
   assert.deepEqual(cfg.walls.map((w) => w.on), [true, true, false]);
 });
 
-test("schluter rows bucket into COMPARE_CATS and keep the noteOnly backer at $0", () => {
+test("schluter rows file by shared group and keep the noteOnly backer at $0", () => {
   const { build } = schluterBuildFor(room60x38(), CAT);
   const rows = schluterCompareRows(build);
-  rows.forEach((r) => assert.ok(COMPARE_CATS.includes(r.cat), r.cat + " is not a compare category"));
+  const keys = GROUPS.map((g) => g.key);
+  rows.forEach((r) => assert.ok(keys.includes(r.group) && SLOTS.includes(r.slot), r.name + " → " + r.group + "/" + r.slot));
+  assert.equal(rows.find((r) => /flange kit/i.test(r.name)).slot, "flange");
+  assert.equal(rows.find((r) => /grate/i.test(r.name)).slot, "grate");
   const notes = rows.filter((r) => r.noteOnly);
   assert.equal(notes.length, 1);
-  assert.equal(notes[0].cat, "Walls");
+  assert.equal(notes[0].group, "walls");
   assert.deepEqual([notes[0].retail, notes[0].builder, notes[0].cost], [0, 0, 0]);
 });
 
@@ -215,7 +226,7 @@ test("a curbless compare column carries no auto ramp — the entry treatment is 
   // the derived house kit matches wedi's own no-entry-part treatment
   const { build } = schluterBuildFor({ ...room60x38(), curbed: false }, CAT);
   const rows = schluterCompareRows(build);
-  assert.equal(rows.some((r) => r.cat === "Curb"), false);
+  assert.equal(rows.some((r) => r.group === "curb"), false);
   const t = compareTotals(rows);
   assert.equal(t.stocked + t.soCount, t.lines);
 });
@@ -247,4 +258,158 @@ test("source stock threads into the wedi solve — every base is stocked", () =>
 test("compare rows carry each line's shared slot", () => {
   const rows = wediCompareRows(wediBuildFor(room60x38()));
   assert.ok(rows.length && rows.every((r) => typeof r.slot === "string"));
+});
+
+// --- (f) the mirror (ticket 158 Phase 1d) -----------------------------------
+
+const schHost = (manual) => schluterBuildFor(room60x38(), CAT, { manual }).build;
+const wediHost = (manual) => kitFor("US9100004", { room: { w: 60, d: 36 }, mode: "kit", manual });
+
+test("schluterBuildFor bills added rows on top of the recipe, and its cfg carries them", () => {
+  const { build, cfg } = schluterBuildFor(room60x38(), CAT, { manual: [{ sku: "KB12SN305508A1", qty: 2, g: "Extras" }] });
+  const added = build.lines.filter((l) => l.manual);
+  assert.deepEqual(added.map((l) => [l.item.sku, l.qty, l.slot]), [["KB12SN305508A1", 2, "niche"]]);
+  assert.deepEqual(cfg.manual, [{ sku: "KB12SN305508A1", qty: 2, g: "Extras" }]);
+  assert.equal(schluterBuildFor(room60x38(), CAT).cfg.manual, undefined);
+});
+
+test("wediBuildFor bills added rows as added lines", () => {
+  const b = wediBuildFor(room60x38(), { manual: [{ key: "US3000005", qty: 1, group: "addon" }] });
+  assert.deepEqual(b.lines.filter((l) => l.added).map((l) => [l.item.key, l.slot]), [["US3000005", "niche"]]);
+  assert.deepEqual(b.cfg.manual, [{ key: "US3000005", qty: 1, group: "addon" }]);
+});
+
+test("host added lines: key is engine group + part; kit lines and a Browse-only wedi build give none", () => {
+  const h = hostAddedLines(schHost([{ sku: "KB12SN305508A1", qty: 2, g: "Extras" }]), "schluter");
+  assert.deepEqual(h.map((x) => [x.key, x.qty, x.part.slot]), [["Extras|KB12SN305508A1", 2, "niche"]]);
+  assert.deepEqual(hostAddedLines(schluterBuildFor(room60x38(), CAT).build, "schluter"), []);
+  const browse = { pan: null, lines: [{ item: item("US3000005"), qty: 1, group: "addon", added: true, slot: "niche" }] };
+  assert.deepEqual(hostAddedLines(browse, "wedi"), []);
+  assert.deepEqual(hostAddedLines(null, "wedi"), []);
+});
+
+test("mirror parts are the brand's own '+' parts for the group, pooled by source", () => {
+  assert.deepEqual(mirrorParts("wedi", "niches").map((p) => [p.key, p.g]), [["niche", "addon"], ["shelf", "addon"]]);
+  assert.deepEqual(mirrorParts("schluter", "niches", { cat: CAT }).map((p) => [p.key, p.g]), [["niche", "Extras"]]);
+  const all = mirrorParts("schluter", "base", { cat: CAT }).flatMap((p) => p.parts);
+  const stock = mirrorParts("schluter", "base", { cat: CAT, source: "stock" }).flatMap((p) => p.parts);
+  assert.ok(stock.length < all.length && stock.every((c) => c.item.stock));
+});
+
+test("a Schluter niche mirrors to the nearest wedi interior; the picker's list agrees with the match", () => {
+  const plan = mirrorPlan(schHost([{ sku: "KB12SN305508A1", qty: 2, g: "Extras" }]), "schluter", {}, { cat: CAT });
+  assert.equal(plan.brand, "wedi");
+  const [e] = plan.entries;
+  assert.deepEqual([e.kind, e.match.id, e.qty, e.grp], ["matched", "US3000007", 2, "niches"]);
+  const part = mirrorParts("wedi", "niches").find((p) => p.key === "niche");
+  assert.equal(mirrorCandidates(e.host, part)[0].id, e.match.id);
+  assert.deepEqual(plan.manual, [{ key: "US3000007", qty: 2, group: "addon" }]);
+});
+
+test("coverage parts mirror by coverage: a 98 lf band is two 82 lf tapes", () => {
+  const plan = mirrorPlan(schHost([{ sku: "KEBA100/125", qty: 1, g: "Seams" }]), "schluter", {}, { cat: CAT });
+  assert.deepEqual([plan.entries[0].match.id, plan.entries[0].qty], ["095225053", 2]);
+});
+
+test("wedi → Schluter: a seat mirrors to the nearest bench, a panel to KERDI-BOARD by sf", () => {
+  const plan = mirrorPlan(wediHost([{ key: "US3000002", qty: 1, group: "addon" }, { key: "US8000017", qty: 6, group: "walls" }]), "wedi", {}, { cat: CAT });
+  const by = Object.fromEntries(plan.entries.map((e) => [e.slot, e]));
+  assert.equal(by.bench.match.id, "KBSB410TA");
+  assert.deepEqual([by.wallBoard.match.id, by.wallBoard.qty], ["KB1212201625", 5], "a 15 sf sheet is nearest the 21.3 sf board; 6 × 15 = 90 sf → five");
+  assert.deepEqual(plan.manual.map((r) => r.g), ["Extras", "Walls"]);
+});
+
+test("unsized slots, and sizes that don't read, give no match", () => {
+  const plan = mirrorPlan(schHost([{ sku: "KD4GRKE", qty: 1, g: "Drain" }, { sku: "KB12SNLT2WW", qty: 1, g: "Extras" }]), "schluter", {}, { cat: CAT });
+  assert.deepEqual(plan.entries.map((e) => e.kind), ["none", "none"]);
+  assert.deepEqual(plan.manual, []);
+});
+
+test("Stock only pools the auto-match; a hand pick stands", () => {
+  const host = schHost([{ sku: "KB12SN305508A1", qty: 1, g: "Extras" }]);
+  const so = mirrorParts("wedi", "niches").flatMap((p) => p.parts).find((c) => !c.item.stock && c.slot === "niche");
+  assert.ok(so, "the fixture carries a special-order niche");
+  const auto = mirrorPlan(host, "schluter", {}, { cat: CAT, source: "stock" });
+  assert.ok(auto.entries[0].match.item.stock);
+  const picked = mirrorPlan(host, "schluter", { "Extras|KB12SN305508A1": { pick: { g: "addon", id: so.id, qty: 3 } } }, { cat: CAT, source: "stock" });
+  assert.deepEqual([picked.entries[0].kind, picked.entries[0].match.id, picked.entries[0].qty], ["picked", so.id, 3]);
+});
+
+test("a drop shows the '+', a pick whose part left the book shows the '+', and an orphan entry is ignored", () => {
+  const host = schHost([{ sku: "KB12SN305508A1", qty: 1, g: "Extras" }]);
+  const k = "Extras|KB12SN305508A1";
+  assert.equal(mirrorPlan(host, "schluter", { [k]: { dropped: true } }, { cat: CAT }).entries[0].kind, "dropped");
+  assert.equal(mirrorPlan(host, "schluter", { [k]: { pick: { g: "addon", id: "GONE", qty: 1 } } }, { cat: CAT }).entries[0].kind, "none");
+  const orphan = mirrorPlan(host, "schluter", { "Walls|NOPE": { dropped: true } }, { cat: CAT });
+  assert.equal(orphan.entries[0].kind, "matched");
+  assert.deepEqual(pruneMirror({ [k]: { dropped: true }, "Walls|NOPE": { dropped: true } }, [k]), { [k]: { dropped: true } });
+});
+
+test("a pick is keyed by engine group + part: the same part in another group isn't hijacked", () => {
+  const host = schHost([{ sku: "KB1212202440", qty: 1, g: "Walls" }, { sku: "KB1212202440", qty: 1, g: "Extras" }]);
+  const plan = mirrorPlan(host, "schluter", { "Extras|KB1212202440": { dropped: true } }, { cat: CAT });
+  const by = Object.fromEntries(plan.entries.map((e) => [e.hostKey, e.kind]));
+  assert.deepEqual(by, { "Walls|KB1212202440": "matched", "Extras|KB1212202440": "dropped" });
+});
+
+test("two host lines landing on one part sum into one engine row", () => {
+  const plan = mirrorPlan(wediHost([{ key: "US3000005", qty: 1, group: "addon" }, { key: "US3000004", qty: 1, group: "addon" }]), "wedi", {}, { cat: CAT });
+  assert.deepEqual(plan.entries.map((e) => e.match.id), ["KB12SN305508A1", "KB12SN305508A1"]);
+  assert.deepEqual(plan.manual, [{ sku: "KB12SN305508A1", qty: 2, g: "Extras" }]);
+});
+
+test("a mirror row is priced by the other engine and names the host line", () => {
+  const plan = mirrorPlan(schHost([{ sku: "KB12SN305508A1", qty: 2, g: "Extras" }]), "schluter", {}, { cat: CAT });
+  const r = mirrorRow(plan.entries[0], "wedi", { builderPct: 18 });
+  assert.deepEqual([r.group, r.slot, r.added, r.mirror, r.qty], ["niches", "niche", true, "matched", 2]);
+  assert.match(r.sub, /^for 2× .*niche/i);
+  assert.equal(r.retail, Math.round(item("US3000007").retail * 2 * 100) / 100);
+});
+
+test("the mirrored build's totals equal its rows: the other engine bills what Compare shows", () => {
+  const host = schHost([{ sku: "KB12SN305508A1", qty: 1, g: "Extras" }, { sku: "KEBA100/125", qty: 1, g: "Seams" }]);
+  const plan = mirrorPlan(host, "schluter", {}, { cat: CAT });
+  const other = wediBuildFor(room60x38(), { manual: plan.manual });
+  const rows = [...wediCompareRows(other).filter((r) => !r.added), ...plan.entries.map((e) => mirrorRow(e, "wedi"))];
+  assert.equal(compareTotals(rows).retail, compareTotals(wediCompareRows(other)).retail);
+});
+
+test("option B lands the mirrored rows in its marker, and reopens them as added lines", () => {
+  const plan = mirrorPlan(wediHost([{ key: "US3000005", qty: 1, group: "addon" }]), "wedi", {}, { cat: CAT });
+  const { build, cfg } = schluterBuildFor(room60x38(), CAT, { manual: plan.manual });
+  const rows = schluterLineItems({ ...build, mode: "custom", cfg }, {});
+  const mark = rows[0].schluter || rows[0].kit || Object.values(rows[0]).find((v) => v && v.cfg);
+  assert.deepEqual(mark.cfg.manual, plan.manual);
+  const back = schluterFromMarker(mark, CAT);
+  assert.deepEqual(back.lines.filter((l) => l.manual).map((l) => [l.item.sku, l.qty]), [["KB12SN305508A1", 1]]);
+
+  const p2 = mirrorPlan(schHost([{ sku: "KB12SN305508A1", qty: 1, g: "Extras" }]), "schluter", {}, { cat: CAT });
+  const w = wediBuildFor(room60x38(), { manual: p2.manual });
+  const wrows = wediLineItems(w, {});
+  const wmark = wrows[0].wedi || Object.values(wrows[0]).find((v) => v && v.cfg);
+  assert.deepEqual(wmark.cfg.manual, p2.manual);
+  assert.deepEqual(wediFromMarker(wmark).lines.filter((l) => l.added).map((l) => l.item.key), ["US3000007"]);
+});
+
+test("compareLayout: group bands in order, a slot per row, one-sided slots kept, empties dropped", () => {
+  const w = wediCompareRows(wediBuildFor(room60x38()));
+  const { build } = schluterBuildFor(room60x38(), CAT);
+  const s = schluterCompareRows(build);
+  const plus = { wedi: [{ slot: "flange", hostKey: "x" }] };
+  const L = compareLayout({ wedi: w, schluter: s }, plus);
+  const order = GROUPS.map((g) => g.key);
+  assert.deepEqual(L.map((g) => g.key), order.filter((k) => L.some((g) => g.key === k)));
+  const drain = L.find((g) => g.key === "drain");
+  const flange = drain.slots.find((r) => r.slot === "flange");
+  assert.equal(flange.wedi.length, 0);
+  assert.equal(flange.schluter.length, 1);
+  assert.equal(flange.wediPlus.length, 1);
+  assert.ok(!L.some((g) => g.key === "niches"), "no niche on either side");
+  for (const g of L) for (const r of g.slots) assert.ok(r.wedi.length + r.schluter.length + r.wediPlus.length + r.schluterPlus.length > 0);
+});
+
+test("compareLayout puts added lines after the kit's in a cell", () => {
+  const rows = [{ slot: "seam", added: true, name: "a" }, { slot: "seam", added: false, name: "k" }];
+  const cell = compareLayout({ wedi: rows, schluter: [] }).find((g) => g.key === "seams").slots[0].wedi;
+  assert.deepEqual(cell.map((r) => r.name), ["k", "a"]);
 });
