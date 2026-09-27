@@ -138,6 +138,24 @@ those two areas: today ≈405px · R1 ≈265 · R2 ≈295 · R3 ≈175 · R4 ≈
 - R4 extras as their own indented lines with order + price (clearest).
 The mockups' grout/mortar quantities are illustrative, not computed.
 
+## Round 2c — owner picks D + R1 (2026-09-27)
+
+Built: frame D is now THE Clean frame (the ?pv= switch is gone). Changes the
+owner asked for on top of D:
+- No item count / square footage in the area bar.
+- No option chip. An option area's bar is tinted in its option color with the
+  slot letter (A, B…) in a small filled square at the far left; shared areas
+  stay plain. Right-click / ⋯ / the letter open the area menu to change it.
+  The card itself keeps a neutral border (no colored outline).
+Shot: `50-D-option-tint.png`.
+
+Next — R1 product lines in the real app. Open question for the owner: how an
+empty line offers extras — `45-extras-hover.png` shows H1 (dashed "+ Extras"
+after the name on hover), H2 (a + beside the line's ⋯ on hover), H3 (a very
+faint + always there, "+ Extras" on hover). Whatever is picked, "Add extras"
+also goes in the line ⋯ menu for the shop iPads (no hover). Warnings
+("Mortar — not calculating") must stay visible inline as an amber tag (ADR 0045).
+
 ## Round 2 — open: product rows
 
 What the mockups show (every board uses the same card treatment; the frame

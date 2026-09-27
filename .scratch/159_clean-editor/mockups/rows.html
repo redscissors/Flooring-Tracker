@@ -52,6 +52,30 @@
   <p class="sub">Not the most compact — the clearest. Grout and mortar are indented lines under the tile, with their own order and price, the way the printed estimate reads. Empty rows show nothing extra.</p>
 </section>
 
+<section class="board" id="h">
+  <p class="tag">R1 extras — three ways to add them to a line that has none</p>
+  <p class="sub">Each pair: the line at rest, then the same line with the mouse over it. A line that already has extras shows its tags (Grout 5, Mortar 9); clicking a tag opens the same drawer as today. On the shop iPads (no hover) "Add extras" is also in the line's ⋯ menu.</p>
+</section>
+<script>
+(() => {
+const C = "0.85fr 2.75fr 1fr 0.55fr 0.5fr 0.55fr 0.7fr 0.8fr 44px";
+const line = (nameExtra, endExtra, hov) => `<div class="row" style="grid-template-columns:${C};height:30px;${hov ? "background:#F7F5EF" : ""}">
+  <div class="sz"><span class="t" style="background:var(--tile)">T</span><span class="muted" style="font-weight:600">3×12</span></div>
+  <div style="font-weight:700">Carrara Bullnose${nameExtra}</div>
+  <div class="muted" style="font-size:11px;font-weight:600">CAR312BN</div><div class="faint" style="font-size:10.5px">—</div>
+  <div class="r mono">22</div><div class="r mono wash" style="line-height:30px">6.25</div><div class="r mono">22 sf</div>
+  <div class="r mono wash" style="line-height:30px;font-weight:700">$137.50</div><div class="dots">${endExtra}</div></div>`;
+const V = [
+  ["H1 — words after the name", "", `<span style="margin-left:8px;font-size:10.5px;font-weight:700;color:var(--brand);border:1px dashed #b9c7a6;border-radius:4px;padding:0 6px;line-height:16px;display:inline-block">＋ Extras</span>`, "···", "···"],
+  ["H2 — a ＋ beside the ⋯", "", "", "···", `<span style="color:var(--brand);font-weight:800;font-size:13px;margin-right:4px">＋</span>···`],
+  ["H3 — always there, very faint (no hover needed)", `<span style="margin-left:8px;font-size:11px;font-weight:700;color:#cfc9bd">＋</span>`, `<span style="margin-left:8px;font-size:10.5px;font-weight:700;color:var(--brand)">＋ Extras</span>`, "···", "···"],
+];
+document.getElementById("h").insertAdjacentHTML("beforeend", V.map(([t, restName, hovName, restEnd, hovEnd]) => `
+  <div style="font-size:11px;font-weight:800;color:var(--muted);margin:10px 2px 4px">${t}</div>
+  <div class="card" style="margin-bottom:4px">${line(restName, restEnd, false)}</div>
+  <div class="card" style="position:relative">${line(hovName, hovEnd, true)}<span style="position:absolute;left:300px;top:14px;font-size:15px">🖱</span></div>`).join(""));
+})();
+</script>
 <script>
 const J = [
   { name: "Kitchen + Pantry", chip: "SHARED", meta: "2 items · 426 SF", total: "$2,459.75", rows: [
