@@ -301,6 +301,10 @@ export default function App({ user, onSignOut }) {
   const [isWide, setIsWide] = useState(() => typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 768px)").matches : true);
   // Clean's area cards ride the same per-user header switch (.scratch/159_clean-editor).
   const cleanCards = isWide && headerLayout === "clean";
+  // PROTOTYPE (throwaway, 2026-09-27): ?pv=a|b|c|d|e picks one of five Clean
+  // area-frame variants for the owner to compare. Remove once one is picked.
+  const cardPv = cleanCards ? (new URLSearchParams(window.location.search).get("pv") || "a") : null;
+  const [pvFolded, setPvFolded] = useState({});
   const [custChip, setCustChip] = useState(null); // which contact chip is expanded (customer view)
   const [viewTab, setViewTab] = useState("edit"); // project detail: "edit" | "preview" (on-screen estimate paper)
   const [projSheet, setProjSheet] = useState(false); // mobile shell: project bottom sheet
@@ -1754,7 +1758,7 @@ export default function App({ user, onSignOut }) {
                   rounds its own corners, so touching areas keep the soft "pill"
                   notch at their seam that the flush product boxes don't.
                   `relative` anchors the area-drag insertion bar. */}
-              {cleanCards && sel.categories.length > 0 && (
+              {cleanCards && cardPv !== "d" && sel.categories.length > 0 && (
                 // Clean (2026-09-27, .scratch/159_clean-editor): the column
                 // headings once above every card instead of a grey bar per area.
                 <div className="ft-noprint" style={{ display: "grid", gridTemplateColumns: GRID_COLS, padding: "0 1px 5px", fontSize: 9, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--ft-faint)" }}>
@@ -1769,7 +1773,7 @@ export default function App({ user, onSignOut }) {
                   <div />
                 </div>
               )}
-              <div className={cleanCards ? "relative flex flex-col gap-3" : "relative"}>
+              <div className={!cleanCards ? "relative" : cardPv === "a" ? "relative flex flex-col gap-3" : cardPv === "c" ? "relative rounded-xl border bg-white overflow-hidden" : "relative flex flex-col gap-1.5"} style={cardPv === "c" ? { borderColor: "var(--ft-border)" } : undefined}>
                 {sel.categories.map((a, ai) => {
                   const areaSf = a.products.reduce((t, p) => t + (p.qtyType === "sqft" ? num(p.qty) : 0), 0);
                   const areaTotal = printAreaFloor(tv.proj.categories[ai] || a, tSet);
@@ -1780,27 +1784,45 @@ export default function App({ user, onSignOut }) {
                   // card isn't clipped at its home area's edge) and while one of its
                   // products' materials drawers is open (so the drawer can float past
                   // the card's bottom edge without being clipped).
-                  <div key={a.id} data-area-drop={a.id} onClickCapture={isWide ? undefined : () => setActiveAreaId(a.id)} className={`${cleanCards ? "group rounded-xl" : "rounded-lg"} border bg-white transition-colors ${drag || areaMatOpen ? "" : "overflow-hidden"} ${drag?.to?.aid === a.id ? "border-indigo-400" : drag ? "border-dashed border-slate-300" : cleanCards ? "" : "border-slate-200"}`} style={oc ? { borderColor: oc.main, borderWidth: 1.5 } : cleanCards && !drag ? { borderColor: "var(--ft-border-soft)" } : undefined}>
-                    {cleanCards ? (
-                    <div className="flex items-center gap-2.5" onContextMenu={(e) => { e.preventDefault(); setAreaMenu({ aid: a.id, x: e.clientX, y: e.clientY, clean: true }); }} style={{ height: 46, padding: "0 8px 0 4px", borderBottom: "1px solid var(--ft-border-soft)" }}>
-                      <button tabIndex={-1} onPointerDown={(e) => startAreaDrag(e, a.id, ai)} title="Drag to reorder areas" className="ft-noprint p-0.5 rounded touch-none cursor-grab text-slate-400 hover:text-slate-600 opacity-0 group-hover:opacity-100 focus:opacity-100"><AlignJustify size={13} /></button>
-                      <input ref={(el) => { if (el) areaRefs.current[a.id] = el; }} value={a.name} onChange={(e) => updArea(a.id, { name: e.target.value })} placeholder={`Area ${ai + 1}`} className="bg-transparent border-b border-transparent focus:border-indigo-500 focus:outline-none min-w-0 placeholder:text-slate-400" style={{ fontSize: 15, fontWeight: 700, letterSpacing: "-.01em", width: `${Math.max(a.name.length || `Area ${ai + 1}`.length, 4) + 1}ch` }} />
-                      {(a.option || optsUsed.length > 0) && (
+                  <div key={a.id} data-area-drop={a.id} onClickCapture={isWide ? undefined : () => setActiveAreaId(a.id)} className={`${!cleanCards ? "rounded-lg" : cardPv === "a" ? "group rounded-xl" : cardPv === "c" ? "group !border-0" : "group rounded-lg"} border bg-white transition-colors ${drag || areaMatOpen ? "" : "overflow-hidden"} ${drag?.to?.aid === a.id ? "border-indigo-400" : drag ? "border-dashed border-slate-300" : cleanCards ? "" : "border-slate-200"}`} style={cardPv === "c" ? { borderTop: ai ? "1px solid var(--ft-border)" : 0, boxShadow: oc ? `inset 3px 0 0 ${oc.main}` : undefined } : oc ? { borderColor: oc.main, borderWidth: 1.5 } : cleanCards && !drag ? { borderColor: "var(--ft-border)" } : undefined}>
+                    {cleanCards ? (() => {
+                      const n = a.products.filter((p) => !rowBlank(p)).length;
+                      const meta = n ? [`${n} item${n === 1 ? "" : "s"}`, areaSf > 0 ? `${sf1(areaSf)} SF` : ""].filter(Boolean).join(" · ") : "Empty";
+                      const big = cardPv === "a";
+                      const folded = cardPv === "e" && pvFolded[a.id];
+                      const ctx = (e) => { e.preventDefault(); setAreaMenu({ aid: a.id, x: e.clientX, y: e.clientY, clean: true }); };
+                      const grip = <button tabIndex={-1} onPointerDown={(e) => startAreaDrag(e, a.id, ai)} title="Drag to reorder areas" className="ft-noprint p-0.5 rounded touch-none cursor-grab text-slate-400 hover:text-slate-600 opacity-0 group-hover:opacity-100 focus:opacity-100 shrink-0"><AlignJustify size={12} /></button>;
+                      const fold = cardPv === "e" && <button tabIndex={-1} onClick={() => setPvFolded((f) => ({ ...f, [a.id]: !f[a.id] }))} title={folded ? "Show this area's lines" : "Fold this area to one line"} className="ft-noprint shrink-0 text-slate-400 hover:text-slate-600">{folded ? <ChevronRight size={15} /> : <ChevronDown size={15} />}</button>;
+                      const name = <input ref={(el) => { if (el) areaRefs.current[a.id] = el; }} value={a.name} onChange={(e) => updArea(a.id, { name: e.target.value })} placeholder={`Area ${ai + 1}`} className="bg-transparent border-b border-transparent focus:border-indigo-500 focus:outline-none min-w-0 placeholder:text-slate-400" style={{ fontSize: big ? 15 : 13.5, fontWeight: 700, letterSpacing: "-.01em", width: `${Math.max(a.name.length || `Area ${ai + 1}`.length, 4) + 1}ch` }} />;
+                      const chip = (a.option || optsUsed.length > 0) && (
                         <button tabIndex={-1} onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setAreaMenu({ aid: a.id, x: r.left, y: r.bottom + 4, anchor: e.currentTarget, clean: true }); }}
-                          className="ft-noprint rounded-md px-2 py-0.5 text-[10.5px] font-bold shrink-0"
-                          style={oc ? { background: `color-mix(in srgb, ${oc.main} 12%, var(--ft-card))`, color: oc.deep, boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${oc.main} 45%, transparent)` } : { border: "1px dashed var(--ft-border-strong)", color: "var(--ft-muted)" }}>
+                          className="ft-noprint rounded px-1.5 font-bold shrink-0" style={{ fontSize: big ? 10.5 : 9.5, lineHeight: big ? "18px" : "16px", ...(oc ? { background: `color-mix(in srgb, ${oc.main} 12%, var(--ft-card))`, color: oc.deep, boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${oc.main} 45%, transparent)` } : { border: "1px dashed var(--ft-border-strong)", color: "var(--ft-muted)" }) }}>
                           {a.option ? optionShort(sel, a.option).toUpperCase() : "SHARED"}
                         </button>
-                      )}
-                      {(() => { const n = a.products.filter((p) => !rowBlank(p)).length; return (
-                        <span className="text-[12px] whitespace-nowrap" style={{ color: "var(--ft-faint)" }}>{n ? [`${n} item${n === 1 ? "" : "s"}`, areaSf > 0 ? `${sf1(areaSf)} SF` : ""].filter(Boolean).join(" · ") : "Empty"}</span>
-                      ); })()}
-                      <span className="flex-1" />
-                      {areaTotal > 0 && <span className="ft-mono text-[13px] font-bold">{money(areaTotal)}</span>}
-                      <button tabIndex={-1} aria-label="Area options" title="Area options" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setAreaMenu({ aid: a.id, x: r.right - 212, y: r.bottom + 4, clean: true }); }}
-                        className="ft-noprint w-[28px] h-[28px] flex items-center justify-center rounded-md text-slate-400 hover:text-slate-600 hover:bg-[color:var(--ft-hover)]"><MoreHorizontal size={16} /></button>
-                    </div>
-                    ) : (
+                      );
+                      const metaEl = <span className="whitespace-nowrap truncate" style={{ fontSize: big ? 12 : 11, color: "var(--ft-faint)" }}>{meta}</span>;
+                      const more = <button tabIndex={-1} aria-label="Area options" title="Area options" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setAreaMenu({ aid: a.id, x: r.right - 212, y: r.bottom + 4, clean: true }); }}
+                        className="ft-noprint shrink-0 flex items-center justify-center rounded-md text-slate-400 hover:text-slate-600 hover:bg-[color:var(--ft-hover)]" style={{ width: big ? 28 : 24, height: big ? 28 : 22 }}><MoreHorizontal size={big ? 16 : 15} /></button>;
+                      if (cardPv === "d") {
+                        const lab = (t, right) => <div style={{ padding: "0 8px", textAlign: right ? "right" : undefined }}>{t}</div>;
+                        return (
+                          <div onContextMenu={ctx} style={{ display: "grid", gridTemplateColumns: GRID_COLS, alignItems: "center", height: 30, borderBottom: "1px solid var(--ft-border-soft)", fontSize: 9, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--ft-faint)" }}>
+                            <div className="flex items-center gap-2 min-w-0 normal-case tracking-normal" style={{ gridColumn: "1 / 3", padding: "0 4px", color: "var(--ft-text)" }}>{grip}{name}{chip}{metaEl}</div>
+                            {lab("SKU")}{lab("Cov.")}{lab("SF/EA", 1)}{lab("Price", 1)}{lab("Order", 1)}
+                            <div className="ft-mono normal-case tracking-normal" style={{ padding: "0 8px", textAlign: "right", fontSize: 12.5, color: "var(--ft-text)" }}>{areaTotal > 0 ? money(areaTotal) : ""}</div>
+                            <div className="flex justify-center">{more}</div>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="flex items-center gap-2" onContextMenu={ctx} style={{ height: big ? 46 : 32, padding: big ? "0 8px 0 4px" : "0 6px 0 4px", borderBottom: folded ? 0 : "1px solid var(--ft-border-soft)", background: cardPv === "c" ? "var(--ft-tint)" : undefined }}>
+                          {grip}{fold}{name}{chip}{metaEl}
+                          <span className="flex-1" />
+                          {areaTotal > 0 && <span className="ft-mono font-bold" style={{ fontSize: big ? 13 : 12.5 }}>{money(areaTotal)}</span>}
+                          {more}
+                        </div>
+                      );
+                    })() : (
                     <div className="flex justify-between items-center gap-3" onContextMenu={(e) => { e.preventDefault(); setAreaMenu({ aid: a.id, x: e.clientX, y: e.clientY }); }} style={{ background: "var(--ft-area-head)", padding: isWide ? "8px 14px" : "6px 11px", ...(!isWide && a.id === activeAreaId ? { boxShadow: "inset 3px 0 0 var(--ft-brand)" } : {}) }}>
                       <div className="flex items-baseline gap-2.5 flex-1 min-w-0">
                         <input ref={(el) => { if (el) areaRefs.current[a.id] = el; }} value={a.name} onChange={(e) => updArea(a.id, { name: e.target.value })} placeholder={`Area ${ai + 1}`} className="ft-serif bg-transparent border-b border-transparent focus:border-indigo-500 focus:outline-none min-w-0 placeholder:text-slate-400" style={{ fontSize: isWide ? 20 : 18, lineHeight: 1.1, width: `${Math.max(a.name.length || `Area ${ai + 1}`.length, 4) + 1}ch` }} />
@@ -1829,7 +1851,7 @@ export default function App({ user, onSignOut }) {
                       </div>
                     )}
 
-                    <div data-prod-list="1" className="relative" onKeyDown={(e) => gridEnterNav(e, () => addProduct(a.id))}>
+                    <div data-prod-list="1" className="relative" style={cardPv === "e" && pvFolded[a.id] ? { display: "none" } : undefined} onKeyDown={(e) => gridEnterNav(e, () => addProduct(a.id))}>
                       {isWide && !cleanCards && (
                       <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, background: "var(--ft-area-head)", borderTop: "1px solid var(--ft-border)", borderBottom: "1px solid var(--ft-border)", fontSize: 8, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--ft-muted)" }}>
                         <div style={{ padding: "5px 10px", borderRight: "1px solid var(--ft-row-line)" }}>Size / Type ▾</div>

@@ -106,6 +106,38 @@ Proof (real App.jsx over stubbed Supabase, the ticket-111 harness):
 `shots/21-r2-cards.png`, `21-r2-hover-grip`, `21-r2-area-menu`,
 `21-r2-delete-confirm`, and `25-r2-onebar-unchanged-cards` (One-bar as before).
 
+## Round 2b — prototypes for the owner to pick from (2026-09-27)
+
+Owner, after seeing 2a: Clean only helps if it also COMPACTS; 2a read as
+taller. Happy with how readable today's lines are, but open to seeing other
+product-line ideas. Asked for several prototypes instead of one build.
+
+Area frames — real App.jsx behind a throwaway `?pv=a…e` switch (`cardPv`,
+remove once one is picked). Product rows untouched. Same 6-area job, 1440×940:
+
+| pv | Idea | Areas started on screen |
+|---|---|---|
+| a | 2a as built (46px row, 12px gaps) | 5 |
+| b | Tight cards (32px row, 6px gaps) | 5 |
+| c | One sheet, tinted slim name rows, no gaps | 5 |
+| d | Name + column labels + subtotal in ONE 30px bar per area | 5 (most room) |
+| e | b + a fold chevron per area (2 folded in the shot) | 6 |
+| — | One-bar today | 4 |
+
+Shots `30-pv-a` … `34-pv-e`, `29-onebar-today`. Finding: the frame is not
+where the height is — the per-row "+ Extras"/materials strip, the notes
+line and the per-area search row are.
+
+Product lines — static mockups (`mockups/rows.html`, same two areas; shots
+`40-rows-today` crop of the real app, `41…44-rows-r1…r4`). Card heights for
+those two areas: today ≈405px · R1 ≈265 · R2 ≈295 · R3 ≈175 · R4 ≈337.
+- R1 same columns, no strips — grout/mortar as tags in the product cell.
+- R2 two-line product — SKU/cov/extras on a quiet 2nd line; SKU + Cov.
+  columns dropped.
+- R3 ledger — one 26px line each; G/M letters; search moves into the bar.
+- R4 extras as their own indented lines with order + price (clearest).
+The mockups' grout/mortar quantities are illustrative, not computed.
+
 ## Round 2 — open: product rows
 
 What the mockups show (every board uses the same card treatment; the frame
