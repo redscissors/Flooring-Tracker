@@ -1,6 +1,7 @@
 // Proof: ⇄ on every Schluter line (ticket 158 Phase 1b) — the membrane and
-// band stepped popovers with a draft and Δ, the fastener list swap, a bench
-// wrap swap, and a one-part line (the 2″ build-up board) with no ⇄.
+// band stepped popovers with a draft and Δ, stocked-first chips under Stock
+// only, the fastener list swap, a bench wrap swap (and its pick cleared by a
+// build change), and a one-part line (the 2″ build-up board) with no ⇄.
 //   npx vite --port 5199 ; node .scratch/158_shower-config-roadmap/p1b/shoot-schluter.mjs
 import { createRequire } from "node:module";
 const { chromium } = createRequire("/opt/node22/lib/node_modules/playwright/")("playwright-core");
@@ -18,6 +19,23 @@ const openIn = async (name, nth = 0) => { await grp(name).locator("[data-schlute
 
 await pg.goto("http://localhost:5199/schluter-preview.html");
 await pg.waitForSelector("[data-schluter-tray]", { timeout: 20000 }); await pg.waitForTimeout(600);
+const widthOrder = () => pg.locator('[data-drain-chip^="Width:"]').evaluateAll((els) => els.map((e) => e.getAttribute("data-drain-chip").slice(6)));
+
+// Stock only: the band's Width row lists its stocked chips first — the
+// stocked 10" ahead of the special-order 7¼" it follows by width; Esc discards
+await pg.locator("[data-schluter-tray='KST965/1525']").first().click(); await pg.waitForTimeout(800);
+const seamsStock = await grpText("Seams");
+await openIn("Seams");
+await pg.waitForSelector("[data-drain-swap]", { timeout: 5000 });
+const stockWidths = await widthOrder();
+console.log("stock-only band widths:", stockWidths.join(", "), "|", await popText());
+if (stockWidths.join() !== "125,250,185") fail("Stock only does not list the stocked widths first");
+if (!(await pg.locator('[data-drain-chip="Width:185"] [data-so-dot]').count())) fail("the special-order band width has no SO dot");
+await shot("s7-stock-first-band");
+await pg.keyboard.press("Escape"); await pg.waitForTimeout(300);
+if (await pg.locator("[data-drain-swap]").count()) fail("Esc did not close the band popover");
+if ((await grpText("Seams")) !== seamsStock) fail("Esc moved the band line");
+
 await pg.locator("[data-source-toggle]").click(); await pg.waitForTimeout(600); // Full catalog
 await pg.locator("[data-schluter-tray='KST965/1525']").first().click(); await pg.waitForTimeout(800);
 
@@ -44,6 +62,9 @@ if (!/KERDI200\/5M/.test(wallsAfter)) fail("Use this did not land the 5 m roll")
 // band: the 7-1/4" width is special order — its chip carries the SO dot
 await openIn("Seams");
 await pg.waitForSelector("[data-drain-swap]", { timeout: 5000 });
+const fullWidths = await widthOrder();
+console.log("full-catalog band widths:", fullWidths.join(", "));
+if (fullWidths.join() !== "125,185,250") fail("Full catalog reorders the width chips");
 if (!(await pg.locator('[data-drain-chip="Width:185"] [data-so-dot]').count())) fail("the special-order band width has no SO dot");
 await pg.locator('[data-drain-chip="Width:185"]').click(); await pg.waitForTimeout(300);
 const bandText = await popText();

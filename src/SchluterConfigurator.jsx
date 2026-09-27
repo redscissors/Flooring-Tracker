@@ -1001,7 +1001,7 @@ export default function SchluterConfigurator({
     // bench lines carry their bench's index (buildKit): the pick rides that bench row
     if (l.bench != null && e.g === "board") return {
       title: e.thick2 ? "Bench build-up board" : "Bench wrap board",
-      list: pool(cat.filter((i) => i.g === "board" && !i.fastener && i.sf && !!i.thick2 === !!e.thick2)).sort(byShelf),
+      list: (e.thick2 ? pool(cat.filter((i) => i.g === "board" && !i.fastener && i.sf && i.thick2)) : pool(halfBoardPool(cat, "all"))).sort(byShelf),
       set: (sku) => setBenchPick(l.bench, { board: sku }),
     };
     if (l.bench != null && e.extra === "bench") return {
@@ -2249,8 +2249,6 @@ export default function SchluterConfigurator({
     );
   };
 
-  // The ⇄ swap popover — the wedi anchored panel: the line's alternatives,
-  // stock tinted, the standing pick highlighted.
   // The membrane / band popover — the drain popover's draft model: chips edit
   // `swap.draft`, the Δ reads it against the lines the bill carries now, and
   // Use this commits it (a draft that bills the default stores no pick).
@@ -2290,6 +2288,8 @@ export default function SchluterConfigurator({
     );
   };
 
+  // The ⇄ swap popover — the wedi anchored panel: the line's alternatives,
+  // stock tinted, the standing pick highlighted.
   const swapPanel = (() => {
     if (!swap || !build) return null;
     if (swap.drain) return drainPanel();

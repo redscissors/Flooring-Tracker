@@ -112,6 +112,13 @@ eftRows.push(normOrderItem({
   sku: "SLRKEBA100/185", bookId: "bk_eft", unit: "RL", cost: 93.2, size: "98'5\" roll",
   description: lead('Kerdi-Band 7-1/4" Seam Band'), leadTime: "READY SHIP",
 }));
+// ...and a stocked 10" width after it, so under Stock only the Width row
+// shows the stocked-first order (10" ahead of the special-order 7-1/4").
+// Illustrative stock row, not a real shelf item.
+stockRows.push(normOrderItem({
+  sku: "1509799", bookId: "bk_stock", vendorSkus: ["KEBA100/250/5M"], unit: "RL", cost: 24.1, price: 36.15,
+  size: "16'5\" roll", description: lead('KERDI-BAND 10" seam band'), leadTime: "READY SHIP",
+}));
 
 // The harness "sheet" — the placed rows as the job sheet holds them, with a
 // qty box per row and Reconfigure on each anchor, so the drive can prove a
