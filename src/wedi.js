@@ -5089,7 +5089,8 @@ export function coverAddOptions(key) {
 export function coverPickApplies(pick, panKey) {
   const pan = typeof panKey === "string" ? item(panKey) : panKey;
   if (!pick || !pan) return false;
-  return familyOf(pan) === "linear" ? !!pick.finish : !!pick.key;
+  if (familyOf(pan) === "linear") return !!pick.finish;
+  return !!pick.key && (pan.sub === "sdry" || sdryRole(item(pick.key)) !== "cover");
 }
 
 // wedi's channel frame is a trim ring the linear cover drops into — a design
@@ -5591,7 +5592,11 @@ export function kitFor(panKey, opts) {
   } else if (fam === "linear") {
     const ch = pan.channel || (option && option.drain && option.drain.len) || 0;
     cover = linearCoverFor(ch, (coverPick && coverPick.finish) || opts.coverFinish || "SS");
-  } else cover = item((coverPick && coverPick.key) || SKU.coverSS);
+  } else {
+    // an S-DRY cover picked under Membrane stays inert once a wedi pan is back
+    const picked = coverPick && coverPick.key ? item(coverPick.key) : undefined;
+    cover = picked === undefined || sdryRole(picked) === "cover" ? item(SKU.coverSS) : picked;
+  }
   if (cover) push(lines, cover, 1, "drain", "", true);
   else hints.push("no-cover");
   const frame = cover && !sdryFloor && opts.coverFrame ? coverFrameFor(cover, opts.coverFrame === true ? null : opts.coverFrame) : null;

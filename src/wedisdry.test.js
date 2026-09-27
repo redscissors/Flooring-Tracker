@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { solve, kitFor, buildFromMarker, sdryNoFit, wediSlotOf, item, SKU, markerCurbKey } from "./wedi.js";
+import { solve, kitFor, buildFromMarker, sdryNoFit, wediSlotOf, item, SKU, markerCurbKey, coverPickApplies } from "./wedi.js";
 import { SDRY } from "./sdry.js";
 import { wediBuildFor, schluterBuildFor, mirrorPlan } from "./comparekit.js";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
@@ -45,6 +45,16 @@ test("a picked S-DRY cover and the lean curb land; a Fundo cover pick falls back
   assert.equal(q1.US1076003, 1);
   assert.equal(q1[SDRY.curbLean], 1);
   assert.equal(qty(build(o, { coverPick: { key: SKU.coverSS } }))[SDRY.coverSS], 1);
+});
+
+test("an S-DRY cover pick is inert on a wedi point pan: it bills the wedi cover and leaves the kit clean", () => {
+  const o = solve(room(60, 36, "curbed", "center"))[0];
+  assert.notEqual(o.pan.sub, "sdry");
+  const q = qty(kitFor(o.pan.key, { option: o, room: o.room, mode: "custom", coverPick: { key: "US1076003" } }));
+  assert.equal(q[SKU.coverSS], 1);
+  assert.equal(q.US1076003, undefined);
+  assert.equal(coverPickApplies({ key: "US1076003" }, o.pan.key), false);
+  assert.equal(coverPickApplies({ key: SKU.coverSS }, o.pan.key), true);
 });
 
 test("S-DRY walls on a wedi pan keep the pan side exactly", () => {

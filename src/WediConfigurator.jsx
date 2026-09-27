@@ -664,6 +664,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   const [sdryBase, setSdryBase] = useState(s0.sdryBase);
   const [sdryNear, setSdryNear] = useState(s0.sdryNear);
   const [sdryAsk, setSdryAsk] = useState(false);
+  const [confirmBoard, setConfirmBoard] = useState(false); // Building Panel clicked over a customized S-DRY kit
   // "Overall max" (owner ask 2026-07-30): the typed sizes are the whole
   // footprint — every fully open edge pulls its curb inside the line and
   // the pan space gives up (curb width − the ½" pan lap).
@@ -813,6 +814,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   useEscClose(escActive, () => {
     if (payload) setPayload(null);
     else if (confirmPan) setConfirmPan(null);
+    else if (confirmBoard) setConfirmBoard(false);
     else if (benchMenu) setBenchMenu(null);
     else if (wallMenu) setWallMenu(null);
     else if (swap) setSwap(null);
@@ -1182,11 +1184,16 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     if (option || tab === "custom") runSolve(inp); else setResults(solveRoom(inp, maxIn));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sysSig]);
+  const flipWallSys = (ws) => { setWallSys(ws); setSdryBase("sdry"); setSdryNear(false); setSdryAsk(false); };
   const setWallSystem = (ws) => {
     if (ws === wallSys) return;
-    setWallSys(ws); setSdryBase("sdry"); setSdryNear(false); setSdryAsk(false);
-    // an S-DRY base takes Membrane walls only — Building Panel starts from the cards
-    if (ws === "board" && pan && pan.sub === "sdry" && !option) hardReset(null);
+    // an S-DRY base takes Membrane walls only — on Kits, Building Panel starts
+    // from the cards; the Custom tab keeps its room and re-solves it
+    if (ws === "board" && pan && pan.sub === "sdry" && !option && tab !== "custom") {
+      if (kitDirty || manual.length) { setConfirmBoard(true); return; }
+      flipWallSys(ws); hardReset(null); return;
+    }
+    flipWallSys(ws);
   };
   const answerSdry = (how) => {
     setSdryAsk(false);
@@ -2775,6 +2782,16 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     );
   })();
 
+  const confirmBoardModal = confirmBoard && (() => {
+    const done = (fn) => () => { setConfirmBoard(false); flipWallSys("board"); fn(null); };
+    return (
+      <KitOverwriteConfirm vendor="wedi" kitName="Building Panel" kitWord="stock kit"
+        onCancel={() => setConfirmBoard(false)}
+        onOverwrite={done(hardReset)} onKeep={done(keepAdded)}
+        onNew={onBasketChange ? done(newShower) : undefined} />
+    );
+  })();
+
   const payloadTip = (<>
     Rows land <b>RETAIL</b> - the job sheet's own tier lens reprices them (ADR 0018). The one wedi rule rides
     along: every line carries <b>tierPrice = retail × {bMult.toFixed(2)}</b>, which pricing.js prefers over the
@@ -2976,6 +2993,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
       {wallMenuPanel}
       {benchMenuPanel}
       {confirmModal}
+      {confirmBoardModal}
       {payloadModal}
       {printSheet}
       {toast && createPortal(<div className="wedi-toast" onClick={(e) => e.stopPropagation()}>{toast}</div>, document.body)}
