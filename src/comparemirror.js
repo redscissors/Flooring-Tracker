@@ -17,15 +17,23 @@ const inchNum = (s) => {
 const INCH = String.raw`(\d+(?:\.\d+)?(?:[\s-]+\d+\/\d+)?|\d+\/\d+)`;
 const covOf = (p, unit) => (p.cov && p.cov.unit === unit && p.cov.n > 0 ? p.cov.n : null);
 
-// A board's thickness in inches: the name's fraction first ('KERDI-BOARD 1/2"
-// panel'), else the SKU's millimetre code (KB12… = 12 mm = ½″).
+// schluter.js's THICK_IN (line 32), re-keyed to numeric inches: schluter.js
+// keys ½" panels off thickMm rather than trusting the sheet's text
+// (schluter.js:343) — a live name is not a stable key (schluter.js:281-282).
+const KB_THICK_IN = { 3: 0.125, 5: 0.1875, 9: 0.375, 12: 0.5, 19: 0.75, 25: 1, 38: 1.5, 50: 2 };
+
+// A board's thickness in inches: for Schluter, thickMm (or, failing that, the
+// SKU's millimetre code) through the same table the engine keys panels on;
+// only when neither gives a thickness does the name's own fraction count.
 function boardThick(p) {
   const it = p.item;
   if (p.brand === "wedi") return it.t > 0 ? it.t : null;
+  if (KB_THICK_IN[it.thickMm]) return KB_THICK_IN[it.thickMm];
+  const code = /^KB(\d{2})/.exec(it.sku || "");
+  if (code && KB_THICK_IN[+code[1]]) return KB_THICK_IN[+code[1]];
   const named = new RegExp(INCH + '"').exec(it.name || "");
   if (named) { const n = inchNum(named[1]); if (n > 0) return n; }
-  const code = /^KB(\d{2})/.exec(it.sku || "");
-  return code ? quarter(+code[1] / 25.4) : null;
+  return null;
 }
 
 const SIZE = {
@@ -47,8 +55,7 @@ const SIZE = {
     const b = it.bench;
     if (!b) return null;
     if (b.corner) return b.a > 0 ? { w: b.a, d: b.a } : null;
-    const len = b.len || b.d;
-    return len > 0 && b.d > 0 ? { w: Math.max(len, b.d), d: Math.min(len, b.d) } : null;
+    return b.len > 0 && b.d > 0 ? { w: Math.max(b.len, b.d), d: Math.min(b.len, b.d) } : null;
   },
   curb: (p) => (p.item.len > 0 ? { len: p.item.len } : null),
   tray: (p) => {

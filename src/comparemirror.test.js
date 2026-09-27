@@ -16,12 +16,16 @@ test("bench: long side first; a Schluter corner seat is its leg both ways", () =
   assert.deepEqual(sizeOf(W("bench", { key: "a", group: "bench", w: 18, d: 47 })), { w: 47, d: 18 });
   assert.deepEqual(sizeOf(S("bench", { sku: "KBSB410TA", bench: { corner: true, a: 16 } })), { w: 16, d: 16 });
   assert.deepEqual(sizeOf(S("bench", { sku: "KBSB4101220RA", bench: { d: 16, len: 48 } })), { w: 48, d: 16 });
+  assert.equal(sizeOf(S("bench", { sku: "KBSB410", bench: { d: 16 } })), null, "no len, no readable size");
   assert.equal(sizeOf(W("bench", { key: "p", group: "panel", w: 48, d: 96, sf: 32 })), null, "a bench's panel isn't a seat");
 });
 
-test("wall board: thickness from the name, else the KB mm code; needs sf coverage", () => {
+test("wall board: thickness from thickMm, else the KB mm code, else the name; needs sf coverage", () => {
   assert.deepEqual(sizeOf(S("wallBoard", { sku: "KB1212202440", name: 'KERDI-BOARD 1/2" panel' }, { n: 32, unit: "sf" })), { t: 0.5, sf: 32 });
   assert.deepEqual(sizeOf(S("wallBoard", { sku: "KB506252440", name: "X96 KERDI-BOARD PANEL" }, { n: 16.33, unit: "sf" })), { t: 2, sf: 16.33 });
+  assert.deepEqual(sizeOf(S("wallBoard", { sku: "KB0912202440", name: "KERDI-BOARD PANEL" }, { n: 20, unit: "sf" })), { t: 0.375, sf: 20 });
+  assert.deepEqual(sizeOf(S("wallBoard", { sku: "KB1212202440", name: 'KERDI-BOARD 48" x 96" x 1/2"' }, { n: 32, unit: "sf" })), { t: 0.5, sf: 32 }, "the code outranks a name that lists sides before thickness");
+  assert.deepEqual(sizeOf(S("wallBoard", { sku: "KBXX", thickMm: 19 }, { n: 12, unit: "sf" })), { t: 0.75, sf: 12 });
   assert.deepEqual(sizeOf(W("wallBoard", { key: "p", t: 0.5 }, { n: 15, unit: "sf" })), { t: 0.5, sf: 15 });
   assert.equal(sizeOf(W("wallBoard", { key: "fastener" })), null, "fasteners have no size");
 });
