@@ -422,8 +422,8 @@ export function ProjectHeaderClassic({ sel, cust, builderName, profile, tv, gran
 
 // ---- clean ------------------------------------------------------------------
 // The customer-first header (2026-09-27, .scratch/159_clean-editor, mockup E):
-// customer as the headline, the project one quiet line under it, and every job
-// setting and action in one flat bar on the header's own cream. It also owns
+// two rows sized to the rail logo block — customer · project · address · notes
+// … salesperson over the flat bar of job settings and actions. It also owns
 // the Edit ⇄ Print preview switch (the page icon) — App hides its tabs and
 // keeps this header on screen in both views. No order sheet button here (the
 // one-bar and classic layouts keep theirs).
@@ -536,7 +536,7 @@ function FreightToggle({ on, amount, onSet }) {
   );
 }
 
-export function ProjectHeaderClean({ sel, cust, builderName, profile, freightCost = 0, saveOk, settings, jobWasteUI, updateProject, onOpenCustomer, onPromote, nameRef, nameTabRef, orderEntryRef, focusName, namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion, openAttachment, delAttachment, attRef, addAttachment, setShowVersions, setPrintMode, setConfirm, setShowOrderCopy, samples = null, onOpenSamples, preview = false, onTogglePreview, erp = null, ping, band = null }) {
+export function ProjectHeaderClean({ sel, cust, builderName, profile, freightCost = 0, saveOk, settings, jobWasteUI, updateProject, onOpenCustomer, onPromote, nameRef, nameTabRef, orderEntryRef, focusName, namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion, openAttachment, delAttachment, attRef, addAttachment, setShowVersions, setPrintMode, setConfirm, setShowOrderCopy, samples = null, onOpenSamples, preview = false, onTogglePreview, erp = null, ping }) {
   const [menu, setMenu] = useState(false);
   const [addrAt, setAddrAt] = useState(null);
   const moreRef = useRef(null);
@@ -641,18 +641,18 @@ export function ProjectHeaderClean({ sel, cust, builderName, profile, freightCos
       <Printer size={14} /> Print
     </button>
   </>;
-  const shell = (cls, kids, style) => (
-    <div className={cls} style={style} onKeyDown={headerTabOut(nameTabRef)}>
+  const shell = (cls, kids) => (
+    <div className={cls} onKeyDown={headerTabOut(nameTabRef)}>
       <input ref={attRef} type="file" onChange={addAttachment} className="hidden" />
       {kids}
     </div>
   );
   const proj = "flex items-center gap-2 min-w-0 text-slate-500 whitespace-nowrap";
 
-  // PROTOTYPE (throwaway, 2026-09-27): `band` fits the whole header into the
-  // sidebar logo block's height so its line runs across the top. Remove the
-  // losers once the owner picks.
-  if (band === "h1") return shell("h-full flex flex-col justify-center gap-0.5", <>
+  // The whole header fits the rail logo block's height (owner pick "h1",
+  // 2026-09-27): App pins it in a band whose bottom line continues the line
+  // under the logo straight across the top.
+  return shell("h-full flex flex-col justify-center gap-0.5", <>
     <div className="flex items-center gap-2.5 min-w-0" style={{ height: 30 }}>
       {custEl(19)}
       <div className={proj + " text-[12.5px]"}>{dot}{nameEl(13)}{noEl}{dot}{addrEl}{dot}{notesEl}</div>
@@ -661,49 +661,5 @@ export function ProjectHeaderClean({ sel, cust, builderName, profile, freightCos
     <div role="toolbar" aria-label="Job settings and actions" className="flex items-center gap-0.5 -ml-2.5" style={{ height: 32 }}>
       {settingsEl}<span className="w-2 shrink-0" />{iconsEl}<span className="flex-1" />{actionsEl(28)}
     </div>
-  </>);
-  if (band === "h2") return shell("h-full flex flex-col justify-center gap-0.5", <>
-    <div className="flex items-center gap-2.5 min-w-0" style={{ height: 32 }}>
-      {custEl(20)}<div className={proj + " text-[13px]"}>{dot}{nameEl(13.5)}{noEl}</div>
-      <span className="flex-1" />{savedEl}{actionsEl(28)}
-    </div>
-    <div role="toolbar" aria-label="Job settings and actions" className="flex items-center gap-0.5 min-w-0 -ml-2.5 text-[12.5px] text-slate-500 whitespace-nowrap" style={{ height: 30 }}>
-      {settingsEl}<span className="w-2 shrink-0" />{iconsEl}
-      <span className="w-2 shrink-0" /><div className={proj}>{addrEl}{dot}{notesEl}</div>
-      <span className="flex-1" />{salesEl(13)}
-    </div>
-  </>);
-  if (band === "h3") return shell("h-full flex items-center gap-4 min-w-0", <>
-    <div className="min-w-0 flex flex-col justify-center" style={{ gap: 2 }}>
-      {custEl(18)}
-      <div className={proj + " text-[12px]"}>{nameEl(12.5)}{noEl}{dot}{addrEl}{dot}{notesEl}{dot}<span className="shrink-0">{salesEl(12)}</span></div>
-    </div>
-    <span className="flex-1" />
-    <div role="toolbar" aria-label="Job settings and actions" className="shrink-0 flex items-center gap-0.5">
-      {settingsEl}<span className="w-2 shrink-0" />{iconsEl}<span className="w-3 shrink-0" />{savedEl}<span className="w-2 shrink-0" />{actionsEl(30)}
-    </div>
-  </>);
-
-  return shell("mb-4", <>
-      <div className="flex items-end gap-6">
-        <div className="flex-1 min-w-0 flex flex-col gap-1.5">
-          {custEl(30)}
-          <div className={proj + " text-[13px]"}>
-            {nameEl(14)}{noEl}{dot}{addrEl}{dot}{notesEl}
-          </div>
-        </div>
-        <div className="shrink-0 max-w-[40%] min-w-0 flex flex-col items-end gap-0.5">
-          <span className="text-[12px] h-[16px]" style={{ color: "var(--ft-brand)" }}>{saveOk && "Saved ✓"}</span>
-          {salesEl(15)}
-        </div>
-      </div>
-
-      <div role="toolbar" aria-label="Job settings and actions" className="mt-3 flex items-center gap-0.5 py-1.5 border-y" style={{ borderColor: "var(--ft-border-soft)" }}>
-        {settingsEl}
-        <span className="w-3 shrink-0" />
-        {iconsEl}
-        <span className="flex-1" />
-        {actionsEl(32)}
-      </div>
   </>);
 }

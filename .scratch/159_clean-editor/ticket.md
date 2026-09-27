@@ -226,6 +226,13 @@ rail logo block's height (ResizeObserver), same slate-100 bottom line.
 Shots `71/72/73-band-h*.png`, `-scrolled` (the band stays pinned),
 `-1280` (laptop width).
 
+## Round 2i — owner picks h1 (2026-09-27)
+
+h1 is now THE Clean header; h2, h3, the old tall stacked layout and the
+`?hv=` switch are gone. App always pins Clean's header in the sticky band
+measured to the rail logo block (desktop only — the phone keeps its band).
+`header-preview.html` wraps the demo in a 73px box with the same line.
+
 ## Round 2 — open: product rows
 
 What the mockups show (every board uses the same card treatment; the frame

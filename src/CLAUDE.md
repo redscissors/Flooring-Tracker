@@ -247,19 +247,21 @@ src/
                     # `ProjectHeaderClassic` (the print-sheet original, kept
                     # whole so the team can flip back without a revert) and
                     # `ProjectHeaderClean` (on trial 2026-09-27,
-                    # .scratch/159_clean-editor): customer as the headline, the
-                    # project one line under it (name · N · ERP chip ·
-                    # address · notes — the address is the project's when set,
+                    # .scratch/159_clean-editor): two rows sized to the rail
+                    # logo block, pinned by App in a sticky band whose bottom
+                    # line continues the logo's (rail height measured with a
+                    # ResizeObserver). Row 1: customer · project (name · N ·
+                    # ERP chip · address · notes — the address is the project's when set,
                     # else the customer's, which opens the customer; the
                     # project address edits in an AddressField popover from
-                    # the line or ⋯), the salesperson's name alone top right
-                    # (no total there — the Order summary has it), and one flat
-                    # bar on the cream — PriceLevelMenu, a MorphSelect for
+                    # the line or ⋯) … the salesperson's name (no total — the
+                    # Order summary has it). Row 2: the flat bar —
+                    # PriceLevelMenu, a MorphSelect for
                     # Estimate shows, a waste popover over WasteBar, the freight
                     # truck (quiet when on, amber "No freight" when off), the
                     # page icon that IS the Edit ⇄ Print preview switch (App
-                    # hides its tabs and renders Clean above the edit/preview
-                    # split so it stays up in both), files, samples, a ⋯
+                    # hides its tabs; the pinned band stays up in both),
+                    # files, samples, a ⋯
                     # DotMenu (Project address / Versions / Save a named version /
                     # Delete), and
                     # the Order entry button carrying the ERP number — green
