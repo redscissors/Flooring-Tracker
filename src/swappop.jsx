@@ -1,8 +1,14 @@
-// The stepped drain swap (ticket 158 Phase 1a, mockup layout A): rows of chips
-// and a summary strip. Both shower popups mount it; each owns what a chip means.
+// The stepped swap popover (ticket 158 Phase 1, mockup layout A): rows of
+// chips and a summary strip. Both shower popups mount it for the drain and
+// every stepped line; each owns what a chip means and what Use this commits.
 import { PopMenu } from "./widgets.jsx";
 
-export function DrainSwapPop({ at, className = "", title, rows, summary, onUse, onClose }) {
+const money = (n) => "$" + (+n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/** The summary strip's change against the committed line: "+$12.30", "−$4.00", "±0". */
+export const fmDelta = (d) => (d > 0 ? "+" : d < 0 ? "−" : "±") + (d ? money(Math.abs(d)) : "0");
+
+export function SwapPop({ at, className = "", title, rows, summary, onUse, onClose }) {
   return (
     <PopMenu at={at} width={460} pad={10} z={90} onClose={onClose}>
       <div className={className + " text-[12px] px-2.5 py-2"} onClick={(e) => e.stopPropagation()} data-drain-swap>

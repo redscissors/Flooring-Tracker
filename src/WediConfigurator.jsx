@@ -24,7 +24,7 @@ import {
   normBench, benchPremades, benchPanRoom, benchPanPlan, smallerPanFor,
   BENCH_CORNER_LBL, buildFromMarker, sessionFromRows, wediSlotOf, coverStyles, legacyCoverPick,
 } from "./wedi.js";
-import { DrainSwapPop } from "./drainswap.jsx";
+import { SwapPop, fmDelta } from "./swappop.jsx";
 import { TopDown, Iso, railSplit, RAIL_DESIGN_W, curbHeight } from "./showerdraw.jsx";
 import { normKitBasketEntry } from "./model.js";
 import { useWediCatalog } from "./usewedicatalog.js";
@@ -2142,12 +2142,12 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     const pick = lin ? (draft.finish && draft.finish !== "SS" ? { finish: draft.finish } : undefined)
       : draft.key === SKU.coverSS ? undefined : { key: draft.key };
     return (
-      <DrainSwapPop at={{ anchor: swap.anchor, x: r.right - 470, y: r.bottom + 6 }} className="wedi-swap wedi-grown"
+      <SwapPop at={{ anchor: swap.anchor, x: r.right - 470, y: r.bottom + 6 }} className="wedi-swap wedi-grown"
         title={lin ? `Linear cover — ${committed.len}″ channel` : "Drain cover — 4×4"} rows={rows}
         summary={{
           what: unwedi(draft.name) + (draft.stock ? "" : " · special order"),
           why: lin ? "follows the channel length if the room changes" : "",
-          delta: (d > 0 ? "+" : d < 0 ? "−" : "±") + (d ? fm(Math.abs(d)) : "0"), total: fm(tierOf(draft)), up: d > 0,
+          delta: fmDelta(d), total: fm(tierOf(draft)), up: d > 0,
         }}
         onUse={() => {
           setOpts((o) => ({ ...o, coverPick: pick }));

@@ -19,7 +19,7 @@ import {
   boardPlan, expandBoardFaces, wallArea, halfBoardPool, buildFromMarker, ovKey, sessionFromRows, slotOf, drainOptions,
   resolveDrain, FINISH_LABEL, VARIO_DESIGN,
 } from "./schluter.js";
-import { DrainSwapPop } from "./drainswap.jsx";
+import { SwapPop, fmDelta } from "./swappop.jsx";
 import { mortarItemFrom, MORTAR_BED_SF_PER_BAG } from "./schluteradapter.js";
 import { useSchluterCatalog } from "./useschlutercatalog.js";
 import { normKitBasketEntry } from "./model.js";
@@ -2129,7 +2129,7 @@ export default function SchluterConfigurator({
     const clearDrainQty = () => setQtyOv((q) => Object.fromEntries(Object.entries(q).filter(([k]) => !k.startsWith("Drain|"))));
     const summaryOf = (what, why, next) => {
       const d = round2(next - curTotal);
-      return { what, why, delta: (d > 0 ? "+" : d < 0 ? "−" : "±") + (d ? fm(Math.abs(d)) : "0"), total: fm(next), up: d > 0 };
+      return { what, why, delta: fmDelta(d), total: fm(next), up: d > 0 };
     };
     const r = swap.rect;
     const at = { anchor: swap.anchor, x: r.right - 470, y: r.bottom + 6 };
@@ -2146,7 +2146,7 @@ export default function SchluterConfigurator({
         title: [e.sku, e.stock ? "stock" : "special order", fm(tierOf(e))].join(" · "),
       }));
       return (
-        <DrainSwapPop at={at} className="sch-swappanel" title="Swap the drain grate" rows={[{ label: "Grate", chips }]}
+        <SwapPop at={at} className="sch-swappanel" title="Swap the drain grate" rows={[{ label: "Grate", chips }]}
           summary={summaryOf(shown(pick.name), [pick.sku, pick.stock ? "stock" : "special order"].join(" · "), drainTotal(rest) + tierOf(pick))}
           onUse={() => { setSwaps((o) => ({ ...o, grate: pick.sku })); clearDrainQty(); setSwap(null); }}
           onClose={() => setSwap(null)} />
@@ -2202,7 +2202,7 @@ export default function SchluterConfigurator({
       why = [l0.note, l1.note].filter(Boolean).join(" · ");
     }
     return (
-      <DrainSwapPop at={at} className="sch-swappanel" title={`Swap the drain — ${panW}″ pan`} rows={rows}
+      <SwapPop at={at} className="sch-swappanel" title={`Swap the drain — ${panW}″ pan`} rows={rows}
         summary={summaryOf(what, why, drainTotal(res.lines))}
         onUse={() => {
           setDrainPick(draft.family === "vario" && !draft.design && !draft.finish ? null : draft);
