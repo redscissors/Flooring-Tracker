@@ -144,3 +144,48 @@ books no longer carry. The owner confirmed this on 2026-09-27, and tile sf
    hid opts-backed ⇄ on Browse-added lines in a wedi kit build.
 4. **The wedi curb drawing** (and "Turn into a curb") follows only the kit's
    own curb. An added curb is a part on the bill, not a curb in the room.
+
+## Amendment (2026-09-27): shared groups and the Compare mirror (Phase 1d)
+
+1. **The display group derives from the slot.** `src/slots.js` gains
+   `GROUPS` (Base · Drain · Curb · Walls · Seams · Niches · Bench · Setting ·
+   Extras, the owner's order), `groupOf(slot)` and `groupLabel(key)`. Both
+   bills, both print sheets and Compare draw a line under
+   `groupOf(line.slot)`.
+   - The engines' own groups stay internal keys: Schluter `l.g` ("Walls",
+     "Extras"…) and wedi buckets (`floor`, `install`, `addon`…). They are
+     already saved in qty-override keys (`"<g>|<sku>"`) and added rows
+     (`g` / `group`).
+   - So nothing saved changes and nothing translates on read. Both goldens
+     (`wedimarkergolden.test.js`, `addedgolden.test.js`) stay green,
+     untouched.
+2. **wedi fasteners fill `wallBoard`** (`WEDI_SLOT`, was `seam`). They sit
+   with the panels under Walls and line up with Schluter's board fasteners in
+   Compare. No other slot mapping changes.
+3. **"+" tables key on the shared group.** `ADD_PARTS` (schluter.js) and
+   `WEDI_ADD_PARTS` (wedi.js) are keyed by group key. Each part stores the
+   engine group an add writes (`g` / `group`), so a Schluter "+ Niches" still
+   writes `g: "Extras"`. A part's `hit` only matches parts whose slot, read
+   under that engine group, lands back in the group that offered it, so "+"
+   and display can't disagree. Added rows are still keyed by engine group +
+   part (1c).
+4. **Compare's other column holds session state.** Each line the host build
+   added by hand is mirrored onto the other brand:
+   - by default the nearest-size part in the same slot (niche, bench, curb,
+     tray, wall board, wall membrane, seam), stock before special order, qty
+     by coverage where both parts have it;
+   - otherwise a "+" that opens a picker of that brand's "+" parts for the
+     group;
+   - hand picks and drops live in the host popup's `mirror` state
+     (`{ [hostKey]: { pick: { g, id, qty } } | { dropped: true } }`), kept for
+     the popup session only and never saved. Auto-matches are recomputed
+     every render.
+
+   The other engine prices the mirrored lines: CompareTab rebuilds its house
+   kit with them as ordinary added rows (`cfg.manual`), so "Quote options"
+   lands them in option B's marker as added lines. The size readers and
+   ranking live in `src/comparemirror.js`, which imports no engine; the
+   brand-specific side lives in `comparekit.js`.
+
+ADR 0034's `COMPARE_CATS` / `WEDI_CAT` retire with this: Compare rows are
+group bands with one row per slot.

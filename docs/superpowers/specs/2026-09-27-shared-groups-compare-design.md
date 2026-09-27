@@ -379,9 +379,86 @@ New `.scratch/158_shower-config-roadmap/p1d/` scripts (`shoot-schluter.mjs`,
   re-key).
 - **The ticket's 1d row**, and a Phase 2 handoff.
 
-### Amendments during planning and build
+### Amendments during planning and build (2026-09-27)
 
-(none yet)
+Calls the plan author made while prototyping (the plan's "Rulings made while
+prototyping", `docs/superpowers/plans/2026-09-27-shared-groups-compare.md`) and
+the controller ruled on during execution (ledger:
+`.superpowers/sdd/2026-09-27-shared-groups-compare/progress.md`).
+
+From the plan:
+
+- **The add-on chips stay a block of their own**, titled "Add-ons", below the
+  nine groups, on both bills. Schluter already drew them that way; wedi's
+  chips moved out of the retired Add-ons bucket into the same kind of block.
+  This amends §2's "the niche chips move into Niches, and the bench menu into
+  Bench". What a chip adds still lands in its own group.
+- **`comparemirror.js` is engine-free.** comparekit hands it parts
+  (`{ brand, item, slot, g, id, cov, retail }`). The brand-specific mirror —
+  `hostAddedLines`, `mirrorParts`, `mirrorCandidates`, `mirrorPlan`,
+  `mirrorRow`, `pruneMirror` and `compareLayout` — lives in `comparekit.js`.
+  This amends §4's "Where the code lives".
+- **A Schluter niche's size is read from the SKU only** (`KB..SN<mm><mm>`).
+  The lighted niche (`KB12SNLT…`) has none, so it never auto-matches. It is
+  still in the picker's list.
+- **`data-add-group` carries the group label** ("Niches"), for the proof
+  scripts.
+- **`schluterBuildFor` bills `cfg.manual`.** `buildKit` bills the recipe only;
+  every other caller (`buildFromMarker`, the popup) pushes `addedLines`
+  itself.
+- **wedi Browse-only lines get `slot`.** They had none and would have filed
+  under Extras.
+- **wedi's Walls Fit / One-size control** shows only when the Walls group
+  holds a kit panel, since fasteners now share the group.
+- **A "+" part only offers parts that land back in its group.** Without this,
+  wedi's "Other" caught S-DRY parts that `wediSlotOf` files under Seams, and
+  PRO-SET (catalog group `sdry`) showed under "Membrane & tape".
+- **The mirror "+" is shown only when the brand has parts for that group.**
+  Otherwise the row reads "No Schluter flange in the book" (the slot's label),
+  with no "+". A dropped line's row reads "Not mirrored", with the "+".
+- **The picker's price is retail**, whatever the Compare lens. It is a list of
+  parts, not a quote.
+- **A pick whose part left the book reads as "none"** (a "+"). It never falls
+  back to an auto-match silently.
+- **Two host lines landing on one part sum into one engine row.** The Compare
+  column still draws one mirrored line per host line; the totals agree.
+- **Kit-line group coverage** is pinned by the Compare-row tests (the 60×38
+  point build on both brands, every row a known group and slot) and by the
+  "+" round-trip tests. There is no separate per-build-type fixture sweep, as
+  the Testing section had asked for.
+
+From the build:
+
+- **Schluter board thickness comes from the KB code.** comparemirror reads
+  `item.thickMm`, else the SKU's `KB<mm>` code, through an mm → inch table
+  that mirrors schluter.js `THICK_IN`. The name's inch figure is only the last
+  fallback: live names aren't a stable key, and a name listing the sides first
+  would read 48″.
+- **A Schluter bench with no length is unsized.** `bench: { d }` without
+  `len` never auto-matches: no readable size, no match.
+- **Esc over the mirror picker closes only the picker.** CompareTab registers
+  the picker on the ADR 0028 Esc ladder (`useEscClose`), as the confirm modal
+  already did. Before, Esc closed the whole configurator.
+- **The mirror picker searches.** Past 12 candidates a search box shows
+  (name + part number), the first 60 matches list, then "N more — narrow the
+  search". This is the popups' own "+" list idiom, so every candidate is
+  reachable.
+- **A standing pick opens marked.** A pick made under Full catalog, with the
+  popup now on Stock only, still opens the picker on that part, at the top of
+  the list with its qty. (A hand pick also keeps billing under Stock only: it
+  was chosen, not figured.)
+- **A group with nothing to show and nothing to add stays hidden.** §2's "all
+  nine headers, empty ones included" means empty but addable. The wedi fixture
+  book has no Extras "Other" parts, so the wedi bill draws eight headers. A
+  "+" that opens an empty list helps nobody; 1c hid such groups too.
+- **Print proof renders the print sheet.** The sheet shows only under
+  `@media print`, so the p1d print shots emulate print media. The p1d proof is
+  two scripts, `shoot-bills.mjs` (both bills and both prints) and
+  `shoot-compare.mjs`, not the three the Proof section names.
+- **"comparekit remains the only module that imports both engines" is scoped
+  to the Compare code.** CompareTab.jsx (both engines' `lineItems`),
+  showersf.js and orderlines.js already imported both before 1d. The mirror's
+  engine reads live in comparekit; comparemirror imports no engine.
 
 ## Out of scope (1d)
 

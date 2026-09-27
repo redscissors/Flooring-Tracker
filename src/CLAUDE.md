@@ -930,12 +930,22 @@ src/
                     # add-on position, flags them `added`, and writes
                     # `manual` (never `addons`); `buildFromMarker` passes
                     # them through. `wediBucketOf` (moved from the popup,
-                    # which aliases it `bucketOf`) and the new
-                    # `WEDI_BUCKETS` name the bill buckets.
-                    # `WEDI_ADD_PARTS`/`wediAddParts(bucket)` are what each
-                    # bucket's "+" offers (a part the book lacks never
-                    # shows); `wediAddPartOf` is the part an added line's ⇄
-                    # swaps within. `curbAddOptions` and `coverAddOptions`
+                    # which aliases it `bucketOf`) and `WEDI_BUCKETS` name
+                    # the engine buckets — since 1d internal keys only (an
+                    # added row's `group`), no longer what the bill draws.
+                    # Phase 1d: `WEDI_ADD_PARTS`/`wediAddParts(grp)` are
+                    # keyed by the shared group (slots.js `GROUPS`) — what
+                    # each group's "+" offers (a part the book lacks never
+                    # shows). Each part stores the bucket an add writes
+                    # (`group`: Recess kit `install`, Niche/Seat & bench
+                    # `addon`…) and its `hit` only matches parts whose
+                    # `wediSlotOf` under that bucket lands back in the
+                    # offering group; Setting gains a PRO-SET part.
+                    # `wediAddPartOf(grp, item)` is the part an added line's
+                    # ⇄ swaps within, found by `groupOf(line.slot)`. The
+                    # `fastener` catalog group fills slot `wallBoard` (was
+                    # `seam`), so fasteners draw under Walls.
+                    # `curbAddOptions` and `coverAddOptions`
                     # are the stepped "+" rows with no Auto (a real length,
                     # a real cover key). `sessionFromRows` takes the
                     # marker's added lines off each placed total first, so
@@ -1319,6 +1329,25 @@ src/
                     # design clear them. The curb drawing and "Turn into a
                     # curb" read only the kit's own curb. Reconfigure tops
                     # up an added row by what the sheet carries beyond it.
+                    # Ticket 158 Phase 1d (ADR 0049): the bill and the print
+                    # sheet draw the nine shared groups (slots.js `GROUPS`,
+                    # a line under `groupOf(line.slot)`) in place of the six
+                    # buckets; a group with no lines and nothing its "+" can
+                    # add stays hidden (the fixture book has no Extras
+                    # "Other" parts, so it draws eight). The add-on chips
+                    # (Niche · Seat · Bench · Glass shelf · …) are their own
+                    # "Add-ons" block below the groups, as on Schluter; what
+                    # a chip adds lands in its own group. `openAdd(grp, …)`
+                    # takes the shared group; the panel keeps `add.grp` (the
+                    # parts list) and `add.g` (the bucket rows are keyed
+                    # under — the added line's own, else the part's).
+                    # `data-add-group` carries the group label ("Niches").
+                    # Browse-only lines get a `slot`. The Walls Fit /
+                    # One-size control shows only when Walls holds a kit
+                    # panel (fasteners now share the group). The popup holds
+                    # Compare's `mirror` state (hand picks and drops for the
+                    # Schluter column) for the session and passes
+                    # `mirror`/`onMirror` to CompareTab.
   panelplan.js      # `planPanels(walls, sheets)` — the wall-board course
                     # planner both shower engines share (wedi `panelPlan`,
                     # Schluter `boardPlan`; owner 2026-09-22): full courses
@@ -1403,11 +1432,19 @@ src/
                     # figure (addedgolden.test.js).
   slots.js          # the shared bill-line slot vocabulary (ticket 158 Phase 1,
                     # ADR 0049): `SLOTS`/`SLOT_LABEL`/`isSlot`, a pure,
-                    # import-free 14-line module both engines and Compare read
+                    # import-free module both engines and Compare read
                     # so a Schluter line and a wedi line for the same role
                     # (drain body, grate, flange, wall board, curb, …) read as
                     # the same kind of thing — never re-derive the list from a
-                    # bill's own group names
+                    # bill's own group names. Phase 1d: `GROUPS` (the nine
+                    # shared bill groups in the owner's order — Base · Drain ·
+                    # Curb · Walls · Seams · Niches · Bench · Setting · Extras
+                    # — each holding one or more slots, every slot exactly
+                    # once), `groupOf(slot)` (an unknown slot → "extras") and
+                    # `groupLabel(key)`. Both bills, both print sheets and
+                    # Compare draw a line under `groupOf(line.slot)`; the
+                    # engines' own groups (Schluter `l.g`, wedi buckets) stay
+                    # internal keys, never translated (slots.test.js)
   swappop.jsx       # `SwapPop` — the shared stepped popover (ticket 158 Phase
                     # 1a, mockup layout A; renamed from `DrainSwapPop` in 1b,
                     # which also folded in the two popups' duplicated Δ
@@ -1529,7 +1566,8 @@ src/
                     # schluterdraw.js and the cut list. `drainOptions` re-runs `resolveDrain` per candidate chip so the
                     # popover (drainswap.jsx) can never offer what the engine would refuse. `slotOf(g, item)` tags
                     # every buildKit line with its shared slots.js slot (catalog facts first, the bill group as
-                    # fallback) — Compare (comparekit.js) and 1b-1d's swap/picker UI read it, not the bill group name.
+                    # fallback) — Compare (comparekit.js), 1b-1d's swap/picker UI and (1d) the bill's display
+                    # group (`groupOf(slot)`) read it, not the engine group name.
                     # cfg.corners (45° cut corners, the wedi CORNER_CUT
                     # 12" legs) grow the curb need by each cut FRONT
                     # corner's diagonal extra — back corners never touch
@@ -1627,7 +1665,7 @@ src/
                     # chip text.
                     # Ticket 158 Phase 1c (ADR 0049): added lines are parts +
                     # a hand-set qty, never choices. `cfg.manual` rows gain
-                    # `g` (the bill group they draw under, one of
+                    # `g` (the engine group they're keyed under, one of
                     # `BILL_GROUPS`); `addedGroup` files a row with no `g`
                     # where the kit bills that part (`slotOf` → the slot's
                     # group), so old Extras rows move group with no bill
@@ -1635,10 +1673,17 @@ src/
                     # bill lines flagged `manual` (`buildFromMarker` and the
                     # popup both use it); `addedQty`/`setAddedQty` read and
                     # set one row keyed by group + sku (0 removes it).
-                    # `ADD_PARTS`/`addParts(g, cat, { linear })` are what each
+                    # `ADD_PARTS`/`addParts(grp, cat, { linear })` are what each
                     # group's "+" offers — a part the catalog lacks never
                     # shows, and the whole drain is a linear build's only;
-                    # `addPartOf` is the part an added line's ⇄ swaps within.
+                    # `addPartOf(grp, item)` is the part an added line's ⇄
+                    # swaps within. Phase 1d re-keyed both by the shared
+                    # group (slots.js `GROUPS`, `grp`): each part stores the
+                    # engine `g` an add writes (Niche and Bench still write
+                    # `g: "Extras"`), and its `hit` only matches parts whose
+                    # `slotOf(g, item)` lands back in the offering group.
+                    # `BILL_GROUPS` and `addedGroup` still speak engine `g`
+                    # — the bill draws under `groupOf(line.slot)`.
                     # `addRollOptions` is the membrane/band Width → Roll rows
                     # with no Auto; `drainAddOptions` is the linear drain's
                     # rows plus a Length row, its chips `ok` only at a length
@@ -2022,6 +2067,21 @@ src/
                     # line. Niche picker rows add another (`✓ ×n`).
                     # Reconfigure tops up an added row by what the sheet
                     # carries beyond it.
+                    # Ticket 158 Phase 1d (ADR 0049): the bill and the print
+                    # sheet draw the nine shared groups (slots.js `GROUPS`,
+                    # a line under `groupOf(line.slot)`) — niches and benches
+                    # leave Extras for their own groups; a group with no
+                    # lines and nothing its "+" can add stays hidden. The
+                    # Add-ons chip block stays below the groups.
+                    # `openAdd(grp, …)` takes the shared group; the panel
+                    # keeps `add.grp` (the parts list) and `add.g` (the
+                    # engine group rows are keyed under — the added line's
+                    # own, else the part's), so `ovKey`s and saved rows keep
+                    # their engine `g`. `data-add-group` carries the group
+                    # label ("Niches"). The popup holds Compare's `mirror`
+                    # state (hand picks and drops for the wedi column) for
+                    # the session and passes `mirror`/`onMirror` to
+                    # CompareTab.
   schluterpreview.jsx  # dev-only harness (schluter-preview.html): the REAL
                     # SchluterConfigurator over the fixture pushed BACKWARDS
                     # through normOrderItem into live registry shape (shop
@@ -2075,13 +2135,36 @@ src/
                     # trayCandidates[0] pick, returning the cfg beside the
                     # build because that cfg is what a Reconfigure chip
                     # reopens on. `wediCompareRows`/`schluterCompareRows`
-                    # align both bills on COMPARE_CATS (Schluter lines carry
-                    # the token in `l.g`; wedi maps from the catalog
-                    # `item.group`) as EXTENDED amounts, every price coming
-                    # back out of the engine that made the line — nothing is
-                    # re-derived here. Each row also carries its engine-tagged
-                    # `slot` (slots.js, ticket 158 Phase 1a, ADR 0049) alongside
-                    # `l.g`/`item.group` — unused here, for 1d's row alignment.
+                    # turn both bills into rows as EXTENDED amounts, every
+                    # price coming back out of the engine that made the line
+                    # — nothing is re-derived here. Since ticket 158 Phase 1d
+                    # (ADR 0049) each row carries its engine-tagged `slot`,
+                    # `group: groupOf(slot)` (slots.js), `key` (engine group
+                    # + part, the 1c added-row identity) and `added`
+                    # (Schluter `manual`, wedi `added` on a kit build);
+                    # COMPARE_CATS/WEDI_CAT retired. `compareLayout(cols,
+                    # plus)` is the grid: one band per shared group, one row
+                    # per slot either column fills (or a mirror "+" needs),
+                    # kit lines before added ones in a cell, empty slots and
+                    # groups dropped. The mirror — each host added line
+                    # answered on the other brand: `hostAddedLines`,
+                    # `mirrorParts(brand, grp, {cat, source})` (the brand's
+                    # own "+" table for the group, so Compare never offers a
+                    # part that bill wouldn't), `mirrorCandidates` (the ONE
+                    # candidate list the picker shows and the auto-match
+                    # takes the top of), `mirrorPlan(hostBuild, hostBrand,
+                    # state, …)` → entries (`matched`/`picked`/`none`/
+                    # `dropped`) plus the other engine's `manual` rows (one
+                    # per engine group + part, qty summed), `mirrorRow`,
+                    # `pruneMirror`. A hand pick resolves against the full
+                    # catalog (it stands under Stock only); a pick whose part
+                    # left the book is `none`, never a silent auto-match.
+                    # `wediBuildFor`/`schluterBuildFor` take `manual`, and
+                    # `schluterBuildFor` bills it (`addedLines` — buildKit
+                    # bills the recipe only), so option B's marker carries
+                    # the mirrored rows as ordinary added lines.
+                    # Sizes and ranking are comparemirror.js's; the engine
+                    # reads stay here.
                     # `noteOnly` rows are KEPT at $0: the
                     # Schluter column carries its substrate-by-others line,
                     # the walls-difference story (the wedi panel IS the
@@ -2089,6 +2172,25 @@ src/
                     # Setting (ticket 158 — it replaced the old "Thin-set
                     # for pan bed — by others" note); `compareTotals` then excludes them
                     # (comparekit.test.js, over the frozen schluterfixture)
+  comparemirror.js  # how Compare sizes and ranks the other brand's parts for
+                    # a hand-added line (ticket 158 Phase 1d, ADR 0049) —
+                    # pure and ENGINE-FREE: comparekit hands it parts
+                    # (`{ brand, item, slot, g, id, cov, retail }`), so
+                    # comparekit stays the one Compare module reading both
+                    # engines. `sizeOf` reads a comparable size per sized
+                    # slot (niche interior W×H — wedi's size text, Schluter's
+                    # `KB..SN<mm><mm>` SKU only, so the lighted niche never
+                    # sizes; bench footprint; curb len; tray W×D; wall board
+                    # thickness then sf — Schluter thickness from `thickMm`,
+                    # else the `KB<mm>` code through a copy of schluter.js
+                    # THICK_IN, the name last; membrane sf; seam width then
+                    # lf); every other slot is unsized and never auto-
+                    # matches. `sizeDistance`, `rankParts` (nearest, then
+                    # stock, then retail, then part number; unsized last),
+                    # `nearest` (null without a readable size on both sides)
+                    # and `matchQty` (coverage for coverage, else the same
+                    # count) (comparemirror.test.js). LAZY-CHUNK-ONLY: only
+                    # comparekit.js and CompareTab.jsx import it
   CompareTab.jsx    # the Compare surface (phase 5, ADR 0034, prototype P3):
                     # the fourth tab in EITHER vendor popup — the category rail
                     # beside a wedi column and a Schluter column, a Retail/
@@ -2118,7 +2220,30 @@ src/
                     # `lineItems({...build,mode:"custom",cfg},{builderPct})` —
                     # so both anchors keep their reconfigure markers, then hands
                     # {wediLines, schluterLines, label} to `onQuoteOptions`
-                    # (App.jsx's compareOptionsPatch landing). LAZY-CHUNK-ONLY
+                    # (App.jsx's compareOptionsPatch landing).
+                    # Ticket 158 Phase 1d (ADR 0049): the category rail gave
+                    # way to group bands (slots.js `GROUPS`) with one row per
+                    # slot, laid out by comparekit `compareLayout`; added
+                    # lines sit in their slot row tagged "added". Each host
+                    # added line is mirrored onto the other column
+                    # (`mirrorPlan`): the nearest-size part, tagged "added ·
+                    # matched", with ⇄ (re-pick) and × (drop); or a "+" row —
+                    # "Nothing comparable in the <brand> book", "No <brand>
+                    # <slot> in the book" (no "+", the brand has no parts for
+                    # the group) or "Not mirrored" after ×. The other
+                    # column's build is re-run with the plan's `manual` rows,
+                    # so that engine prices them; its column draws kit rows
+                    # plus one `mirrorRow` per host line. The picker is
+                    # `SwapPop` in add mode: a Part row when the group has
+                    # several parts, the `mirrorCandidates` list (retail
+                    # price whatever the lens; a search box past 12, the
+                    # first 60 matches, "N more — narrow the search"), a
+                    # standing pick outside the Stock-only pool shown at the
+                    # top, marked, and a qty stepper; it takes its own Esc
+                    # rung (useEscClose). Picks and drops are the popup's
+                    # `mirror`/`onMirror` session state, pruned of host lines
+                    # that are gone; hooks `data-cmp-group`, `data-cmp-slot`,
+                    # `data-mirror-*`. LAZY-CHUNK-ONLY
                     # (ADR 0026): it pulls comparekit → both engines, so only a
                     # React.lazy mount may reach it
   descfit.js        # fitting an order description into a fixed-width ERP field.
