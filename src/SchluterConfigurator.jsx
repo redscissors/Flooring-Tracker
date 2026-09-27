@@ -22,6 +22,7 @@ import {
   applyBoardPlan, applyQtyOv,
 } from "./schluter.js";
 import { SwapPop, fmDelta, inchGlyph } from "./swappop.jsx";
+import { GROUPS, groupOf, groupLabel } from "./slots.js";
 import { mortarItemFrom, MORTAR_BED_SF_PER_BAG } from "./schluteradapter.js";
 import { useSchluterCatalog } from "./useschlutercatalog.js";
 import { normKitBasketEntry } from "./model.js";
@@ -72,8 +73,6 @@ const SECTIONS = [
   { key: "kits", label: "Factory kits", hit: (i) => i.g === "kit" },
 ];
 const sectionHit = (s, i) => (s.hit ? s.hit(i) : s.subs.some((sb) => sb.hit(i)));
-
-const GROUPS = ["Base", "Drain", "Walls", "Seams", "Curb", "Setting", "Extras"];
 
 const inches = (n) => (n % 12 === 0 ? n / 12 + "'" : n + '"');
 const szLbl = (t) => `${inches(t.w)}×${inches(t.d)}`;
@@ -458,6 +457,9 @@ export default function SchluterConfigurator({
   const s0 = init.current;
 
   const [tab, setTab] = useState(s0.tab);
+  // Compare's mirrored lines (Phase 1d): hand picks and drops for the other
+  // brand's column, keyed by host added line — kept for this popup session only.
+  const [mirror, setMirror] = useState({});
   const [source, setSource] = useState(s0.source);
   const [w, setW] = useState(s0.w);
   const [d, setD] = useState(s0.d);
@@ -1039,18 +1041,21 @@ export default function SchluterConfigurator({
     }
     return null;
   };
-  const openAdd = (g, ev, line) => {
-    const part = line ? addPartOf(g, line.item) : addParts(g, cat, { linear: !!build?.drainFit })[0];
+  // `grp` is the shared group whose "+" (or added line's ⇄) opened the panel;
+  // `g` is the engine group the rows are keyed under — the added line's own,
+  // else the part's.
+  const openAdd = (grp, ev, line) => {
+    const part = line ? addPartOf(grp, line.item) : addParts(grp, cat, { linear: !!build?.drainFit })[0];
     if (!part) return;
     setSwap(null);
     setAdd({
-      g, part: part.key, qty: 1, q: "", draft: addDraft(part, line ? line.item : null), replace: line ? line.item.sku : null,
+      grp, g: line ? line.g : part.g, part: part.key, qty: 1, q: "", draft: addDraft(part, line ? line.item : null), replace: line ? line.item.sku : null,
       rect: ev.currentTarget.getBoundingClientRect(), anchor: ev.currentTarget.closest(line ? ".bline" : ".bg-h"),
     });
   };
   // an added line's ⇄: the part it sits in offers more than itself
   const canSwapAdded = (l) => {
-    const part = l.manual && addPartOf(l.g, l.item);
+    const part = l.manual && addPartOf(groupOf(l.slot), l.item);
     if (!part) return false;
     if (part.stepped) return true;
     return new Set([...pool(cat.filter(part.hit)).map((i) => i.sku), l.item.sku]).size > 1;
@@ -1579,14 +1584,14 @@ export default function SchluterConfigurator({
             <div className="t">Build</div>
             <div className="sub">{inches(cfg.w)}×{inches(cfg.d)}{cfg.maxIn ? " tray (max inside)" : ""} · {cfg.curbed ? "curbed" : "curbless"} · {effDrain} drain · {cfg.wallSys === "board" ? "KERDI-BOARD walls" : "KERDI membrane walls"}{pickCand && pickCand.cut ? ` · tray cut ${pickCand.cut}″` : ""}</div>
           </div>
-          {GROUPS.map((g) => {
-            const gl = build.lines.filter((l) => l.g === g);
+          {GROUPS.map(({ key: g, label }) => {
+            const gl = build.lines.filter((l) => groupOf(l.slot) === g);
             const canAdd = addParts(g, cat).length > 0;
             if (!gl.length && !canAdd) return null;
             return (
               <div className="bgroup" key={g}>
-                <div className="bg-h">{g}
-                  {g === "Walls" && cfg.wallSys === "board" && (
+                <div className="bg-h">{label}
+                  {g === "walls" && cfg.wallSys === "board" && (
                     <span className="wallctl">
                       <span className="pfseg">
                         <button className={panelFit ? "on" : ""} title="mixed sheet sizes, level courses, minimal vertical seams" onClick={() => setPanelFit(true)} data-schluter-fit>Fit</button>
@@ -1594,7 +1599,7 @@ export default function SchluterConfigurator({
                       </span>
                     </span>
                   )}
-                  {canAdd && <button className="addb" title={`add another line to ${g}`} onClick={(ev) => openAdd(g, ev)} data-add-group={g}>+</button>}
+                  {canAdd && <button className="addb" title={`add another line to ${label}`} onClick={(ev) => openAdd(g, ev)} data-add-group={label}>+</button>}
                 </div>
                 {gl.map((l, li) => {
                   const e = l.item;
@@ -1616,7 +1621,7 @@ export default function SchluterConfigurator({
                       )}
                       {canSwapAdded(l) && (
                         <button className="swapb" title="swap this added line" data-schluter-swapb={e.sku} data-added-swapb
-                          onClick={(ev) => openAdd(l.g, ev, l)}>⇄</button>
+                          onClick={(ev) => openAdd(groupOf(l.slot), ev, l)}>⇄</button>
                       )}
                       {!l.noteOnly && (
                         <div className="stepper">
@@ -2324,15 +2329,15 @@ export default function SchluterConfigurator({
   // its qty.
   const addPanel = (() => {
     if (!add || !build) return null;
-    const parts = add.replace ? [addPartOf(add.g, cat.find((i) => i.sku === add.replace))].filter(Boolean) : addParts(add.g, cat, { linear: !!build.drainFit });
+    const parts = add.replace ? [addPartOf(add.grp, cat.find((i) => i.sku === add.replace))].filter(Boolean) : addParts(add.grp, cat, { linear: !!build.drainFit });
     const part = parts.find((p) => p.key === add.part) || parts[0];
     if (!part) return null;
     const setA = (patch) => setAdd((a) => (a ? { ...a, ...patch } : a));
     const r = add.rect;
     const at = { anchor: add.anchor, x: r.right - 470, y: r.bottom + 6 };
     const partRow = !add.replace && parts.length > 1 ? [{ label: "Part", chips: parts.map((p) => ({
-      key: p.key, label: p.label, ok: true, on: p.key === part.key, onPick: () => setA({ part: p.key, draft: addDraft(p, null), q: "" }) })) }] : [];
-    const title = add.replace ? `Swap the added ${part.label.toLowerCase()}` : `Add to ${add.g}`;
+      key: p.key, label: p.label, ok: true, on: p.key === part.key, onPick: () => setA({ part: p.key, g: p.g, draft: addDraft(p, null), q: "" }) })) }] : [];
+    const title = add.replace ? `Swap the added ${part.label.toLowerCase()}` : `Add to ${groupLabel(add.grp)}`;
     const oldQty = add.replace ? addedQty(manual, add.g, add.replace, cat) : 0;
     const old = add.replace ? cat.find((i) => i.sku === add.replace) : null;
     const summaryFor = (items, why) => {
@@ -2471,7 +2476,7 @@ export default function SchluterConfigurator({
       <table className="ps-table">
         <thead><tr><th>SKU</th><th>Description</th><th>Size</th><th className="num">Qty</th><th className="num">{tierId}</th><th className="num">Total</th></tr></thead>
         <tbody>
-          {GROUPS.flatMap((g) => build.lines.filter((l) => l.g === g && !l.noteOnly).map((l, li) => {
+          {GROUPS.flatMap(({ key: g }) => build.lines.filter((l) => groupOf(l.slot) === g && !l.noteOnly).map((l, li) => {
             const p = tierOf(l.item);
             return (
               <tr key={g + (l.item.sku || l.item.name) + li}>
@@ -2513,7 +2518,8 @@ export default function SchluterConfigurator({
         wediBuilderPct={wediBuilderPct} schluterBuilderPct={bPct}
         books={books} loadBookItems={loadBookItems} bookStockReady={bookStockReady}
         mortars={mortars} mortarDefault={mortarDefault}
-        areaName={areaName} onQuoteOptions={onQuoteOptions} />
+        areaName={areaName} onQuoteOptions={onQuoteOptions}
+        mirror={mirror} onMirror={setMirror} />
     </Suspense>
   );
 

@@ -141,6 +141,9 @@ explanatory cell, and the delta line hides itself.
 - A new wedi catalog `item.group` that isn't in `WEDI_CAT` silently lands in
   `Extras`. That is the intended failure mode (visible, not lost), but it
   means adding a group is a two-file change.
+- Since ticket 158 Phase 1d, Compare rows are slot-aligned (`COMPARE_CATS` /
+  `WEDI_CAT` retired) and the other column can carry mirrored added lines —
+  see ADR 0049's 1d amendment.
 - The compare surface reads the source switch but owns no engine rules: under
   Stock only the columns re-rank because `pickFrom`/`stockPool` did it inside
   the engine, not because the compare layer filtered anything.

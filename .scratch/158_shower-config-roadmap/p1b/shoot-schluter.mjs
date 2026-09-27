@@ -93,12 +93,12 @@ await pg.locator("[data-schluter-benchchip]").click(); await pg.waitForTimeout(3
 await pg.locator("[data-schluter-benchpick-framed]").click(); await pg.waitForTimeout(500);
 await pg.locator("[data-schluter-benchchip]").click(); await pg.waitForTimeout(300);
 await pg.locator("[data-schluter-benchpick-site]").click(); await pg.waitForTimeout(600);
-const wrap = grp("Extras").locator(".bline", { hasText: /1\/2/ }).first();
-const buildup = grp("Extras").locator(".bline", { hasText: /2"|2″/ }).last();
-console.log("extras:", await grpText("Extras"));
+const wrap = grp("Bench").locator(".bline", { hasText: /1\/2/ }).first();
+const buildup = grp("Bench").locator(".bline", { hasText: /2"|2″/ }).last();
+console.log("extras:", await grpText("Bench"));
 if (!(await wrap.locator("[data-schluter-swapb]").count())) fail("the framed wrap board has no ⇄");
 if (await buildup.locator("[data-schluter-swapb]").count()) fail("the one-part 2″ build-up board shows a ⇄");
-await grp("Extras").evaluate((el) => el.scrollIntoView({ block: "center" }));
+await grp("Bench").evaluate((el) => el.scrollIntoView({ block: "center" }));
 await shot("s5-bench-lines");
 
 // the wrap swap opens its own bench list (not the Walls board line that
@@ -113,7 +113,7 @@ await shot("s6-bench-wrap-list");
 const other = rowSkus.find((k) => k !== wrapSku);
 await pg.locator(`.sch-swappanel [data-schluter-swaprow="${other}"]`).click();
 await pg.waitForTimeout(500);
-const wrapAfter = await grp("Extras").locator(".bline").first().innerText();
+const wrapAfter = await grp("Bench").locator(".bline").first().innerText();
 console.log("wrap after pick:", flat(wrapAfter));
 if (!wrapAfter.includes(other)) fail("the wrap pick did not land on the bench line");
 if (!(await grpText("Walls")).includes(wrapSku)) fail("the wrap pick moved the Walls board");
@@ -125,7 +125,7 @@ await pg.mouse.click(bb.x + bb.width / 2, bb.y + bb.height / 2); await pg.waitFo
 const menu = pg.locator("[data-schluter-benchmenu]");
 await menu.locator("button", { hasText: "2″ build-up" }).click(); await pg.waitForTimeout(400);
 await menu.locator("button", { hasText: /^Framed$/ }).click(); await pg.waitForTimeout(500);
-const wrapReset = await grp("Extras").locator(".bline").first().innerText();
+const wrapReset = await grp("Bench").locator(".bline").first().innerText();
 console.log("wrap after build change:", flat(wrapReset));
 if (!wrapReset.includes(wrapSku) || wrapReset.includes(other)) fail("the board pick survived a build change");
 

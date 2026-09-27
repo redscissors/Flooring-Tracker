@@ -29,21 +29,21 @@ await pg.locator("[data-wedi-pan='US9100004']").click(); await pg.waitForTimeout
 
 const groups = await pg.locator("[data-add-group]").evaluateAll((els) => els.map((e) => e.getAttribute("data-add-group")));
 console.log("+ on:", groups.join(", "));
-if (groups.join() !== "floor,walls,bench,drain,install,addon") fail("not every bucket has a +");
+if (groups.join() !== "Base,Drain,Curb,Walls,Seams,Niches,Bench,Setting") fail("not every shared group has a +");
 
 // two niches of different sizes through the chip — it adds another each click
 for (const nth of [0, 3]) {
   await pg.locator('[data-wedi-chip="niche"]').click(); await pg.waitForTimeout(300);
   await pg.locator(".wedi-chipmenu .srow").nth(nth).click(); await pg.waitForTimeout(300);
 }
-const addons = await grpText("Add-ons");
+const addons = await grpText("Niches") + " | " + await grpText("Add-ons");
 console.log("Add-ons:", addons);
-if ((await grp("Add-ons").locator("[data-added-tag]").count()) !== 2) fail("two niche sizes did not land as two added lines");
+if ((await grp("Niches").locator("[data-added-tag]").count()) !== 2) fail("two niche sizes did not land as two added lines");
 if (!/✓ Niche ×2/.test(addons)) fail("the niche chip does not read ✓ Niche ×2");
 await shot("w1-two-niches");
 
 // a stepped panel add: the kit's panel again, qty 2 — its own line, "kit also bills 2"
-await plus("walls");
+await plus("Walls");
 if (await pg.locator('[data-drain-chip^="Size:auto"]').count()) fail("the panel + shows an Auto chip");
 await pg.locator("[data-add-qty] button").nth(1).click(); await pg.waitForTimeout(200);
 console.log("panel +:", await pop());
@@ -57,7 +57,7 @@ if (wallLines[wallLines.length - 1] !== true || wallLines.slice(0, -1).some(Bool
 await shot("w3-panel-kit-also");
 
 // a stepped curb add: Style → Length, no Auto, no No curb
-await plus("floor");
+await plus("Curb");
 await pg.locator('[data-drain-chip="Part:curb"]').click(); await pg.waitForTimeout(300);
 const curbPop = await pop();
 console.log("curb +:", curbPop);
@@ -66,19 +66,19 @@ await shot("w4-curb-add");
 await pg.keyboard.press("Escape"); await pg.waitForTimeout(300);
 
 // an added niche's own ⇄: a list of niches, the row it replaces lit
-await grp("Add-ons").locator("[data-added-swapb]").first().click(); await pg.waitForTimeout(300);
+await grp("Niches").locator("[data-added-swapb]").first().click(); await pg.waitForTimeout(300);
 console.log("added ⇄:", (await pop()).slice(0, 200));
 if (!/Swap the added niche/.test(await pop())) fail("the added niche's ⇄ is not its own panel");
 await shot("w5-added-swap");
 await pg.keyboard.press("Escape"); await pg.waitForTimeout(300);
 
 // − on one niche takes that one off, not both
-await grp("Add-ons").locator(".bline").first().locator(".stepper button").first().click(); await pg.waitForTimeout(400);
-if ((await grp("Add-ons").locator(".bline").count()) !== 1) fail("− on one niche did not leave the other");
+await grp("Niches").locator(".bline").first().locator(".stepper button").first().click(); await pg.waitForTimeout(400);
+if ((await grp("Niches").locator(".bline").count()) !== 1) fail("− on one niche did not leave the other");
 
 const q = async (ln) => +(await ln.locator(".stepper .q").innerText());
 // an added niche stepped to 2 and back comes off one, not all
-const niche = grp("Add-ons").locator(".bline").first();
+const niche = grp("Niches").locator(".bline").first();
 await niche.locator(".stepper button").nth(1).click(); await pg.waitForTimeout(300);
 if ((await q(niche)) !== 2) fail("+ on the added niche did not step it to 2");
 await niche.locator(".stepper button").first().click(); await pg.waitForTimeout(300);
@@ -99,24 +99,24 @@ if (a1 !== a0) fail("+ on the kit panel line moved the added panel line");
 // a room re-solve keeps the added lines as they were
 const addedLines = async () => pg.locator(".bline").filter({ has: pg.locator("[data-added-tag]") })
   .evaluateAll((els) => els.map((e) => e.querySelector(".n").textContent + " ×" + e.querySelector(".stepper .q").textContent));
-const added0 = await addedLines(), floor0 = await grpText("Floor");
+const added0 = await addedLines(), floor0 = await grpText("Base");
 await pg.locator(".modetab", { hasText: "Custom shower" }).click(); await pg.waitForTimeout(500);
 const wIn = pg.locator(".roomform .rinp").first();
 await wIn.fill("72"); await wIn.press("Enter"); await pg.waitForTimeout(900);
 const added1 = await addedLines();
-console.log("re-solved 72″:", (await grpText("Floor")).slice(0, 80), "| added:", added1.join(", "));
-if ((await grpText("Floor")) === floor0) fail("the room did not re-solve");
+console.log("re-solved 72″:", (await grpText("Base")).slice(0, 80), "| added:", added1.join(", "));
+if ((await grpText("Base")) === floor0) fail("the room did not re-solve");
 if (!added0.length || added1.join() !== added0.join()) fail("the re-solve dropped or changed the added lines");
 await shot("w8-resolve-keeps-added");
 
 // land + Reconfigure: the added lines come back, nothing doubles
-const before = await grpText("Walls") + await grpText("Add-ons");
+const before = await grpText("Walls") + await grpText("Niches");
 await pg.locator("[data-wedi-add]").click();
 await pg.waitForSelector("[data-wedi-confirm]", { timeout: 5000 });
 await pg.locator("[data-wedi-confirm]").click(); await pg.waitForTimeout(600);
 await pg.locator("[data-sheet-reconfig]").first().click();
 await pg.waitForSelector(".stepper", { timeout: 5000 }); await pg.waitForTimeout(900);
-const after = await grpText("Walls") + await grpText("Add-ons");
+const after = await grpText("Walls") + await grpText("Niches");
 console.log("reopened:", after);
 if (after !== before) fail("Reconfigure did not reopen the added lines as they were");
 await shot("w6-reconfigure-round-trip");
@@ -127,7 +127,7 @@ await pg.getByRole("button", { name: "Clear design" }).click(); await pg.waitFor
 await pg.locator(".modetab", { hasText: "Kits" }).dispatchEvent("click"); await pg.waitForTimeout(400);
 await pg.locator("[data-wedi-pan='US9200007']").click(); await pg.waitForTimeout(800);
 const flat0 = await drawing();
-await plus("floor");
+await plus("Curb");
 await pg.locator('[data-drain-chip="Part:curb"]').click(); await pg.waitForTimeout(300);
 await pg.locator("[data-drain-use]").click(); await pg.waitForTimeout(600);
 if (!(await pg.locator(".bline", { hasText: /Curb(?!less)/ }).count())) fail("the added curb did not bill");
