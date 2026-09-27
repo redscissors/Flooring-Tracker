@@ -180,7 +180,8 @@ for (const [sec, row] of [[/^Curbs/, /Lean/], [/^Fasteners/, /Tabless/], [/^Seal
 }
 await pg.waitForSelector(".bline", { timeout: 5000 });
 for (const re of [/Curb/, /Fastener/, /Joint Sealant/i]) {
-  const n = await line(re).count() ? await line(re).locator(".swapb").count() : -1;
+  // 1c: an added line has its own ⇄ (data-added-swapb) that writes its row; no kit ⇄
+  const n = await line(re).count() ? await line(re).locator(".swapb:not([data-added-swapb])").count() : -1;
   console.log(`browse-only ${re}:`, n < 0 ? "no line" : n ? "⇄" : "no ⇄", "|", n < 0 ? "" : await lineText(re));
   if (n < 0) fail(`the Browse-only build has no ${re} line`);
   if (n > 0) {
@@ -219,7 +220,8 @@ await pg.locator("[data-wedi-pan='US9200007']").click(); await pg.waitForTimeout
 await pg.locator(".modetab", { hasText: "Browse" }).click(); await pg.waitForTimeout(500);
 await pg.locator(".ft-hopt", { hasText: /^Curbs/ }).click(); await pg.waitForTimeout(300);
 await pg.locator(".brow", { hasText: /Lean/ }).first().locator(".stepper button", { hasText: "+" }).click(); await pg.waitForTimeout(500);
-const manualCurb = await line(/Curb(?!less)/).count() ? await line(/Curb(?!less)/).locator(".swapb").count() : -1;
+// 1c: an added line has its own ⇄ (data-added-swapb) that writes its row; no kit ⇄
+const manualCurb = await line(/Curb(?!less)/).count() ? await line(/Curb(?!less)/).locator(".swapb:not([data-added-swapb])").count() : -1;
 console.log("kit + Browse curb:", manualCurb < 0 ? "no line" : manualCurb ? "⇄" : "no ⇄", "|", manualCurb < 0 ? "" : await lineText(/Curb(?!less)/));
 if (manualCurb < 0) fail("the Browse-added curb did not land in the kit build");
 if (manualCurb > 0) {
