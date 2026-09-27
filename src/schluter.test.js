@@ -1274,6 +1274,28 @@ test("bandOptions: widths off the books, the resolved width lit, Auto keeps no c
   assert.deepEqual(bandOptions({ width: "185" }, 29.56, BCAT, { source: "all" }).rolls.map((c) => c.key), ["auto", "5M", "30M"]);
 });
 
+test("membraneOptions: a stale wide choice with no wide rolls in the books lights the landed standard chip, and offers usable rolls", () => {
+  const noWide = CAT.filter((i) => !i.wide);
+  const o = membraneOptions({ wide: true }, 87.27, noWide, { source: "all" });
+  assert.deepEqual(o.widths.map((c) => [c.key, c.on, c.ok]), [["standard", true, true], ["wide", false, false]]);
+  assert.ok(o.rolls.some((r) => r.key !== "auto" && r.ok), "the roll row must offer a usable chip, not just Auto");
+  assert.deepEqual(picks(o.result), [["KERDI200/10M", 1]]);
+});
+
+test("membraneOptions: a roll the books don't carry falls back to Auto lit, not nothing", () => {
+  const o = membraneOptions({ roll: "12M" }, 87.27, CAT, { source: "all" });
+  assert.equal(o.rolls.find((r) => r.key === "auto").on, true);
+  assert.ok(o.rolls.find((r) => r.key === "10M").ok);
+  assert.deepEqual(picks(o.result), [["KERDI200/10M", 1]]);
+});
+
+test("bandOptions: a width the books don't carry lights the landed width, not a dead chip", () => {
+  const o = bandOptions({ width: "250" }, 29.56, BCAT, { source: "all" });
+  assert.deepEqual(o.widths.map((c) => [c.key, c.on]), [["125", true], ["185", false]]);
+  assert.ok(o.rolls.some((r) => r.key !== "auto" && r.ok), "the roll row must offer a usable chip, not just Auto");
+  assert.deepEqual(picks(o.result), [["KEBA100/125/10M", 1]]);
+});
+
 test("buildKit bills the membrane and band choices; the defaults don't move with a second band width in the books", () => {
   const m = buildKit(cfg({ swaps: { membrane: { wide: false, roll: "5M" } } }), CAT, { source: "all" });
   assert.deepEqual(m.lines.filter((l) => l.g === "Walls" && l.item.g === "membrane").map((l) => [l.item.sku, l.qty]), [["KERDI200/5M", 2]]);

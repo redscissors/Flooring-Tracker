@@ -1020,21 +1020,28 @@ const rollWord = (code) => parseInt(code, 10) + " m";
 /** The membrane popover's rows (Width → Roll), each chip's `next` the choice it drafts. */
 export function membraneOptions(choice, sfNeed, cat, { source } = {}) {
   const c = choice && typeof choice === "object" ? choice : {};
-  const wide = !!c.wide;
+  const result = resolveMembrane(c, sfNeed, cat, { source });
+  const works = (ch) => { const r = resolveMembrane(ch, sfNeed, cat, { source }); return r.lines.length > 0 && !r.subst; };
   const mem = cat.filter((i) => i.g === "membrane");
+  // what actually billed — a substituted width/roll falls back silently in
+  // resolveMembrane, so the lit chip and the roll row follow the LANDED part,
+  // never a stale choice the books don't carry (a subst always means the
+  // roll itself reverted to auto — see resolveMembrane's roll-pin branch)
+  const wide = result.lines[0] ? !!result.lines[0].item.wide : !!c.wide;
+  const roll = result.subst ? null : c.roll || null;
   const widths = [false, true].map((w) => {
     const list = mem.filter((i) => !!i.wide === w);
-    return { key: w ? "wide" : "standard", label: MEMBRANE_WIDTH[w ? "wide" : "standard"], ok: list.length > 0, so: allSo(list), on: w === wide, next: { wide: w } };
+    return { key: w ? "wide" : "standard", label: MEMBRANE_WIDTH[w ? "wide" : "standard"], ok: works({ wide: w }), so: allSo(list), on: w === wide, next: { wide: w } };
   });
   const inW = mem.filter((i) => !!i.wide === wide).sort((a, b) => a.sf - b.sf);
   const rolls = [
-    { key: "auto", label: "Auto", ok: inW.length > 0, so: false, on: !c.roll, next: { wide } },
+    { key: "auto", label: "Auto", ok: inW.length > 0, so: false, on: !roll, next: { wide } },
     ...[...new Set(inW.map((i) => i.roll))].map((r) => {
       const list = inW.filter((i) => i.roll === r);
-      return { key: r, label: `${rollWord(r)} · ${list[0].sf} sf`, ok: true, so: allSo(list), on: c.roll === r, next: { wide, roll: r } };
+      return { key: r, label: `${rollWord(r)} · ${list[0].sf} sf`, ok: works({ wide, roll: r }), so: allSo(list), on: roll === r, next: { wide, roll: r } };
     }),
   ];
-  return { widths, rolls, result: resolveMembrane(c, sfNeed, cat, { source }) };
+  return { widths, rolls, result };
 }
 
 /**
@@ -1066,17 +1073,24 @@ export function bandOptions(choice, lfNeed, cat, { source } = {}) {
   const c = choice && typeof choice === "object" ? choice : {};
   const all = cat.filter((i) => i.g === "seam" && i.lf);
   const result = resolveBand(c, lfNeed, cat, { source });
-  const width = c.width || (result.lines[0] && result.lines[0].item.width) || null;
-  const widths = [...new Set(all.map((i) => i.width).filter(Boolean))].sort((a, b) => a - b).map((w) => ({
-    key: w, label: bandWidthLabel(w), ok: true, so: allSo(all.filter((i) => i.width === w)), on: w === width, next: { width: w },
+  const works = (ch) => { const r = resolveBand(ch, lfNeed, cat, { source }); return r.lines.length > 0 && !r.subst; };
+  const widthCodes = [...new Set(all.map((i) => i.width).filter(Boolean))].sort((a, b) => a - b);
+  // what actually billed — a width the books don't carry falls back silently
+  // in resolveBand, so the lit chip and the roll row follow the LANDED part,
+  // never the stale choice
+  const width = (result.lines[0] && result.lines[0].item.width) || null;
+  const roll = result.subst ? null : c.roll || null;
+  const widths = widthCodes.map((w) => ({
+    key: w, label: bandWidthLabel(w), ok: works({ width: w }), so: allSo(all.filter((i) => i.width === w)), on: w === width, next: { width: w },
   }));
   const inW = all.filter((i) => !width || i.width === width).sort((a, b) => a.lf - b.lf);
   // Auto keeps "no choice" until a width is picked; a roll chip names the width it shows
+  const validChoiceWidth = widthCodes.includes(c.width) ? c.width : null;
   const rolls = [
-    { key: "auto", label: "Auto", ok: inW.length > 0, so: false, on: !c.roll, next: c.width ? { width: c.width } : {} },
+    { key: "auto", label: "Auto", ok: inW.length > 0, so: false, on: !roll, next: validChoiceWidth ? { width: validChoiceWidth } : {} },
     ...[...new Set(inW.map((i) => i.roll))].map((r) => {
       const list = inW.filter((i) => i.roll === r);
-      return { key: r, label: `${rollWord(r)} · ${list[0].lf} lf`, ok: true, so: allSo(list), on: c.roll === r, next: { ...(width ? { width } : {}), roll: r } };
+      return { key: r, label: `${rollWord(r)} · ${list[0].lf} lf`, ok: works({ width, roll: r }), so: allSo(list), on: roll === r, next: { ...(width ? { width } : {}), roll: r } };
     }),
   ];
   return { widths, rolls, result };
