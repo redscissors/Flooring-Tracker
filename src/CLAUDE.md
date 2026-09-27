@@ -1328,11 +1328,8 @@ src/
                     # Phase 1b (ADR 0049): the wedi curb piece resolves
                     # through `markerCurbKey` (wedi.js) instead of reading
                     # `cfg.curbKey` directly, so tile sf follows the same
-                    # choice `kitFor` bills — except a stale `curbKey` (not in
-                    # the book), where `markerCurbKey` still returns the saved
-                    # key (tile sf reads it as "enter manually") while
-                    # `kitFor` bills the recipe default; that one gap is a
-                    # known gap, flagged to the owner.
+                    # choice `kitFor` bills; a stale `curbKey` (not in the
+                    # book) tiles the recipe curb, as it bills (R2).
   slots.js          # the shared bill-line slot vocabulary (ticket 158 Phase 1,
                     # ADR 0049): `SLOTS`/`SLOT_LABEL`/`isSlot`, a pure,
                     # import-free 14-line module both engines and Compare read

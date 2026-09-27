@@ -109,9 +109,13 @@ The Vario pan-width rule shipped early in PR #436.
   so under Full catalog the landed width can depend on registry row order
   (e.g. an SO 7¼″ over a stocked 5″). Proposed: no choice = the narrowest
   width carried, stock-first. Changes default bills, so it waits for the owner.
-- **Owner call (1b):** a stale wedi `curbKey` bills the recipe curb (R2) but
-  tile sf reads the saved key ("enter manually"). If R2 stands, make
-  `markerCurbKey` fall through to the recipe for an unknown key.
+- ~~Owner call (1b): stale wedi `curbKey`~~ **DONE 2026-09-27**: owner
+  confirmed R2; `markerCurbKey` falls through to the recipe, so tile sf and
+  bill agree.
+- **Trendline finish names DONE 2026-09-27** (from Schluter's listings):
+  EP Chrome, MBW Matte white (was mislabelled "Matte black"), MGS Matte black,
+  TSBG Greige, TSC Cream, TSDA Dark anthracite, TSG Pewter, TSI Ivory,
+  TSOB Bronze, TSSG Stone grey.
 - 1b review minors: spec line on `canSwap` ("counts only the Stock-only
   pool") is stale — it now also counts the committed sku; a Browse-added line
   that merges into a kit line of the same key keeps its ⇄; the curb drawing

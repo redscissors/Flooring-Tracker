@@ -32,28 +32,24 @@ Records to read before designing anything:
 - `src/CLAUDE.md` entries for `slots.js`, `swappop.jsx`, `schluter.js`,
   `wedi.js`, `showersf.js`, both popups and `wedimarkergolden.js`.
 
-## Two owner calls still open (1b merged as-is)
+## Owner calls after 1b
 
-The owner merged #438 without answering these, so the shipped behaviour is
-what stands. Ask again before 1c touches the same code:
-
-1. **Stale wedi `curbKey`** (a saved curb the price book no longer carries).
-   - Today it bills the recipe default curb (ruling R2); before 1b it billed
-     no curb.
-   - Tile sf still reads the saved key, so it shows "enter manually".
-   - If the owner confirms R2, change `markerCurbKey` (`src/wedi.js`) to fall
-     through to the recipe for an unknown key, and update the one showersf
-     test that expects "enter manually".
-2. **Default KERDI-BAND width** when nobody picked one.
-   - `resolveBand(null)` searches every width, so under Full catalog the
-     landed width can depend on registry row order (e.g. a special-order 7¼″
-     over a stocked 5″).
-   - Proposed: no choice = the narrowest width carried, stock-first.
-   - This changes default bills, so it needs the owner's yes.
-
-Also still open from 1a: **Trendline finish names** (`MGS`, `TSBG`, `TSC`,
-`TSDA`, `TSG`, `TSI`, `TSOB`, `TSSG` show as codes). Ask for names if the
-popover should spell them out.
+- **Stale wedi `curbKey`: DONE (2026-09-27).** The owner confirmed R2: it
+  bills the recipe default curb, and `markerCurbKey` now falls through to
+  the same curb, so tile sf agrees.
+- **Trendline finish names: DONE (2026-09-27).** `FINISH_LABEL` in
+  `src/schluter.js` uses Schluter's names. The fix also corrected EP (Chrome,
+  not polished stainless) and MBW (Matte white, not black).
+- **Default KERDI-BAND width: still OPEN.**
+  - `resolveBand(null)` searches every width, so under Full catalog the
+    landed width can depend on registry row order.
+  - Research (2026-09-27):
+    - 5″ (`KEBA100/125`) is Schluter's standard; it's the band in the
+      KERDI-SHOWER-KIT.
+    - 7¼″ (`KEBA100/185`) is for wider coverage in one strip.
+  - Proposed: no choice = the 5″ (narrowest width carried), stock-first.
+  - This changes default bills, so ask the owner if the PR thread hasn't
+    answered.
 
 ## Next: 1c — "+" on each group header
 
