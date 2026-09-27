@@ -243,6 +243,8 @@ anyone already on the trial keeps what they had). Both get the Clean area
 cards and lines. Shots `90-layout-clean`, `91-layout-cleancompact`,
 `92-settings-picker`.
 
+Rounds 1-amendment through 2j shipped in PR #445.
+
 ## Round 2 — open: product rows
 
 What the mockups show (every board uses the same card treatment; the frame
