@@ -121,7 +121,7 @@ option B.
 - **Plan:** `docs/superpowers/plans/2026-09-27-shared-groups-compare.md`
 - **ADR:** `docs/adr/0049-configurator-swaps-remember-the-choice.md` (amended; ADR 0034 cross-referenced)
 - **Proof:** `.scratch/158_shower-config-roadmap/p1d/`
-- **PR:** pending — this branch (`claude/shower-config-phase-1d-eafhd0`)
+- **PR:** [redscissors/Flooring-Tracker#444](https://github.com/redscissors/Flooring-Tracker/pull/444)
 
 **Phase 1 is complete** (1a–1d). Next is Phase 2 (Board vs Membrane); start
 from `.scratch/handoffs/shower-config-phase2-2026-09-27.md`.

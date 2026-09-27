@@ -15,7 +15,7 @@ owner answers and the "Carry into Phase 2+" list. The earlier handoffs
 | **1b** ⇄ on every line | merged 2026-09-27 | [redscissors/Flooring-Tracker#438](https://github.com/redscissors/Flooring-Tracker/pull/438) |
 | 1b owner calls + the 1c handoff | merged 2026-09-27 | [redscissors/Flooring-Tracker#439](https://github.com/redscissors/Flooring-Tracker/pull/439) |
 | **1c** "+" on every group, add another line | merged 2026-09-27 | [redscissors/Flooring-Tracker#441](https://github.com/redscissors/Flooring-Tracker/pull/441) |
-| **1d** shared group names, Compare alignment, the mirror | **PR pending** | branch `claude/shower-config-phase-1d-eafhd0` |
+| **1d** shared group names, Compare alignment, the mirror | merged 2026-09-27 | [redscissors/Flooring-Tracker#444](https://github.com/redscissors/Flooring-Tracker/pull/444) |
 | **Phase 2** Board vs Membrane, both brands | **not designed** | this handoff |
 | **Phase 3** 4-way compare | not designed; needs 1 + 2 | ticket |
 
