@@ -15,6 +15,7 @@
 import { queryHit, parseQuery, querySummary, seedFromQuery } from "./schluterquery.js";
 import { BENCH_DEPTH, WALL_THICK } from "./showerdraw.js";
 import { planPanels } from "./panelplan.js";
+import { groupOf } from "./slots.js";
 
 export { queryHit, parseQuery, querySummary, seedFromQuery };
 
@@ -896,48 +897,53 @@ export function setAddedQty(manual, g, sku, n, cat) {
   return [...rest.slice(0, at), row, ...rest.slice(at)];
 }
 
-// What a "+" on each bill group can add (Phase 1c). A stepped part opens the
-// swap popover's rows without Auto; the rest are one-click lists.
+// What a "+" on each shared bill group (slots.js GROUPS) can add. Each part
+// names the engine group `g` its rows store — the key the recipe, the added
+// rows and the qty overrides already speak — and only offers parts whose slot,
+// read under that `g`, lands back in the group that offered it. A stepped part
+// opens the swap popover's rows without Auto; the rest are one-click lists.
 const benchBoard = (i) => i.g === "board" && !i.fastener;
+const plusPart = (grp, g, key, label, hit, stepped) => ({
+  key, label, g, ...(stepped ? { stepped } : {}),
+  ...(hit ? { hit: (i) => hit(i) && groupOf(slotOf(g, i)) === grp } : {}),
+});
 export const ADD_PARTS = {
-  Base: [{ key: "tray", label: "Tray", hit: (i) => i.g === "tray" }, { key: "membrane", label: "Membrane", hit: (i) => i.g === "membrane" }],
-  Drain: [
-    { key: "drain", label: "Drain", stepped: "drain" },
-    { key: "grate", label: "Grate", hit: (i) => i.part === "grate" || i.part === "cover" },
-    { key: "body", label: "Body", hit: (i) => i.part === "channel" || i.part === "body" },
-    { key: "flange", label: "Flange", hit: (i) => i.part === "flange" },
+  base: [plusPart("base", "Base", "tray", "Tray", (i) => i.g === "tray"), plusPart("base", "Base", "membrane", "Membrane", (i) => i.g === "membrane")],
+  drain: [
+    plusPart("drain", "Drain", "drain", "Drain", null, "drain"),
+    plusPart("drain", "Drain", "grate", "Grate", (i) => i.part === "grate" || i.part === "cover"),
+    plusPart("drain", "Drain", "body", "Body", (i) => i.part === "channel" || i.part === "body"),
+    plusPart("drain", "Drain", "flange", "Flange", (i) => i.part === "flange"),
   ],
-  Walls: [
-    { key: "board", label: "Board", hit: benchBoard },
-    { key: "membrane", label: "Membrane", stepped: "membrane", hit: (i) => i.g === "membrane" },
-    { key: "fastener", label: "Fasteners", hit: (i) => !!i.fastener },
+  curb: [plusPart("curb", "Curb", "curb", "Curb", (i) => i.g === "curb")],
+  walls: [
+    plusPart("walls", "Walls", "board", "Board", benchBoard),
+    plusPart("walls", "Walls", "membrane", "Membrane", (i) => i.g === "membrane", "membrane"),
+    plusPart("walls", "Walls", "fastener", "Fasteners", (i) => !!i.fastener),
   ],
-  Seams: [
-    { key: "band", label: "Band", stepped: "band", hit: (i) => i.g === "seam" && !!i.lf },
-    { key: "corners", label: "Corners & seals", hit: (i) => i.g === "seam" && !i.lf },
+  seams: [
+    plusPart("seams", "Seams", "band", "Band", (i) => i.g === "seam" && !!i.lf, "band"),
+    plusPart("seams", "Seams", "corners", "Corners & seals", (i) => i.g === "seam" && !i.lf),
   ],
-  Curb: [{ key: "curb", label: "Curb", hit: (i) => i.g === "curb" }],
-  Setting: [{ key: "setting", label: "Setting", hit: (i) => i.g === "set" }],
-  Extras: [
-    { key: "niche", label: "Niche", hit: (i) => i.extra === "niche" },
-    { key: "bench", label: "Bench", hit: (i) => i.extra === "bench" || i.extra === "benchkit" || benchBoard(i) },
-    { key: "other", label: "Other", hit: (i) => (i.g === "extra" && !["niche", "bench", "benchkit"].includes(i.extra)) || i.g === "kit" },
-  ],
+  niches: [plusPart("niches", "Extras", "niche", "Niche", (i) => i.extra === "niche")],
+  bench: [plusPart("bench", "Extras", "bench", "Bench", (i) => i.extra === "bench" || i.extra === "benchkit" || benchBoard(i))],
+  setting: [plusPart("setting", "Setting", "setting", "Setting", (i) => i.g === "set")],
+  extras: [plusPart("extras", "Extras", "other", "Other", (i) => i.g === "extra" || i.g === "kit")],
 };
 
 const DRAIN_ADD = (i) => (i.g === "drain" && i.part === "channel" && i.len) || (i.g === "line" && i.part === "body");
 
 /**
- * The "+" parts a group offers with this catalog — a part with nothing to add
- * never shows. A whole drain is a linear build's add (`linear`); a point
- * build's Drain "+" leads with the grate.
+ * The "+" parts a shared group (`grp`, slots.js) offers with this catalog — a
+ * part with nothing to add never shows. A whole drain is a linear build's add
+ * (`linear`); a point build's Drain "+" leads with the grate.
  */
-export function addParts(g, cat, { linear = true } = {}) {
-  return (ADD_PARTS[g] || []).filter((p) => (p.stepped === "drain" ? linear && cat.some(DRAIN_ADD) : cat.some(p.hit)));
+export function addParts(grp, cat, { linear = true } = {}) {
+  return (ADD_PARTS[grp] || []).filter((p) => (p.stepped === "drain" ? linear && cat.some(DRAIN_ADD) : cat.some(p.hit)));
 }
 
-/** The part an added line's ⇄ swaps within: the first of its group's parts whose rule matches it. */
-export const addPartOf = (g, item) => (ADD_PARTS[g] || []).find((p) => p.hit && p.hit(item)) || null;
+/** The part an added line's ⇄ swaps within: the first of its shared group's parts whose rule matches it. */
+export const addPartOf = (grp, item) => (ADD_PARTS[grp] || []).find((p) => p.hit && p.hit(item)) || null;
 
 export const VARIO_DESIGN = { 3: "Square", 5: "Floral", 13: "Herringbone", 14: "Slant" };
 const cheapestFirst = (list) => list.slice().sort((a, b) => a.len - b.len || a.price - b.price);
