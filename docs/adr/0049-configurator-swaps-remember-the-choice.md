@@ -121,3 +121,26 @@ catalog no longer knows now bills the recipe's default curb, where it used to
 bill none — the "nothing silently dropped" rule outranks pinning a key the
 books no longer carry. The owner confirmed this on 2026-09-27, and tile sf
 (`markerCurbKey`) now falls through to the same recipe curb.
+
+## Amendment (2026-09-27): add another line (Phase 1c)
+
+1. **Added lines are parts + a hand-set qty, never choices.** They don't
+   re-fit.
+   - One list per brand, in the marker. Schluter: `cfg.manual`
+     `{ sku, qty, g? }`. wedi: `cfg.manual` `{ key, qty, group? }` — wedi's
+     first time in the marker; `kitFor` bills it and writes it.
+   - Rows key on group + part. An added line is always its own line; it
+     never merges into a kit line.
+2. **Translation on read.**
+   - Schluter: a row with no `g` files where the kit bills that part
+     (`addedGroup`). It moves out of Extras on screen and in print; its qty
+     and the total don't change.
+   - wedi: `addons` keys become rows in the add-on bucket (a key listed twice
+     = qty 2). Nothing writes `addons` again.
+   - `src/addedgolden.test.js` pins every old shape to its pre-1c bill and
+     tile-sf niche.
+3. **The "+" popover is the ⇄ popover** (`SwapPop`) with Auto dropped. An
+   added line's ⇄ replaces only its own row. This replaces 1b's rule that
+   hid opts-backed ⇄ on Browse-added lines in a wedi kit build.
+4. **The wedi curb drawing** (and "Turn into a curb") follows only the kit's
+   own curb. An added curb is a part on the bill, not a curb in the room.

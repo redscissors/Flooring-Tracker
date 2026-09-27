@@ -83,7 +83,7 @@ per group → 1d shared names / Compare alignment (owner). **1a DONE
 - **Spec:** `docs/superpowers/specs/2026-09-26-drain-slot-design.md`
 - **Plan:** `docs/superpowers/plans/2026-09-26-drain-slot.md`
 - **Mockup:** `.scratch/mockups/drain-swap-2026-09-26.html` (layout A)
-- **Handoffs:** `.scratch/handoffs/shower-config-phase1a-2026-09-26.md` (1a); **next:** `.scratch/handoffs/shower-config-phase1c-2026-09-27.md` (1c onward)
+- **Handoffs:** `.scratch/handoffs/shower-config-phase1a-2026-09-26.md` (1a); `.scratch/handoffs/shower-config-phase1c-2026-09-27.md` (1c); **next:** `.scratch/handoffs/shower-config-phase1d-2026-09-27.md` (1d onward)
 - **ADR:** `docs/adr/0049-configurator-swaps-remember-the-choice.md`
 - **Proof:** `.scratch/158_shower-config-roadmap/p1a/`
 - **PR:** [redscissors/Flooring-Tracker#437](https://github.com/redscissors/Flooring-Tracker/pull/437)
@@ -98,7 +98,17 @@ The Vario pan-width rule shipped early in PR #436.
 - **Proof:** `.scratch/158_shower-config-roadmap/p1b/`
 - **PR:** [redscissors/Flooring-Tracker#438](https://github.com/redscissors/Flooring-Tracker/pull/438)
 
-**Carry into 1c+ (what's left):**
+**1c DONE (2026-09-27):** "+" on every group; an added line is a part + a
+hand-set qty, its own line, saved in the marker on both brands; wedi `addons`
+retire into it; several wedi niches.
+
+- **Spec:** `docs/superpowers/specs/2026-09-27-add-another-design.md`
+- **Plan:** `docs/superpowers/plans/2026-09-27-add-another.md`
+- **ADR:** `docs/adr/0049-configurator-swaps-remember-the-choice.md` (amended)
+- **Proof:** `.scratch/158_shower-config-roadmap/p1c/`
+- **PR:** (opened from claude/stoic-fermat-0dpjv2 — number added at PR time)
+
+**Carry into 1d+ (what's left):**
 - Schluter kit-card thumbnails draw Vario at full width under a fixed drain
   pick.
 - Wording: Vario substitution note on a finish-only miss; fixed-fallback
@@ -117,13 +127,11 @@ The Vario pan-width rule shipped early in PR #436.
   TSBG Greige, TSC Cream, TSDA Dark anthracite, TSG Pewter, TSI Ivory,
   TSOB Bronze, TSSG Stone grey.
 - 1b review minors: spec line on `canSwap` ("counts only the Stock-only
-  pool") is stale — it now also counts the committed sku; a Browse-added line
-  that merges into a kit line of the same key keeps its ⇄; the curb drawing
-  draws a Browse-added curb on a curbless kit; `markerOpen()` extraction in
-  wedi.js; the Walls one-size swap duplicates `wrapBoard` inline; stale-pick
-  note says "not in the book" for a key that is in the book but isn't a kit;
-  test gaps (membrane `so`, stock-source options, roll-only band, bench
-  round-trip, SO fastener under stock).
+  pool") is stale — it now also counts the committed sku; `markerOpen()`
+  extraction in wedi.js; the Walls one-size swap duplicates `wrapBoard`
+  inline; stale-pick note says "not in the book" for a key that is in the
+  book but isn't a kit; test gaps (membrane `so`, stock-source options,
+  roll-only band, bench round-trip, SO fastener under stock).
 - Pre-existing: bench lines sharing a board sku share one hand-set qty; the
   drawing labels a Schluter build-up bench "2″ wedi"; the build prints a CSS
   minify warning (`Expected identifier but found "-"`).

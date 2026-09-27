@@ -254,9 +254,44 @@ cfg.manual = [{ key, qty, group? }]  // group = the wedi bucket ("walls", "insta
 - **Ticket 158:** 1c in the Phase 1 section; the carry-over list trimmed (the
   merged-line ⇄ and curb-drawing items resolve here).
 
-### Amendments during planning and build
+### Amendments during planning and build (2026-09-27)
 
-_None yet._
+Calls the plan author made while prototyping and the controller ruled on
+during execution (ledger: `.superpowers/sdd/2026-09-27-add-another/progress.md`).
+
+- **A point build's Drain "+" has no whole-drain part.** The Part row reads
+  Grate · Body · Flange and opens on Grate. The whole drain (the Length row)
+  is a linear build's.
+- **Drain "+" has a Body part** (channels and KERDI-LINE bodies), so an added
+  body line has a ⇄ list.
+- **Drain "+" Length chips name the length that lands.** A chip is `ok` only
+  when the resolved drain is made at that length. A request between made
+  lengths steps down to the next one under it; a request below every made
+  length falls to the shortest (the plan said the longest).
+- **The drain "+" draft seeds from what the build billed.** When the saved
+  `drainPick` fell back (its family isn't the billed drain's), the draft
+  starts on the billed family at the billed length, not the stale pick.
+- **The Base "+" Part row follows parts, not slots.** It reads Tray ·
+  Membrane, though both fill the `tray` slot.
+- **Schluter Niche picker rows add another** (`✓ ×n`). They used to toggle.
+- **wedi premade-bench kit line loses a ⇄ that never billed.** It rewrote
+  `addons`, which the bench recipe doesn't read.
+- **A kit line with `auto: false` has no column stepper.** That is a premade
+  bench placed on the drawing; its count is the benches on the drawing. Two
+  premade benches of one part would share one `qtyOv` key and step
+  together, so the column shows the count with no − / +.
+- **A room re-solve keeps added lines.** Only the kit-card hard reset and
+  Clear design clear them. Before 1c a re-solve wiped the Browse extras and
+  niches.
+- **A stale wedi `addons` key is dropped on re-save.** A key the installed
+  book no longer knows never billed, so it doesn't carry into `cfg.manual`
+  (1b's stale `fastenerKey`/`panelKey` rule).
+- **A kit build's staged session no longer carries `manual`.** A basket
+  entry staged before 1c still applies its `session.manual`, each its own
+  line.
+- **wedi `kitFor` bills added rows itself** (at the old add-on position). An
+  added sealant gun now clears the sausage-gun hint, and added lines count
+  toward the special-order net.
 
 ## Out of scope (1c)
 
