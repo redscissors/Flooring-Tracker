@@ -1,6 +1,13 @@
 # Projects · Customers · Builders — the browser rebuilt around jobs — design
 
-**Date:** 2026-09-27 · **Status:** draft, awaiting owner review
+**Date:** 2026-09-27 · **Status:** parked (owner, 2026-09-27)
+
+> **Parked.** The owner chose a smaller fix for now: the customer browser
+> dropped its salesman bands and stays one flat list in the chosen sort
+> (`.scratch/040`, 2026-09-27 note). This design is kept for when the
+> Projects/Builders direction is picked back up. ADR 0050 and the glossary
+> changes it describes were withdrawn with the parking (their text is in
+> commit `b0d1bc0`); rewrite them from this spec if the design is resumed.
 
 Prototypes the owner worked through:
 - Round 1 (list options, builder data options): https://claude.ai/artifact/A4aVWadX6XkoYnFjMkW7yn
@@ -8,7 +15,7 @@ Prototypes the owner worked through:
 
 Related: ADR 0005 (Builder ▸ Customer ▸ Project), ADR 0008 (salesperson on the
 project), ADR 0026 (boot policy), ADR 0047 (browser is a work-area pane),
-**ADR 0050** (builders are customers — written with this spec).
+ADR 0050 (builders are customers — drafted, then withdrawn when this spec was parked).
 
 ## Problem
 
@@ -267,8 +274,9 @@ people query. The pane is already a `React.lazy` chunk.
 
 ## Docs to update
 
-- Done with this spec: `docs/CONTEXT.md` (Builder redefined, Salesman
-  added), ADR 0050 plus its index row, and ADR 0005's status note.
+- `docs/CONTEXT.md`: Builder redefined as a customer marked as a builder;
+  add a Salesman entry. ADR 0050 plus its index row, and ADR 0005's status
+  note. (All drafted in `b0d1bc0`, withdrawn when parked.)
 - `CLAUDE.md` source layout: add `supabase/builders-as-customers.sql`.
 - The `floortrack-data-model` skill: the people row gains `is_builder`, and
   `builder_id` is a self-reference.

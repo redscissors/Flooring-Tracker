@@ -1,6 +1,6 @@
 # ADR 0005 — Builder ▸ Customer ▸ Project hierarchy
 
-- **Status:** Accepted — the separate Builder name list is superseded by ADR 0050 (a builder is a customer with a Builder tick); Customer ▸ Project stands
+- **Status:** Accepted
 - **Date:** 2026-07-07
 - **Scope:** system-wide (customers data model + RLS + sidebar/search + migration)
 

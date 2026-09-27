@@ -21,6 +21,10 @@ name/phone/address 4. open to more ideas."
   only while the salesperson box narrows the list — they show which salesmen
   a partial name matched. A customer's salesman is the salesperson snapshot
   (ADR 0008) of their most recently touched project.
+  **Retired 2026-09-27 (owner):** the bands pulled a customer shared with
+  another salesman into that salesman's band, which sorted A–Z above your own
+  ("Josiah Yoder · 3" over "Marcus · 40"). The list is now always flat in the
+  chosen sort; the salesperson box only filters it.
 - **Salesperson box + "Me"** (2026-07-22 follow-up, replacing the earlier
   "By salesman" toggle): type a salesman's name to see only their
   customers/projects; the "Me" button to its right fills the signed-in

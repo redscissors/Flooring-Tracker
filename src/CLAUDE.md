@@ -330,8 +330,10 @@ src/
                     # hand-edited sell, a quantity-less bullnose — so the
                     # merge/sort views have something to show;
                     # not part of the app build
-  custbrowser.js    # customer-browser pure logic (issue 040): rows/filter/sort +
-                    # group-by-salesman over the boot's light rows (custbrowser.test.js).
+  custbrowser.js    # customer-browser pure logic (issue 040): rows/filter/sort
+                    # over the boot's light rows (custbrowser.test.js). No
+                    # salesman bands (owner 2026-09-27): the Salesperson filter
+                    # narrows one flat list kept in the chosen sort.
                     # `custSamples`/`filterBySamples` (spec 2026-08-28) roll a
                     # customer's projects up against the sample_requests tally
                     # Map (App's `projectSampleTally(sampleRequests)`) for the
@@ -347,8 +349,8 @@ src/
                     # both `filterRows` and `unfiledRows`; `"erp"` joins
                     # BROWSER_COLS right after `"projno"`
   CustomerBrowser.jsx  # the customer browser, a `React.lazy` chunk (ADR 0026):
-                    # ERP-style directory grid — dense customer
-                    # rows grouped by salesman over a bottom project-lines panel —
+                    # ERP-style directory grid — one flat list of
+                    # dense customer rows over a bottom project-lines panel —
                     # opened from the sidebar's Customers folder (issue 040) into
                     # the work area (ADR 0047 amendment: a railnav pane, not an
                     # overlay; back caret + X in its title row, no New customer
