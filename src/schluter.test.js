@@ -1348,3 +1348,14 @@ test("FINISH_LABEL names every KERDI-LINE finish code the way Schluter does", ()
     TSI: "Ivory", TSOB: "Bronze", TSSG: "Stone grey",
   });
 });
+
+test("resolveBand with no width choice stays on the narrowest width carried, whatever the row order (owner 2026-09-27)", () => {
+  const first185 = catalogOf([...BAND_185, ...FIXTURE_ITEMS]);
+  for (const cat of [BCAT, first185]) {
+    for (const need of [10, 29.56, 60, 120]) {
+      const r = resolveBand(null, need, cat, { source: "all" });
+      assert.ok(r.lines.length && r.lines.every((l) => l.item.width === "125"), `need ${need}: ${picks(r)}`);
+    }
+  }
+  assert.deepEqual(picks(resolveBand({ width: "185" }, 120, first185, { source: "all" })), [["KEBA100/185", 2]]);
+});

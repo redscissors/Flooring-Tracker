@@ -40,16 +40,12 @@ Records to read before designing anything:
 - **Trendline finish names: DONE (2026-09-27).** `FINISH_LABEL` in
   `src/schluter.js` uses Schluter's names. The fix also corrected EP (Chrome,
   not polished stainless) and MBW (Matte white, not black).
-- **Default KERDI-BAND width: still OPEN.**
-  - `resolveBand(null)` searches every width, so under Full catalog the
-    landed width can depend on registry row order.
-  - Research (2026-09-27):
-    - 5″ (`KEBA100/125`) is Schluter's standard; it's the band in the
-      KERDI-SHOWER-KIT.
-    - 7¼″ (`KEBA100/185`) is for wider coverage in one strip.
-  - Proposed: no choice = the 5″ (narrowest width carried), stock-first.
-  - This changes default bills, so ask the owner if the PR thread hasn't
-    answered.
+- **Default KERDI-BAND width: DONE (2026-09-27).**
+  - With no width chosen, the bill uses the narrowest width carried, 5″
+    (`KEBA100/125`), stock-first, whatever the registry row order.
+  - Research: 5″ is Schluter's standard, the band in the KERDI-SHOWER-KIT;
+    7¼″ is sold for wider coverage in one strip.
+  - Picking 5″ in the popover now stores no pick, the same as the default.
 
 ## Next: 1c — "+" on each group header
 

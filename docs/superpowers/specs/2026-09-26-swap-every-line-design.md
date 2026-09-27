@@ -214,6 +214,11 @@ during execution (ledger: `.superpowers/sdd/2026-09-27-swap-every-line/progress.
   `curbKey` (not in the book) falls through to the recipe curb on both sides
   (owner confirmed R2, 2026-09-27; it first shipped as "enter manually" on the
   tile-sf side).
+- **Default band width (owner 2026-09-27).** With no width chosen,
+  `resolveBand` uses the narrowest width carried (5″, Schluter's standard and
+  the KERDI-SHOWER-KIT band), stock-first. It used to search every width, so
+  the landed width could follow registry row order. A popover draft of 5″ with
+  no roll pinned stores no pick.
 - **Stale curb keys bill the recipe, not nothing.** A stale wedi `curbKey` —
   not in the book — used to read as no curb; it now bills the recipe default
   curb instead, the Schluter `swaps` precedent (a stale sku falls back to the

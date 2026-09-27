@@ -105,10 +105,10 @@ The Vario pan-width rule shipped early in PR #436.
   reason (double space, offset case); Vario design swap on >96″ pans has no
   note; `schluterDiag` doc comment.
 - wedi finish chips repeat the style.
-- **Owner call (1b):** the no-choice KERDI-BAND pick searches every width,
-  so under Full catalog the landed width can depend on registry row order
-  (e.g. an SO 7¼″ over a stocked 5″). Proposed: no choice = the narrowest
-  width carried, stock-first. Changes default bills, so it waits for the owner.
+- ~~Owner call (1b): default KERDI-BAND width~~ **DONE 2026-09-27**: owner
+  chose "always 5″, stock-first". No width chosen = the narrowest width
+  carried (5″ is Schluter's standard, the KERDI-SHOWER-KIT band), whatever the
+  row order; picking 5″ stores no pick.
 - ~~Owner call (1b): stale wedi `curbKey`~~ **DONE 2026-09-27**: owner
   confirmed R2; `markerCurbKey` falls through to the recipe, so tile sf and
   bill agree.
