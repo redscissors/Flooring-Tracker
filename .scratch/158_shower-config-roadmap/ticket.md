@@ -83,7 +83,7 @@ per group → 1d shared names / Compare alignment (owner). **1a DONE
 - **Spec:** `docs/superpowers/specs/2026-09-26-drain-slot-design.md`
 - **Plan:** `docs/superpowers/plans/2026-09-26-drain-slot.md`
 - **Mockup:** `.scratch/mockups/drain-swap-2026-09-26.html` (layout A)
-- **Handoff:** `.scratch/handoffs/shower-config-phase1a-2026-09-26.md`
+- **Handoffs:** `.scratch/handoffs/shower-config-phase1a-2026-09-26.md` (1a); **next:** `.scratch/handoffs/shower-config-phase1c-2026-09-27.md` (1c onward)
 - **ADR:** `docs/adr/0049-configurator-swaps-remember-the-choice.md`
 - **Proof:** `.scratch/158_shower-config-roadmap/p1a/`
 - **PR:** [redscissors/Flooring-Tracker#437](https://github.com/redscissors/Flooring-Tracker/pull/437)
