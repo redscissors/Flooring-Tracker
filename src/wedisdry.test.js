@@ -2,6 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { solve, kitFor, buildFromMarker, sdryNoFit, wediSlotOf, item, SKU, markerCurbKey } from "./wedi.js";
 import { SDRY } from "./sdry.js";
+import { wediBuildFor, schluterBuildFor, mirrorPlan } from "./comparekit.js";
+import { FIXTURE_ITEMS } from "./schluterfixture.js";
+import { catalogOf } from "./schluter.js";
 
 const qty = (b) => Object.fromEntries(b.lines.map((l) => [l.item.key, l.qty]));
 const room = (w, d, curb = "curbed", drain = "any") => ({ w, d, curb, drain, tolerance: 0.51 });
@@ -99,4 +102,34 @@ test("a curbless wedi pan under Membrane bills one SEAL line (walls + field seal
   assert.equal(qty(b)[SDRY.sealTrowel], 1);
   assert.equal(qty(b)[SKU.subliner53], 1);
   assert.equal(qty(b)[SKU.subCornerIn], 1);
+});
+
+const neutral = (curbed) => ({ w: 60, d: 38, curbed, drain: "point",
+  walls: ["back", "left", "right"].map((side) => ({ side, on: true, len: side === "back" ? 60 : 38, h: 84 })) });
+
+test("Compare: wediBuildFor under Membrane builds S-DRY, or a wedi pan when S-DRY can't fit", () => {
+  const b = wediBuildFor(neutral(true), { wallSys: "membrane" });
+  assert.equal(b.pan.sub, "sdry");
+  assert.equal(b.cfg.wallSys, "membrane");
+  const lin = wediBuildFor({ ...neutral(true), drain: "linear" }, { wallSys: "membrane" });
+  assert.notEqual(lin.pan.sub, "sdry");
+  assert.equal(lin.cfg.sdryBase, "wedi");
+  assert.equal(qty(lin)[SKU.panelDefault], undefined);
+});
+
+test("Compare: schluterBuildFor bills KERDI-BOARD on request", () => {
+  const cat = catalogOf(FIXTURE_ITEMS);
+  const { build: b, cfg } = schluterBuildFor(neutral(true), cat, { wallSys: "board" });
+  assert.equal(cfg.wallSys, "board");
+  assert.ok(b.lines.some((l) => l.slot === "wallBoard"));
+  assert.ok(!b.lines.some((l) => l.slot === "wallMembrane"));
+});
+
+test("Compare: a hand-added KERDI roll mirrors onto an S-DRY roll", () => {
+  const cat = catalogOf(FIXTURE_ITEMS);
+  const roll = cat.find((e) => /^KERDI200/.test(e.sku));
+  const { build: b } = schluterBuildFor(neutral(true), cat, { manual: [{ sku: roll.sku, qty: 1, g: "Walls" }] });
+  const e = mirrorPlan(b, "schluter", {}, { cat, source: "all" }).entries[0];
+  assert.equal(e.kind, "matched");
+  assert.equal(e.match.item.key, SDRY.roll);
 });

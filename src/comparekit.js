@@ -15,6 +15,7 @@ import {
 } from "./wedi.js";
 import {
   trayCandidates, buildKit, addedLines, tierPrice as schluterTierPrice, ADD_PARTS, slotOf, coverageOf as schluterCoverageOf,
+  boardPlan, expandBoardFaces, applyBoardPlan,
 } from "./schluter.js";
 import { GROUPS, groupOf, SLOT_LABEL } from "./slots.js";
 import { rankParts, nearest, matchQty } from "./comparemirror.js";
@@ -59,23 +60,29 @@ export function roomFromWedi(cfg) {
  * Solve the room in wedi and build the house kit for the top-ranked option —
  * the composition WediConfigurator.jsx's `solveRoom`/`build` make, minus the
  * popup's own customizations (no add-ons, benches, overrides or curb inset).
- * Null when nothing solves.
+ * Under Membrane (ADR 0051) the S-DRY fit goes first; when it can't fit, a
+ * wedi pan takes the floor with S-DRY walls — no prompt here, the build's
+ * `cfg.sdryBase` says so. Null when nothing solves.
  */
-export function wediBuildFor(room, { source, tier, manual } = {}) {
+export function wediBuildFor(room, { source, tier, manual, wallSys, sdryBase } = {}) {
   room = room || {};
   const walls = (room.walls || []).filter((w) => w.on)
     .map((w) => ({ side: w.side, len: +w.len || 0, h: +w.h || 84 }));
-  const option = solve({
+  const input = {
     w: +room.w || 0, d: +room.d || 0,
     curb: room.curbed ? "curbed" : "curbless",
     drain: WEDI_DRAIN[room.drain] || "center",
     tolerance: 0.51, drainX: 0, drainY: 0, anchor: "left", source: source,
-  })[0];
+  };
+  const membrane = wallSys === "membrane";
+  const sdry = membrane && sdryBase !== "wedi" ? solve({ ...input, system: "sdry" })[0] : null;
+  const option = sdry || solve(input)[0];
   if (!option) return null;
   return kitFor(option.pan.key, {
     option: option, room: option.room,
     walls: walls, wallHeight: (walls[0] && walls[0].h) || 84,
     mode: "kit", tier: tier,
+    ...(membrane ? { wallSys: "membrane", ...(sdry ? {} : { sdryBase: "wedi" }) } : {}),
     ...(manual && manual.length ? { manual } : {}),
   });
 }
@@ -85,12 +92,12 @@ export function wediBuildFor(room, { source, tier, manual } = {}) {
  * for its top-ranked tray. The cfg comes back beside the build because it is
  * what "Schluter — reconfigure" reopens on.
  */
-export function schluterBuildFor(room, cat, { source, mortarItem, manual } = {}) {
+export function schluterBuildFor(room, cat, { source, mortarItem, manual, wallSys } = {}) {
   room = room || {};
   const w = +room.w || 0, d = +room.d || 0;
   const cfg = {
     w: w, d: d, curbed: !!room.curbed, drain: room.drain || "point",
-    wallSys: "membrane", bench: null,
+    wallSys: wallSys === "board" ? "board" : "membrane", bench: null,
     walls: SIDES.map(([name, side], i) => {
       const hit = (room.walls || []).find((x) => x.side === side);
       return { name: name, on: !!(hit && hit.on), len: i === 0 ? w : d, h: (hit && +hit.h) || 84 };
@@ -100,6 +107,9 @@ export function schluterBuildFor(room, cat, { source, mortarItem, manual } = {})
   };
   const pick = trayCandidates(cfg, cat, { source })[0];
   const build = buildKit(cfg, cat, { source, pick });
+  // KERDI-BOARD walls bill the popup's default Fit plan, per sheet
+  if (build && build.lines && cfg.wallSys === "board")
+    build.lines = applyBoardPlan(build.lines, cfg, boardPlan(expandBoardFaces(cfg), cat, { source }), cat);
   // buildKit bills the recipe only; added rows ride on top, as buildFromMarker does
   if (build && build.lines && cfg.manual) build.lines.push(...addedLines(cfg.manual, cat));
   return { build, cfg };
@@ -127,7 +137,7 @@ function money(brand, e, qty, builderPct) {
 // added by hand — a Browse-only wedi build is all hand-added, so nothing there
 // is tagged. `key` is the 1c added-row identity: engine group + part.
 export function wediCompareRows(build, { builderPct } = {}) {
-  return ((build && build.lines) || []).map((l) => {
+  const rows = ((build && build.lines) || []).map((l) => {
     const e = l.item;
     return {
       group: groupOf(l.slot), slot: l.slot || "extra",
@@ -142,6 +152,14 @@ export function wediCompareRows(build, { builderPct } = {}) {
       ...money("wedi", e, l.qty, builderPct),
     };
   });
+  // S-DRY walls need a backer as KERDI does; the wedi bill carries it as a
+  // hint, so Compare writes the same $0 note row the Schluter column carries
+  if (build && build.hints && build.hints.includes("backer")) rows.push({
+    group: "walls", slot: "wallBoard", key: "note|backer", added: false,
+    name: "Cement board / drywall substrate", sub: "by others · membrane needs a backer",
+    qty: 1, stock: false, noteOnly: true, est: false, retail: 0, builder: 0, cost: 0,
+  });
+  return rows;
 }
 
 export function schluterCompareRows(build, { builderPct } = {}) {
