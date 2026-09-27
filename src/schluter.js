@@ -421,6 +421,7 @@ export function normBench(b, dims, cat) {
       build: part ? "premade" : "site", part: part ? part.sku : null,
       size: round2(+b.size || (pb && pb.a) || 24),
       h: round2(+b.h || BENCH_H),
+      ...(!part && b.board ? { board: b.board } : {}),
     };
   }
   const side = ["left", "right", "back"].includes(b.side) ? b.side : "back";
@@ -433,6 +434,7 @@ export function normBench(b, dims, cat) {
     depth: round2(+b.depth || (pb && pb.d) || BENCH_DEPTH),
     h: round2(+b.h || BENCH_H),
     ...(build === "framed" ? { trayFit: b.trayFit === "smaller" ? "smaller" : "cut" } : {}),
+    ...(build !== "premade" && b.board ? { board: b.board } : {}),
   };
 }
 
@@ -1104,6 +1106,9 @@ export function pointGrateLabel(e) {
   return s || (e && e.sku) || "";
 }
 
+// The framed-bench wrap pool — the ½" boards the wall pick draws from.
+const wrapBoard = (i) => i.g === "board" && !i.thick2 && !i.fastener && i.sf;
+
 export function buildKit(cfg, cat, { source, pick } = {}) {
   const L = [];
   const add = (g, item, qty, note) => {
@@ -1174,7 +1179,8 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
     add("Walls", b, b ? Math.ceil((sf * 1.05) / b.sf) : 0, `${sf.toFixed(0)} sf of wall`);
     // recipe density: one 100-ct box per 60 sf — scaled to the box actually
     // in the catalog so a 40-ct pack doesn't silently under-order
-    const fast = stockPool(cat.filter((i) => i.fastener).sort((x, y) => (y.ct || 0) - (x.ct || 0)), source)[0];
+    const fast = swapped(swaps.fastener, (i) => i.fastener)
+      || stockPool(cat.filter((i) => i.fastener).sort((x, y) => (y.ct || 0) - (x.ct || 0)), source)[0];
     const screws = (sf * 100) / 60;
     add("Walls", fast, fast ? Math.max(1, Math.ceil(fast.ct > 0 ? screws / fast.ct : sf / 60)) : 0, "board fasteners");
   } else {
@@ -1221,17 +1227,20 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
 
   // decision 4's three bench forms, one line set per bench (cfg.benches; the
   // legacy cfg.bench flag arrives here as one back-wall bench via cfgBenches)
-  benches.forEach((b) => {
+  benches.forEach((b, bi) => {
+    const first = L.length;
     if (b.build === "premade") {
       add("Extras", cat.find((i) => i.sku === b.part), 1,
         b.kind === "corner" ? "premade corner bench on the finished tray" : "premade bench on the finished tray");
     } else if (b.build === "framed") {
-      add("Extras", stockPool(cat.filter((i) => i.g === "board" && !i.thick2 && !i.fastener && i.sf)
-        .sort((x, y) => y.sf - x.sf), source)[0], 1,
+      add("Extras", swapped(b.board, wrapBoard) || stockPool(cat.filter(wrapBoard).sort((x, y) => y.sf - x.sf), source)[0], 1,
         "framed bench — ½\" KERDI-BOARD wrap, framing by installer");
     } else {
-      add("Extras", pickFrom(cat, (i) => i.thick2, { source }), 2, '2" KERDI-BOARD build-up on the finished tray — top + face + supports');
+      add("Extras", swapped(b.board, (i) => i.thick2) || pickFrom(cat, (i) => i.thick2, { source }), 2,
+        '2" KERDI-BOARD build-up on the finished tray — top + face + supports');
     }
+    // the popup's ⇄ writes a bench line's pick back onto cfg.benches[bi]
+    for (let k = first; k < L.length; k++) L[k].bench = bi;
   });
 
   const floorSf = (cfg.w * cfg.d) / 144;

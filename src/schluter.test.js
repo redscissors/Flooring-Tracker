@@ -1306,3 +1306,37 @@ test("buildKit bills the membrane and band choices; the defaults don't move with
   const miss = buildKit(cfg({ swaps: { membrane: { roll: "12M" } } }), CAT, { source: "all" });
   assert.match(miss.lines.find((l) => l.item.g === "membrane").note, /^no 12M roll in the books — best fit used · 79 sf of wall/);
 });
+
+// --- Phase 1b: fastener and bench list swaps (ticket 158) --------------------
+
+test("cfg.swaps.fastener picks the pack; its count re-fits; a stale sku falls back", () => {
+  const f = (c) => buildKit(c, CAT, { source: "all" }).lines.filter((l) => l.item.fastener).map((l) => [l.item.sku, l.qty]);
+  assert.deepEqual(f(cfg({ wallSys: "board" })), [["KBZS35GT32Z100", 2]]);
+  assert.deepEqual(f(cfg({ wallSys: "board", swaps: { fastener: "KBZS35GT32Z" } })), [["KBZS35GT32Z", 4]]);
+  assert.deepEqual(f(cfg({ wallSys: "board", swaps: { fastener: "NOPE" } })), [["KBZS35GT32Z100", 2]]);
+});
+
+test("bench board picks ride each bench row; bench lines carry their bench index", () => {
+  const ex = (c) => buildKit(c, CAT, { source: "all" }).lines.filter((l) => l.g === "Extras").map((l) => [l.item.sku, l.qty, l.bench]);
+  assert.deepEqual(ex(cfg({ benches: [{ kind: "wall", side: "back", build: "framed" }, { kind: "wall", side: "left", build: "site" }] })),
+    [["KB1212202440", 1, 0], ["KB506252440", 2, 1]]);
+  assert.deepEqual(ex(cfg({ benches: [{ kind: "wall", side: "back", build: "framed", board: "KB1212201625" }, { kind: "wall", side: "left", build: "site", board: "NOPE" }] })),
+    [["KB1212201625", 1, 0], ["KB506252440", 2, 1]]);
+  assert.equal(normBench({ kind: "wall", side: "back", build: "framed", board: "KB1212201625" }, { w: 60, d: 38 }, CAT).board, "KB1212201625");
+  assert.equal(normBench({ kind: "corner", corner: "bl", board: "KB506252440" }, { w: 60, d: 38 }, CAT).board, "KB506252440");
+  assert.equal(normBench({ kind: "wall", side: "back", part: "KBSB4101220RA", board: "KB506252440" }, { w: 60, d: 38 }, CAT).board, undefined);
+});
+
+test("every 1b pick survives the marker: buildFromMarker bills the same lines", () => {
+  const bill = (b) => b.lines.filter((l) => !l.noteOnly).map((l) => (l.item.sku || l.item.name) + "×" + l.qty);
+  for (const [c, cat] of [
+    [cfg({ swaps: { membrane: { wide: true } } }), CAT],
+    [cfg({ swaps: { band: { width: "185", roll: "5M" } } }), BCAT],
+    [cfg({ wallSys: "board", swaps: { fastener: "KBZS35GT32Z" } }), CAT],
+    [cfg({ benches: [{ kind: "wall", side: "back", build: "framed", board: "KB1212201625" }] }), CAT],
+  ]) {
+    const live = buildKit(c, cat, { source: "all" });
+    const back = buildFromMarker({ mode: "custom", cfg: { ...c, source: "all" } }, cat);
+    assert.deepEqual(bill(back), bill(live), JSON.stringify(c.swaps || c.benches));
+  }
+});
