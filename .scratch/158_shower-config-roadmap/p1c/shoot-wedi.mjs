@@ -4,7 +4,8 @@
 // one niche off (not both), a land + Reconfigure round trip that keeps the
 // added lines without doubling, and a curb added to a curbless kit billed but
 // not drawn. Also: − on an added line at 2 leaves 1, + on a kit line steps it
-// by one and leaves its added twin alone, and a room re-solve keeps added lines.
+// by one and leaves its added twin alone, a room re-solve keeps added lines,
+// and a premade bench placed on the drawing has no column stepper.
 //   npx vite --port 5199 ; node .scratch/158_shower-config-roadmap/p1c/shoot-wedi.mjs
 import { createRequire } from "node:module";
 const { chromium } = createRequire("/opt/node22/lib/node_modules/playwright/")("playwright-core");
@@ -132,6 +133,30 @@ await pg.locator("[data-drain-use]").click(); await pg.waitForTimeout(600);
 if (!(await pg.locator(".bline", { hasText: /Curb(?!less)/ }).count())) fail("the added curb did not bill");
 if ((await drawing()) !== flat0) fail("the drawing changed for an added curb");
 await shot("w7-curbless-added-curb-not-drawn");
+
+// a premade bench placed on the drawing bills with no column stepper — its
+// count is the benches on the drawing (two of one part would share a qtyOv key)
+const svgBox = await pg.locator(".diagcol svg").first().boundingBox();
+const room = await pg.evaluate(() => {
+  const el = document.querySelector(".diagcol svg");
+  const [, , vw, vh] = el.getAttribute("viewBox").split(" ").map(Number);
+  const r = el.querySelector("rect");
+  return { vw, vh, x: +r.getAttribute("x"), y: +r.getAttribute("y"), w: +r.getAttribute("width"), h: +r.getAttribute("height") };
+});
+const bx = svgBox.x + ((room.x + room.w * 0.5) / room.vw) * svgBox.width;
+const by = svgBox.y + ((room.y + room.h * 0.12) / room.vh) * svgBox.height;
+await pg.mouse.move(bx, by); await pg.waitForTimeout(150); await pg.mouse.click(bx, by);
+await pg.waitForSelector("[data-wedi-benchmenu]", { timeout: 5000 });
+await pg.locator("[data-wedi-benchmenu] .srow").first().click(); await pg.waitForTimeout(600);
+await pg.keyboard.press("Escape"); await pg.waitForTimeout(300);
+const bench = grp("Bench").locator(".bline").filter({ hasNot: pg.locator("[data-added-tag]") });
+console.log("premade bench:", (await bench.count()) ? flat(await bench.first().innerText()) : "no line");
+if ((await bench.count()) !== 1) fail("the premade bench did not land as one kit line");
+else {
+  if (await bench.locator(".stepper").count()) fail("the premade bench line shows a column stepper");
+  if (!(await bench.locator("[data-no-stepper]").count())) fail("the premade bench line lacks its qty placeholder");
+}
+await shot("w9-premade-bench-no-stepper");
 
 await b.close();
 if (err) { console.error("— FAILED"); process.exit(1); }

@@ -315,6 +315,7 @@ const CSS = `
 .wedi-pop .bline .stepper button{width:20px;height:20px;font-size:12px}
 .wedi-pop .bline .stepper .q{width:24px;font-size:11px}
 .wedi-pop .bline .stepper .q.ov{color:var(--w-rust)}
+.wedi-pop .bline .stepph{flex:none;width:66px;text-align:center;font-size:11px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--ft-muted)}
 .wedi-pop .swapb{flex:none;border:1px solid var(--ft-border);background:var(--ft-card);border-radius:5px;width:20px;height:20px;font-size:11px;color:var(--ft-muted);cursor:pointer;line-height:1}
 .wedi-pop .swapb:hover{border-color:var(--ft-brand);color:var(--ft-brand-deep)}
 .wedi-pop .bg-h .addb{margin-left:auto;flex:none;border:1px solid var(--ft-border);background:var(--ft-card);border-radius:5px;color:var(--ft-muted);font-size:12px;font-weight:800;width:20px;height:18px;cursor:pointer;line-height:1;padding:0}
@@ -1013,6 +1014,9 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   // takes a qtyOv override
   const stepLine = (l, delta) => {
     if (l.added) { addTo(l.group, l.item.key, Math.max(0, l.qty + delta)); return; }
+    // a placed premade bench counts the benches on the drawing; two of one
+    // part share a qtyOv key, so it takes no stepper
+    if (l.auto === false) return;
     const key = l.item.key;
     setQtyOv((o) => ({ ...o, [key]: Math.max(0, (o[key] != null ? o[key] : l.qty) + delta) }));
   };
@@ -2034,11 +2038,15 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
                       {can && <button className="swapb" title="swap" data-wedi-swapb={e.key} onClick={(ev) => setSwap({ key: e.key, grp: l.group, rect: ev.currentTarget.getBoundingClientRect(), anchor: ev.currentTarget.closest(".bline"),
                         ...(e.group === "cover" || e.group === "panel" ? { draft: e.key } : e.group === "curb" ? { draft: opts.curbPick || null } : {}) })}>⇄</button>}
                       {canSwapAdded(l) && <button className="swapb" title="swap this added line" data-wedi-swapb={e.key} data-added-swapb onClick={(ev) => openAdd(l.group, ev, l)}>⇄</button>}
-                      <div className="stepper">
-                        <button onClick={() => stepLine(l, -1)}>−</button>
-                        <span className={"q" + (l.ov ? " ov" : "")} title={l.ov ? "hand-set — auto is " + l.autoQty : undefined}>{l.qty}</span>
-                        <button onClick={() => stepLine(l, 1)}>+</button>
-                      </div>
+                      {l.auto === false && !l.added ? (
+                        <div className="stepph" title="one per bench on the drawing — add or remove it there" data-no-stepper>{l.qty}</div>
+                      ) : (
+                        <div className="stepper">
+                          <button onClick={() => stepLine(l, -1)}>−</button>
+                          <span className={"q" + (l.ov ? " ov" : "")} title={l.ov ? "hand-set — auto is " + l.autoQty : undefined}>{l.qty}</span>
+                          <button onClick={() => stepLine(l, 1)}>+</button>
+                        </div>
+                      )}
                       <div className="lp" style={{ color: tierColor }}>{fm(round2(price * l.qty))}
                         <small>{fm(price)}{e.unit && e.unit !== "EA" ? "/" + e.unit.toLowerCase() : " ea"}</small></div>
                     </div>
