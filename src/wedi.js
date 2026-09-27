@@ -5191,7 +5191,7 @@ export function curbOptions(pick, openLen, fam) {
 export function markerCurbKey(cfg) {
   const pan = cfg && cfg.panKey ? item(cfg.panKey) : null;
   if (!pan) return null;
-  if (!cfg.curbPick && cfg.curbKey !== undefined) return cfg.curbKey;
+  if (!cfg.curbPick && (cfg.curbKey === null || (cfg.curbKey && group("curb").some((c) => c.key === cfg.curbKey)))) return cfg.curbKey;
   const room = cfg.room ? { w: +cfg.room.w || 0, d: +cfg.room.d || 0 } : panRoomDims(pan);
   const walls = cfg.walls && cfg.walls.length ? cfg.walls : defaultWalls(pan, cfg.room || null);
   const benches = (cfg.benches || []).map((b) => normBench(b, room));

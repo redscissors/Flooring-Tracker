@@ -73,6 +73,10 @@ eftRows.push(normOrderItem({
   ["SLRKL1AR19EB110","Kerdi-Line 3/4\" Frame Solid Grate","44\"",249.42],
   ["SLRKL1AR19EB120","Kerdi-Line 3/4\" Frame Solid Grate","48\"",253.92],
   ["SLRKL1AR19EB130","Kerdi-Line 3/4\" Frame Solid Grate","52\"",331.06],
+  // Illustrative finish rows (harness only, not EFT costs) so the finish chips show Schluter's names.
+  ["SLRKL1AR19MBW130","Kerdi-Line 3/4\" Frame Solid Grate Matte White","52\"",383.18],
+  ["SLRKL1AR19MGS130","Kerdi-Line 3/4\" Frame Solid Grate Matte Black","52\"",383.18],
+  ["SLRKL1AR19TSG130","Kerdi-Line 3/4\" Frame Solid Grate Textured Pewter","52\"",398.40],
   ["SLRKL1AR19EB140","Kerdi-Line 3/4\" Frame Solid Grate","56\"",347.66],
   ["SLRKL1AR19EB150","Kerdi-Line 3/4\" Frame Solid Grate","60\"",365.88],
   ["SLRKL1AR19EB160","Kerdi-Line 3/4\" Frame Solid Grate","64\"",389.54],

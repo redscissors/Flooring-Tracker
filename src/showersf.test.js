@@ -61,9 +61,11 @@ test("wedi: curbless has no curb piece", () => {
   assert.equal(wediPieces({ ...base, curbKey: null }).curbed, false);
 });
 
-test("wedi: an unknown curb part is 'enter manually' (sf null), never a guess", () => {
-  const c = wediPieces({ ...base, curbKey: "NOPE" }).pieces.find((p) => p.piece === "curb");
-  assert.equal(c.sf, null);
+test("wedi: an unknown saved curb part tiles the recipe curb the bill falls back to (ADR 0049 R2)", () => {
+  const stale = wediPieces({ ...base, curbKey: "NOPE" }).pieces.find((p) => p.piece === "curb");
+  const recipe = wediPieces({ ...base }).pieces.find((p) => p.piece === "curb");
+  assert.notEqual(stale.sf, null);
+  assert.deepEqual(stale, recipe);
 });
 
 test("wedi: unknown pan → null", () => {

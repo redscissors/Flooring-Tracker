@@ -936,7 +936,12 @@ export function resolveDrain(choice, panW, cat, { source } = {}) {
   return resolveVario(c, panW, cat, source);
 }
 
-export const FINISH_LABEL = { EB: "Brushed stainless", EP: "Polished stainless", MBW: "Matte black" };
+// Schluter's own names (grate listings, TRENDLINE sheets); MBW is matte white, MGS matte black.
+export const FINISH_LABEL = {
+  EB: "Brushed stainless", EP: "Chrome", MBW: "Matte white", MGS: "Matte black",
+  TSBG: "Greige", TSC: "Cream", TSDA: "Dark anthracite", TSG: "Pewter",
+  TSI: "Ivory", TSOB: "Bronze", TSSG: "Stone grey",
+};
 
 /**
  * The drain popover's rows for a pan of width `panW`: every chip's `ok`
