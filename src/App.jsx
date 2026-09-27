@@ -1765,7 +1765,7 @@ export default function App({ user, onSignOut }) {
                   // card isn't clipped at its home area's edge) and while one of its
                   // products' materials drawers is open (so the drawer can float past
                   // the card's bottom edge without being clipped).
-                  <div key={a.id} data-area-drop={a.id} onClickCapture={isWide ? undefined : () => setActiveAreaId(a.id)} className={`${cleanCards ? "group" : ""} rounded-lg border bg-white transition-colors ${drag || areaMatOpen ? "" : "overflow-hidden"} ${drag?.to?.aid === a.id ? "border-indigo-400" : drag ? "border-dashed border-slate-300" : cleanCards ? "" : "border-slate-200"}`} style={cleanCards ? (drag ? undefined : { borderColor: "var(--ft-border)" }) : oc ? { borderColor: oc.main, borderWidth: 1.5 } : undefined}>
+                  <div key={a.id} data-area-drop={a.id} onClickCapture={isWide ? undefined : () => setActiveAreaId(a.id)} className={`${cleanCards ? "group" : ""} rounded-lg border bg-white transition-colors ${drag || areaMatOpen ? "" : "overflow-hidden"} ${drag?.to?.aid === a.id ? "border-indigo-400" : drag ? "border-dashed border-slate-300" : cleanCards ? "" : "border-slate-200"}`} style={cleanCards ? (drag ? undefined : { borderColor: "var(--ft-text)", borderWidth: 1.5 }) : oc ? { borderColor: oc.main, borderWidth: 1.5 } : undefined}>
                     {cleanCards ? (() => {
                       // Clean's area bar (owner picks 2026-09-27, .scratch/159_clean-editor
                       // "D"): name, column labels and subtotal share one slim bar. An

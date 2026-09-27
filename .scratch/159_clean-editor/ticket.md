@@ -200,6 +200,13 @@ option chips, compare tabs, Order summary, the option print bands. Shots
 `60-option-colors-clean`, `61-option-colors-print-preview`,
 `62-option-colors-onebar`.
 
+## Round 2g — card outline = the dropdown line (2026-09-27)
+
+Owner: cards should be easier to tell apart at a glance — use the same line
+the dropdowns draw. Clean cards now carry a 1.5px `var(--ft-text)` border
+(SearchPop's box line; flips with dark mode). Shots `63-card-ink-line`,
+`64-card-line-vs-dropdown`.
+
 ## Round 2 — open: product rows
 
 What the mockups show (every board uses the same card treatment; the frame
