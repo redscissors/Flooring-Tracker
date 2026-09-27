@@ -3,7 +3,7 @@
 // only usejobshowers.js may load it, via import().
 // Known limitation: wedi sizes come from whichever catalog is installed — the
 // transcribed fallback until a wedi popup installs the live book this session.
-import { item, normBench, curbRuns, curbWidth, curbInsets, expandWallFaces, panRoomDims, markerCurbKey } from "./wedi.js";
+import { item, normBench, curbRuns, curbWidth, curbInsets, expandWallFaces, panRoomDims, markerCurbKey, addedRows } from "./wedi.js";
 import { classify, cfgBenches, wallArea } from "./schluter.js";
 import { schluterCurb } from "./schluterdraw.js";
 import { curbHeight, benchFootprint } from "./showerdraw.js";
@@ -101,9 +101,9 @@ export function wediPieces(cfg) {
   const curb = !curbKey ? 0
     : c ? curbRuns(room, walls, cfg.corners, benches).openLen * (curbWidth(c) + 2 * curbHeight(c)) : null;
   let niche = 0;
-  for (const a of cfg.addons || []) {
-    const s = wediNicheSq(typeof a === "string" ? a : a && a.key);
-    niche = niche === null || s === null ? null : niche + s;
+  for (const r of addedRows(cfg)) {
+    const s = wediNicheSq(r.key);
+    niche = niche === null || s === null ? null : niche + s * r.qty;
   }
   return {
     w: room.w, d: room.d, curbed: !!curbKey,

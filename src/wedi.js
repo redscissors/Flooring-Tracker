@@ -5052,6 +5052,37 @@ export function coverStyles(len) {
   return out;
 }
 
+/**
+ * A "+" on a drain cover (Phase 1c): Size (the point covers, each linear
+ * length) → Style (linear) → Finish, drafted as a cover key. Each chip's
+ * `next` is the cover it lands on — stocked first, then the cheapest, and the
+ * drafted finish kept across a size or style change when it's made there.
+ */
+export function coverAddOptions(key) {
+  const covers = group("cover");
+  const cur = (key && covers.find((c) => c.key === key)) || item(SKU.coverSS) || covers[0] || null;
+  if (!cur) return { cur: null, sizes: [], styles: [], finishes: [] };
+  const best = (l) => l.slice().sort(byStockThenPrice)[0] || null;
+  const sizeOf = (c) => (c.sub === "linear" ? String(c.len) : "point");
+  const styleOf = (c) => (c.finish === "T" ? "tileable" : /P$/.test(c.finish) ? "perforated" : "solid");
+  const chip = (k, label, c, on) => ({ key: k, label, ok: !!c, so: !!c && !c.stock, on, next: c ? c.key : null });
+  const sizes = [...new Set(covers.map(sizeOf))].sort((a, b) => (a === "point" ? -1 : b === "point" ? 1 : a - b)).map((z) => {
+    const l = covers.filter((c) => sizeOf(c) === z);
+    return chip(z, z === "point" ? "4×4 point" : z + '"', best(l.filter((c) => c.finish === cur.finish)) || best(l), z === sizeOf(cur));
+  });
+  const inSize = covers.filter((c) => sizeOf(c) === sizeOf(cur));
+  const lin = cur.sub === "linear";
+  const styles = lin ? ["solid", "perforated", "tileable"].map((st) => {
+    const l = inSize.filter((c) => styleOf(c) === st);
+    return chip(st, st[0].toUpperCase() + st.slice(1), best(l), st === styleOf(cur));
+  }) : [];
+  const inStyle = lin ? inSize.filter((c) => styleOf(c) === styleOf(cur)) : inSize;
+  const finishes = lin
+    ? [...new Set(inStyle.map((c) => c.finish))].map((f) => chip(f, FINISHES[f] || f, best(inStyle.filter((c) => c.finish === f)), f === cur.finish))
+    : inStyle.slice().sort(byStockThenPrice).map((c) => chip(c.key, FINISHES[c.finish] || c.finish || c.name, c, c.key === cur.key));
+  return { cur, sizes, styles, finishes };
+}
+
 /** Whether a saved coverPick bills on this pan — a point `{ key }` on a linear pan, or a `{ finish }` on a point pan, is kept but inert. */
 export function coverPickApplies(pick, panKey) {
   const pan = typeof panKey === "string" ? item(panKey) : panKey;
@@ -5187,6 +5218,26 @@ export function curbOptions(pick, openLen, fam) {
   return { styles, profiles, lengths, result, recipe: curbIsRecipe(pick, fam) };
 }
 
+/**
+ * A "+" on a curb (Phase 1c): the curb popover's rows without Auto or No curb —
+ * an added curb is one piece at a real length. A style not made at the
+ * drafted length lands on its longest; `item` is the piece it adds.
+ */
+export function curbAddOptions(pick) {
+  const all = group("curb").filter((c) => c.len);
+  let p = { sub: "lean", ...(pick && !pick.none ? pick : {}) };
+  if (!p.len) p = { ...p, len: Math.min(...all.filter((c) => c.sub === p.sub).map((c) => c.len)) || 60 };
+  let o = curbOptions(p, p.len, "fundo");
+  if (o.result.item && o.result.item.len !== p.len) { p = { ...p, len: o.result.item.len }; o = curbOptions(p, p.len, "fundo"); }
+  const withLen = (c) => ({ ...c, next: { ...c.next, len: p.len } });
+  return {
+    styles: o.styles.filter((c) => c.key !== "none").map(withLen),
+    profiles: o.profiles.map(withLen),
+    lengths: o.lengths.filter((c) => c.key !== "auto"),
+    choice: p, item: o.result.item,
+  };
+}
+
 /** The curb a saved marker bills (tile sf reads it): a legacy curbKey as saved, else the choice resolved at the marker's own opening. */
 export function markerCurbKey(cfg) {
   const pan = cfg && cfg.panKey ? item(cfg.panKey) : null;
@@ -5274,6 +5325,93 @@ const WEDI_SLOT = {
   collar: "corners", sealant: "seam", fastener: "seam", subliner: "seam", sdry: "seam", tool: "setting",
   niche: "niche", shelf: "niche", seat: "bench", bench: "bench",
 };
+
+// The popup's bill buckets, by catalog group; anything unlisted (niches,
+// seats, benches, shelves, …) is an add-on.
+const BUCKET_OF = {
+  pan: "floor", module: "floor", modExt: "floor", extension: "floor", cornerExt: "floor", ramp: "floor",
+  curb: "floor", kit: "floor", panel: "walls", cover: "drain", coverFrame: "drain", drainKit: "drain",
+  recess: "install", fastener: "install", sealant: "install", tool: "install", collar: "install", subliner: "install",
+};
+export const WEDI_BUCKETS = ["floor", "walls", "bench", "drain", "install", "addon"];
+/** The bill bucket a part files under when the kit bills it. */
+export const wediBucketOf = (e) => BUCKET_OF[e && e.group] || "addon";
+
+// ---------------------------------------------------------------------------
+// Added lines (ticket 158 Phase 1c): cfg.manual rows { key, qty, group? } are
+// parts with a hand-set qty, each its own line — never merged into a kit line
+// and never a re-fitting choice. Old markers' `addons` keys read as rows in
+// the add-on bucket (a key saved twice is qty 2); nothing writes `addons` now.
+
+const addedBucket = (row, it) => (WEDI_BUCKETS.includes(row && row.group) ? row.group : wediBucketOf(it));
+
+/** A marker's (or kitFor opts') added rows: `manual`, plus any old `addons` translated. */
+export function addedRows(src) {
+  const out = [];
+  const put = (key, qty, grp) => {
+    const it = key ? item(key) : null;
+    if (!it || !(qty > 0)) return;
+    const group = addedBucket({ group: grp }, it);
+    const hit = out.find((r) => r.key === key && r.group === group);
+    if (hit) hit.qty += qty; else out.push({ key, qty, group });
+  };
+  (src && src.addons || []).forEach((a) => put(typeof a === "string" ? a : a && a.key, (a && a.qty) || 1, "addon"));
+  (src && src.manual || []).forEach((m) => m && put(m.key, +m.qty || 0, m.group));
+  return out;
+}
+
+/** An added row's qty set to `n` (0 removes it); rows key on bucket + key. */
+export function setAddedRow(manual, group, key, n) {
+  const same = (m) => m.key === key && addedBucket(m, item(key)) === group;
+  const rest = (manual || []).filter((m) => !same(m));
+  const at = (manual || []).findIndex(same);
+  if (!(n > 0)) return rest;
+  const row = { key, qty: n, group };
+  return at < 0 ? [...rest, row] : [...rest.slice(0, at), row, ...rest.slice(at)];
+}
+
+// What a "+" on each bucket can add (Phase 1c). A stepped part opens the swap
+// popover's rows without Auto; the rest are one-click lists.
+const ADDON_KINDS = ["niche", "shelf", "seat", "bench"];
+export const WEDI_ADD_PARTS = {
+  floor: [
+    { key: "pan", label: "Pan", hit: (i) => ["pan", "module", "kit"].includes(i.group) },
+    { key: "ext", label: "Extension", hit: (i) => ["extension", "modExt", "cornerExt"].includes(i.group) },
+    { key: "curb", label: "Curb", stepped: "curb", hit: (i) => i.group === "curb" && !!i.len },
+    { key: "ramp", label: "Ramp", hit: (i) => i.group === "ramp" },
+  ],
+  walls: [{ key: "panel", label: "Panel", stepped: "panel", hit: (i) => i.group === "panel" && i.sf > 0 }],
+  bench: [
+    { key: "bench", label: "Seat & bench", hit: (i) => i.group === "seat" || i.group === "bench" },
+    { key: "panel", label: "Panel", stepped: "panel", hit: (i) => i.group === "panel" && i.sf > 0 },
+  ],
+  drain: [
+    { key: "cover", label: "Cover", stepped: "cover", hit: (i) => i.group === "cover" },
+    { key: "frame", label: "Frame", hit: (i) => i.group === "coverFrame" },
+    { key: "drainKit", label: "Drain kit", hit: (i) => i.group === "drainKit" },
+  ],
+  install: [
+    { key: "fastener", label: "Fasteners", hit: (i) => i.group === "fastener" },
+    { key: "sealant", label: "Sealant", hit: (i) => i.group === "sealant" },
+    { key: "membrane", label: "Membrane & tape", hit: (i) => i.group === "subliner" || i.group === "sdry" },
+    { key: "collar", label: "Collars & seals", hit: (i) => i.group === "collar" },
+    { key: "tool", label: "Tools", hit: (i) => i.group === "tool" },
+    { key: "recess", label: "Recess kit", hit: (i) => i.group === "recess" },
+  ],
+  addon: [
+    { key: "niche", label: "Niche", hit: (i) => i.group === "niche" },
+    { key: "shelf", label: "Glass shelf", hit: (i) => i.group === "shelf" },
+    { key: "seat", label: "Seat", hit: (i) => i.group === "seat" },
+    { key: "bench", label: "Bench", hit: (i) => i.group === "bench" },
+    { key: "other", label: "Other", hit: (i) => wediBucketOf(i) === "addon" && !ADDON_KINDS.includes(i.group) },
+  ],
+};
+
+/** The "+" parts a bucket offers with this book — a part with nothing to add never shows. */
+export const wediAddParts = (bucket) => (WEDI_ADD_PARTS[bucket] || []).filter((p) => catalog().some(p.hit));
+
+/** The part an added line's ⇄ swaps within: the first of its bucket's parts whose rule matches it. */
+export const wediAddPartOf = (bucket, it) => (WEDI_ADD_PARTS[bucket] || []).find((p) => p.hit(it)) || null;
 
 /** The shared slot (slots.js) a kitFor line fills. */
 export function wediSlotOf(line) {
@@ -5436,10 +5574,11 @@ export function kitFor(panKey, opts) {
   // flat, not figured by area, mirroring Schluter's ALL-SET line.
   push(lines, SKU.proSet, 1, "install", "sets the pan — 1 bag", true);
 
-  // --- add-ons ---------------------------------------------------------------
-  (opts.addons || []).forEach((a) => {
-    const key = typeof a === "string" ? a : a.key;
-    push(lines, key, (a && a.qty) || 1, "addon", (a && a.note) || "", false);
+  // --- added lines (Phase 1c; old `addons` translate) -------------------------
+  const added = addedRows(opts);
+  added.forEach((r) => {
+    push(lines, r.key, r.qty, r.group, "", false);
+    lines[lines.length - 1].added = true;
   });
 
   const hasGun = lines.some((l) => l.item.key === SKU.gun);
@@ -5467,7 +5606,7 @@ export function kitFor(panKey, opts) {
     ...(coverPick ? { coverPick } : {}),
     coverFrame: frame ? frame.finish : null,
     sealantForm: form, recess: recess,
-    addons: (opts.addons || []).map((a) => (typeof a === "string" ? a : a.key)),
+    ...(added.length ? { manual: added.map((r) => ({ ...r })) } : {}),
     benches: benches.map((b) => ({ ...b })),
     corners: (opts.corners || []).slice(),
     room: room || null, solve: option ? { id: option.id, input: option.input } : null,
@@ -5486,8 +5625,8 @@ export function kitFor(panKey, opts) {
 // ({ mode, cfg } — cfg from kitFor). The drawer's staged and placed kits both
 // price through this, so a kit reads the same before and after it lands. A
 // custom cfg re-runs the solver and re-picks its option by id (the seedState
-// doctrine); qtyOv/manual never rode the cfg, so a rebuilt kit is exactly
-// what Reconfigure restores. Null when the catalog no longer knows the pan.
+// doctrine); added lines ride the cfg (`manual`, old `addons` translated),
+// qtyOv never does. Null when the catalog no longer knows the pan.
 export function buildFromMarker(marker) {
   const cfg = marker && marker.cfg;
   if (!cfg || !cfg.panKey || !item(cfg.panKey)) return null;
@@ -5511,7 +5650,7 @@ export function buildFromMarker(marker) {
     coverPick: cfg.coverPick || legacyCoverPick(cfg.coverKey),
     coverFrame: cfg.coverFrame || undefined,
     sealantForm: cfg.sealantForm, recess: cfg.recess,
-    addons: (cfg.addons || []).slice(), benches: (cfg.benches || []).map((b) => ({ ...b })),
+    manual: addedRows(cfg), benches: (cfg.benches || []).map((b) => ({ ...b })),
     corners: (cfg.corners || []).slice(),
     maxIn: !!cfg.maxIn, tileT: cfg.tileT, tier: cfg.tier,
     mode: marker.mode || undefined,
@@ -6272,13 +6411,17 @@ export function sessionFromRows(lines, rows) {
     totals.set(key, (totals.get(key) || 0) + (Number(r.qty) || 0));
   }
   if (!matched) return { qtyOv, manual };
-  const want = new Map(), auto = new Map();
+  // the marker's own added lines come off each total first, so only a kit
+  // line's hand-set qty becomes an override (Phase 1c)
+  const want = new Map(), auto = new Map(), added = new Map();
   for (const l of lines || []) {
     const key = l.item && l.item.key;
     if (!key) continue;
+    if (l.added) { added.set(key, (added.get(key) || 0) + l.qty); continue; }
     want.set(key, (want.get(key) || 0) + l.qty);
     if (l.auto !== false) auto.set(key, true);
   }
+  for (const [key, q] of added) if (totals.has(key)) totals.set(key, Math.max(0, totals.get(key) - q));
   for (const [key, w] of want) {
     const have = totals.has(key) ? totals.get(key) : matchedKeys(rows).has(key) ? null : 0;
     if (have == null || have === w) continue;
