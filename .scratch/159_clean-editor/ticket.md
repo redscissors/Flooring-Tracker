@@ -2,7 +2,7 @@
 issue_type: Feature
 summary: A cleaner estimate editor, on trial behind a per-user Settings switch —
   round 1 (header + preview toggle) shipped, header amended 2026-09-27;
-  round 2 (area cards) open.
+  round 2a (area-card frame + headings) built; product rows next.
 status: open
 labels: [ready-for-agent]
 ---
@@ -84,9 +84,32 @@ Proof: `shots/13-r2-*` … `shots/20-r2-*` (header-preview.html). The Maps
 suggestion pick inside the popover wasn't exercised (no Maps key in the
 preview) — check it once on the live site.
 
-## Round 2 — open: area cards (next session)
+## Round 2a — built: area-card frame + column headings (2026-09-27)
 
-What the mockups show (every board uses the same card treatment):
+Owner decisions: frame + headings only this round (product rows, materials
+drawer, line menu, drift chips and notes untouched); rides the SAME Clean
+switch — `cleanCards = isWide && headerLayout === "clean"` in App.jsx, so
+One-bar / Classic / phone keep today's cards. Built straight into the app
+(owner: "whatever is more efficient") and shown as real-app screenshots.
+
+- Each area is a white card, hairline border, 12px radius, 12px gap between
+  cards (they used to butt together). No grey band.
+- Area row: hover-only drag grip · name (15px bold sans, was 20px serif) ·
+  option chip (when the job has options) · "N items · N SF" or "Empty" ·
+  subtotal right, bold · ⋯. The ⋯ opens the existing area menu (right-click
+  still works) with "Delete area…" added at the bottom — it opens the same
+  red confirm strip. The always-on trash and grip are gone from the row.
+- Column headings once above all cards, small faint caps, no bar.
+- Add area: same dashed button, 12px radius, 44px tall.
+
+Proof (real App.jsx over stubbed Supabase, the ticket-111 harness):
+`shots/21-r2-cards.png`, `21-r2-hover-grip`, `21-r2-area-menu`,
+`21-r2-delete-confirm`, and `25-r2-onebar-unchanged-cards` (One-bar as before).
+
+## Round 2 — open: product rows
+
+What the mockups show (every board uses the same card treatment; the frame
+and headings items are done in 2a):
 
 - No grey band per area and no grey column-header bar; each area is a white
   card with a hairline border and 12px radius.

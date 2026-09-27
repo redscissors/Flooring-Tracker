@@ -299,6 +299,8 @@ export default function App({ user, onSignOut }) {
     return () => clearTimeout(t);
   }, [theme]);
   const [isWide, setIsWide] = useState(() => typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 768px)").matches : true);
+  // Clean's area cards ride the same per-user header switch (.scratch/159_clean-editor).
+  const cleanCards = isWide && headerLayout === "clean";
   const [custChip, setCustChip] = useState(null); // which contact chip is expanded (customer view)
   const [viewTab, setViewTab] = useState("edit"); // project detail: "edit" | "preview" (on-screen estimate paper)
   const [projSheet, setProjSheet] = useState(false); // mobile shell: project bottom sheet
@@ -1752,7 +1754,22 @@ export default function App({ user, onSignOut }) {
                   rounds its own corners, so touching areas keep the soft "pill"
                   notch at their seam that the flush product boxes don't.
                   `relative` anchors the area-drag insertion bar. */}
-              <div className="relative">
+              {cleanCards && sel.categories.length > 0 && (
+                // Clean (2026-09-27, .scratch/159_clean-editor): the column
+                // headings once above every card instead of a grey bar per area.
+                <div className="ft-noprint" style={{ display: "grid", gridTemplateColumns: GRID_COLS, padding: "0 1px 5px", fontSize: 9, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--ft-faint)" }}>
+                  <div style={{ padding: "0 10px" }}>Size / Type</div>
+                  <div style={{ padding: "0 8px" }}>Product / Color</div>
+                  <div style={{ padding: "0 8px" }}>SKU</div>
+                  <div style={{ padding: "0 8px" }}>Cov.</div>
+                  <div style={{ padding: "0 8px", textAlign: "right" }}>SF/EA</div>
+                  <div style={{ padding: "0 8px", textAlign: "right" }}>Price</div>
+                  <div style={{ padding: "0 8px", textAlign: "right" }}>Order</div>
+                  <div style={{ padding: "0 8px", textAlign: "right" }}>Total</div>
+                  <div />
+                </div>
+              )}
+              <div className={cleanCards ? "relative flex flex-col gap-3" : "relative"}>
                 {sel.categories.map((a, ai) => {
                   const areaSf = a.products.reduce((t, p) => t + (p.qtyType === "sqft" ? num(p.qty) : 0), 0);
                   const areaTotal = printAreaFloor(tv.proj.categories[ai] || a, tSet);
@@ -1763,7 +1780,27 @@ export default function App({ user, onSignOut }) {
                   // card isn't clipped at its home area's edge) and while one of its
                   // products' materials drawers is open (so the drawer can float past
                   // the card's bottom edge without being clipped).
-                  <div key={a.id} data-area-drop={a.id} onClickCapture={isWide ? undefined : () => setActiveAreaId(a.id)} className={`rounded-lg border bg-white transition-colors ${drag || areaMatOpen ? "" : "overflow-hidden"} ${drag?.to?.aid === a.id ? "border-indigo-400" : drag ? "border-dashed border-slate-300" : "border-slate-200"}`} style={oc ? { borderColor: oc.main, borderWidth: 1.5 } : undefined}>
+                  <div key={a.id} data-area-drop={a.id} onClickCapture={isWide ? undefined : () => setActiveAreaId(a.id)} className={`${cleanCards ? "group rounded-xl" : "rounded-lg"} border bg-white transition-colors ${drag || areaMatOpen ? "" : "overflow-hidden"} ${drag?.to?.aid === a.id ? "border-indigo-400" : drag ? "border-dashed border-slate-300" : cleanCards ? "" : "border-slate-200"}`} style={oc ? { borderColor: oc.main, borderWidth: 1.5 } : cleanCards && !drag ? { borderColor: "var(--ft-border-soft)" } : undefined}>
+                    {cleanCards ? (
+                    <div className="flex items-center gap-2.5" onContextMenu={(e) => { e.preventDefault(); setAreaMenu({ aid: a.id, x: e.clientX, y: e.clientY, clean: true }); }} style={{ height: 46, padding: "0 8px 0 4px", borderBottom: "1px solid var(--ft-border-soft)" }}>
+                      <button tabIndex={-1} onPointerDown={(e) => startAreaDrag(e, a.id, ai)} title="Drag to reorder areas" className="ft-noprint p-0.5 rounded touch-none cursor-grab text-slate-400 hover:text-slate-600 opacity-0 group-hover:opacity-100 focus:opacity-100"><AlignJustify size={13} /></button>
+                      <input ref={(el) => { if (el) areaRefs.current[a.id] = el; }} value={a.name} onChange={(e) => updArea(a.id, { name: e.target.value })} placeholder={`Area ${ai + 1}`} className="bg-transparent border-b border-transparent focus:border-indigo-500 focus:outline-none min-w-0 placeholder:text-slate-400" style={{ fontSize: 15, fontWeight: 700, letterSpacing: "-.01em", width: `${Math.max(a.name.length || `Area ${ai + 1}`.length, 4) + 1}ch` }} />
+                      {(a.option || optsUsed.length > 0) && (
+                        <button tabIndex={-1} onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setAreaMenu({ aid: a.id, x: r.left, y: r.bottom + 4, anchor: e.currentTarget, clean: true }); }}
+                          className="ft-noprint rounded-md px-2 py-0.5 text-[10.5px] font-bold shrink-0"
+                          style={oc ? { background: `color-mix(in srgb, ${oc.main} 12%, var(--ft-card))`, color: oc.deep, boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${oc.main} 45%, transparent)` } : { border: "1px dashed var(--ft-border-strong)", color: "var(--ft-muted)" }}>
+                          {a.option ? optionShort(sel, a.option).toUpperCase() : "SHARED"}
+                        </button>
+                      )}
+                      {(() => { const n = a.products.filter((p) => !rowBlank(p)).length; return (
+                        <span className="text-[12px] whitespace-nowrap" style={{ color: "var(--ft-faint)" }}>{n ? [`${n} item${n === 1 ? "" : "s"}`, areaSf > 0 ? `${sf1(areaSf)} SF` : ""].filter(Boolean).join(" · ") : "Empty"}</span>
+                      ); })()}
+                      <span className="flex-1" />
+                      {areaTotal > 0 && <span className="ft-mono text-[13px] font-bold">{money(areaTotal)}</span>}
+                      <button tabIndex={-1} aria-label="Area options" title="Area options" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setAreaMenu({ aid: a.id, x: r.right - 212, y: r.bottom + 4, clean: true }); }}
+                        className="ft-noprint w-[28px] h-[28px] flex items-center justify-center rounded-md text-slate-400 hover:text-slate-600 hover:bg-[color:var(--ft-hover)]"><MoreHorizontal size={16} /></button>
+                    </div>
+                    ) : (
                     <div className="flex justify-between items-center gap-3" onContextMenu={(e) => { e.preventDefault(); setAreaMenu({ aid: a.id, x: e.clientX, y: e.clientY }); }} style={{ background: "var(--ft-area-head)", padding: isWide ? "8px 14px" : "6px 11px", ...(!isWide && a.id === activeAreaId ? { boxShadow: "inset 3px 0 0 var(--ft-brand)" } : {}) }}>
                       <div className="flex items-baseline gap-2.5 flex-1 min-w-0">
                         <input ref={(el) => { if (el) areaRefs.current[a.id] = el; }} value={a.name} onChange={(e) => updArea(a.id, { name: e.target.value })} placeholder={`Area ${ai + 1}`} className="ft-serif bg-transparent border-b border-transparent focus:border-indigo-500 focus:outline-none min-w-0 placeholder:text-slate-400" style={{ fontSize: isWide ? 20 : 18, lineHeight: 1.1, width: `${Math.max(a.name.length || `Area ${ai + 1}`.length, 4) + 1}ch` }} />
@@ -1781,6 +1818,7 @@ export default function App({ user, onSignOut }) {
                         <button tabIndex={-1} onClick={() => setConfirmArea(a.id)} title="Delete this area" className="ft-noprint text-slate-400 hover:text-red-500"><Trash2 size={14} /></button>
                       </div>
                     </div>
+                    )}
                     {confirmArea === a.id && (
                       <div className="ft-noprint flex items-center gap-2 px-3 py-2 text-xs border-b border-slate-100">
                         {(() => { const realN = a.products.filter((p) => !rowBlank(p)).length; return (
@@ -1792,7 +1830,7 @@ export default function App({ user, onSignOut }) {
                     )}
 
                     <div data-prod-list="1" className="relative" onKeyDown={(e) => gridEnterNav(e, () => addProduct(a.id))}>
-                      {isWide && (
+                      {isWide && !cleanCards && (
                       <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, background: "var(--ft-area-head)", borderTop: "1px solid var(--ft-border)", borderBottom: "1px solid var(--ft-border)", fontSize: 8, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--ft-muted)" }}>
                         <div style={{ padding: "5px 10px", borderRight: "1px solid var(--ft-row-line)" }}>Size / Type ▾</div>
                         <div style={{ padding: "5px 8px", borderRight: "1px solid var(--ft-row-line)" }}>Product / Color ▾</div>
@@ -2519,7 +2557,7 @@ export default function App({ user, onSignOut }) {
                 // this bar is the next stop; Tab from it jumps back up to Order
                 // entry → Print. With no areas yet it also catches Tab out of
                 // the header (addAreaRef).
-                <button ref={addAreaRef} onClick={addArea} onKeyDown={tabTo(orderEntryRef)} className="ft-noprint mt-4 w-full flex items-center justify-center gap-1.5 text-sm font-semibold rounded-lg border border-dashed border-slate-300 py-2.5 text-slate-500 hover:border-indigo-300 hover:text-indigo-700 transition"><Plus size={15} /> Add area</button>
+                <button ref={addAreaRef} onClick={addArea} onKeyDown={tabTo(orderEntryRef)} className={`ft-noprint mt-4 w-full flex items-center justify-center gap-1.5 text-sm font-semibold ${cleanCards ? "rounded-xl h-[44px]" : "rounded-lg py-2.5"} border border-dashed border-slate-300 text-slate-500 hover:border-indigo-300 hover:text-indigo-700 transition`}><Plus size={15} /> Add area</button>
               )}
 
               {(totalSqft > 0 || hasMat || miscCost > 0 || freightCost > 0) && (
@@ -3307,6 +3345,10 @@ export default function App({ user, onSignOut }) {
               ))}
               {a.option && <button className={item} onClick={() => { setRenamingOpt(a.option); setAreaMenu(null); }}>Rename {optionTitle(sel, a.option)}…</button>}
               {a.option && <button className={item} onClick={() => { setPreviewScope(a.option); if (isWide) setViewTab("preview"); else setPrintMode("estimate"); setAreaMenu(null); }}>Print this option…</button>}
+              {areaMenu.clean && <>
+                <div className="border-t border-slate-100 my-1" />
+                <button className={item + " text-red-600 hover:bg-[color:var(--ft-hover-red)]"} onClick={() => { setConfirmArea(a.id); setAreaMenu(null); }}><Trash2 size={13} />Delete area…</button>
+              </>}
           </PopMenu>
         );
       })()}

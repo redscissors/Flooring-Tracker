@@ -26,7 +26,13 @@ src/
                     # `addCompareOptions(aid, payload)` is the landing —
                     # ONE `updateProject` with compareOptionsPatch's single
                     # patch, wired as `onQuoteOptions` on both job-context
-                    # vendor mounts (never on the Apps-hub copies)
+                    # vendor mounts (never on the Apps-hub copies).
+                    # `cleanCards` (isWide && headerLayout "clean", 2026-09-27)
+                    # swaps the area frame for Clean's cards: 12px-radius
+                    # white cards with gaps, a name · count · subtotal · ⋯ row
+                    # (⋯ = the area menu + "Delete area…", hover-only grip)
+                    # and ONE column-heading row above all areas. Product rows
+                    # are shared with the other layouts.
   uiconst.js        # shared UI constants: TYPES/TLBL (incl. `underlayment`, ADR 0043), tier colors/labels,
                     # joints/thicknesses, grout color lists, sweep/keep constants,
                     # stock-loading messages, `skuSearchable`, `colorsFor`
