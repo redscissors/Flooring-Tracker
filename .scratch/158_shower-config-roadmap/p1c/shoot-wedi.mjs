@@ -3,7 +3,8 @@
 // a stepped curb add with no Auto or No curb, an added line's own ⇄, − taking
 // one niche off (not both), a land + Reconfigure round trip that keeps the
 // added lines without doubling, and a curb added to a curbless kit billed but
-// not drawn.
+// not drawn. Also: − on an added line at 2 leaves 1, + on a kit line steps it
+// by one and leaves its added twin alone, and a room re-solve keeps added lines.
 //   npx vite --port 5199 ; node .scratch/158_shower-config-roadmap/p1c/shoot-wedi.mjs
 import { createRequire } from "node:module";
 const { chromium } = createRequire("/opt/node22/lib/node_modules/playwright/")("playwright-core");
@@ -74,6 +75,39 @@ await pg.keyboard.press("Escape"); await pg.waitForTimeout(300);
 await grp("Add-ons").locator(".bline").first().locator(".stepper button").first().click(); await pg.waitForTimeout(400);
 if ((await grp("Add-ons").locator(".bline").count()) !== 1) fail("− on one niche did not leave the other");
 
+const q = async (ln) => +(await ln.locator(".stepper .q").innerText());
+// an added niche stepped to 2 and back comes off one, not all
+const niche = grp("Add-ons").locator(".bline").first();
+await niche.locator(".stepper button").nth(1).click(); await pg.waitForTimeout(300);
+if ((await q(niche)) !== 2) fail("+ on the added niche did not step it to 2");
+await niche.locator(".stepper button").first().click(); await pg.waitForTimeout(300);
+console.log("added niche 2, −:", await q(niche));
+if ((await q(niche)) !== 1) fail("− on an added niche at 2 did not leave 1");
+
+// + on the kit's panel line steps it by one and leaves the added panel alone
+const panels = grp("Walls").locator(".bline", { hasText: "28862" });
+const kitPanel = panels.filter({ hasNot: pg.locator("[data-added-tag]") });
+const addedPanel = panels.filter({ has: pg.locator("[data-added-tag]") });
+const k0 = await q(kitPanel), a0 = await q(addedPanel);
+await kitPanel.locator(".stepper button").nth(1).click(); await pg.waitForTimeout(400);
+const k1 = await q(kitPanel), a1 = await q(addedPanel);
+console.log(`kit panel +: kit ${k0} → ${k1}, added ${a0} → ${a1}`);
+if (k1 !== k0 + 1) fail("+ on the kit panel line did not step it by exactly 1");
+if (a1 !== a0) fail("+ on the kit panel line moved the added panel line");
+
+// a room re-solve keeps the added lines as they were
+const addedLines = async () => pg.locator(".bline").filter({ has: pg.locator("[data-added-tag]") })
+  .evaluateAll((els) => els.map((e) => e.querySelector(".n").textContent + " ×" + e.querySelector(".stepper .q").textContent));
+const added0 = await addedLines(), floor0 = await grpText("Floor");
+await pg.locator(".modetab", { hasText: "Custom shower" }).click(); await pg.waitForTimeout(500);
+const wIn = pg.locator(".roomform .rinp").first();
+await wIn.fill("72"); await wIn.press("Enter"); await pg.waitForTimeout(900);
+const added1 = await addedLines();
+console.log("re-solved 72″:", (await grpText("Floor")).slice(0, 80), "| added:", added1.join(", "));
+if ((await grpText("Floor")) === floor0) fail("the room did not re-solve");
+if (!added0.length || added1.join() !== added0.join()) fail("the re-solve dropped or changed the added lines");
+await shot("w8-resolve-keeps-added");
+
 // land + Reconfigure: the added lines come back, nothing doubles
 const before = await grpText("Walls") + await grpText("Add-ons");
 await pg.locator("[data-wedi-add]").click();
@@ -88,6 +122,8 @@ await shot("w6-reconfigure-round-trip");
 
 // a curb added to a curbless kit bills but isn't drawn
 await pg.getByRole("button", { name: "Clear design" }).click(); await pg.waitForTimeout(400);
+// the re-solved build reopened on Custom shower; the harness job sheet covers the tab, so dispatch the click
+await pg.locator(".modetab", { hasText: "Kits" }).dispatchEvent("click"); await pg.waitForTimeout(400);
 await pg.locator("[data-wedi-pan='US9200007']").click(); await pg.waitForTimeout(800);
 const flat0 = await drawing();
 await plus("floor");

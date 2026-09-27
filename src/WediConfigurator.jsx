@@ -903,7 +903,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     if (s.panelFit) lines = applyPanelFit(lines, wl, b.panelSf);
     lines.forEach((l) => {
       const ov = s.qtyOv[l.item.key];
-      if (ov != null && l.auto !== false) { l.autoQty = l.qty; l.qty = ov; l.ov = true; }
+      if (ov != null && !l.added) { l.autoQty = l.qty; l.qty = ov; l.ov = true; }
     });
     // the Fit plan re-appends the kit's panels, so added lines move back to
     // the end — below the kit lines of their bucket
@@ -1013,15 +1013,16 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   // takes a qtyOv override
   const stepLine = (l, delta) => {
     if (l.added) { addTo(l.group, l.item.key, Math.max(0, l.qty + delta)); return; }
-    if (l.auto === false) return step(l.item.key, delta);
     const key = l.item.key;
     setQtyOv((o) => ({ ...o, [key]: Math.max(0, (o[key] != null ? o[key] : l.qty) + delta) }));
   };
 
   // A re-solved room keeps the cover and curb choices: they name a finish or
-  // a style, not a part, so they re-fit the new room (ADR 0049).
+  // a style, not a part, so they re-fit the new room (ADR 0049). Added lines
+  // stay too — a part and a hand-set qty, never re-fit (Phase 1c).
   const resetBuild = (keepChoices) => {
-    setQtyOv({}); setBenches([]); setBenchMenu(null); setManual([]);
+    setQtyOv({}); setBenches([]); setBenchMenu(null);
+    if (!keepChoices) setManual([]);
     setOpts((o) => ({ ...DEF_OPTS, coverPick: keepChoices ? o.coverPick : undefined, curbPick: keepChoices ? o.curbPick : undefined }));
   };
   // Only a genuinely modified wall survives a room/option change (owner rule):
