@@ -276,8 +276,8 @@ during execution (ledger: `.superpowers/sdd/2026-09-27-add-another/progress.md`)
 - **Schluter Niche picker rows add another** (`✓ ×n`). They used to toggle.
 - **wedi premade-bench kit line loses a ⇄ that never billed.** It rewrote
   `addons`, which the bench recipe doesn't read.
-- **A kit line with `auto: false` has no column stepper.** That is a premade
-  bench placed on the drawing; its count is the benches on the drawing. Two
+- **A kit line with `auto: false` has no column stepper**, e.g. a premade
+  bench placed on the drawing, whose count is the benches drawn. Two
   premade benches of one part would share one `qtyOv` key and step
   together, so the column shows the count with no − / +.
 - **A room re-solve keeps added lines.** Only the kit-card hard reset and
@@ -292,6 +292,13 @@ during execution (ledger: `.superpowers/sdd/2026-09-27-add-another/progress.md`)
 - **wedi `kitFor` bills added rows itself** (at the old add-on position). An
   added sealant gun now clears the sausage-gun hint, and added lines count
   toward the special-order net.
+- **The stepped "+" chips aren't stock-narrowed** (wedi cover and curb,
+  Schluter band and membrane), the same as 1b's stepped popovers.
+  Special-order chips carry the SO dot, and stocked chips come first.
+- **Added lines skip the kit's own figuring on both brands** (final review):
+  the board Fit plan, the hand-set `qtyOv`, and the swap Δ baselines. wedi
+  already did (`auto: false`, `!added`); Schluter's `applyBoardPlan` and
+  `applyQtyOv` now live in `schluter.js` with the `manual` guard.
 
 ## Out of scope (1c)
 

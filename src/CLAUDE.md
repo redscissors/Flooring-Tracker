@@ -929,8 +929,9 @@ src/
                     # (0 removes it). `kitFor` bills the rows at the old
                     # add-on position, flags them `added`, and writes
                     # `manual` (never `addons`); `buildFromMarker` passes
-                    # them through. `wediBucketOf`/`WEDI_BUCKETS` (moved
-                    # from the popup) name the bill buckets.
+                    # them through. `wediBucketOf` (moved from the popup,
+                    # which aliases it `bucketOf`) and the new
+                    # `WEDI_BUCKETS` name the bill buckets.
                     # `WEDI_ADD_PARTS`/`wediAddParts(bucket)` are what each
                     # bucket's "+" offers (a part the book lacks never
                     # shows); `wediAddPartOf` is the part an added line's ⇄
@@ -1645,7 +1646,14 @@ src/
                     # down, below every length falls to the shortest).
                     # `sessionFromRows` takes the marker's added lines off
                     # each placed total first, so only a kit line's hand-set
-                    # qty becomes `qtyOv` (addedgolden.test.js)
+                    # qty becomes `qtyOv` (addedgolden.test.js).
+                    # `applyBoardPlan(lines, cfg, plan, cat)` swaps the kit's
+                    # by-area board line for the Fit plan's per-sheet lines
+                    # in place (first line carries the sf/seam note) and
+                    # `applyQtyOv(lines, ov)` applies the hand-set qtys (0
+                    # drops a line) — the popup's build column, Reconfigure
+                    # and basket drawer all run them; both leave `manual`
+                    # lines alone (1c final review)
   schluterfixture.js  # the 2026-08-20 stock-sheet/EFT snapshot schluter.js's
                     # tests are pinned against (schluter.test.js) — the ERP
                     # Vendor SKU Analysis + dealer-cost EFT the prototype was

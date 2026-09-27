@@ -89,9 +89,8 @@ Things a 1d session may trip over (the full list is in
   right; the attribution isn't.
 - **Owner call (open):** Reconfigure where the sheet *lowered* or removed an
   added-only line reopens at the marker's qty; the sheet edit is dropped.
-- **Browse-only wedi.** It now shows an empty WALLS header (for its "+")
-  with the Fit | One size toggle beside it. Staging a Browse-only build
-  drops each row's `group` (`normKitSession`); unreachable today.
+- **Browse-only wedi.** Staging a Browse-only build drops each row's
+  `group` (`normKitSession`); unreachable today.
 - **Point-drain Grate list** includes KERDI-LINE (linear) grates.
 - **wedi sealant gun** is stored in the add-on bucket, but the chip's on
   state and toggle match the gun in any bucket.
