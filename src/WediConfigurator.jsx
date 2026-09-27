@@ -25,7 +25,9 @@ import {
   BENCH_CORNER_LBL, buildFromMarker, sessionFromRows, wediSlotOf, coverStyles, legacyCoverPick, coverPickApplies,
   resolveCurb, curbOptions, curbPickOf, panelOptions, panelSheets, fastenerKits,
   addedRows, setAddedRow, wediBucketOf, wediAddParts, wediAddPartOf, curbAddOptions, coverAddOptions, curbProfile, catalog,
+  sdryNoFit,
 } from "./wedi.js";
+import { SDRY, sdryRole } from "./sdry.js";
 import { SwapPop, fmDelta, inchGlyph } from "./swappop.jsx";
 import { GROUPS, groupOf, groupLabel } from "./slots.js";
 import { TopDown, Iso, railSplit, RAIL_DESIGN_W, curbHeight } from "./showerdraw.jsx";
@@ -136,6 +138,11 @@ const CSS = `
    above the first family is gone entirely (owner 2026-08-02). */
 .wedi-pop .fam{margin-bottom:9px}
 .wedi-pop .fam-h{display:flex;align-items:baseline;gap:9px;margin-bottom:2px}
+.wedi-pop .wsnote{font-size:10px;color:var(--ft-faint);font-weight:600;line-height:1.4;margin-top:3px;max-width:300px}
+.wedi-pop .sdryask{border:1px solid var(--ft-border-strong);border-radius:9px;background:var(--ft-card);padding:12px 14px;margin:10px 0;font-size:12px;line-height:1.5}
+.wedi-pop .sdryask .why{font-weight:700;color:var(--ft-text);margin-bottom:8px}
+.wedi-pop .sdryask .acts{display:flex;flex-wrap:wrap;gap:6px}
+.wedi-pop .sdrychip{display:inline-block;margin-left:6px;font-size:10px;font-weight:700;color:var(--ft-brand-deep);background:var(--ft-tint);border:1px solid var(--ft-border);border-radius:9px;padding:0 7px;cursor:pointer}
 .wedi-pop .fam-h .t{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--ft-brand-deep)}
 .wedi-pop .cards{display:flex;flex-direction:column}
 .wedi-pop .pancard{display:flex;align-items:center;gap:10px;padding:1px 5px;border:0;border-bottom:1px solid var(--ft-row-line);background:none;cursor:pointer;text-align:left;color:inherit}
@@ -499,6 +506,7 @@ function seedState(seed) {
     tab: "kits", inp: { ...DEF_INP }, q: "", panKey: null, opts: { ...DEF_OPTS },
     manual: [], benches: [], walls: DEF_WALLS.map((w) => ({ ...w })), extraWalls: [], wallH: 96, wallSeq: 0,
     corners: { bl: false, br: false, fl: false, fr: false }, solveInput: null, maxIn: false, tileT: "", source: "stock",
+    wallSys: "board", sdryBase: "sdry", sdryNear: false,
   };
   if (!seed) return s;
   const cfg = seed.cfg;
@@ -511,6 +519,10 @@ function seedState(seed) {
     s.tileT = +cfg.tileT > 0 ? String(+cfg.tileT) : "";
     s.tab = seed.mode === "custom" ? "custom" : seed.mode === "browse" ? "browse" : "kits";
     s.panKey = cfg.panKey;
+    // Phase 2 (ADR 0051): the wall system and the Membrane floor answer
+    s.wallSys = cfg.wallSys === "membrane" ? "membrane" : "board";
+    s.sdryBase = cfg.sdryBase === "wedi" ? "wedi" : "sdry";
+    s.sdryNear = !!(cfg.solve && cfg.solve.input && cfg.solve.input.nearest);
     s.opts = {
       // old markers wrote the resolved panel and curb; the recipe's own reads as no pick (ADR 0049)
       panelKey: cfg.panelKey && cfg.panelKey !== SKU.panelDefault ? cfg.panelKey : undefined,
@@ -533,7 +545,12 @@ function seedState(seed) {
     s.walls.forEach((w) => { if (!rows.includes(w)) w.on = false; });
     (cfg.corners || []).forEach((k) => { if (s.corners[k] != null) s.corners[k] = true; });
     if (cfg.walls && cfg.walls.length) s.wallH = Math.round(+cfg.walls[0].h) || 96;
-    if (cfg.solve && cfg.solve.input) { s.solveInput = cfg.solve.input; s.inp = { ...DEF_INP, ...cfg.solve.input, drainX: cfg.solve.input.drainX || "", drainY: cfg.solve.input.drainY || "" }; }
+    if (cfg.solve && cfg.solve.input) {
+      // the system rides the popup's own state, never the room form
+      const { system, nearest, ...si } = cfg.solve.input;
+      s.solveInput = si;
+      s.inp = { ...DEF_INP, ...si, drainX: si.drainX || "", drainY: si.drainY || "" };
+    }
     else if (cfg.room) s.inp = { ...s.inp, w: cfg.room.w, d: cfg.room.d };
     return s;
   }
@@ -640,6 +657,13 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   const [benches, setBenches] = useState(s0.benches);
   const [opts, setOpts] = useState(s0.opts);
   const [inp, setInp] = useState(s0.inp);
+  // The wall system (Phase 2, ADR 0051): Building Panel, or Membrane — S-DRY
+  // walls on an S-DRY base, or on a wedi pan when the owner answered the
+  // no-fit prompt that way (sdryBase "wedi"), or on the nearest S-DRY base.
+  const [wallSys, setWallSys] = useState(s0.wallSys);
+  const [sdryBase, setSdryBase] = useState(s0.sdryBase);
+  const [sdryNear, setSdryNear] = useState(s0.sdryNear);
+  const [sdryAsk, setSdryAsk] = useState(false);
   // "Overall max" (owner ask 2026-07-30): the typed sizes are the whole
   // footprint — every fully open edge pulls its curb inside the line and
   // the pan space gives up (curb width − the ½" pan lap).
@@ -882,8 +906,10 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     round2(((+len || 0) * (+h || 0) * (faces === "both" ? 2 : 1) + (faces === "in-end" ? WALL_THICK * (+h || 0) : 0)) / 144);
 
   // The Fit plan (level courses, mixed sheet sizes, a vertical single sheet
-  // where it kills the seams) replaces the engine's by-area panel line.
+  // where it kills the seams) replaces the engine's by-area panel line — a
+  // Membrane build has none, and its membrane line stays.
   const applyPanelFit = (lines, wl, panelSf) => {
+    if (!lines.some((l) => l.group === "walls" && l.auto !== false && l.item.group === "panel")) return lines;
     const plan = panelPlan(expandWallFaces(wl));
     const out = lines.filter((l) => !(l.group === "walls" && l.auto !== false));
     const vWalls = plan.detail.filter((d) => d.vertical).length;
@@ -953,6 +979,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
         walls: buildWalls, wallHeight: +wallH || 80,
         panelKey: opts.panelKey, curbPick: opts.curbPick, fastenerKey: opts.fastenerKey, coverPick: opts.coverPick,
         coverFrame: opts.coverFrame, sealantForm: opts.sealantForm, recess: opts.recess,
+        ...(wallSys === "membrane" ? { wallSys, ...(pan && pan.sub !== "sdry" ? { sdryBase: "wedi" } : {}) } : {}),
         manual: manual.slice(), benches: benches.slice(), tier: tierId,
         corners: ["bl", "br", "fl", "fr"].filter((k) => corners[k]),
         mode: option ? "custom" : "kit", maxIn: maxIn, tileT: tileIn,
@@ -970,7 +997,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
       return { pan: null, lines, panelSf: 0, factory: null, hints, mode: "browse", cfg: {}, soNet };
     }
     return null;
-  }, [panKey, option, buildWalls, wallH, opts, benches, qtyOv, manual, panelFit, tierId, corners, maxIn, tileIn, source]);
+  }, [panKey, option, buildWalls, wallH, opts, benches, qtyOv, manual, panelFit, tierId, corners, maxIn, tileIn, source, wallSys]);
 
   // A Reconfigure opens on what the sheet says (owner 2026-09-02): the placed
   // rows are the truth once a kit lands, so a quantity typed on a row — or
@@ -1056,7 +1083,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     setInp(next);
     // a kit's size IS the pan size — the seeded form reads it that way
     setMaxIn(false);
-    setResults(solve({ w: next.w, d: next.d, curb: next.curb, drain: next.drain, tolerance: 0.51, anchor: next.anchor || "left", source }));
+    setResults(solveRoom(next, false));
   };
   // A kit card is a hard reset (owner rule 2026-07-30): once a build is
   // customized it IS the custom shower, so a kit click asks before wiping it.
@@ -1077,7 +1104,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
       setInp({ ...DEF_INP });
       setMaxIn(false);
       setTileT("");
-      setResults(solve({ w: DEF_INP.w, d: DEF_INP.d, curb: DEF_INP.curb, drain: DEF_INP.drain, tolerance: 0.51, source }));
+      setResults(solveRoom(DEF_INP, false));
     }
   };
   const pickPan = (key) => {
@@ -1113,7 +1140,12 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     const picked = opts.curbPick ? resolveCurb(opts.curbPick, 60, "fundo").item : null;
     return curbInsets({ w: +i.w || 0, d: +i.d || 0 }, wl, picked ? picked.key : SKU.curbLean60, tileIn);
   };
+  // Membrane on an S-DRY base runs the S-DRY fit: bases are cut evenly, so the
+  // curb inset, the drain pin and the anchor don't apply.
+  const sdrySys = () => (wallSys === "membrane" && sdryBase === "sdry" ? { system: "sdry", ...(sdryNear ? { nearest: true } : {}) } : null);
   const solveRoom = (i, maxOn, src) => {
+    const sys = sdrySys();
+    if (sys) return solve({ w: +i.w || 0, d: +i.d || 0, curb: i.curb, drain: i.drain, tolerance: 0.51, source: src || source, ...sys });
     const ins = insetFor(i, maxOn);
     const dx = +i.drainX || 0, dy = +i.drainY || 0;
     const res = solve({
@@ -1140,6 +1172,35 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     const next = { ...inp, ...patch }; setInp(next); runSolve(next);
     if (patch.curb && patch.curb !== inp.curb) setOpts((o) => ({ ...o, curbPick: undefined }));
   };
+  // Flipping the wall system re-solves once the new state is in: a custom build
+  // re-picks its top option, the Kits tab only refreshes the cards.
+  const sysSig = wallSys + "|" + sdryBase + "|" + sdryNear;
+  const sysSeen = useRef(sysSig);
+  useEffect(() => {
+    if (sysSeen.current === sysSig) return;
+    sysSeen.current = sysSig;
+    if (option || tab === "custom") runSolve(inp); else setResults(solveRoom(inp, maxIn));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sysSig]);
+  const setWallSystem = (ws) => {
+    if (ws === wallSys) return;
+    setWallSys(ws); setSdryBase("sdry"); setSdryNear(false); setSdryAsk(false);
+    // an S-DRY base takes Membrane walls only — Building Panel starts from the cards
+    if (ws === "board" && pan && pan.sub === "sdry" && !option) hardReset(null);
+  };
+  const answerSdry = (how) => {
+    setSdryAsk(false);
+    if (how === "board") { setWallSystem("board"); return; }
+    setSdryBase(how === "wedi" ? "wedi" : "sdry");
+    setSdryNear(how === "nearest");
+    setTab("custom");
+  };
+  const wallSysSeg = (
+    <div className="rseg" data-wedi-wallsys>
+      <button className={wallSys === "board" ? "on" : ""} onClick={() => setWallSystem("board")} data-wedi-wallsys-board>Building Panel</button>
+      <button className={wallSys === "membrane" ? "on" : ""} onClick={() => setWallSystem("membrane")} data-wedi-wallsys-membrane>Membrane (S-DRY)</button>
+    </div>
+  );
   const selectOption = (k) => { const o = results[k]; if (!o) return; retuneWalls(); setOption(o); setPanKey(o.pan.key); resetBuild(true); };
 
   // One-shot at mount: the room always arrives solved, so the Custom tab is
@@ -1336,7 +1397,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     const runs = curbRuns(diag.room, buildWalls, ["bl", "br", "fl", "fr"].filter((k) => corners[k]),
       (build && build.benches) || []);
     // the kit's own curb — an added curb is a part on the bill, not a curb in the room
-    const line = build && build.lines.find((l) => l.item.group === "curb" && !l.added);
+    const line = build && build.lines.find((l) => (l.item.group === "curb" || sdryRole(l.item) === "curb") && !l.added);
     return {
       segs: line ? runs.segs : [], diags: line ? runs.diags : [], cuts: runs.diags,
       h: line ? curbHeight(line.item) : 0, w: line ? curbWidth(line.item) : 0,
@@ -1407,6 +1468,15 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
       };
     }
     if (g === "curb") return build.curbFit ? { stepped: "curb" } : null;
+    const role = sdryRole(line.item);
+    if (role === "cover") {
+      return { title: "S-DRY drain cover", list: bySource(catalog().filter((e) => sdryRole(e) === "cover")),
+        set: (k) => setOpts((o) => ({ ...o, coverPick: k && k !== SDRY.coverSS ? { key: k } : undefined })) };
+    }
+    if (role === "curb") {
+      return { title: "S-DRY curb", list: bySource([item(SDRY.curbFull), item(SDRY.curbLean)].filter(Boolean)), none: "No curb",
+        set: (k) => setOpts((o) => ({ ...o, curbPick: !k ? { none: true } : k === SDRY.curbLean ? { sub: "lean" } : undefined })) };
+    }
     if (g === "fastener" && fastenerKits().some((f) => f.key === line.item.key)) {
       return { title: "Fastener kit", list: bySource(fastenerKits()), set: (k) => setOpts((o) => ({ ...o, fastenerKey: k && k !== SKU.fastenerKit ? k : undefined })) };
     }
@@ -1449,11 +1519,14 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   // second confusing price beside the pan's).
   const kitTotals = useMemo(() => {
     const out = {};
-    const fams = FAM_DEFS.map((f) => (f[0] === "module" ? group("module").filter((m) => m.sub === "neo") : pans({ family: f[0] })));
+    const fams = FAM_DEFS.map((f) => (f[0] === "module" ? group("module").filter((m) => m.sub === "neo") : pans({ family: f[0] })))
+      .concat([pans({ family: "sdry", sdry: true })]);
     fams.forEach((list) => list.forEach((p) => {
       const wl = wallsArr(p, null);
       const lens = autoWallLens(p, null);
-      const b = kitFor(p.key, { walls: wl, sealantForm: opts.sealantForm, room: { w: lens.back, d: lens.left } });
+      // an S-DRY card prices the full S-DRY build: S-DRY curb, drain and walls
+      const b = kitFor(p.key, { walls: wl, sealantForm: opts.sealantForm, room: { w: lens.back, d: lens.left },
+        ...(p.sub === "sdry" ? { wallSys: "membrane" } : {}) });
       if (!b) return;
       const lines = panelFit ? applyPanelFit(b.lines, wl, b.panelSf) : b.lines;
       out[p.key] = round2(lines.reduce((t, l) => t + tierOf(l.item) * l.qty, 0));
@@ -1574,8 +1647,12 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
 
   const kitsTab = (
     <>
-      {FAM_DEFS.map((fd) => {
-        const list = fd[0] === "module" ? group("module").filter((m) => m.sub === "neo") : pans({ family: fd[0] });
+      <div className="fam-h" style={{ alignItems: "center", gap: 10 }}>
+        <div className="t">Wall system</div>
+        {wallSysSeg}
+      </div>
+      {(wallSys === "membrane" ? [["sdry", "S-DRY bases"]] : FAM_DEFS).map((fd) => {
+        const list = fd[0] === "module" ? group("module").filter((m) => m.sub === "neo") : pans({ family: fd[0], sdry: fd[0] === "sdry" });
         if (!list.length) return null;
         const usualDrain = majority(list, (p) => (p.group === "module" ? "module" : p.drain?.type || ""));
         return (
@@ -1678,7 +1755,10 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
 
   const customTab = (() => {
     const sel = option && results.includes(option) ? option : null;
-    const tileEats = maxIn && inp.curb !== "curbless";
+    const onSdry = !!sdrySys();
+    const tileEats = maxIn && inp.curb !== "curbless" && !onSdry;
+    const noFit = wallSys === "membrane" ? sdryNoFit({ ...inp, source }) : "";
+    const ask = wallSys === "membrane" && (sdryAsk || (onSdry && !sdryNear && !results.length));
     return (
       <>
         <div className="roomform">
@@ -1738,21 +1818,29 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
                     ))}
                   </div>
                 </div>
-                <div className="rf"><label>Drain — from left × back</label>
+                <div className={"rf" + (onSdry ? " dim" : "")} title={onSdry ? "an S-DRY base is cut evenly on every side — the drain stays centred on it" : undefined}>
+                  <label>Drain — from left × back</label>
                   <div className="dims">
-                    <NumIn className="rinp" placeholder="auto" value={inp.drainX} onCommit={(v) => setInput({ drainX: v.trim() })} />
+                    <NumIn className="rinp" placeholder="auto" disabled={onSdry} value={inp.drainX} onCommit={(v) => setInput({ drainX: v.trim() })} />
                     <span>×</span>
-                    <NumIn className="rinp" placeholder="auto" value={inp.drainY} onCommit={(v) => setInput({ drainY: v.trim() })} />
+                    <NumIn className="rinp" placeholder="auto" disabled={onSdry} value={inp.drainY} onCommit={(v) => setInput({ drainY: v.trim() })} />
                     <span>in</span>
                   </div>
                 </div>
-                <div className="rf"><label>Pan against</label>
+                <div className={"rf" + (onSdry ? " dim" : "")}><label>Pan against</label>
                   <div className="rseg">
-                    <button className={inp.anchor !== "right" ? "on" : ""} onClick={() => setInput({ anchor: "left" })}>Left</button>
-                    <button className={inp.anchor === "right" ? "on" : ""} onClick={() => setInput({ anchor: "right" })}>Right</button>
+                    <button disabled={onSdry} className={inp.anchor !== "right" ? "on" : ""} onClick={() => setInput({ anchor: "left" })}>Left</button>
+                    <button disabled={onSdry} className={inp.anchor === "right" ? "on" : ""} onClick={() => setInput({ anchor: "right" })}>Right</button>
                   </div>
                 </div>
               </div>
+            </div>
+            <div className="rfgrp">
+              <div className="h">Wall system</div>
+              {wallSysSeg}
+              <div className="wsnote">{wallSys === "membrane"
+                ? "S-DRY membrane over cement board or drywall (by others), on " + (sdryBase === "wedi" ? "a wedi pan." : sdryNear ? "the nearest S-DRY base." : "an S-DRY base.")
+                : "wedi Building Panel is the substrate — no backer needed."}</div>
             </div>
             <div className="rfgrp span">
               <div className="h rowh">Walls
@@ -1773,7 +1861,19 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
           </div>
         </div>
 
-        {!results.length ? (
+        {ask ? (
+          <div className="sdryask" data-wedi-sdryask>
+            <div className="why">{noFit
+              ? "No S-DRY base fits — " + noFit + "."
+              : "How should this Membrane shower's floor be built?"}</div>
+            <div className="acts">
+              {!noFit && <button className={"addchip" + (sdryBase === "sdry" && !sdryNear ? " on" : "")} onClick={() => answerSdry("sdry")} data-sdry-answer="sdry">S-DRY base, fit to the room</button>}
+              <button className={"addchip" + (sdryBase === "wedi" ? " on" : "")} onClick={() => answerSdry("wedi")} data-sdry-answer="wedi">Use a wedi pan + curb, with S-DRY walls</button>
+              <button className={"addchip" + (sdryNear ? " on" : "")} onClick={() => answerSdry("nearest")} data-sdry-answer="nearest">Use the nearest S-DRY base anyway</button>
+              <button className="addchip" onClick={() => answerSdry("board")} data-sdry-answer="board">Back to Building Panel</button>
+            </div>
+          </div>
+        ) : !results.length ? (
           <div className="nores">
             No option fits {inch(inp.w)}″ × {inch(inp.d)}″ {inp.curb}
             {inp.drain !== "any" ? " with a " + inp.drain + " drain" : ""} — extensions reach{" "}
@@ -1782,7 +1882,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
         ) : (<>
           <div className="optrow">
             {results.map((o, k) => {
-              const kit = kitFor(o.pan.key, { option: o, walls: wallsArr(o.pan, o.room) });
+              const kit = kitFor(o.pan.key, { option: o, walls: wallsArr(o.pan, o.room), ...(wallSys === "membrane" ? { wallSys } : {}) });
               const floor = round2(o.floorLines.reduce((t, l) => t + tierOf(l.item) * l.qty, 0));
               const full = kit ? kit.lines.reduce((t, l) => t + tierOf(l.item) * l.qty, 0) : 0;
               return (
@@ -1997,7 +2097,13 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
         <div className="bc-scroll">
           <div className="bc-h">
             <div className="t">The build</div>
-            <div className="sub">{pan ? (option ? option.title : unwedi(pan.name)) : "manual — from Browse"}</div>
+            <div className="sub">{pan ? (option ? option.title : unwedi(pan.name)) : "manual — from Browse"}
+              {pan && " · " + (wallSys === "membrane" ? "S-DRY membrane walls" : "Building Panel walls")}
+              {pan && wallSys === "membrane" && (pan.sub !== "sdry" || sdryNear) && (
+                <button className="sdrychip" data-wedi-sdrychip title="reopen the Membrane floor choice"
+                  onClick={() => { setSdryAsk(true); setTab("custom"); }}>
+                  {pan.sub !== "sdry" ? "S-DRY walls on a wedi pan" : "nearest S-DRY base"} · change</button>
+              )}</div>
           </div>
 
           {GROUPS.map(({ key: g, label }) => {
@@ -2108,6 +2214,9 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
           )}
           {build.hints.includes("no-panel") && (
             <div className="whint">No wedi building panel in the price book — wall sheets were not priced. Re-import the book, or pick a panel by hand.</div>
+          )}
+          {build.hints.includes("backer") && (
+            <div className="whint" data-wedi-backer>Membrane needs a backer — cement board or drywall behind it, by others</div>
           )}
           {build.hints.includes("no-cover") && (
             <div className="whint">No drain cover in the price book — the drain line was left off. Re-import the book, or pick a cover by hand.</div>
@@ -2729,6 +2838,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
       <div className="ps-head">
         <div className="t">wedi Shower Layout</div>
         {projectName ? <div className="sub">{projectName}</div> : null}
+        <div className="sub">{wallSys === "membrane" ? "S-DRY membrane walls" : "Building Panel walls"}</div>
         <div className="dt">{new Date().toLocaleDateString()}</div>
       </div>
       <div className="ps-diags">
@@ -2740,7 +2850,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
           <Iso o={drawDiag} w={460} h={360} dWalls={dWalls} panelFit={panelFit} benches={(build && build.benches) || []}
             framedFit={!!(build && build.panPlan)} cuts={curb.cuts} curbs={curb.segs} curbDiags={curb.diags} curbH={curb.h} curbW={curb.w} /></div>
       </div>
-      {(drawDiag.pieces.some((p) => p.cut) || (drawDiag.warnings || []).length || CORNER_LBL.some((c) => corners[c[0]])) && (<>
+      {(drawDiag.pieces.some((p) => p.cut) || (drawDiag.warnings || []).length || CORNER_LBL.some((c) => corners[c[0]]) || build.hints.includes("backer")) && (<>
         <div className="ps-sec">Cuts &amp; install notes</div>
         {drawDiag.pieces.filter((p) => p.cut).map((p, i) => (
           <div className="ps-warn" key={"c" + i}>✂ Cut {p.item.us || p.item.erp} to {inch(p.w)}″ × {inch(p.d)}″ (from {inch(p.cut.w)}″ × {inch(p.cut.d)}″)</div>
@@ -2754,6 +2864,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
           );
         })}
         {drawDiag.drain && drawDiag.drain.note && <div className="ps-warn">• {drawDiag.drain.note}</div>}
+        {build.hints.includes("backer") && <div className="ps-warn">• Cement board / drywall substrate — by others · membrane needs a backer</div>}
       </>)}
       <div className="ps-sec">Materials</div>
       <table className="ps-table">
