@@ -87,3 +87,16 @@ test("sdryNoFit names why nothing fits", () => {
 test("the curbless field seal draws under Setting now; its bill is unchanged", () => {
   assert.equal(wediSlotOf({ item: item(SKU.sdrySeal), group: "install" }), "setting");
 });
+
+test("a curbless wedi pan under Membrane bills one SEAL line (walls + field seal) and one trowel", () => {
+  const o = solve(room(60, 36, "curbless"))[0];
+  const b = build(o, { sdryBase: "wedi" });
+  const keys = b.lines.map((l) => l.item.key);
+  assert.deepEqual(keys.filter((k, i) => keys.indexOf(k) !== i), []);
+  const wallSeal = b.sdry.rows.find((r) => r.key === SDRY.seal);
+  assert.equal(qty(b)[SDRY.seal], (wallSeal ? wallSeal.qty : 0) + 1);
+  assert.match(b.lines.find((l) => l.item.key === SDRY.seal).note, /field seal/);
+  assert.equal(qty(b)[SDRY.sealTrowel], 1);
+  assert.equal(qty(b)[SKU.subliner53], 1);
+  assert.equal(qty(b)[SKU.subCornerIn], 1);
+});

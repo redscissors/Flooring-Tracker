@@ -5448,6 +5448,16 @@ export function wediSlotOf(line) {
   return sdrySlot(it) || WEDI_SLOT[it.group] || "extra";
 }
 
+const FIELD_SEAL_NOTE = "1 field seal — Subliner laps & perimeter";
+function withFieldSeal(rows) {
+  if (!rows.some((r) => r.key === SDRY.seal)) {
+    const at = rows.findIndex((r) => r.key === SDRY.sealTrowel);
+    const seal = { key: SDRY.seal, qty: 1, note: FIELD_SEAL_NOTE };
+    return at < 0 ? [...rows, seal] : [...rows.slice(0, at), seal, ...rows.slice(at)];
+  }
+  return rows.map((r) => (r.key === SDRY.seal ? { ...r, qty: r.qty + 1, note: r.note + " + " + FIELD_SEAL_NOTE } : r));
+}
+
 export const panRoomDims = (pan) => (pan.group === "module"
   ? { w: pan.len, d: MODULE_DEPTH + MODEXT_DEPTH }
   : { w: Math.max(pan.w, pan.d), d: Math.min(pan.w, pan.d) });
@@ -5597,8 +5607,12 @@ export function kitFor(panKey, opts) {
     // Owner rule 2026-07-29: the field seal is wedi S-Dry Seal (trowel-
     // applied, stocked), not 620 sealant — 620 stays in the catalog for
     // steam/Subliner work.
-    push(lines, SKU.sdrySeal, 1, "install", "field seal — Subliner laps & perimeter", true);
-    push(lines, SKU.sdrySealTrowel, 1, "install", '3/16" x 5/32" notch', true);
+    // Under Membrane the wall rows below carry SEAL and its trowel; the field
+    // seal's unit folds into that one SEAL line.
+    if (!membrane) {
+      push(lines, SKU.sdrySeal, 1, "install", "field seal — Subliner laps & perimeter", true);
+      push(lines, SKU.sdrySealTrowel, 1, "install", '3/16" x 5/32" notch', true);
+    }
   }
   if (recess === "kit") push(lines, SKU.recessKit, 1, "install", "recess up to 5×5 ft in ¾ ply", true);
   if (recess === "ramp") push(lines, SKU.ramp, 1, "install", "surface mount — ADA slope", true);
@@ -5617,7 +5631,8 @@ export function kitFor(panKey, opts) {
       wallSf: panelSf, walls, curbed: !!(curb.item && curb.qty > 0), openLen,
       seams: sdryFloor && option && option.seams ? option.seams : [],
     }, catalog());
-    sdry.rows.forEach((r) => push(lines, r.key, r.qty, r.key === SDRY.roll || r.key === SDRY.rollXL ? "walls" : "install", r.note, true));
+    const rows = fam === "curbless" ? withFieldSeal(sdry.rows) : sdry.rows;
+    rows.forEach((r) => push(lines, r.key, r.qty, r.key === SDRY.roll || r.key === SDRY.rollXL ? "walls" : "install", r.note, true));
     push(lines, SKU.proSet, sdryProSet(sdry.membraneSf), "install",
       "1 bag sets the base + 1 per 100 sf of membrane (1/8\" notch)", true);
   } else {
