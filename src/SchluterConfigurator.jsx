@@ -1191,7 +1191,7 @@ export default function SchluterConfigurator({
       <div className="fam-h" style={{ alignItems: "center", gap: 10 }}>
         <div className="t">Wall system</div>
         <div className="rseg">
-          <button className={wallSys === "membrane" ? "on" : ""} onClick={() => setWallSys("membrane")} data-schluter-kits-membrane>KERDI over backer</button>
+          <button className={wallSys === "membrane" ? "on" : ""} onClick={() => setWallSys("membrane")} data-schluter-kits-membrane>Membrane</button>
           <button className={wallSys === "board" ? "on" : ""} onClick={() => setWallSys("board")} data-schluter-kits-board>KERDI-BOARD</button>
         </div>
         <div className="hint">every price below is the FULL kit under this wall system — flip to compare</div>
@@ -1362,7 +1362,7 @@ export default function SchluterConfigurator({
           <div className="rfgrp">
             <div className="h">Wall system — the Schluter fork</div>
             <div className="rseg">
-              <button className={wallSys === "membrane" ? "on" : ""} onClick={custom(() => setWallSys("membrane"))}>KERDI over backer</button>
+              <button className={wallSys === "membrane" ? "on" : ""} onClick={custom(() => setWallSys("membrane"))}>Membrane</button>
               <button className={wallSys === "board" ? "on" : ""} onClick={custom(() => setWallSys("board"))}>KERDI-BOARD</button>
             </div>
             <div className="wsnote">{wallSys === "membrane"
@@ -1582,7 +1582,7 @@ export default function SchluterConfigurator({
         <div className="bc-scroll">
           <div className="bc-h">
             <div className="t">Build</div>
-            <div className="sub">{inches(cfg.w)}×{inches(cfg.d)}{cfg.maxIn ? " tray (max inside)" : ""} · {cfg.curbed ? "curbed" : "curbless"} · {effDrain} drain · {cfg.wallSys === "board" ? "KERDI-BOARD walls" : "KERDI membrane walls"}{pickCand && pickCand.cut ? ` · tray cut ${pickCand.cut}″` : ""}</div>
+            <div className="sub">{inches(cfg.w)}×{inches(cfg.d)}{cfg.maxIn ? " tray (max inside)" : ""} · {cfg.curbed ? "curbed" : "curbless"} · {effDrain} drain · {cfg.wallSys === "board" ? "KERDI-BOARD walls" : "Membrane walls (KERDI)"}{pickCand && pickCand.cut ? ` · tray cut ${pickCand.cut}″` : ""}</div>
           </div>
           {GROUPS.map(({ key: g, label }) => {
             const gl = build.lines.filter((l) => groupOf(l.slot) === g);

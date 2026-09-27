@@ -138,6 +138,13 @@ function Cell({ rows, plus, lens, miss, first, brand, onPick, onDrop, canAdd }) 
   );
 }
 
+// What the wedi column's walls are — S-DRY on a wedi pan when S-DRY can't fit.
+function wediSysLabel(build, wallSys) {
+  const sys = build ? (build.cfg && build.cfg.wallSys) || "board" : wallSys;
+  if (sys !== "membrane") return "Building Panel";
+  return build && build.pan && build.pan.sub !== "sdry" ? "S-DRY membrane on a wedi pan" : "S-DRY membrane";
+}
+
 export default function CompareTab({
   host, hostCfg, hostBuild, cat, source, tier, hostMode = "custom",
   wediBuilderPct, schluterBuilderPct,
@@ -163,6 +170,11 @@ export default function CompareTab({
     () => (wediHost ? roomFromWedi(hostCfg) : roomFromSchluter(hostCfg)),
     [wediHost, hostCfg]);
   const roomOk = room.w > 0 && room.d > 0;
+  // The other column follows the host's wall system (Phase 2, ADR 0051):
+  // Membrane faces Membrane, board faces board.
+  const wallSys = wediHost
+    ? (hostCfg && hostCfg.wallSys === "membrane" ? "membrane" : "board")
+    : (hostCfg && hostCfg.wallSys === "board" ? "board" : "membrane");
 
   // The registry bag the host hands over serves whichever engine THIS tab has
   // to assemble — the host popup already has its own. Hooks can't be
@@ -204,13 +216,13 @@ export default function CompareTab({
   // The HOST column is whatever that popup has on screen; the other column is
   // that engine's house kit for the same room, plus the mirrored lines.
   const wediBuild = useMemo(
-    () => (wediHost ? hostBuild || null : roomOk && wediCatReady ? wediBuildFor(room, { source, tier, manual: plan.manual }) : null),
-    [wediHost, hostBuild, room, roomOk, wediCatReady, source, tier, plan.manual]);
+    () => (wediHost ? hostBuild || null : roomOk && wediCatReady ? wediBuildFor(room, { source, tier, manual: plan.manual, wallSys }) : null),
+    [wediHost, hostBuild, room, roomOk, wediCatReady, source, tier, plan.manual, wallSys]);
   const sch = useMemo(() => {
     if (!wediHost) return { build: hostBuild || null, cfg: hostCfg || null };
     if (!roomOk || !schCatReady || !schCat.length) return { build: null, cfg: null };
-    return schluterBuildFor(room, schCat, { source, mortarItem, manual: plan.manual });
-  }, [wediHost, hostBuild, hostCfg, room, roomOk, schCat, schCatReady, source, mortarItem, plan.manual]);
+    return schluterBuildFor(room, schCat, { source, mortarItem, manual: plan.manual, wallSys });
+  }, [wediHost, hostBuild, hostCfg, room, roomOk, schCat, schCatReady, source, mortarItem, plan.manual, wallSys]);
 
   // The other column draws its kit lines from its build and its mirrored
   // lines from the plan, one per host line — the engine bills them summed.
@@ -301,10 +313,9 @@ export default function CompareTab({
 
   const tip = (
     <div className="space-y-1.5">
-      <p><b>Walls</b> - wedi: structural foam panel, no backer, sealant seams. Schluter: KERDI membrane over cement board
-        (cheap material, more labor) or KERDI-BOARD (closest to wedi). The wall line isn't apples-to-apples: the wedi
-        panel <i>is</i> the substrate, while KERDI membrane needs backer (by others) under it. Switch the Schluter build
-        to KERDI-BOARD to compare like-for-like structure.</p>
+      <p><b>Walls</b> - both columns use the same wall system as the build: Membrane (wedi S-DRY or KERDI, over cement
+        board or drywall by others) or board (wedi Building Panel or KERDI-BOARD, no backer). Flip the wall system in
+        the popup to compare the other pair.</p>
       <p><b>Fit strategy</b> - wedi extends pans and cuts them (extensions + the 6″/12″ deep-cut rule). Schluter cuts
         trays only - no extension parts - so odd rooms lean on the next tray up or a mortar bed.</p>
       <p><b>Pricing model</b> - wedi publishes retail; cost is the ERP net, no markup knob. Schluter is a markup book:
@@ -346,12 +357,12 @@ export default function CompareTab({
 
       <div className="cmp-grid">
         <div className="cat" />
-        <div className="brandh">
-          <span className="bbadge wedi">wedi</span> foam pan system
+        <div className="brandh" data-cmp-sys="wedi">
+          <span className="bbadge wedi">wedi</span> {wediSysLabel(wediBuild, wallSys)}
           <small>{wediHost ? "this build" : "house kit"}</small>
         </div>
-        <div className="brandh">
-          <span className="bbadge slt">Schluter</span> KERDI system
+        <div className="brandh" data-cmp-sys="schluter">
+          <span className="bbadge slt">Schluter</span> {(sch.cfg ? sch.cfg.wallSys : wallSys) === "board" ? "KERDI-BOARD" : "KERDI membrane"}
           <small>{wediHost ? "house kit" : "this build"}</small>
         </div>
         {layout.map((g, gi) => (
