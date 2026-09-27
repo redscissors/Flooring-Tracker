@@ -17,7 +17,7 @@ import { useEscClose, SourceSwitch, NumIn, KitBasketPanel, KitOverwriteConfirm, 
 import { PaneBack, PaneClose } from "./raildrawer.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
-  item, group, pans, kitFor, solve, figureConsumables, panelPlan,
+  item, group, pans, kitFor, solve, savedOption, figureConsumables, panelPlan,
   expandWallFaces, WALL_THICK, curbWidth, curbInsets, applyCurbInset, openCorners, curbRuns, BROWSE_SECTIONS, sectionHit,
   tierPrice, lineItems, coverFrames, inch, round2, SKU, coverageOf, MODULE_DEPTH, MODEXT_DEPTH,
   FINISHES, GROUP_LABEL, BUILDER_MULT, SO_MIN_NET,
@@ -519,6 +519,7 @@ function seedState(seed) {
     s.tileT = +cfg.tileT > 0 ? String(+cfg.tileT) : "";
     s.tab = seed.mode === "custom" ? "custom" : seed.mode === "browse" ? "browse" : "kits";
     s.panKey = cfg.panKey;
+    s.solveId = (cfg.solve && cfg.solve.id) || null;
     // Phase 2 (ADR 0051): the wall system and the Membrane floor answer
     s.wallSys = cfg.wallSys === "membrane" ? "membrane" : "board";
     s.sdryBase = cfg.sdryBase === "wedi" ? "wedi" : "sdry";
@@ -965,7 +966,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   const kitDirty = !!panKey && (geomDirty || Object.keys(qtyOv).length > 0 || manual.length > 0
     || benches.length > 0
     || opts.panelKey !== undefined || opts.curbPick !== undefined || opts.fastenerKey !== undefined
-    || coverPickApplies(opts.coverPick, panKey)
+    || coverPickApplies(opts.coverPick, panKey, wallSys)
     || opts.coverFrame !== undefined
     || opts.sealantForm !== "tube" || opts.recess !== undefined);
 
@@ -1109,8 +1110,14 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
       setResults(solveRoom(DEF_INP, false));
     }
   };
+  // an S-DRY Kits card is an S-DRY base, fit as is — not a wedi pan, not "nearest"
+  const landSdryPan = (key) => {
+    const p = item(key);
+    if (p && p.sub === "sdry") { setSdryBase("sdry"); setSdryNear(false); }
+  };
   const pickPan = (key) => {
     if (option || kitDirty || manual.length) { setConfirmPan(key); return; }
+    landSdryPan(key);
     hardReset(key);
   };
   // "Keep what I added" (owner 2026-09-02): the kit takes the room's work —
@@ -1198,9 +1205,12 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   const answerSdry = (how) => {
     setSdryAsk(false);
     if (how === "board") { setWallSystem("board"); return; }
-    setSdryBase(how === "wedi" ? "wedi" : "sdry");
-    setSdryNear(how === "nearest");
+    const base = how === "wedi" ? "wedi" : "sdry", near = how === "nearest";
+    setSdryBase(base);
+    setSdryNear(near);
     setTab("custom");
+    // an answer that leaves the signature as it was still re-solves the room
+    if (wallSys + "|" + base + "|" + near === sysSig) runSolve(inp);
   };
   const wallSysSeg = (
     <div className="rseg" data-wedi-wallsys>
@@ -1223,7 +1233,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     setResults(res);
     if (!s0.solveInput || !res.length) return;
     // A saved cfg keeps its own pan; a fresh room seed takes the top option.
-    setOption(s0.panKey ? (res.find((o) => o.pan.key === s0.panKey) || res[0]) : res[0]);
+    setOption(s0.panKey ? savedOption(res, s0.solveId, s0.panKey) : res[0]);
     if (!s0.panKey) setPanKey(res[0].pan.key);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1387,12 +1397,12 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     if (!panKey) return [];
     // expandWallFaces appends the extra faces AFTER the base walls, so
     // detail[i] still belongs to buildWalls[i].
-    const det = panelFit ? panelPlan(expandWallFaces(buildWalls)).detail : null;
+    const det = panelFit && wallSys !== "membrane" ? panelPlan(expandWallFaces(buildWalls)).detail : null;
     return buildWalls.map((w, i) => ({
       side: w.side, len: w.len, h: w.h, extra: !!w.extra, at: w.at === "hi" ? "hi" : "lo",
       faces: w.faces || "in", wid: w.wid, courses: det ? det[i].courses : [],
     }));
-  }, [panKey, buildWalls, panelFit]);
+  }, [panKey, buildWalls, panelFit, wallSys]);
 
   // Which corners can take a 45° cut (not boxed in by two walls), and where
   // the curb runs — the open edges, drawn only when the build carries a curb.
@@ -2773,7 +2783,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   const confirmModal = confirmPan && (() => {
     const p = item(confirmPan);
     const nm = p ? (p.group === "module" ? inch(p.len) + '" module' : inch(p.w) + "×" + inch(p.d)) : "";
-    const done = (fn) => () => { const k = confirmPan; setConfirmPan(null); fn(k); };
+    const done = (fn) => () => { const k = confirmPan; setConfirmPan(null); landSdryPan(k); fn(k); };
     return (
       <KitOverwriteConfirm vendor="wedi" kitName={nm} kitWord="stock kit"
         onCancel={() => setConfirmPan(null)}

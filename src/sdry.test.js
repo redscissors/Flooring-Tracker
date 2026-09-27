@@ -64,6 +64,8 @@ test("curb: full by default, lean on pick, one 72 per 72 of opening", () => {
   assert.equal(sdryCurb(80, { sub: "lean" }, cat).item.key, SDRY.curbLean);
   assert.equal(sdryCurb(80, null, cat).qty, 2);
   assert.equal(sdryCurb(60, { none: true }, cat).qty, 0);
+  assert.equal(sdryCurb(60, null, cat).note, 'cut to 60"');
+  assert.equal(sdryCurb(72, null, cat).note, "full length — no cut");
 });
 
 test("PRO-SET matches wedi's own examples", () => {
@@ -101,4 +103,23 @@ test("slots: every S-DRY role lands in a shared slot", () => {
   assert.equal(sdrySlot(e(SDRY.seal)), "setting");
   assert.equal(sdryRole(e("US7076002")), "other");
   assert.equal(sdrySlot({ key: "US1234", group: "panel" }), null);
+});
+
+test("a room a base covers alone offers no extension card", () => {
+  const { options } = fit(24, 24, "offset");
+  assert.ok(options.length > 0);
+  assert.ok(options.every((o) => !o.floorLines.some((l) => l.item.key === SDRY.ext)), options.map((o) => o.title).join(" · "));
+});
+
+test("no option bills an extension it has no piece for", () => {
+  const extsOf = (o) => (o.floorLines.find((l) => l.item.key === SDRY.ext) || { qty: 0 }).qty;
+  for (let w = 24; w <= 100; w += 4) for (let d = 24; d <= 124; d += 4) for (const drain of ["any", "center", "offset"]) {
+    const opts = fit(w, d, drain).options.concat(sdryNearest({ w, d, drain }, cat) || []);
+    for (const o of opts) {
+      const n = o.pieces.filter((p) => p.kind === "ext").length;
+      assert.equal(extsOf(o), n, `${w}×${d} ${drain}: ${o.title}`);
+      assert.ok(o.seams.length <= n, `${w}×${d} ${drain}: ${o.title} seams ${o.seams}`);
+      assert.equal(/2 extensions/.test(o.title) ? 2 : /extension/.test(o.title) ? 1 : 0, n, `${w}×${d} ${drain}: ${o.title}`);
+    }
+  }
 });

@@ -5102,12 +5102,17 @@ export function coverAddOptions(key) {
   return { cur, sizes, styles, finishes };
 }
 
-/** Whether a saved coverPick bills on this pan — a point `{ key }` on a linear pan, or a `{ finish }` on a point pan, is kept but inert. */
-export function coverPickApplies(pick, panKey) {
+/**
+ * Whether a saved coverPick bills on this pan — a point `{ key }` on a linear
+ * pan, or a `{ finish }` on a point pan, is kept but inert; so is a wedi cover
+ * on an S-DRY base under Membrane, and an S-DRY cover anywhere else (kitFor).
+ */
+export function coverPickApplies(pick, panKey, wallSys) {
   const pan = typeof panKey === "string" ? item(panKey) : panKey;
   if (!pick || !pan) return false;
   if (familyOf(pan) === "linear") return !!pick.finish;
-  return !!pick.key && (pan.sub === "sdry" || sdryRole(item(pick.key)) !== "cover");
+  const sdryCover = sdryRole(item(pick.key)) === "cover";
+  return !!pick.key && (familyOf(pan) === "sdry" && wallSys === "membrane" ? sdryCover : !sdryCover);
 }
 
 // wedi's channel frame is a trim ring the linear cover drops into — a design
@@ -5718,6 +5723,12 @@ export function kitFor(panKey, opts) {
   };
 }
 
+/** The solver option a saved cfg was built on: id + pan, then pan alone, then the top option. */
+export function savedOption(res, solveId, panKey) {
+  return res.find((o) => o.pan && o.pan.key === panKey && o.id === solveId)
+    || res.find((o) => o.pan && o.pan.key === panKey) || res[0] || null;
+}
+
 // Re-derive the billed kit from a saved marker / staged basket entry
 // ({ mode, cfg } — cfg from kitFor). The drawer's staged and placed kits both
 // price through this, so a kit reads the same before and after it lands. A
@@ -5734,8 +5745,7 @@ export function buildFromMarker(marker) {
     // different ranks — so the pan this cfg was actually built on (the same
     // panKey kitFor gets below) disambiguates; id alone still breaks a tie
     // between two candidates sharing that pan.
-    option = res.find((o) => o.pan && o.pan.key === cfg.panKey && o.id === cfg.solve.id)
-      || res.find((o) => o.pan && o.pan.key === cfg.panKey) || res[0] || null;
+    option = savedOption(res, cfg.solve.id, cfg.panKey);
   }
   return kitFor(cfg.panKey, {
     option: option || undefined,

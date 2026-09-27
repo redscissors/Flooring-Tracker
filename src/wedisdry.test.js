@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { solve, kitFor, buildFromMarker, sdryNoFit, wediSlotOf, item, SKU, markerCurbKey, coverPickApplies } from "./wedi.js";
+import { solve, savedOption, kitFor, buildFromMarker, sdryNoFit, wediSlotOf, item, SKU, markerCurbKey, coverPickApplies } from "./wedi.js";
 import { SDRY } from "./sdry.js";
-import { wediBuildFor, schluterBuildFor, mirrorPlan } from "./comparekit.js";
+import { wediBuildFor, schluterBuildFor, mirrorPlan, wediCompareRows } from "./comparekit.js";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
 import { catalogOf } from "./schluter.js";
 
@@ -186,4 +186,36 @@ test("Compare: a hand-added KERDI roll mirrors onto an S-DRY roll", () => {
   const e = mirrorPlan(b, "schluter", {}, { cat, source: "all" }).entries[0];
   assert.equal(e.kind, "matched");
   assert.equal(e.match.item.key, SDRY.roll);
+});
+
+test("savedOption reopens the saved option, not the first on its pan", () => {
+  const res = solve({ w: 30, d: 30, curb: "curbed", drain: "any", tolerance: 0.51, anchor: "left", source: "all" });
+  const first = res.find((o) => o.pan.key === "US9320001");
+  const second = res.find((o) => o.pan.key === "US9320001" && o.id !== first.id);
+  assert.ok(second, "two options share a pan");
+  assert.equal(savedOption(res, second.id, "US9320001"), second);
+  assert.equal(savedOption(res, "gone", "US9320001"), first);
+  assert.equal(savedOption(res, second.id, "nope"), res[0]);
+  assert.equal(savedOption([], "x", "y"), null);
+});
+
+test("coverPickApplies agrees with kitFor on an S-DRY base under Membrane", () => {
+  const o = solve({ ...room(60, 36, "curbed", "center"), system: "sdry" })[0];
+  assert.equal(o.pan.sub, "sdry");
+  const bill = (pick) => qty(kitFor(o.pan.key, { option: o, room: o.room, mode: "custom", wallSys: "membrane", coverPick: pick }));
+  assert.equal(bill({ key: SKU.coverSS })[SKU.coverSS], undefined, "a wedi cover is ignored on an S-DRY base");
+  assert.equal(coverPickApplies({ key: SKU.coverSS }, o.pan.key, "membrane"), false);
+  assert.equal(bill({ key: "US1076003" }).US1076003, 1);
+  assert.equal(coverPickApplies({ key: "US1076003" }, o.pan.key, "membrane"), true);
+});
+
+test("Compare: a Membrane wedi build carries one backer note row, a Building Panel build none", () => {
+  const backers = (b) => wediCompareRows(b).filter((r) => r.slot === "wallBoard" && r.noteOnly);
+  for (const opts of [{ wallSys: "membrane" }, { wallSys: "membrane", sdryBase: "wedi" }]) {
+    const rows = backers(wediBuildFor(neutral(true), opts));
+    assert.equal(rows.length, 1, JSON.stringify(opts));
+    assert.equal(rows[0].retail, 0);
+  }
+  assert.equal(backers(wediBuildFor(neutral(true), { wallSys: "board" })).length, 0);
+  assert.equal(backers(wediBuildFor(neutral(true))).length, 0);
 });

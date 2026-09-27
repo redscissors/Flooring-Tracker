@@ -95,14 +95,17 @@ function layout(base, ext, fp, W, D) {
   const seams = [];
   if (fp.along) {
     const edge = fp.o[fp.along];
+    const kept = [];
     for (let i = 0; i < fp.n; i++) {
       const span = Math.min(EXT_W, edge - i * EXT_W);
       const ep = fp.along === "w" ? clip(i * EXT_W, 0, span, EXT_D) : clip(0, i * EXT_W, EXT_D, span);
       const full = { w: fp.along === "w" ? EXT_W : EXT_D, d: fp.along === "w" ? EXT_D : EXT_W };
-      if (ep.w > 0 && ep.d > 0) pieces.push({ kind: "ext", item: ext, ...ep, cut: ep.w < full.w - 0.01 || ep.d < full.d - 0.01 ? full : null });
+      kept.push(ep.w > 0 && ep.d > 0);
+      if (kept[i]) pieces.push({ kind: "ext", item: ext, ...ep, cut: ep.w < full.w - 0.01 || ep.d < full.d - 0.01 ? full : null });
     }
-    seams.push(r2(fp.along === "w" ? bp.w : bp.d));
-    if (fp.n === 2) seams.push(EXT_D);
+    // a seam is sealed only where both of its sides survive the cut-back
+    if (kept.some(Boolean)) seams.push(r2(fp.along === "w" ? bp.w : bp.d));
+    if (fp.n === 2 && kept[0] && kept[1]) seams.push(EXT_D);
   }
   return { pieces, seams, cx, cy };
 }
@@ -128,10 +131,15 @@ export function sdryFit(input, cat) {
   const typed = bases.filter((b) => want.includes(b.drain.type));
   const ext = cat.find((e) => e.key === SDRY.ext && (!stockOnly || e.stock)) || cat.find((e) => e.key === SDRY.ext) || null;
   const cands = [];
+  const covers = (fp) => fp.w >= W - 0.01 && fp.d >= D - 0.01;
   for (const pool of [typed.length ? typed : bases]) {
     for (const base of pool) {
-      for (const fp of footprints(base, ext)) {
-        if (fp.w < W - 0.01 || fp.d < D - 0.01) continue;
+      const fps = footprints(base, ext);
+      // a base that covers the room alone never takes an extension: the
+      // even cut-back would cut the extension away and still bill it
+      const alone = fps.some((fp) => fp.tier === 1 && covers(fp));
+      for (const fp of fps) {
+        if (!covers(fp) || (alone && fp.tier > 1)) continue;
         const pieceCost = base.retail + (fp.n || 0) * (ext ? ext.retail : 0);
         cands.push({ base, fp, cut: fp.w * fp.d - W * D, cost: pieceCost });
       }
@@ -161,16 +169,17 @@ function optionOf(c, ext, W, D, input, rank) {
   const drx = fp.o.rot ? dr.y : dr.x, dry = fp.o.rot ? dr.x : dr.y;
   const drain = { type: dr.type, x: r2(bx + drx - cx), y: r2(by + dry - cy), len: 0, axis: null, note: "" };
   const floorLines = [{ item: base, qty: 1 }];
-  if (fp.n) floorLines.push({ item: ext, qty: fp.n });
+  const extN = pieces.filter((p) => p.kind === "ext").length;
+  if (extN) floorLines.push({ item: ext, qty: extN });
   const cutW = r2(fp.w - W), cutD = r2(fp.d - D);
   const cutTxt = [cutW > 0.01 ? `cut ${inch(cutW / 2)}″ off each side` : "", cutD > 0.01 ? `cut ${inch(cutD / 2)}″ off each end` : ""].filter(Boolean).join(", ");
   const baseTxt = `S-DRY ${inch(fp.o.w)}×${inch(fp.o.d)}`;
-  const title = fp.tier === 1 ? baseTxt : fp.tier === 2 ? baseTxt + " + extension" : baseTxt + " + 2 extensions (seamed)";
+  const title = extN === 0 ? baseTxt : extN === 1 ? baseTxt + " + extension" : baseTxt + " + 2 extensions (seamed)";
   const warnings = [];
-  if (fp.tier === 3) warnings.push("two extensions side by side — S-DRY tape seals the seam between them");
+  if (extN === 2) warnings.push("two extensions side by side — S-DRY tape seals the seam between them");
   return {
     id: "sdry-" + fp.tier + "-" + rank, kind: "sdry", title,
-    badges: [fp.tier === 1 ? "One piece" : fp.tier === 2 ? "Base + extension" : "Base + 2 extensions"].concat(cutTxt ? [cutTxt] : pieces.some((p) => p.cut) ? ["Trim to fit"] : ["No cutting"]),
+    badges: [extN === 0 ? "One piece" : extN === 1 ? "Base + extension" : "Base + 2 extensions"].concat(cutTxt ? [cutTxt] : pieces.some((p) => p.cut) ? ["Trim to fit"] : ["No cutting"]),
     pieces, drain, warnings, seams,
     floorLines, floorPrice: r2(floorLines.reduce((t, l) => t + l.item.retail * l.qty, 0)),
     waste: r2(c.cut / 144), input: { ...input, system: "sdry" },
@@ -216,7 +225,8 @@ export function sdryCurb(openLen, pick, cat) {
   const it = cat.find((e) => e.key === key) || null;
   if (!it) return { item: null, qty: 0, note: "", len: 0 };
   const qty = Math.max(1, Math.ceil((openLen - 0.01) / CURB_LEN));
-  return { item: it, qty, note: qty > 1 ? r2(openLen) + '" of open edge — cut to fit' : "cut to " + r2(openLen) + '"', len: CURB_LEN };
+  const note = qty > 1 ? r2(openLen) + '" of open edge — cut to fit' : openLen >= CURB_LEN - 0.01 ? "full length — no cut" : "cut to " + r2(openLen) + '"';
+  return { item: it, qty, note, len: CURB_LEN };
 }
 
 // --- the walls ---------------------------------------------------------------
