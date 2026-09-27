@@ -2329,7 +2329,7 @@ difference lived in a caveat sentence.
 wedi does sell a membrane system, S-DRY, and every part is in the book:
 - four bases, and a 24×48 extension;
 - full and lean 72″ curbs;
-- a bonding-flange drain and seven covers;
+- a bonding-flange drain and eight covers;
 - 104 and 106 sf rolls, 5″ × 32′ tape, corners and collars;
 - S-DRY SEAL.
 

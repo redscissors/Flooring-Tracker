@@ -441,6 +441,13 @@ prototyping the plan; 19–23 were made building it.
     own footprint is larger than the room; else "Trim to fit" for any cut
     piece (incl. an extension trim on the nearest option); else "No cutting".
     (Task 7 proof review, commit c9503ef.)
+24. **Final review fixes.** A base that covers the room alone offers no
+    extension card; extensions, seams, titles and badges follow the pieces
+    that survive the cut-back. The popup reopens a saved option by id + pan
+    (`savedOption`, shared with buildFromMarker). `coverPickApplies` takes the
+    wall system (a wedi cover is inert on an S-DRY base under Membrane). An
+    uncut 72″ S-DRY curb reads "full length — no cut". Membrane drawings show
+    no panel courses.
 
 Also: the final suite count is 1822 (the plan said 1814), because of the
 tests the build added.

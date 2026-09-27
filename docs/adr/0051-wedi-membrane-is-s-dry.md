@@ -22,7 +22,7 @@ difference lived in a caveat sentence.
 wedi does sell a membrane system, S-DRY, and every part is in the book:
 - four bases, and a 24×48 extension;
 - full and lean 72″ curbs;
-- a bonding-flange drain and seven covers;
+- a bonding-flange drain and eight covers;
 - 104 and 106 sf rolls, 5″ × 32′ tape, corners and collars;
 - S-DRY SEAL.
 
@@ -49,11 +49,16 @@ does.
      the S-DRY branch's own inert-pick guard. Stops an S-DRY cover carried
      across a flip to Building Panel from billing over a wedi drain (Task 5
      review finding, made during the build).
+     On an S-DRY base under Membrane it's the reverse: a wedi cover pick is
+     inert (final review).
 3. **The S-DRY fit (`sdryFit`), in rank order:**
    - one base, cut evenly;
    - a base + one 24×48 extension along an edge ≤ 48″;
    - a base + two extensions side by side along the 72″ edge, seamed with
      tape.
+
+   A base that covers the room alone never takes an extension, and an
+   extension bills per piece left after the cut-back (final review).
 
    Ties within a tier: least cut-away, then stock, then price. A linear
    drain, an oversize room and a book with no bases each carry a stated

@@ -1198,6 +1198,8 @@ src/
                     # footprint is larger than the room; else "Trim to fit"
                     # when any piece is cut — including an extension trimmed
                     # on the nearest option; else "No cutting".
+                    # A base that covers the room alone never takes an
+                    # extension; ext qty/seams/title follow surviving pieces.
   WediConfigurator.jsx  # the wedi popup, a `React.lazy` chunk (ADR 0026) so the
                     # tables stay off boot. Carries the shared SourceSwitch
                     # (phase 4): Stock only re-solves an active custom room
