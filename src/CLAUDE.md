@@ -28,8 +28,8 @@ src/
                     # patch, wired as `onQuoteOptions` on both job-context
                     # vendor mounts (never on the Apps-hub copies).
                     # `cleanCards` (isWide && headerLayout "clean", 2026-09-27)
-                    # swaps the area frame for Clean's cards (1.5px ink outline,
-                    # the dropdown box line): one slim tan bar
+                    # swaps the area frame for Clean's cards (the regular
+                    # slate-200 card border): one slim tan bar
                     # per area carrying name · column labels · subtotal · ⋯
                     # (⋯ = the area menu + "Delete area…", hover-only grip);
                     # an option area washes the bar in its option color with

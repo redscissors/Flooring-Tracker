@@ -301,6 +301,19 @@ export default function App({ user, onSignOut }) {
   const [isWide, setIsWide] = useState(() => typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(min-width: 768px)").matches : true);
   // Clean's area cards ride the same per-user header switch (.scratch/159_clean-editor).
   const cleanCards = isWide && headerLayout === "clean";
+  // PROTOTYPE (throwaway, 2026-09-27): ?hv=h1|h2|h3 pins the Clean header in
+  // a band exactly as tall as the rail's logo block, so its bottom line runs
+  // straight across the top. Remove the losers once the owner picks.
+  const headBand = cleanCards ? new URLSearchParams(window.location.search).get("hv") : null;
+  const railHeadRef = useRef(null);
+  const [railHeadH, setRailHeadH] = useState(0);
+  useLayoutEffect(() => {
+    const el = railHeadRef.current;
+    if (!el || !headBand) return;
+    const ro = new ResizeObserver(() => setRailHeadH(el.getBoundingClientRect().height));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [headBand, isWide]);
   const [custChip, setCustChip] = useState(null); // which contact chip is expanded (customer view)
   const [viewTab, setViewTab] = useState("edit"); // project detail: "edit" | "preview" (on-screen estimate paper)
   const [projSheet, setProjSheet] = useState(false); // mobile shell: project bottom sheet
@@ -1334,7 +1347,7 @@ export default function App({ user, onSignOut }) {
     };
     if (headerLayout === "classic") return <ProjectHeaderClassic {...hp} />;
     if (headerLayout !== "clean") return <ProjectHeaderBar {...hp} />;
-    return <ProjectHeaderClean {...hp} ping={ping} preview={viewTab === "preview"} onTogglePreview={() => setViewTab((t) => (t === "preview" ? "edit" : "preview"))}
+    return <ProjectHeaderClean {...hp} ping={ping} band={headBand} preview={viewTab === "preview"} onTogglePreview={() => setViewTab((t) => (t === "preview" ? "edit" : "preview"))}
       erp={sel.erpOrders?.length ? erpStatus(sel.erpOrders, sel.erpKeyed, erpLines()) : null} />;
   };
   // Order entry + order sheet ask which option is being ordered when the job
@@ -1461,7 +1474,7 @@ export default function App({ user, onSignOut }) {
         {/* Sidebar */}
         <aside style={{ width: RAIL_W, ...zoomStyle }}
           className={isWide ? "ft-rail border-r border-slate-200 flex flex-col shrink-0" : `ft-rail border-r border-slate-200 flex flex-col fixed inset-y-0 left-0 z-40 transform transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
-          <div className="relative px-4 py-3.5 border-b border-slate-100">
+          <div ref={railHeadRef} className="relative px-4 py-3.5 border-b border-slate-100">
             <div className="min-w-0"><button onClick={goHome} title="Home" className="block text-left hover:opacity-70 transition"><NedLogo height={27} /></button><div className="ft-eyebrow text-[9.5px] mt-1">Selection Manager</div></div>
             <div className="absolute top-3 right-3 flex items-center">
               <button onClick={() => railDispatch({ type: "toggleDrawer", which: "settings" })} aria-label="Settings" aria-expanded={railNav.drawer === "settings"} title="Settings"
@@ -1611,6 +1624,12 @@ export default function App({ user, onSignOut }) {
           ) : !sel._full ? (
             <div className="h-full flex items-center justify-center text-slate-400 text-sm">Loading {sel.name || "customer"}…</div>
           ) : (
+            <>
+            {headBand && (
+              <div className="sticky top-0 z-30 border-b border-slate-100" style={{ height: railHeadH || 73, background: "var(--ft-cream)" }}>
+                <div className={headBand === "h3" ? "h-full px-5" : "h-full max-w-4xl mx-auto px-5"}>{deskHeader()}</div>
+              </div>
+            )}
             <div className="max-w-4xl mx-auto p-2 md:p-5">
               {/* Edit / Print preview tabs are a desk thing (Fold 5 header
                   2026-09-15): on the phone the ⋯ sheet prints, and the area
@@ -1629,7 +1648,7 @@ export default function App({ user, onSignOut }) {
                   in projectheader.jsx. Clean sits above the edit/preview split
                   because it stays on screen in both; the other two live inside
                   the edit view as before. Mobile keeps its own band below. */}
-              {isWide && headerLayout === "clean" && deskHeader()}
+              {isWide && headerLayout === "clean" && !headBand && deskHeader()}
               {/* Edit view stays mounted (hidden, not unmounted) so field focus and in-progress typing survive tab flips. */}
               <div className={viewTab === "edit" ? "" : "hidden"}>
               {isWide && headerLayout !== "clean" && deskHeader()}
@@ -1765,7 +1784,7 @@ export default function App({ user, onSignOut }) {
                   // card isn't clipped at its home area's edge) and while one of its
                   // products' materials drawers is open (so the drawer can float past
                   // the card's bottom edge without being clipped).
-                  <div key={a.id} data-area-drop={a.id} onClickCapture={isWide ? undefined : () => setActiveAreaId(a.id)} className={`${cleanCards ? "group" : ""} rounded-lg border bg-white transition-colors ${drag || areaMatOpen ? "" : "overflow-hidden"} ${drag?.to?.aid === a.id ? "border-indigo-400" : drag ? "border-dashed border-slate-300" : cleanCards ? "" : "border-slate-200"}`} style={cleanCards ? (drag ? undefined : { borderColor: "var(--ft-text)", borderWidth: 1.5 }) : oc ? { borderColor: oc.main, borderWidth: 1.5 } : undefined}>
+                  <div key={a.id} data-area-drop={a.id} onClickCapture={isWide ? undefined : () => setActiveAreaId(a.id)} className={`${cleanCards ? "group" : ""} rounded-lg border bg-white transition-colors ${drag || areaMatOpen ? "" : "overflow-hidden"} ${drag?.to?.aid === a.id ? "border-indigo-400" : drag ? "border-dashed border-slate-300" : "border-slate-200"}`} style={!cleanCards && oc ? { borderColor: oc.main, borderWidth: 1.5 } : undefined}>
                     {cleanCards ? (() => {
                       // Clean's area bar (owner picks 2026-09-27, .scratch/159_clean-editor
                       // "D"): name, column labels and subtotal share one slim bar. An
@@ -2683,6 +2702,7 @@ export default function App({ user, onSignOut }) {
                 </div>
               )}
             </div>
+            </>
           )}
         </main>
         {/* Customers, Apps and Settings open here, over the still-mounted

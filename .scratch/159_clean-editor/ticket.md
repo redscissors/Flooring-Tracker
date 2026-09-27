@@ -207,6 +207,25 @@ the dropdowns draw. Clean cards now carry a 1.5px `var(--ft-text)` border
 (SearchPop's box line; flips with dark mode). Shots `63-card-ink-line`,
 `64-card-line-vs-dropdown`.
 
+## Round 2h — card border back to regular; header-in-one-band prototypes (2026-09-27)
+
+Owner: the ink card outline (2g) goes back to the regular card border the
+non-Clean layouts use (`border-slate-200`, 1px).
+
+Owner: can the whole header fit in the rail logo block's height, so the
+line under "the ned" runs straight across the top? Prototypes behind a
+throwaway `?hv=` switch (App.jsx `headBand`; ProjectHeaderClean `band`
+prop). The band is sticky at the top of the scroll area, measured to the
+rail logo block's height (ResizeObserver), same slate-100 bottom line.
+- h1 — two rows in the card column: customer · project · N · address ·
+  notes … salesperson / settings · icons … Order entry · Print.
+- h2 — two rows: customer · project · N … Order entry · Print / settings ·
+  icons · address · notes … salesperson.
+- h3 — one row across the full width: customer over a tiny project line,
+  controls and actions to the right. Cramped at 1280 (name/address clip).
+Shots `71/72/73-band-h*.png`, `-scrolled` (the band stays pinned),
+`-1280` (laptop width).
+
 ## Round 2 — open: product rows
 
 What the mockups show (every board uses the same card treatment; the frame
