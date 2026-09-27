@@ -210,7 +210,12 @@ during execution (ledger: `.superpowers/sdd/2026-09-27-swap-every-line/progress.
   `curbKey` translates with its profile, so the bill is identical.
 - **Tile sf follows the marker.** `showersf.js` read `cfg.curbKey` directly for
   the tile-sf pieces; it now resolves the billed curb through `markerCurbKey`,
-  the same way `kitFor` does, so tile-sf and bill can't disagree.
+  the same way `kitFor` does, so tile-sf and bill read the same curb —
+  **except** a stale `curbKey` (not in the book): `markerCurbKey` still
+  returns the saved key for that case ("enter manually" on the tile-sf side),
+  while `kitFor` bills the recipe default (the next bullet). That one
+  disagreement is a known, brief-specified gap, not a bug; the existing
+  `showersf.js` test expects it.
 - **Stale curb keys bill the recipe, not nothing.** A stale wedi `curbKey` —
   not in the book — used to read as no curb; it now bills the recipe default
   curb instead, the Schluter `swaps` precedent (a stale sku falls back to the
@@ -220,8 +225,24 @@ during execution (ledger: `.superpowers/sdd/2026-09-27-swap-every-line/progress.
   kit/default panel and says so on the line ("… not in the book — house kit /
   default panel used"), rather than silently vanishing or silently
   substituting. `fastenerKey` is honoured only for the two boxed kits
-  (`US5000070`, `US5000086`); an explicit house-kit pick keeps the recipe's
-  own count.
+  (`US5000070`, `US5000086`) — master packs, the Vapor 85 patch kit and loose
+  self-tapping screws are not offered as a fastener-kit pick; an explicit
+  house-kit pick keeps the recipe's own count. Unlike the Schluter `swaps`
+  fallback (which keeps a stale sku standing in the marker), wedi does not
+  re-write a stale `fastenerKey`/`panelKey` back onto the marker — the next
+  save drops the stale pick rather than restating it.
+- **A stale Schluter `swaps.fastener` / bench `board` falls back silently.**
+  Same rule as the existing grate/curb/board swaps (the `swapped` lookup): a
+  sku the catalog no longer carries falls back to the recipe's own part with
+  no note on the line — a real part still bills, nothing is dropped, and
+  nothing here changes that established behavior.
+- **Stock only: stepped rows still show SO chips.** The stepped ⇄ gate
+  (`steppedKind`) counts the whole catalog, while the list ⇄ gate (`canSwap`)
+  counts only the Stock-only pool — so under Stock only a stepped popover
+  (membrane, band, curb, panel) can still show a special-order chip, tagged
+  with the SO dot, when that's the only alternative; a list popover never
+  offers one the pool doesn't carry. This is deliberate (spec: a popover is
+  never empty, and an SO pick lands flagged), not an inconsistency to fix.
 - **Membrane scope and roll/band codes.** The membrane choice is wall-only —
   the mortar-bed floor keeps the recipe's `pickRolls`. An unsuffixed KERDI (or
   KEBA) roll's code is `"30M"`, the full roll. Band width labels come from a
@@ -239,9 +260,11 @@ during execution (ledger: `.superpowers/sdd/2026-09-27-swap-every-line/progress.
   (`US4000001`/`US4000002`).
 - **Re-solves keep `curbPick`.** A room re-solve keeps `curbPick`, exactly as
   it keeps `coverPick`; a kit-card reset wipes both. "Turn into a curb" on a
-  curbless pan now drafts `{ sub: "lean" }` (Auto), where it used to pin the
-  60″ lean piece — it's a UI default, not a saved bill, so Auto costs nothing
-  if wrong.
+  curbless pan now SETS `curbPick` to `{ sub: "lean" }` (Auto) directly —
+  committed on the click, riding straight into the marker, not a draft a
+  popover holds — where it used to pin the 60″ lean piece; Auto is a UI
+  default for a one-click action, not a considered choice, so it costs
+  nothing if wrong.
 - **Bench board picks are per-build.** A bench's `board` pick is cleared when
   that bench's build changes (framed ⇄ site); the bench-wrap list popover
   offers ½″ boards only (`halfBoardPool`), the same pool the Walls one-size
@@ -250,9 +273,15 @@ during execution (ledger: `.superpowers/sdd/2026-09-27-swap-every-line/progress.
   by group + bench index + sku, so a bench board or a floor sheet sharing a
   sku with another line's part can't hijack that other line's ⇄.
 - **Browse-only wedi builds hide opts-backed ⇄.** In a Browse-only wedi build
-  (no `build.pan`), the ⇄ on lines that write build-derived options (curb,
-  panel) are hidden — their picks have nothing to apply to on a manual line,
-  and rendering one crashed the popup before the guard.
+  (no `build.pan`), the ⇄ on every line that writes build-derived options —
+  cover, cover frame, curb, wall panel, fastener kit, joint sealant form, and
+  the curbless recess/ramp pick — is hidden, not just curb/panel; their picks
+  have nothing to apply to on a manual line, and rendering one crashed the
+  popup before the guard.
+- **Popover plumbing.** `buildKit` returns `need: { wallSf, bandLf }`, and
+  bench lines carry their `bench` index; `kitFor` returns
+  `curbFit: { openLen, fam }`. Both popovers read these off the build/kit
+  result instead of re-deriving the sizing rule themselves.
 - **Selectors kept.** Both popovers keep 1a's `data-drain-*` DOM attributes, so
   the 1a proof scripts still run unmodified.
 
