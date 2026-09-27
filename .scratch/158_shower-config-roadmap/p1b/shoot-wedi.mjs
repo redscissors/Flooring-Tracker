@@ -1,7 +1,8 @@
 // Proof: ⇄ on every wedi line (ticket 158 Phase 1b) — the stepped curb
 // popover with a draft and Δ, the curb choice re-fitting after a room change,
 // the stepped wall-panel popover, the fastener-kit list swap, and a one-part
-// line (PRO-SET) with no ⇄.
+// line (PRO-SET) with no ⇄; a curb pick dropped by Curbless; a kit's
+// Browse-added curb with no ⇄.
 //   npx vite --port 5199 ; node .scratch/158_shower-config-roadmap/p1b/shoot-wedi.mjs
 import { createRequire } from "node:module";
 const { chromium } = createRequire("/opt/node22/lib/node_modules/playwright/")("playwright-core");
@@ -189,6 +190,44 @@ for (const re of [/Curb/, /Fastener/, /Joint Sealant/i]) {
   }
 }
 await shot("w9-browse-only-no-swap");
+
+// a curb pick belongs to the curb type it was made for: Curbless drops it, and Curbed again bills the recipe curb
+await pg.goto("http://localhost:5199/wedi-preview.html");
+await pg.waitForSelector("[data-wedi-pan]", { timeout: 20000 }); await pg.waitForTimeout(600);
+await pg.locator("[data-source-toggle]").click(); await pg.waitForTimeout(500);
+await pg.locator("[data-wedi-pan='US9100004']").click(); await pg.waitForTimeout(800);
+await open(/Curb/);
+await pg.locator('[data-drain-chip="Style:full"]').click();
+await pg.locator("[data-drain-use]").click(); await pg.waitForTimeout(600);
+if (!/Full Foam Curb/.test(await lineText(/Curb/))) fail("Use this did not land the full-foam curb");
+await pg.locator(".modetab", { hasText: "Custom shower" }).click(); await pg.waitForTimeout(500);
+await pg.locator(".rseg button", { hasText: "Curbless" }).click(); await pg.waitForTimeout(900);
+const curbless = await line(/Curb(?!less)/).count();
+console.log("curbless room:", curbless ? await lineText(/Curb(?!less)/) : "no curb line");
+if (curbless) fail("the curbless room still bills the curb picked for the curbed one");
+await shot("w10-curbless-drops-curb-pick");
+await pg.locator(".rseg button", { hasText: "Curbed" }).click(); await pg.waitForTimeout(900);
+const backCurbed = await line(/Curb(?!less)/).count() ? await lineText(/Curb(?!less)/) : "";
+console.log("curbed again:", backCurbed || "no curb line");
+if (!backCurbed || /Full Foam/.test(backCurbed)) fail("Curbed again did not bill the recipe curb");
+
+// a kit build's Browse-added curb is a manual line: no ⇄ (the curb choice rides the kit's own curb)
+await pg.goto("http://localhost:5199/wedi-preview.html");
+await pg.waitForSelector("[data-wedi-pan]", { timeout: 20000 }); await pg.waitForTimeout(600);
+await pg.locator("[data-source-toggle]").click(); await pg.waitForTimeout(500);
+await pg.locator("[data-wedi-pan='US9200007']").click(); await pg.waitForTimeout(800); // curbless 36×60
+await pg.locator(".modetab", { hasText: "Browse" }).click(); await pg.waitForTimeout(500);
+await pg.locator(".ft-hopt", { hasText: /^Curbs/ }).click(); await pg.waitForTimeout(300);
+await pg.locator(".brow", { hasText: /Lean/ }).first().locator(".stepper button", { hasText: "+" }).click(); await pg.waitForTimeout(500);
+const manualCurb = await line(/Curb(?!less)/).count() ? await line(/Curb(?!less)/).locator(".swapb").count() : -1;
+console.log("kit + Browse curb:", manualCurb < 0 ? "no line" : manualCurb ? "⇄" : "no ⇄", "|", manualCurb < 0 ? "" : await lineText(/Curb(?!less)/));
+if (manualCurb < 0) fail("the Browse-added curb did not land in the kit build");
+if (manualCurb > 0) {
+  fail("the kit build's Browse-added curb shows a ⇄");
+  await line(/Curb(?!less)/).locator(".swapb").click(); await pg.waitForTimeout(400);
+}
+await line(/Curb(?!less)/).evaluate((el) => el.scrollIntoView({ block: "center" })).catch(() => {});
+await shot("w11-kit-manual-curb-no-swap");
 
 await b.close();
 if (err) process.exit(1);

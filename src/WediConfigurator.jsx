@@ -1122,7 +1122,11 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     if (res.length) { setOption(res[0]); setPanKey(res[0].pan.key); } else { setOption(null); setPanKey(null); }
     resetBuild(true);
   };
-  const setInput = (patch) => { const next = { ...inp, ...patch }; setInp(next); runSolve(next); };
+  // a curb choice belongs to the curb type it was made for
+  const setInput = (patch) => {
+    const next = { ...inp, ...patch }; setInp(next); runSolve(next);
+    if (patch.curb && patch.curb !== inp.curb) setOpts((o) => ({ ...o, curbPick: undefined }));
+  };
   const selectOption = (k) => { const o = results[k]; if (!o) return; retuneWalls(); setOption(o); setPanKey(o.pan.key); resetBuild(true); };
 
   // One-shot at mount: the room always arrives solved, so the Custom tab is
@@ -1349,7 +1353,8 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
       };
     }
     // every other swap writes opts, which a Browse-only build (no pan) ignores
-    if (!build || !build.pan) return null;
+    // and a Browse-added line in a kit build isn't the part they pick
+    if (!build || !build.pan || line.auto === false) return null;
     // the walls' panel only — a bench's own sheet is not the wall pick
     if (g === "panel") return line.group === "walls" ? { stepped: "panel" } : null;
     if (g === "cover") return { drain: true };
@@ -2181,7 +2186,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     const setDraft = (next) => setSwap((sw) => (sw ? { ...sw, draft: next } : sw));
     const o = curbOptions(draft, openLen, fam);
     const res = o.result;
-    const cur = build.lines.filter((l) => l.item.group === "curb");
+    const cur = build.lines.filter((l) => l.item.group === "curb" && l.auto !== false);
     const curTotal = round2(cur.reduce((t, l) => t + tierOf(l.item) * l.qty, 0));
     const next = res.item ? round2(tierOf(res.item) * res.qty) : 0;
     const chip = (c) => ({ ...c, label: inchGlyph(c.label), title: c.ok ? "" : "not made at this length", onPick: () => setDraft(c.next) });
@@ -2227,7 +2232,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
         title={`Wall panel — ${round2(build.panelSf)} sf of wall`} rows={rows} stockFirst={source === "stock"}
         summary={{
           what: `${sheets} × ${unwedi(draft.name)}${draft.stock ? "" : " · special order"}`,
-          why: `${draft.sf} sf/sheet — the count follows the wall area`,
+          why: `${draft.sf} sf/sheet — the count follows the wall area${(build.benches || []).some((b) => b.build === "framed") ? "; the bench wrap follows the wall panel" : ""}`,
           delta: fmDelta(round2(next - curTotal)), total: fm(next), up: next > curTotal,
         }}
         onUse={() => {

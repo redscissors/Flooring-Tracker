@@ -1012,7 +1012,7 @@ export default function SchluterConfigurator({
     return null;
   };
   // ⇄ shows only where the catalog offers a real alternative
-  const canSwap = (l) => { const ch = swapChoices(l); return !!ch && ch.list.length > 1; };
+  const canSwap = (l) => { const ch = swapChoices(l); return !!ch && new Set([...ch.list.map((i) => i.sku), l.item.sku]).size > 1; };
 
   // KERDI membrane and KERDI-BAND lines open the stepped popover (Phase 1b):
   // Width → Roll, the choice riding cfg.swaps.membrane / cfg.swaps.band.
@@ -2251,7 +2251,8 @@ export default function SchluterConfigurator({
 
   // The membrane / band popover — the drain popover's draft model: chips edit
   // `swap.draft`, the Δ reads it against the lines the bill carries now, and
-  // Use this commits it (a draft that bills the default stores no pick).
+  // Use this commits it. Membrane's default draft stores nothing; a band width
+  // pick is kept even at the default, since it stops the all-widths search.
   const steppedPanel = () => {
     const mem = swap.stepped === "membrane";
     const draft = swap.draft || {};

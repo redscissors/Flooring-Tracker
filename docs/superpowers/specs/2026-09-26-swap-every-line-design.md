@@ -214,7 +214,7 @@ during execution (ledger: `.superpowers/sdd/2026-09-27-swap-every-line/progress.
   **except** a stale `curbKey` (not in the book): `markerCurbKey` still
   returns the saved key for that case ("enter manually" on the tile-sf side),
   while `kitFor` bills the recipe default (the next bullet). That one
-  disagreement is a known, brief-specified gap, not a bug; the existing
+  disagreement is a known gap, flagged to the owner; the existing
   `showersf.js` test expects it.
 - **Stale curb keys bill the recipe, not nothing.** A stale wedi `curbKey` —
   not in the book — used to read as no curb; it now bills the recipe default
@@ -265,6 +265,10 @@ during execution (ledger: `.superpowers/sdd/2026-09-27-swap-every-line/progress.
   popover holds — where it used to pin the 60″ lean piece; Auto is a UI
   default for a one-click action, not a considered choice, so it costs
   nothing if wrong.
+- **A curb pick belongs to its curb type.** Changing the room's curb type
+  (Curbed ⇄ Curbless) clears `curbPick`: a Full curb picked for a curbed room
+  must not bill on the curbless pan the re-solve lands, and a `{ none: true }`
+  must not leave a curbed pan with no curb. Curbed again bills the recipe curb.
 - **Bench board picks are per-build.** A bench's `board` pick is cleared when
   that bench's build changes (framed ⇄ site); the bench-wrap list popover
   offers ½″ boards only (`halfBoardPool`), the same pool the Walls one-size
@@ -275,9 +279,14 @@ during execution (ledger: `.superpowers/sdd/2026-09-27-swap-every-line/progress.
 - **Browse-only wedi builds hide opts-backed ⇄.** In a Browse-only wedi build
   (no `build.pan`), the ⇄ on every line that writes build-derived options —
   cover, cover frame, curb, wall panel, fastener kit, joint sealant form, and
-  the curbless recess/ramp pick — is hidden, not just curb/panel; their picks
-  have nothing to apply to on a manual line, and rendering one crashed the
-  popup before the guard.
+  the curbless recess/ramp pick — is hidden, not just curb/panel. Only the
+  curb ⇄ crashed the popup before the guard; the others are hidden because a
+  Browse-only build ignores the settings they write.
+- **A kit build's Browse-added lines get no opts-backed ⇄.** A manual
+  (`auto: false`) line in a kit build doesn't show those ⇄ either: the pick
+  would rewrite the kit's own part and leave the manual line standing (a
+  curbless kit plus a Browse curb, picking Lean, billed two curbs). The curb
+  popover's Δ and quantity-override clearing count only the kit's curb.
 - **Popover plumbing.** `buildKit` returns `need: { wallSf, bandLf }`, and
   bench lines carry their `bench` index; `kitFor` returns
   `curbFit: { openLen, fam }`. Both popovers read these off the build/kit
