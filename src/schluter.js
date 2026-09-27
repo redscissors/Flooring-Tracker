@@ -933,9 +933,7 @@ const DRAIN_ADD = (i) => (i.g === "drain" && i.part === "channel" && i.len) || (
  * build's Drain "+" leads with the grate.
  */
 export function addParts(g, cat, { linear = true } = {}) {
-  return (ADD_PARTS[g] || []).filter((p) => (p.stepped === "drain" ? linear && cat.some(DRAIN_ADD)
-    : p.stepped === "band" ? cat.some((i) => i.g === "seam" && i.lf)
-      : cat.some(p.hit)));
+  return (ADD_PARTS[g] || []).filter((p) => (p.stepped === "drain" ? linear && cat.some(DRAIN_ADD) : cat.some(p.hit)));
 }
 
 /** The part an added line's ⇄ swaps within: the first of its group's parts whose rule matches it. */
@@ -1218,20 +1216,27 @@ export function addRollOptions(kind, choice, cat, { source } = {}) {
 /**
  * A "+" on the Drain group of a linear build (Phase 1c): the drain popover's
  * rows plus a Length row of the lengths the family comes in, in place of
- * fitting the pan. `choice.len` picks the length (the longest when unset or
- * not made); `lines` are the parts it adds, each qty 1 per drain.
+ * fitting the pan. `choice.len` picks the length (the longest when unset; the
+ * longest at or under it when not made, else the shortest); `len` is the
+ * length that actually lands — a fixed body steps down to a length its grate
+ * is made at. `lines` are the parts it adds, each qty 1 per drain.
  */
 export function drainAddOptions(choice, cat, { source } = {}) {
   const c = { family: "vario", ...(choice && typeof choice === "object" ? choice : {}) };
-  const lensOf = (ch) => (ch.family === "vario"
-    ? cat.filter((i) => i.g === "drain" && i.part === "channel" && i.len).map((i) => i.len)
-    : cat.filter((i) => i.g === "line" && i.part === "body" && !!i.offset === !!ch.offset).map((i) => i.len));
+  const lensOf = (ch) => (ch.family === "fixed" || ch.family === "frameless"
+    ? cat.filter((i) => i.g === "line" && i.part === "body" && !!i.offset === !!ch.offset).map((i) => i.len)
+    : cat.filter((i) => i.g === "drain" && i.part === "channel" && i.len).map((i) => i.len));
   const lens = [...new Set(lensOf(c))].sort((a, b) => a - b);
-  const len = lens.includes(c.len) ? c.len : lens.filter((L) => !(c.len > 0) || L <= c.len).slice(-1)[0] || lens[lens.length - 1] || 0;
+  const req = lens.includes(c.len) ? c.len
+    : !(c.len > 0) ? lens[lens.length - 1] || 0
+      : lens.filter((L) => L <= c.len).slice(-1)[0] || lens[0] || 0;
+  const resolveAt = (L) => resolveDrain({ ...c, len: L }, L, cat, { source });
+  const r = resolveAt(req);
+  const len = !r.fallback && r.len ? r.len : req;
   const at = { ...c, len };
   const o = drainOptions(at, len, cat, { source });
-  const works = (ch) => { const r = resolveDrain(ch, ch.len, cat, { source }); return !r.fallback && !r.subst; };
-  const lengths = lens.map((L) => ({ key: String(L), label: L + '"', ok: works({ ...at, len: L }), on: L === len, next: { ...at, len: L } }));
+  const lands = (L) => { const x = resolveAt(L); return !x.fallback && !x.subst && x.len === L; };
+  const lengths = lens.map((L) => ({ key: String(L), label: L + '"', ok: lands(L), on: L === len, next: { ...at, len: L } }));
   return { ...o, lengths, len, choice: at, lines: o.result.lines };
 }
 

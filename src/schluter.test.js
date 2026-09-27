@@ -1445,6 +1445,16 @@ test("drainAddOptions: a Length row in place of the pan fit; the lines are what 
   assert.equal(down.len, 48, "a length the family isn't made at steps down");
 });
 
+test("drainAddOptions: a Length chip is ok only when that length lands; len names the length that bills", () => {
+  const f = drainAddOptions({ family: "fixed", len: 24 }, KLCAT, { source: "all" });
+  assert.equal(f.lengths.find((l) => l.key === "24").ok, false, "no 24″ grate — the body steps down");
+  assert.equal(f.len, 20);
+  assert.equal(f.choice.len, f.len);
+  assert.ok(f.lengths.filter((l) => l.on).every((l) => l.key === String(f.len)));
+  assert.ok(f.lines.every((l) => l.item.len === f.len));
+  assert.equal(drainAddOptions({ family: "vario", len: 36 }, KLCAT, { source: "all" }).len, 48, "below every length = the shortest");
+});
+
 test("sessionFromRows: the marker's added lines come off each total — a placed added line is never an override or a second extra", () => {
   const c = cfg({});
   const kit = buildKit(c, CAT, { source: "all" });
