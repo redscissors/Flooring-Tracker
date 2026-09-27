@@ -119,13 +119,12 @@ explanatory cell, and the delta line hides itself.
 
 ## Open — owner calls this phase surfaced, not decided
 
-- **No like-for-like KERDI-BOARD toggle on the compare surface.** The derived
-  Schluter side is always membrane walls, so the walls row compares a
-  structural wedi panel against a membrane that still needs backer by others.
-  Today that is carried by *words* — the caveat sentence in the delta line
-  and the Walls diffnote. A toggle that re-derived the Schluter side on
-  KERDI-BOARD would make the comparison structural instead of textual. The
-  popup already has the fork; the compare tab does not expose it.
+- ~~No like-for-like KERDI-BOARD toggle on the compare surface.~~ **Closed by
+  ADR 0051 (ticket 158 Phase 2, 2026-09-28):** the other column follows the
+  host's wall system — wedi Building Panel faces KERDI-BOARD, wedi S-DRY
+  faces KERDI membrane, and the Schluter host the other way round. Column
+  headers name each side's system; the help tip's walls caveat is gone. A
+  four-way grid (any system vs any) is Phase 3.
 - **Landing options A/B gives no feedback in the popup.** The confirm modal
   closes and the two areas appear behind it; there is no toast, no
   auto-close, no navigation to the new areas. Deliberately left alone rather

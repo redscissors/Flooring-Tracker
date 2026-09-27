@@ -324,7 +324,124 @@ New `.scratch/158_shower-config-roadmap/p2/` scripts (house style, ending
 
 ### Amendments during planning and build
 
-(none yet)
+Each of these is a call the spec left open or got wrong. 1–18 were made
+prototyping the plan; 19–23 were made building it.
+
+1. **The S-DRY floor recipe rides Membrane.** An S-DRY pan with no `wallSys`
+   (a shape only an old marker can carry; the 1b golden pins it) bills exactly
+   as before. The first prototype applied the S-DRY recipe to every S-DRY pan,
+   and the 1b golden caught it.
+2. **The backer is a build hint, not a bill line.** wedi lines have no
+   `noteOnly` concept. Instead:
+   - `kitFor` pushes hint `"backer"`;
+   - the bill shows it as a `whint`;
+   - the print sheet adds it under "Cuts & install notes";
+   - Compare writes the same $0 note row the Schluter column carries
+     (`wediCompareRows`).
+3. **Membrane drops, from the walls:**
+   - the Building Panel line;
+   - the fastener kit and joint sealant, figured on wall sf;
+   - the wedi collars (`US5000000` / `US5000033`), replaced by the S-DRY
+     collars;
+   - the corner putty trowel (`US5000044`).
+
+   PRO-SET becomes 1 + ⌈membrane sf ÷ 100⌉.
+4. **Benches stay panel-based under Membrane.** Their wrap and board lines
+   bill as today, and fasteners and joint sealant are figured on the bench
+   surfaces only.
+5. **The S-DRY solve.**
+   - `solve({ ...input, system: "sdry" })` returns `sdryFit`'s options;
+     `nearest: true` returns `[sdryNearest]`. Both flags ride the option's
+     `input`, so `buildFromMarker` re-solves the same answer.
+   - The S-DRY fit ignores the Max-curb-inside inset, the drain pin and
+     "Pan against": the base is cut evenly. The popup disables those inputs
+     under S-DRY.
+   - `sdryNoFit(input)` is exported for the prompt, and the popup passes it
+     the Stock only source.
+6. **`cfg.sdryBase: "wedi"` is derived.** kitFor writes it from
+   `opts.sdryBase`. The popup passes `"wedi"` whenever Membrane sits on a
+   non-S-DRY pan. The popup's own `sdryBase` state is the owner's prompt
+   answer, and it decides which solve runs.
+7. **Two extensions side by side** are allowed along a base edge of 49–96″.
+   The S-DRY bases' longest edge is 72″, so this is the spec's "along 72″".
+   Extensions sit on the back (depth) or left (width) side. The footprint is
+   then cut evenly back to the room. An extension that isn't cut carries no
+   cut, so the cut list doesn't show "Cut to 48×24 (from 48×24)".
+8. **Roll coverage** is read from the name ("104sf"), else from wedi's
+   published `ROLL_SF` constant. The distribution pricelist names the roll
+   "S-DRY™ XL" with no sf, and the preview proved it.
+9. **Tape lf, the curb term** = entry width + 12″ (the two curb ends).
+10. **S-DRY cover and curb ⇄** are one-click lists.
+    - Cover: every S-DRY cover.
+    - Curb: Full / Lean / No curb.
+    - They store the usual `coverPick: { key }` and `curbPick: { sub: "lean" }`
+      / `{ none: true }`.
+    - A non-S-DRY cover pick (e.g. a Fundo cover carried over) falls back to
+      S-DRY stainless.
+11. **Compare's KERDI-BOARD side bills the Fit plan** (`applyBoardPlan`),
+    which is the Schluter popup's default.
+12. **The curb drawing and tile sf read the S-DRY curb.** The popup's `curb`
+    memo and `markerCurbKey` both know it; the S-DRY curb is group `sdry`, not
+    `curb`.
+13. **Flipping the wall system:**
+    - On the Custom tab, or with an option picked, it re-solves and picks the
+      top option.
+    - On the Kits tab, it refreshes the cards only.
+    - A loaded S-DRY kit (no option) flipped to Building Panel clears the
+      build.
+    - A loaded wedi kit flipped to Membrane keeps its pan with S-DRY walls,
+      and the chip says so.
+    - The re-solve runs in an effect keyed on
+      `wallSys|sdryBase|sdryNear`, so it reads the new state rather than a
+      stale closure.
+14. **The prompt** shows when Membrane + S-DRY finds no fit, or when the bill
+    chip reopens it. Its buttons:
+    - "S-DRY base, fit to the room" (only when one fits);
+    - "Use a wedi pan + curb, with S-DRY walls";
+    - "Use the nearest S-DRY base anyway";
+    - "Back to Building Panel".
+15. **The Fit panel plan skips a build with no kit panel line.** Under
+    Membrane it used to replace the membrane line with panel sheets; the
+    preview caught it (`applyPanelFit` guard).
+16. **Showroom samples stay out of Extras "+".** S-DRY samples (`US7076001`/`2`,
+    role `other`) are excluded; before Phase 2 their slot was `seam`, so they
+    never showed.
+17. **Compare's help tip** drops the "not apples-to-apples" walls caveat. Both
+    columns are now always on the same wall system. The delta line never
+    carried a walls caveat.
+18. **The S-DRY Kits cards** price the full S-DRY build at the popup's current
+    wall setup, the same rule every other card follows.
+19. **Curbless wedi pan under Membrane bills one SEAL line and one trowel.**
+    The curbless field-seal block's SEAL + trowel are skipped under Membrane;
+    the field seal's unit folds into the walls' SEAL row (qty = walls + 1,
+    note mentions the field seal). The prototype billed the trowel twice and
+    split SEAL across two lines. (Task 3 review, commit fcb12f5.)
+20. **An S-DRY cover pick is inert on a non-S-DRY pan.** kitFor's wedi-pan
+    branch ignores a coverPick whose sdryRole is "cover" (falls back to the
+    stainless wedi cover), and coverPickApplies returns false for it — mirror
+    of the S-DRY branch's check. Stops an S-DRY cover carried across a flip
+    to Building Panel from billing over a wedi drain. (Task 5 review, commit
+    2b534ae.)
+21. **Flipping to Building Panel never wipes hand work silently.** On the
+    Custom tab the room is kept and re-solved for wedi pans (top option). On
+    the Kits tab a loaded S-DRY kit still clears (ruling 13), but when
+    kitDirty or hand-added lines exist it asks first through the
+    kit-overwrite confirm (KitOverwriteConfirm); Cancel keeps Membrane. The
+    confirm's wording is kit-card copy ("Start the Building Panel kit?") —
+    owner call on better copy. (Task 5 review, commit 2b534ae.)
+22. **A wedi pan under S-DRY walls seals its pan/extension joints with wedi
+    Joint & Seal** (OWNER DECISION, 2026-09-28, asked during the build).
+    Figured on the pan + extension floor footprint (bounding footprint, not
+    the sum of overlapping edge strips); the floor takes no fasteners (bench
+    surfaces still do); one Joint & Seal line. figureConsumables gained an
+    optional 4th arg jointSf. S-DRY floors unchanged (their extension seams
+    ride S-DRY tape). (Task 7 proof review, commit c9503ef.)
+23. **The S-DRY option badge reads the layout's actual cuts**: any cut piece
+    (incl. an extension trim on the nearest option) shows "Trim to fit"; only
+    an uncut layout shows "No cutting". (Task 7 proof review, commit c9503ef.)
+
+Also: the final suite count is 1822 (the plan said 1814), because of the
+tests the build added.
 
 ## Out of scope (Phase 2)
 

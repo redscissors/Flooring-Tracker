@@ -83,7 +83,7 @@ per group → 1d shared names / Compare alignment (owner). **1a DONE
 - **Spec:** `docs/superpowers/specs/2026-09-26-drain-slot-design.md`
 - **Plan:** `docs/superpowers/plans/2026-09-26-drain-slot.md`
 - **Mockup:** `.scratch/mockups/drain-swap-2026-09-26.html` (layout A)
-- **Handoffs:** `.scratch/handoffs/shower-config-phase1a-2026-09-26.md` (1a); `.scratch/handoffs/shower-config-phase1c-2026-09-27.md` (1c); `.scratch/handoffs/shower-config-phase1d-2026-09-27.md` (1d); **next:** `.scratch/handoffs/shower-config-phase2-2026-09-27.md` (Phase 2 onward)
+- **Handoffs:** `.scratch/handoffs/shower-config-phase1a-2026-09-26.md` (1a); `.scratch/handoffs/shower-config-phase1c-2026-09-27.md` (1c); `.scratch/handoffs/shower-config-phase1d-2026-09-27.md` (1d); `.scratch/handoffs/shower-config-phase2-2026-09-27.md` (Phase 2 onward); **next:** `.scratch/handoffs/shower-config-phase3-2026-09-27.md` (Phase 3 onward)
 - **ADR:** `docs/adr/0049-configurator-swaps-remember-the-choice.md`
 - **Proof:** `.scratch/158_shower-config-roadmap/p1a/`
 - **PR:** [redscissors/Flooring-Tracker#437](https://github.com/redscissors/Flooring-Tracker/pull/437)
@@ -176,6 +176,25 @@ Corners · Niche · Bench · Curb · Setting material.
 Schluter: KERDI-BOARD | KERDI (exists). wedi: Building Panel | **Subliner
 Dry or S-DRY** (owner picks — see findings). Rename "overbacker" to
 **Membrane** everywhere.
+
+**Phase 2 DONE (2026-09-27):** wedi gains a Building Panel | Membrane
+(S-DRY) fork, mirroring Schluter's Membrane | KERDI-BOARD (Schluter's segment
+renamed from "KERDI over backer"). Membrane bills the whole S-DRY system —
+base + extensions, curb, drain, cover, membrane walls — off wedi's published
+rates when the room fits an S-DRY base; when it doesn't, the owner picks a
+wedi pan + curb with S-DRY walls, the nearest S-DRY base anyway, or Building
+Panel. Compare builds the other brand on the host's wall system, closing ADR
+0034's open KERDI-BOARD-toggle item.
+
+- **Spec:** `docs/superpowers/specs/2026-09-28-board-vs-membrane-design.md`
+- **Plan:** `docs/superpowers/plans/2026-09-28-board-vs-membrane.md`
+- **ADR:** `docs/adr/0051-wedi-membrane-is-s-dry.md` (new; ADR 0034 and ADR
+  0049 amended)
+- **Proof:** `.scratch/158_shower-config-roadmap/p2/`
+- **PR:** pending — this branch (`claude/shower-config-phase-1d-eafhd0`)
+
+**Phase 2 is complete.** Next is Phase 3 (4-way compare); start from
+`.scratch/handoffs/shower-config-phase3-2026-09-27.md`.
 
 ## Phase 3 — 4-way compare (design spec first; needs 1 + 2)
 

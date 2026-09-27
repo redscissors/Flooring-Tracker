@@ -228,6 +228,13 @@ Product  { id, type:"tile|hardwood|vinyl|laminate|carpet|underlayment|misc",
            // back on reopen (the Schluter marker's existing rule); absent on
            // older markers, which reopen on the full catalog. Both popups open
            // Stock only by default.
+           // Its cfg also carries `wallSys` ("membrane" — absent is Building
+           // Panel) and `sdryBase` ("wedi" — absent is S-DRY), ticket 158
+           // Phase 2 / ADR 0051: choices, not parts. Membrane bills S-DRY
+           // membrane walls; on an S-DRY base it also bills the S-DRY curb,
+           // drain and cover. `cfg.solve.input` may carry `system: "sdry"`
+           // and `nearest: true`, so buildFromMarker re-solves the same
+           // S-DRY option. Old markers carry neither and bill as before.
            // attached = add-on material categories (ADR 0016, PR 3): one entry
            // per custom category, keyed by the category id, resolved by NAME at
            // calc time (mortar convention, no snapshot). getAttached does the
