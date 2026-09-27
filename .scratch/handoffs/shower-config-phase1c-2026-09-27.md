@@ -12,6 +12,7 @@ owner answers and the "Carry into 1c+" list. The previous handoff
 | Phase 0 (P0-1…P0-6) | merged | [redscissors/Flooring-Tracker#436](https://github.com/redscissors/Flooring-Tracker/pull/436) |
 | **1a** drain slot | merged | [redscissors/Flooring-Tracker#437](https://github.com/redscissors/Flooring-Tracker/pull/437) |
 | **1b** ⇄ on every line | merged 2026-09-27 | [redscissors/Flooring-Tracker#438](https://github.com/redscissors/Flooring-Tracker/pull/438) |
+| 1b owner calls (stale curb, band default, finish names) + this handoff | merged 2026-09-27 | [redscissors/Flooring-Tracker#439](https://github.com/redscissors/Flooring-Tracker/pull/439) |
 | **1c** "+" per group, several niches in wedi | **not designed** | this handoff |
 | **1d** shared group names, Compare row alignment | not designed | this handoff |
 | **Phase 2** Board vs Membrane, both brands | not designed | ticket |
@@ -32,7 +33,9 @@ Records to read before designing anything:
 - `src/CLAUDE.md` entries for `slots.js`, `swappop.jsx`, `schluter.js`,
   `wedi.js`, `showersf.js`, both popups and `wedimarkergolden.js`.
 
-## Owner calls after 1b
+## Owner calls after 1b (all settled, merged in #439)
+
+No owner call is open for ticket 158 right now. 1c starts clean.
 
 - **Stale wedi `curbKey`: DONE (2026-09-27).** The owner confirmed R2: it
   bills the recipe default curb, and `markerCurbKey` now falls through to
@@ -147,7 +150,7 @@ approval gate applies.
 - **Build:** `VITE_SUPABASE_URL=https://example.supabase.co VITE_SUPABASE_ANON_KEY=x npm run build`.
   Without the env var the HTML placeholder fails, the same as on `main`. The
   build prints a pre-existing CSS minify warning.
-- **Tests / lint:** `npm test` (1721 passing at #438), `npm run lint`.
+- **Tests / lint:** `npm test` (1723 passing at #439), `npm run lint`.
 - **Preview proof:**
   - Run `npx vite --port 5199 --strictPort` in the background.
   - Harnesses: `schluter-preview.html`, `wedi-preview.html` (which takes
