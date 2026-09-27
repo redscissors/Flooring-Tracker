@@ -1510,6 +1510,40 @@ export function lineItems(build, opts) {
 // can sit in two groups of a build (a board in Walls and in Extras).
 export const ovKey = (l) => l.g + "|" + (l.item.sku || l.item.name);
 
+// Swap a build's by-area panel line for the board plan's per-sheet lines, in
+// place (the fastener line stays — its count is pure area either way). The
+// first plan line carries the wedi note: sf, seam count, stood-vertical
+// count; the rest read "panel plan".
+export function applyBoardPlan(lines, cfg, plan, cat) {
+  if (!plan || !plan.lines.length) return lines;
+  const vWalls = plan.detail.filter((d2) => d2.vertical).length;
+  const sf = wallArea(cfg);
+  const planLines = plan.lines.map((pl, i) => {
+    const e = cat.find((x) => x.sku === pl.sku);
+    return e && {
+      g: "Walls", item: e, qty: pl.qty, so: !e.stock, slot: "wallBoard",
+      note: i === 0
+        ? sf.toFixed(0) + " sf — " + plan.vSeams + " vertical seam" + (plan.vSeams === 1 ? "" : "s")
+          + (vWalls ? " · " + vWalls + " wall" + (vWalls === 1 ? "" : "s") + " stood vertical" : "")
+        : "panel plan",
+    };
+  }).filter(Boolean);
+  if (!planLines.length) return lines;
+  // an added board is a hand-set part, not the kit's panel line — it stays
+  const kitBoard = (l) => l.g === "Walls" && l.item.g === "board" && !l.item.fastener && !l.manual;
+  const idx = lines.findIndex(kitBoard);
+  const out = lines.filter((l) => !kitBoard(l));
+  out.splice(idx >= 0 ? idx : out.length, 0, ...planLines);
+  return out;
+}
+
+// A stepped quantity keeps winning over the recipe's figure while the line
+// survives; stepped to 0 the line leaves the bill (the wedi rule).
+export const applyQtyOv = (lines, ov) => lines.map((l) => {
+  const q = l.noteOnly || l.manual ? null : ov[ovKey(l)];
+  return q == null ? l : { ...l, autoQty: l.qty, qty: q, ov: true };
+}).filter((l) => l.noteOnly || l.qty > 0);
+
 // Which catalog entry a placed project row is: the sku its marker carries
 // (lineItems stamps every line since 2026-09-02), else the shop number a
 // stocked line lands as its sku (a legacy `part: true` row). Null for a row

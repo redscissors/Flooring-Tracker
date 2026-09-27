@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
 import { FINISH_LABEL, ovKey, rowItemEntry, sessionFromRows, classify, catalogOf, coverageOf, trayCandidates, pickRolls, pickFrom, buildKit, buildFromMarker, linesTotal, tierPrice, lineItems, orderCopyLines, entryOpening, openRuns, boardPlan, boardSheets, expandBoardFaces, normBench, benchTrayRoom, slotOf, resolveDrain, drainOptions, pointGrateLabel,
   resolveMembrane, membraneOptions, resolveBand, bandOptions, bandWidthLabel,
-  addedGroup, addedLines, setAddedQty, addParts, addPartOf, addRollOptions, drainAddOptions } from "./schluter.js";
+  addedGroup, addedLines, setAddedQty, addParts, addPartOf, addRollOptions, drainAddOptions, applyBoardPlan, applyQtyOv } from "./schluter.js";
 import { isSlot } from "./slots.js";
 
 const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
@@ -1467,4 +1467,46 @@ test("sessionFromRows: the marker's added lines come off each total — a placed
   // the sheet took one more band on the kit's line: only the kit line overrides
   const bumped = rows.map((r, i) => (i === bill.findIndex((l) => l.item.sku === band.item.sku && !l.manual) ? { ...r, qty: String(band.qty + 1) } : r));
   assert.deepEqual(sessionFromRows(bill, bumped, CAT), { qtyOv: { [ovKey(band)]: band.qty + 1 }, manual: [] });
+});
+
+// the popup's placed-kit paths (Reconfigure, the basket drawer): the marker
+// rebuilt, then the board Fit plan, then the staged hand-set qtys
+const boardMarkerCfg = () => cfg({ wallSys: "board", manual: [{ sku: "KB1212202440", qty: 2 }] });
+const planned = (c) => {
+  const b = buildFromMarker({ mode: "custom", cfg: c }, CAT);
+  return { b, plan: boardPlan(expandBoardFaces(c), CAT, { source: "all" }) };
+};
+
+test("applyBoardPlan: an old marker's added board survives the plan at its own qty", () => {
+  const c = boardMarkerCfg();
+  const { b, plan } = planned(c);
+  const lines = applyBoardPlan(b.lines, c, plan, CAT);
+  assert.deepEqual(lines.filter((l) => l.manual).map((l) => [l.g, l.item.sku, l.qty]), [["Walls", "KB1212202440", 2]]);
+  const total = (sku) => lines.filter((l) => l.item.sku === sku).reduce((t, l) => t + l.qty, 0);
+  for (const pl of plan.lines) assert.equal(total(pl.sku), pl.qty + (pl.sku === "KB1212202440" ? 2 : 0));
+  const kitBoards = lines.filter((l) => l.g === "Walls" && l.item.g === "board" && !l.item.fastener && !l.manual);
+  assert.deepEqual(kitBoards.map((l) => [l.item.sku, l.qty]), plan.lines.map((pl) => [pl.sku, pl.qty]));
+  assert.match(kitBoards[0].note, / sf — /);
+  assert.ok(kitBoards.slice(1).every((l) => l.note === "panel plan"));
+});
+
+test("applyBoardPlan: Reconfigure of a placed board kit with an added board reopens with an empty session", () => {
+  const c = boardMarkerCfg();
+  const { b, plan } = planned(c);
+  const planLines = applyBoardPlan(b.lines, c, plan, CAT);
+  assert.deepEqual(sessionFromRows(planLines, lineItems({ ...b, lines: planLines, cfg: c }), CAT), { qtyOv: {}, manual: [] });
+  // the rows the build column placed: the kit planned, the added lines after
+  const kit = buildKit(c, CAT, { source: "all" });
+  const placed = [...applyBoardPlan(kit.lines, c, plan, CAT), ...addedLines(c.manual, CAT)];
+  assert.deepEqual(sessionFromRows(planLines, lineItems({ ...kit, lines: placed, cfg: c }), CAT), { qtyOv: {}, manual: [] });
+});
+
+test("applyQtyOv: a hand-set kit line never moves an added line of the same group + part", () => {
+  const c = cfg({});
+  const kitBand = buildKit(c, CAT, { source: "all" }).lines.find((l) => l.g === "Seams" && l.item.lf);
+  const b = buildFromMarker({ mode: "custom", cfg: { ...c, manual: [{ sku: kitBand.item.sku, qty: 1, g: "Seams" }] } }, CAT);
+  const lines = applyQtyOv(b.lines, { [ovKey(kitBand)]: 3 });
+  const bands = lines.filter((l) => l.g === "Seams" && l.item.sku === kitBand.item.sku);
+  assert.deepEqual(bands.map((l) => [!!l.manual, l.qty]), [[false, 3], [true, 1]]);
+  assert.equal(applyQtyOv(b.lines, { [ovKey(kitBand)]: 0 }).filter((l) => l.item.sku === kitBand.item.sku).length, 1, "stepping the kit line to 0 leaves the added line");
 });

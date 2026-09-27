@@ -16,9 +16,10 @@ import { PaneBack, PaneClose } from "./raildrawer.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
   trayCandidates, pickRolls, buildKit, tierPrice, coverageOf, lineItems, orderCopyLines, normBench, benchTrayRoom,
-  boardPlan, expandBoardFaces, wallArea, halfBoardPool, buildFromMarker, ovKey, sessionFromRows, drainOptions,
+  boardPlan, expandBoardFaces, halfBoardPool, buildFromMarker, ovKey, sessionFromRows, drainOptions,
   resolveDrain, FINISH_LABEL, VARIO_DESIGN, pointGrateLabel, membraneOptions, bandOptions, bandWidthLabel,
   addedLines, addedGroup, addedQty, setAddedQty, addParts, addPartOf, addRollOptions, drainAddOptions,
+  applyBoardPlan, applyQtyOv,
 } from "./schluter.js";
 import { SwapPop, fmDelta, inchGlyph } from "./swappop.jsx";
 import { mortarItemFrom, MORTAR_BED_SF_PER_BAG } from "./schluteradapter.js";
@@ -251,7 +252,7 @@ const CSS = `
 .sch-pop .bline{display:flex;align-items:center;gap:7px;padding:3px 0;border-bottom:1px solid var(--ft-row-line)}
 .sch-pop .bline .bn{flex:1;min-width:0}
 .sch-pop .bline .bn .n{font-size:11.5px;font-weight:700;line-height:1.25;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.sch-pop .bline .bn .n .addtag{font-size:8.5px;font-weight:800;color:var(--ft-brand-deep);background:var(--ft-brand-soft);border-radius:4px;padding:0 5px;margin-left:6px;vertical-align:1px;text-transform:lowercase}
+.sch-pop .bline .bn .n .addtag{font-size:8.5px;font-weight:800;color:var(--ft-brand-deep);background:var(--ft-brand-soft);border-radius:4px;padding:0 5px;margin-left:3px;vertical-align:1px}
 .sch-pop .bline .bn .n .sotag{font-size:8.5px;font-weight:800;color:var(--s-rust);background:var(--ft-hover-red,#F7E8E1);border-radius:4px;padding:0 5px;margin-left:6px;vertical-align:1px}
 .sch-pop .bline .bn .m{font-size:9.5px;color:var(--ft-faint);font-weight:600;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sch-pop .bline .bn .m b{color:var(--ft-muted);font-weight:700}
@@ -707,43 +708,10 @@ export default function SchluterConfigurator({
   const plan = useMemo(() => planFor(cfg),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [cfg, cat, catReady, source, panelFit]);
-  // Swap the recipe's by-area panel line for the plan's per-sheet lines, in
-  // place (the fastener line stays — its count is pure area either way).
-  // The first plan line carries the wedi note: sf, seam count, stood-vertical
-  // count; the rest read "panel plan".
-  const applyBoardPlan = (lines, c, p) => {
-    if (!p || !p.lines.length) return lines;
-    const vWalls = p.detail.filter((d2) => d2.vertical).length;
-    const sf = wallArea(c);
-    const planLines = p.lines.map((pl, i) => {
-      const e = cat.find((x) => x.sku === pl.sku);
-      return e && {
-        g: "Walls", item: e, qty: pl.qty, so: !e.stock, slot: "wallBoard",
-        note: i === 0
-          ? sf.toFixed(0) + " sf — " + p.vSeams + " vertical seam" + (p.vSeams === 1 ? "" : "s")
-            + (vWalls ? " · " + vWalls + " wall" + (vWalls === 1 ? "" : "s") + " stood vertical" : "")
-          : "panel plan",
-      };
-    }).filter(Boolean);
-    if (!planLines.length) return lines;
-    const idx = lines.findIndex((l) => l.g === "Walls" && l.item.g === "board" && !l.item.fastener);
-    const out = lines.filter((l) => !(l.g === "Walls" && l.item.g === "board" && !l.item.fastener));
-    out.splice(idx >= 0 ? idx : out.length, 0, ...planLines);
-    return out;
-  };
-
-  // a stepped quantity keeps winning over the recipe's figure while the
-  // line survives; stepped to 0 the line leaves the bill (the wedi rule).
-  // The basket drawer runs it too, so a staged entry prices the build that
-  // was staged and not just its marker (owner decision 2026-08-31).
-  const applyQtyOv = (lines, ov) => lines.map((l) => {
-    const q = l.noteOnly ? null : ov[ovKey(l)];
-    return q == null ? l : { ...l, autoQty: l.qty, qty: q, ov: true };
-  }).filter((l) => l.noteOnly || l.qty > 0);
   const build = useMemo(() => {
     if (!pickCand) return null;
     const b = buildKit(cfg, cat, { source, pick: pickCand });
-    b.lines = applyQtyOv(applyBoardPlan(b.lines, cfg, plan), qtyOv);
+    b.lines = applyQtyOv(applyBoardPlan(b.lines, cfg, plan, cat), qtyOv);
     b.lines.push(...addedLines(manual, cat));
     return b;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -760,7 +728,7 @@ export default function SchluterConfigurator({
     const b = buildFromMarker(seed, cat);
     if (!b) return;
     const c2 = seed.cfg;
-    const lines = applyBoardPlan(b.lines, c2, c2.wallSys === "board" ? boardPlan(expandBoardFaces(c2), cat, { source: c2.source === "stock" ? "stock" : "all" }) : null);
+    const lines = applyBoardPlan(b.lines, c2, c2.wallSys === "board" ? boardPlan(expandBoardFaces(c2), cat, { source: c2.source === "stock" ? "stock" : "all" }) : null, cat);
     const s = sessionFromRows(lines, editRows, cat);
     if (Object.keys(s.qtyOv).length) setQtyOv(s.qtyOv);
     // a placed row's extra beyond the marker's own added lines tops up that row
@@ -794,7 +762,7 @@ export default function SchluterConfigurator({
     const c2 = marker.cfg;
     const s = session || {};
     const fit = session ? s.panelFit !== false : panelFit;
-    let lines = applyBoardPlan(b.lines, c2, fit && c2.wallSys === "board" ? boardPlan(expandBoardFaces(c2), cat, { source: c2.source === "stock" ? "stock" : "all" }) : null);
+    let lines = applyBoardPlan(b.lines, c2, fit && c2.wallSys === "board" ? boardPlan(expandBoardFaces(c2), cat, { source: c2.source === "stock" ? "stock" : "all" }) : null, cat);
     lines = applyQtyOv(lines, s.qtyOv || {});
     const bill = lines.filter((l) => !l.noteOnly);
     return {
@@ -1144,7 +1112,7 @@ export default function SchluterConfigurator({
       const own = kc.find((c) => c.tray && c.tray.sku === t.sku) || kc[0];
       if (!own || !own.tray) return;
       const b = buildKit(kcfg, cat, { source, pick: own });
-      const lines = applyBoardPlan(b.lines, kcfg, planFor(kcfg));
+      const lines = applyBoardPlan(b.lines, kcfg, planFor(kcfg), cat);
       out[t.sku] = round2(lines.filter((l) => !l.noteOnly).reduce((s, l) => s + tierOf(l.item) * l.qty, 0));
     });
     return out;
@@ -1638,7 +1606,7 @@ export default function SchluterConfigurator({
                     <div className={"bline" + (l.noteOnly ? " note" : "")} key={g + (e.sku || e.name) + li}>
                       <div className="bn">
                         <div className="n">{shown(e.name)}
-                          {l.manual && <span className="addtag" title="added by hand — doesn't re-figure when the room or kit changes" data-added-tag>added</span>}
+                          {l.manual && <>{" "}<span className="addtag" title="added by hand — doesn't re-figure when the room or kit changes" data-added-tag>added</span></>}
                           {!l.noteOnly && !e.stock && <span className="sotag">special order</span>}</div>
                         <div className="m" title={meta.join(" · ") || undefined}>{meta.map((s2, k) => (k ? " · " + s2 : <b key="k">{s2}</b>))}</div>
                       </div>
@@ -2211,7 +2179,7 @@ export default function SchluterConfigurator({
   // the Δ reads the draft against the drain the bill carries now.
   const drainPanel = () => {
     const drainTotal = (lines) => round2(lines.reduce((t, l) => t + tierOf(l.item) * l.qty, 0));
-    const cur = build.lines.filter((l) => l.g === "Drain" && !l.noteOnly);
+    const cur = build.lines.filter((l) => l.g === "Drain" && !l.noteOnly && !l.manual);
     const curTotal = drainTotal(cur);
     const setDraft = (draft) => setSwap((sw) => (sw ? { ...sw, draft } : sw));
     const clearDrainQty = () => setQtyOv((q) => Object.fromEntries(Object.entries(q).filter(([k]) => !k.startsWith("Drain|"))));
@@ -2258,8 +2226,8 @@ export default function SchluterConfigurator({
 
   // The linear drain popover's rows and summary text for a drain choice at a
   // `width` — the pan's installed width on a swap, the Length row's pick on a
-  // "+" (Phase 1c).
-  const drainRowsFor = (o, draft, setDraft, width) => {
+  // "+" (Phase 1c; `onPan` false words the family tooltip for a length).
+  const drainRowsFor = (o, draft, setDraft, width, onPan = true) => {
     const fam = o.family, res = o.result;
     // unchosen steps light the chip of what actually resolved
     const got = res.family === fam ? res.lines[fam === "vario" ? 0 : 1]?.item : null;
@@ -2275,7 +2243,7 @@ export default function SchluterConfigurator({
     };
     const rows = [
       { label: "Family", chips: o.families.map((f) => ({ key: f.key, label: f.label, ok: f.ok, on: f.key === fam,
-        title: f.ok ? "" : `can't be made for a ${width}″ pan`, onPick: () => setDraft({ family: f.key }) })) },
+        title: f.ok ? "" : onPan ? `can't be made for a ${width}″ pan` : `can't be made at ${width}″`, onPick: () => setDraft({ family: f.key }) })) },
       { label: fam === "frameless" ? "Body" : "Grate", chips: o.styles.map((st) => ({ key: st.key, ok: st.ok,
         label: st.label + (st.max && st.max < o.fit ? ` · to ${st.max}″` : ""),
         on: fam === "vario" ? st.key === (draft.design || got?.design)
@@ -2318,7 +2286,7 @@ export default function SchluterConfigurator({
     const setDraft = (next) => setSwap((sw) => (sw ? { ...sw, draft: next } : sw));
     const o = mem ? membraneOptions(draft, build.need.wallSf, cat, { source }) : bandOptions(draft, build.need.bandLf, cat, { source });
     const g = mem ? "Walls" : "Seams";
-    const cur = build.lines.filter((l) => l.g === g && (mem ? l.item.g === "membrane" : l.item.lf));
+    const cur = build.lines.filter((l) => l.g === g && !l.manual && (mem ? l.item.g === "membrane" : l.item.lf));
     const total = (lines) => round2(lines.reduce((t, l) => t + tierOf(l.item) * l.qty, 0));
     const curTotal = total(cur), next = total(o.result.lines);
     const d = round2(next - curTotal);
@@ -2396,7 +2364,7 @@ export default function SchluterConfigurator({
     }
     if (part.stepped === "drain") {
       const o = drainAddOptions(add.draft, cat, { source });
-      const { rows, what } = drainRowsFor(o, o.choice, (d) => setA({ draft: { ...d, len: d.len ?? o.len } }), o.len);
+      const { rows, what } = drainRowsFor(o, o.choice, (d) => setA({ draft: { ...d, len: d.len ?? o.len } }), o.len, false);
       rows.splice(1, 0, { label: "Length", chips: o.lengths.map((c) => ({ ...c, onPick: () => setA({ draft: c.next }) })) });
       const items = o.lines.map((l) => l.item);
       return (
