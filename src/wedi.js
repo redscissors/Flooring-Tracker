@@ -28,6 +28,7 @@
 
 import { queryHit, parseQuery, querySummary, seedFromQuery } from "./wediquery.js";
 import { planPanels } from "./panelplan.js";
+import { groupOf } from "./slots.js";
 import { WALL_THICK, CURB_LAP, panThick, benchFootprint, BENCH_DEPTH, curbWidthOf } from "./showerdraw.js";
 
 export { queryHit, parseQuery, querySummary, seedFromQuery };
@@ -5322,7 +5323,7 @@ function push(lines, key, qty, grp, note, auto) {
 const WEDI_SLOT = {
   pan: "tray", module: "tray", modExt: "tray", extension: "tray", cornerExt: "tray", kit: "tray", recess: "tray",
   curb: "curb", ramp: "curb", panel: "wallBoard", cover: "grate", coverFrame: "grate", drainKit: "drainBody",
-  collar: "corners", sealant: "seam", fastener: "seam", subliner: "seam", sdry: "seam", tool: "setting",
+  collar: "corners", sealant: "seam", fastener: "wallBoard", subliner: "seam", sdry: "seam", tool: "setting",
   niche: "niche", shelf: "niche", seat: "bench", bench: "bench",
 };
 
@@ -5370,48 +5371,59 @@ export function setAddedRow(manual, group, key, n) {
   return at < 0 ? [...rest, row] : [...rest.slice(0, at), row, ...rest.slice(at)];
 }
 
-// What a "+" on each bucket can add (Phase 1c). A stepped part opens the swap
+// What a "+" on each shared bill group (slots.js GROUPS) can add. Each part
+// names the wedi bucket `group` its rows store — the key kitFor and the added
+// rows already speak — and only offers parts whose slot, read in that bucket,
+// lands back in the group that offered it. A stepped part opens the swap
 // popover's rows without Auto; the rest are one-click lists.
-const ADDON_KINDS = ["niche", "shelf", "seat", "bench"];
+const plusPart = (grp, group, key, label, hit, stepped) => ({
+  key, label, group, ...(stepped ? { stepped } : {}),
+  hit: (i) => hit(i) && groupOf(wediSlotOf({ item: i, group })) === grp,
+});
 export const WEDI_ADD_PARTS = {
-  floor: [
-    { key: "pan", label: "Pan", hit: (i) => ["pan", "module", "kit"].includes(i.group) },
-    { key: "ext", label: "Extension", hit: (i) => ["extension", "modExt", "cornerExt"].includes(i.group) },
-    { key: "curb", label: "Curb", stepped: "curb", hit: (i) => i.group === "curb" && !!i.len },
-    { key: "ramp", label: "Ramp", hit: (i) => i.group === "ramp" },
-  ],
-  walls: [{ key: "panel", label: "Panel", stepped: "panel", hit: (i) => i.group === "panel" && i.sf > 0 }],
-  bench: [
-    { key: "bench", label: "Seat & bench", hit: (i) => i.group === "seat" || i.group === "bench" },
-    { key: "panel", label: "Panel", stepped: "panel", hit: (i) => i.group === "panel" && i.sf > 0 },
+  base: [
+    plusPart("base", "floor", "pan", "Pan", (i) => ["pan", "module", "kit"].includes(i.group)),
+    plusPart("base", "floor", "ext", "Extension", (i) => ["extension", "modExt", "cornerExt"].includes(i.group)),
+    plusPart("base", "install", "recess", "Recess kit", (i) => i.group === "recess"),
   ],
   drain: [
-    { key: "cover", label: "Cover", stepped: "cover", hit: (i) => i.group === "cover" },
-    { key: "frame", label: "Frame", hit: (i) => i.group === "coverFrame" },
-    { key: "drainKit", label: "Drain kit", hit: (i) => i.group === "drainKit" },
+    plusPart("drain", "drain", "cover", "Cover", (i) => i.group === "cover", "cover"),
+    plusPart("drain", "drain", "frame", "Frame", (i) => i.group === "coverFrame"),
+    plusPart("drain", "drain", "drainKit", "Drain kit", (i) => i.group === "drainKit"),
   ],
-  install: [
-    { key: "fastener", label: "Fasteners", hit: (i) => i.group === "fastener" },
-    { key: "sealant", label: "Sealant", hit: (i) => i.group === "sealant" },
-    { key: "membrane", label: "Membrane & tape", hit: (i) => i.group === "subliner" || i.group === "sdry" },
-    { key: "collar", label: "Collars & seals", hit: (i) => i.group === "collar" },
-    { key: "tool", label: "Tools", hit: (i) => i.group === "tool" },
-    { key: "recess", label: "Recess kit", hit: (i) => i.group === "recess" },
+  curb: [
+    plusPart("curb", "floor", "curb", "Curb", (i) => i.group === "curb" && !!i.len, "curb"),
+    plusPart("curb", "floor", "ramp", "Ramp", (i) => i.group === "ramp"),
   ],
-  addon: [
-    { key: "niche", label: "Niche", hit: (i) => i.group === "niche" },
-    { key: "shelf", label: "Glass shelf", hit: (i) => i.group === "shelf" },
-    { key: "seat", label: "Seat", hit: (i) => i.group === "seat" },
-    { key: "bench", label: "Bench", hit: (i) => i.group === "bench" },
-    { key: "other", label: "Other", hit: (i) => wediBucketOf(i) === "addon" && !ADDON_KINDS.includes(i.group) },
+  walls: [
+    plusPart("walls", "walls", "panel", "Panel", (i) => i.group === "panel" && i.sf > 0, "panel"),
+    plusPart("walls", "install", "fastener", "Fasteners", (i) => i.group === "fastener"),
   ],
+  seams: [
+    plusPart("seams", "install", "sealant", "Sealant", (i) => i.group === "sealant"),
+    plusPart("seams", "install", "membrane", "Membrane & tape", (i) => i.group === "subliner" || i.group === "sdry"),
+    plusPart("seams", "install", "collar", "Collars & seals", (i) => i.group === "collar"),
+  ],
+  niches: [
+    plusPart("niches", "addon", "niche", "Niche", (i) => i.group === "niche"),
+    plusPart("niches", "addon", "shelf", "Glass shelf", (i) => i.group === "shelf"),
+  ],
+  bench: [
+    plusPart("bench", "addon", "bench", "Seat & bench", (i) => i.group === "seat" || i.group === "bench"),
+    plusPart("bench", "bench", "panel", "Panel", (i) => i.group === "panel" && i.sf > 0, "panel"),
+  ],
+  setting: [
+    plusPart("setting", "install", "tool", "Tools", (i) => i.group === "tool"),
+    plusPart("setting", "install", "proSet", "PRO-SET", (i) => i.key === SKU.proSet),
+  ],
+  extras: [plusPart("extras", "addon", "other", "Other", (i) => wediBucketOf(i) === "addon")],
 };
 
-/** The "+" parts a bucket offers with this book — a part with nothing to add never shows. */
-export const wediAddParts = (bucket) => (WEDI_ADD_PARTS[bucket] || []).filter((p) => catalog().some(p.hit));
+/** The "+" parts a shared group (`grp`, slots.js) offers with this book — a part with nothing to add never shows. */
+export const wediAddParts = (grp) => (WEDI_ADD_PARTS[grp] || []).filter((p) => catalog().some(p.hit));
 
-/** The part an added line's ⇄ swaps within: the first of its bucket's parts whose rule matches it. */
-export const wediAddPartOf = (bucket, it) => (WEDI_ADD_PARTS[bucket] || []).find((p) => p.hit(it)) || null;
+/** The part an added line's ⇄ swaps within: the first of its shared group's parts whose rule matches it. */
+export const wediAddPartOf = (grp, it) => (WEDI_ADD_PARTS[grp] || []).find((p) => p.hit(it)) || null;
 
 /** The shared slot (slots.js) a kitFor line fills. */
 export function wediSlotOf(line) {

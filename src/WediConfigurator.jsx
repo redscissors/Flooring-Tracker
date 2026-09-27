@@ -27,6 +27,7 @@ import {
   addedRows, setAddedRow, wediBucketOf, wediAddParts, wediAddPartOf, curbAddOptions, coverAddOptions, curbProfile, catalog,
 } from "./wedi.js";
 import { SwapPop, fmDelta, inchGlyph } from "./swappop.jsx";
+import { GROUPS, groupOf, groupLabel } from "./slots.js";
 import { TopDown, Iso, railSplit, RAIL_DESIGN_W, curbHeight } from "./showerdraw.jsx";
 import { normKitBasketEntry } from "./model.js";
 import { useWediCatalog } from "./usewedicatalog.js";
@@ -457,7 +458,6 @@ const sizeLed = (e) => /^\d/.test(e.name);
 const browseSub = (e) => [finName(e), sizeLed(e) ? e.sizeText : "", GROUP_LABEL[e.group] || e.group, e.stock ? "stock" : "special order"]
   .filter(Boolean).join(" · ");
 
-const BUCKETS = [["floor", "Floor"], ["walls", "Walls"], ["bench", "Bench"], ["drain", "Drain & finish"], ["install", "Install"], ["addon", "Add-ons"]];
 const bucketOf = wediBucketOf;
 
 // One word each, no descriptive line (owner 2026-08-02): the Kits tab is a
@@ -958,7 +958,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
       return { ...b, cfg: { ...b.cfg, source }, lines: applySession(b, buildWalls, { qtyOv, panelFit }) };
     }
     if (manual.length) {
-      const lines = addedRows({ manual }).map((r) => ({ item: item(r.key), qty: r.qty, group: r.group, note: "", auto: false, added: true }));
+      const lines = addedRows({ manual }).map((r) => ({ item: item(r.key), qty: r.qty, group: r.group, note: "", auto: false, added: true, slot: wediSlotOf({ item: item(r.key), group: r.group }) }));
       if (!lines.length) return null;
       const soNet = round2(lines.reduce((t, l) => t + (l.item.stock ? 0 : (l.item.soNet || l.item.cost || 0) * l.qty), 0));
       const hints = [];
@@ -1365,19 +1365,22 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     if (part.stepped === "cover") return (e || kit((i) => i.group === "cover")?.item || {}).key;
     return null;
   };
-  const openAdd = (g, ev, line) => {
-    const part = line ? wediAddPartOf(g, line.item) : wediAddParts(g)[0];
+  // `grp` is the shared group whose "+" (or added line's ⇄) opened the panel;
+  // `g` is the bucket the rows are keyed under — the added line's own, else
+  // the part's.
+  const openAdd = (grp, ev, line) => {
+    const part = line ? wediAddPartOf(grp, line.item) : wediAddParts(grp)[0];
     if (!part) return;
     setSwap(null); setChipMenu(null);
     setAdd({
-      g, part: part.key, qty: 1, q: "", draft: addDraft(part, line ? line.item : null), replace: line ? line.item.key : null,
+      grp, g: line ? line.group : part.group, part: part.key, qty: 1, q: "", draft: addDraft(part, line ? line.item : null), replace: line ? line.item.key : null,
       rect: ev.currentTarget.getBoundingClientRect(), anchor: ev.currentTarget.closest(line ? ".bline" : ".bg-h"),
     });
   };
   const addPool = (part) => bySource(catalog().filter(part.hit)).slice().sort((a, b) => (b.stock ? 1 : 0) - (a.stock ? 1 : 0) || a.retail - b.retail);
   // an added line's ⇄: the part it sits in offers more than itself
   const canSwapAdded = (l) => {
-    const part = l.added && wediAddPartOf(l.group, l.item);
+    const part = l.added && wediAddPartOf(groupOf(l.slot), l.item);
     if (!part) return false;
     return !!part.stepped || new Set([...addPool(part).map((e) => e.key), l.item.key]).size > 1;
   };
@@ -1994,15 +1997,14 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
             <div className="sub">{pan ? (option ? option.title : unwedi(pan.name)) : "manual — from Browse"}</div>
           </div>
 
-          {BUCKETS.map((bk) => {
-            const lines = build.lines.filter((l) => l.group === bk[0]);
-            const isAddon = bk[0] === "addon";
-            const canAdd = wediAddParts(bk[0]).length > 0;
-            if (!lines.length && !isAddon && !canAdd) return null;
+          {GROUPS.map(({ key: g, label }) => {
+            const lines = build.lines.filter((l) => groupOf(l.slot) === g);
+            const canAdd = wediAddParts(g).length > 0;
+            if (!lines.length && !canAdd) return null;
             return (
-              <div className="bgroup" key={bk[0]}>
-                <div className="bg-h">{bk[1]}
-                  {bk[0] === "walls" && lines.length > 0 && (
+              <div className="bgroup" key={g}>
+                <div className="bg-h">{label}
+                  {g === "walls" && lines.some((l) => l.group === "walls" && l.item.group === "panel") && (
                     <span className="wallctl">
                       <span className="pfseg">
                         <button className={panelFit ? "on" : ""} title="mixed sheet sizes, level courses, minimal vertical seams" onClick={() => setPanelFit(true)}>Fit</button>
@@ -2010,7 +2012,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
                       </span>
                     </span>
                   )}
-                  {canAdd && <button className="addb" title={`add another line to ${bk[1]}`} onClick={(ev) => openAdd(bk[0], ev)} data-add-group={bk[0]}>+</button>}
+                  {canAdd && <button className="addb" title={`add another line to ${label}`} onClick={(ev) => openAdd(g, ev)} data-add-group={label}>+</button>}
                 </div>
                 {lines.map((l) => {
                   const e = l.item;
@@ -2037,7 +2039,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
                       </div>
                       {can && <button className="swapb" title="swap" data-wedi-swapb={e.key} onClick={(ev) => setSwap({ key: e.key, grp: l.group, rect: ev.currentTarget.getBoundingClientRect(), anchor: ev.currentTarget.closest(".bline"),
                         ...(e.group === "cover" || e.group === "panel" ? { draft: e.key } : e.group === "curb" ? { draft: opts.curbPick || null } : {}) })}>⇄</button>}
-                      {canSwapAdded(l) && <button className="swapb" title="swap this added line" data-wedi-swapb={e.key} data-added-swapb onClick={(ev) => openAdd(l.group, ev, l)}>⇄</button>}
+                      {canSwapAdded(l) && <button className="swapb" title="swap this added line" data-wedi-swapb={e.key} data-added-swapb onClick={(ev) => openAdd(groupOf(l.slot), ev, l)}>⇄</button>}
                       {l.auto === false && !l.added ? (
                         <div className="stepph" title="one per bench on the drawing — add or remove it there" data-no-stepper>{l.qty}</div>
                       ) : (
@@ -2052,40 +2054,46 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
                     </div>
                   );
                 })}
-                {isAddon && pan && (
-                  <div className="addchips">
-                    {ADDON_CHIPS.filter((ac) => (ac[0] === "recess" ? pan && pan.sub === "curbless"
-                      : ac[0] === "coverFrame" ? frameOpts.length > 0 : true)).map((ac) => {
-                      // niche · seat · bench · shelf add another each click (Phase 1c) —
-                      // one comes off on its own line's − or ⇄, never all at once
-                      const many = ["niche", "seat", "bench", "shelf"].includes(ac[0]);
-                      const count = many ? build.lines.reduce((t, l) => t + (l.item.group === ac[0] ? l.qty : 0), 0) : 0;
-                      // Recess kit / Cover frame are the kit's option: an added ramp or frame is its own line
-                      const kitOpt = ac[0] === "recess" || ac[0] === "coverFrame";
-                      const hit = (l) => !(kitOpt && l.added) && (ac[0] === "recess"
-                        ? l.item.group === "recess" || l.item.group === "ramp" : l.item.group === ac[0]);
-                      const on = ac[0] === "gun" ? build.lines.some((l) => l.item.key === SKU.gun) : build.lines.some(hit);
-                      return (
-                        <button key={ac[0]} className={"addchip" + (on ? " on" : "")} data-wedi-chip={ac[0]} onClick={(ev) => {
-                          if (ac[0] === "gun") { toggleGun(); return; }
-                          const cur = !many && build.lines.find(hit);
-                          if (cur) {
-                            if (ac[0] === "recess") setOpts((o) => ({ ...o, recess: "none" }));
-                            else if (ac[0] === "coverFrame") setOpts((o) => ({ ...o, coverFrame: undefined }));
-                            setQtyOv((o) => { const n = { ...o }; delete n[cur.item.key]; return n; });
-                          } else {
-                            const ch = chipChoices(ac[0]).filter(Boolean);
-                            if (ch.length > 1) setChipMenu({ group: ac[0], label: ac[1], rect: ev.currentTarget.getBoundingClientRect(), anchor: ev.currentTarget });
-                            else if (ch.length) chipPick(ac[0], ch[0].key);
-                          }
-                        }}>{(on ? "✓ " : "+ ") + ac[1] + (count > 1 ? " ×" + count : "")}</button>
-                      );
-                    })}
-                  </div>
-                )}
               </div>
             );
           })}
+
+          {/* The add-on chips sit below the groups, as on the Schluter bill:
+              what they add lands in its own group (a niche under Niches). */}
+          {pan && (
+            <div className="bgroup">
+              <div className="bg-h">Add-ons</div>
+              <div className="addchips">
+                {ADDON_CHIPS.filter((ac) => (ac[0] === "recess" ? pan && pan.sub === "curbless"
+                  : ac[0] === "coverFrame" ? frameOpts.length > 0 : true)).map((ac) => {
+                  // niche · seat · bench · shelf add another each click (Phase 1c) —
+                  // one comes off on its own line's − or ⇄, never all at once
+                  const many = ["niche", "seat", "bench", "shelf"].includes(ac[0]);
+                  const count = many ? build.lines.reduce((t, l) => t + (l.item.group === ac[0] ? l.qty : 0), 0) : 0;
+                  // Recess kit / Cover frame are the kit's option: an added ramp or frame is its own line
+                  const kitOpt = ac[0] === "recess" || ac[0] === "coverFrame";
+                  const hit = (l) => !(kitOpt && l.added) && (ac[0] === "recess"
+                    ? l.item.group === "recess" || l.item.group === "ramp" : l.item.group === ac[0]);
+                  const on = ac[0] === "gun" ? build.lines.some((l) => l.item.key === SKU.gun) : build.lines.some(hit);
+                  return (
+                    <button key={ac[0]} className={"addchip" + (on ? " on" : "")} data-wedi-chip={ac[0]} onClick={(ev) => {
+                      if (ac[0] === "gun") { toggleGun(); return; }
+                      const cur = !many && build.lines.find(hit);
+                      if (cur) {
+                        if (ac[0] === "recess") setOpts((o) => ({ ...o, recess: "none" }));
+                        else if (ac[0] === "coverFrame") setOpts((o) => ({ ...o, coverFrame: undefined }));
+                        setQtyOv((o) => { const n = { ...o }; delete n[cur.item.key]; return n; });
+                      } else {
+                        const ch = chipChoices(ac[0]).filter(Boolean);
+                        if (ch.length > 1) setChipMenu({ group: ac[0], label: ac[1], rect: ev.currentTarget.getBoundingClientRect(), anchor: ev.currentTarget });
+                        else if (ch.length) chipPick(ac[0], ch[0].key);
+                      }
+                    }}>{(on ? "✓ " : "+ ") + ac[1] + (count > 1 ? " ×" + count : "")}</button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {build.hints.includes("sausage-gun") && (
             <div className="whint">Sausage sealant with no gun on the job
@@ -2332,16 +2340,15 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
 
   const addPanel = (() => {
     if (!add || !build) return null;
-    const parts = add.replace ? [wediAddPartOf(add.g, item(add.replace))].filter(Boolean) : wediAddParts(add.g);
+    const parts = add.replace ? [wediAddPartOf(add.grp, item(add.replace))].filter(Boolean) : wediAddParts(add.grp);
     const part = parts.find((p) => p.key === add.part) || parts[0];
     if (!part) return null;
     const setA = (patch) => setAdd((a) => (a ? { ...a, ...patch } : a));
     const r = add.rect;
     const at = { anchor: add.anchor, x: r.right - 470, y: r.bottom + 6 };
     const partRow = !add.replace && parts.length > 1 ? [{ label: "Part", chips: parts.map((p) => ({
-      key: p.key, label: p.label, ok: true, on: p.key === part.key, onPick: () => setA({ part: p.key, draft: addDraft(p, null), q: "" }) })) }] : [];
-    const bucketLabel = (BUCKETS.find((b) => b[0] === add.g) || [])[1] || add.g;
-    const title = add.replace ? `Swap the added ${part.label.toLowerCase()}` : `Add to ${bucketLabel}`;
+      key: p.key, label: p.label, ok: true, on: p.key === part.key, onPick: () => setA({ part: p.key, g: p.group, draft: addDraft(p, null), q: "" }) })) }] : [];
+    const title = add.replace ? `Swap the added ${part.label.toLowerCase()}` : `Add to ${groupLabel(add.grp)}`;
     const oldQty = add.replace ? addedQty(manual, add.g, add.replace) : 0;
     const old = add.replace ? item(add.replace) : null;
     const sell = round2(build.lines.reduce((t, l) => t + tierOf(l.item) * l.qty, 0));
@@ -2749,10 +2756,10 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
       <table className="ps-table">
         <thead><tr><th>SKU</th><th>Description</th><th>Size</th><th className="num">Qty</th><th className="num">{tierId}</th><th className="num">Total</th></tr></thead>
         <tbody>
-          {BUCKETS.flatMap((bk) => build.lines.filter((l) => l.group === bk[0]).map((l) => {
+          {GROUPS.flatMap(({ key: g }) => build.lines.filter((l) => groupOf(l.slot) === g).map((l) => {
             const p = tierOf(l.item);
             return (
-              <tr key={bk[0] + l.item.key + (l.added ? "+" : "")}>
+              <tr key={l.group + l.item.key + (l.added ? "+" : "")}>
                 <td>{l.item.stock ? l.item.erp : "wedi " + l.item.us}</td>
                 <td>{unwedi(l.item.name)}</td><td>{l.item.sizeText || ""}</td>
                 <td className="num">{l.qty}</td><td className="num">{fm(p)}</td><td className="num">{fm(round2(p * l.qty))}</td>
