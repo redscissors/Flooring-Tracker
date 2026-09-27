@@ -102,6 +102,10 @@ function membraneSf(item, code) {
   return PLAIN_SF;
 }
 
+// A roll's length code off its SKU ("10M"); an unsuffixed roll is the full
+// 30 m one. KERDI membrane and KERDI-BAND share the /<n>M grammar.
+const rollCode = (code) => { const m = /\/(\d+)M$/.exec(code); return m ? m[1] + "M" : "30M"; };
+
 function bandLf(code) {
   const suffix = /\/(\d+)M$/.exec(code);
   if (suffix && BAND_LF[suffix[1]] !== undefined) return BAND_LF[suffix[1]];
@@ -263,12 +267,14 @@ function classifyCode(item, rawSku) {
   if (/^KERDI200/.test(code)) {
     const entry = { ...item, g: "membrane", sf: membraneSf(item, code) };
     if (/^KERDI200200/.test(code)) entry.wide = true;
+    entry.roll = rollCode(code);
     return entry;
   }
 
-  // KERDI-BAND seam band.
+  // KEBA<thickness>/<width mm>[/<n>M] — the width code is what a band swap names.
   if (/^KEBA/.test(code)) {
-    return { ...item, g: "seam", lf: bandLf(code) };
+    const m = /^KEBA\d+\/(\d+)/.exec(code);
+    return { ...item, g: "seam", lf: bandLf(code), roll: rollCode(code), ...(m ? { width: m[1] } : {}) };
   }
   // KERECK corners (FI = inside, FA = outside), KERDI-SEAL pipe (KMS172) /
   // mixing-valve (KMSMV) seals. buildKit keys on these facts, never the row's
@@ -570,17 +576,10 @@ export function trayCandidates(cfg, cat, { source } = {}) {
   return out.slice(0, 4);
 }
 
-/**
- * Pick membrane rolls to cover sfNeed: greedy largest roll for whole
- * multiples, then the smallest single roll that covers the remainder
- * (falling back to another largest roll if none is big enough). "Wide"
- * rolls (name contains "wide") are excluded — they're a different-width
- * product, not a drop-in size option on this ladder.
- */
-export function pickRolls(sfNeed, cat, { source } = {}) {
-  // stockPool, not a hard filter: with every roll special-order the membrane
-  // role must still land (flagged), never vanish from the bill
-  const rolls = stockPool(cat.filter((i) => i.g === "membrane" && !i.wide).sort((a, b) => a.sf - b.sf), source);
+// The membrane roll ladder: greedy largest roll for whole multiples, then the
+// smallest single roll that covers the remainder (another largest when none
+// is big enough). `rolls` arrive sorted by sf, already stock-narrowed.
+function rollLadder(rolls, sfNeed) {
   if (!rolls.length) return [];
   const picks = [];
   const big = rolls[rolls.length - 1];
@@ -593,6 +592,17 @@ export function pickRolls(sfNeed, cat, { source } = {}) {
     if (existing) existing.qty++; else picks.push({ item: top, qty: 1 });
   }
   return picks;
+}
+
+/**
+ * Pick membrane rolls to cover sfNeed through the ladder above. "Wide"
+ * rolls are excluded — they're a different-width product, reached only by a
+ * membrane swap (resolveMembrane).
+ */
+export function pickRolls(sfNeed, cat, { source } = {}) {
+  // stockPool, not a hard filter: with every roll special-order the membrane
+  // role must still land (flagged), never vanish from the bill
+  return rollLadder(stockPool(cat.filter((i) => i.g === "membrane" && !i.wide).sort((a, b) => a.sf - b.sf), source), sfNeed);
 }
 
 /**
@@ -970,6 +980,108 @@ export function drainOptions(choice, panW, cat, { source } = {}) {
   return { family, families, styles, frames, finishes, fit, result: resolveDrain(c, panW, cat, { source }) };
 }
 
+// ---------------------------------------------------------------------------
+// Membrane and band choices (ticket 158 Phase 1b, ADR 0049): cfg.swaps.membrane
+// = { wide, roll? } and cfg.swaps.band = { width, roll? } name a width and
+// optionally a roll length — never a part — so the count re-fits the walls.
+
+export const MEMBRANE_WIDTH = { standard: "Standard 1 m", wide: "Wide 2 m" };
+// Schluter's own marketing rounding of the KERDI-BAND widths (mm → inch).
+const BAND_W_IN = { 125: '5"', 185: '7-1/4"', 250: '10"' };
+export const bandWidthLabel = (code) => BAND_W_IN[code] || `${Math.round((+code / 25.4) * 4) / 4}"`;
+
+/**
+ * A membrane choice → the wall rolls for `sfNeed`. No roll is the best-fit
+ * mix within the width (the pickRolls ladder); a roll pins that length at
+ * ⌈need ÷ roll sf⌉. A width or roll the books don't carry falls back and says
+ * so in `subst` — never silently dropped.
+ */
+export function resolveMembrane(choice, sfNeed, cat, { source } = {}) {
+  const c = choice && typeof choice === "object" ? choice : {};
+  const inWidth = (wide) => cat.filter((i) => i.g === "membrane" && !!i.wide === wide).sort((a, b) => a.sf - b.sf);
+  let rolls = inWidth(!!c.wide), subst = "";
+  if (!rolls.length && c.wide) { rolls = inWidth(false); subst = "no wide roll in the books — standard used"; }
+  if (c.roll && !subst) {
+    const pinned = stockPool(rolls.filter((i) => i.roll === c.roll), source)[0];
+    if (pinned) {
+      const qty = Math.ceil(sfNeed / pinned.sf);
+      return { lines: qty > 0 ? [{ item: pinned, qty }] : [] };
+    }
+    subst = `no ${c.roll} roll in the books — best fit used`;
+  }
+  const lines = rollLadder(stockPool(rolls, source), sfNeed);
+  return subst ? { lines, subst } : { lines };
+}
+
+// A chip is special order when none of the rows it stands for is stocked.
+const allSo = (list) => list.length > 0 && !list.some((i) => i.stock);
+const rollWord = (code) => parseInt(code, 10) + " m";
+
+/** The membrane popover's rows (Width → Roll), each chip's `next` the choice it drafts. */
+export function membraneOptions(choice, sfNeed, cat, { source } = {}) {
+  const c = choice && typeof choice === "object" ? choice : {};
+  const wide = !!c.wide;
+  const mem = cat.filter((i) => i.g === "membrane");
+  const widths = [false, true].map((w) => {
+    const list = mem.filter((i) => !!i.wide === w);
+    return { key: w ? "wide" : "standard", label: MEMBRANE_WIDTH[w ? "wide" : "standard"], ok: list.length > 0, so: allSo(list), on: w === wide, next: { wide: w } };
+  });
+  const inW = mem.filter((i) => !!i.wide === wide).sort((a, b) => a.sf - b.sf);
+  const rolls = [
+    { key: "auto", label: "Auto", ok: inW.length > 0, so: false, on: !c.roll, next: { wide } },
+    ...[...new Set(inW.map((i) => i.roll))].map((r) => {
+      const list = inW.filter((i) => i.roll === r);
+      return { key: r, label: `${rollWord(r)} · ${list[0].sf} sf`, ok: true, so: allSo(list), on: c.roll === r, next: { wide, roll: r } };
+    }),
+  ];
+  return { widths, rolls, result: resolveMembrane(c, sfNeed, cat, { source }) };
+}
+
+/**
+ * A band choice → the KERDI-BAND line for `lfNeed`. No roll is today's rule
+ * within the width — the shortest roll that covers, else multiples of the
+ * longest; a roll pins that length at ⌈need ÷ roll lf⌉. No choice at all is
+ * today's rule over every band.
+ */
+export function resolveBand(choice, lfNeed, cat, { source } = {}) {
+  const c = choice && typeof choice === "object" ? choice : {};
+  const all = cat.filter((i) => i.g === "seam" && i.lf).sort((a, b) => a.lf - b.lf);
+  let pool = c.width ? all.filter((i) => i.width === c.width) : all, subst = "";
+  if (!pool.length && c.width) { pool = all; subst = `no ${bandWidthLabel(c.width)} band in the books — another width used`; }
+  if (c.roll && !subst) {
+    const pinned = stockPool(pool.filter((i) => i.roll === c.roll), source)[0];
+    if (pinned) return { lines: [{ item: pinned, qty: Math.max(1, Math.ceil(lfNeed / pinned.lf)) }] };
+    subst = `no ${c.roll} roll in the books — best fit used`;
+  }
+  // when no single roll in the pool covers, multiples cover the need — a
+  // stock-narrowed pool must never quietly land one short roll
+  const bands = stockPool(pool, source);
+  const band = bands.find((b) => b.lf >= lfNeed) || bands[bands.length - 1];
+  const lines = band ? [{ item: band, qty: Math.max(1, Math.ceil(lfNeed / band.lf)) }] : [];
+  return subst ? { lines, subst } : { lines };
+}
+
+/** The band popover's rows (Width → Roll), each chip's `next` the choice it drafts. */
+export function bandOptions(choice, lfNeed, cat, { source } = {}) {
+  const c = choice && typeof choice === "object" ? choice : {};
+  const all = cat.filter((i) => i.g === "seam" && i.lf);
+  const result = resolveBand(c, lfNeed, cat, { source });
+  const width = c.width || (result.lines[0] && result.lines[0].item.width) || null;
+  const widths = [...new Set(all.map((i) => i.width).filter(Boolean))].sort((a, b) => a - b).map((w) => ({
+    key: w, label: bandWidthLabel(w), ok: true, so: allSo(all.filter((i) => i.width === w)), on: w === width, next: { width: w },
+  }));
+  const inW = all.filter((i) => !width || i.width === width).sort((a, b) => a.lf - b.lf);
+  // Auto keeps "no choice" until a width is picked; a roll chip names the width it shows
+  const rolls = [
+    { key: "auto", label: "Auto", ok: inW.length > 0, so: false, on: !c.roll, next: c.width ? { width: c.width } : {} },
+    ...[...new Set(inW.map((i) => i.roll))].map((r) => {
+      const list = inW.filter((i) => i.roll === r);
+      return { key: r, label: `${rollWord(r)} · ${list[0].lf} lf`, ok: true, so: allSo(list), on: c.roll === r, next: { ...(width ? { width } : {}), roll: r } };
+    }),
+  ];
+  return { widths, rolls, result };
+}
+
 /** A point grate's chip label — size, design and finish ("4″ floral, brushed"), not the row's "kit 4" floral brushed SS". */
 export function pointGrateLabel(e) {
   const s = String((e && e.name) || "").replace(/^schluter\s+(?:—\s*)?/i, "").replace(/^kerdi-drain\s+/i, "")
@@ -1052,7 +1164,8 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
     const screws = (sf * 100) / 60;
     add("Walls", fast, fast ? Math.max(1, Math.ceil(fast.ct > 0 ? screws / fast.ct : sf / 60)) : 0, "board fasteners");
   } else {
-    for (const p of pickRolls(sf * 1.1, cat, { source })) add("Walls", p.item, p.qty, `${sf.toFixed(0)} sf of wall`);
+    const mem = resolveMembrane(swaps.membrane, sf * 1.1, cat, { source });
+    mem.lines.forEach((p, i) => add("Walls", p.item, p.qty, (i === 0 && mem.subst ? mem.subst + " · " : "") + `${sf.toFixed(0)} sf of wall`));
     L.push({
       g: "Walls",
       item: { name: "Cement board / drywall substrate", sku: "— by others", price: 0, cost: 0, stock: true },
@@ -1060,12 +1173,9 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
     });
   }
 
-  const bands = stockPool(cat.filter((i) => i.g === "seam" && i.lf).sort((a, b) => a.lf - b.lf), source);
   const lfNeed = (2 * (cfg.w + cfg.d)) / 12 + sf / 6;
-  // when no single roll in the pool covers, multiples cover the need — a
-  // stock-narrowed pool must never quietly land one short roll
-  const band = bands.find((b) => b.lf >= lfNeed) || bands[bands.length - 1];
-  add("Seams", band, band ? Math.max(1, Math.ceil(lfNeed / band.lf)) : 0, "seams + tray perimeter");
+  const band = resolveBand(swaps.band, lfNeed, cat, { source });
+  for (const p of band.lines) add("Seams", p.item, p.qty, (band.subst ? band.subst + " · " : "") + "seams + tray perimeter");
   // KERECK corners + pipe/valve seals never land as their own lines: both
   // drain flange kits box them (KD point/offset like the Vario — their notes
   // say so), so separate packs would double-bill the shower
@@ -1117,7 +1227,7 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
   // kit, not every shower — the popup offers it as an add-on chip instead
 
   for (const l of L) l.slot = slotOf(l.g, l.item);
-  return { lines: L, cand, drainFit };
+  return { lines: L, cand, drainFit, need: { wallSf: sf * 1.1, bandLf: lfNeed } };
 }
 
 // Re-derive the billed kit from a saved marker / staged basket entry
