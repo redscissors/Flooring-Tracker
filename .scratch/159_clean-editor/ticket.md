@@ -171,6 +171,26 @@ hover; a blank new line keeps the type picker), `52-line-L2-plus-before-name`
 ("Type  Tile ›" at the top of the line menu, opening the list in place like
 Move to area). Waiting on the owner's pick.
 
+## Round 2e — L1 built; option colors proposed (2026-09-27)
+
+Owner picked L1. Built (Clean only): a line with content (`!rowBlank`) shows a
++ in the old type slot — faint with no extras, moss with extras, opens the
+extras drawer; a misc line has an empty slot; a blank manual line keeps the
+type picker. Type moved into the line ⋯ menu ("Type · Tile ›", expands in
+place). The empty "＋ Extras" strip is gone in Clean. Shots `55-L1-real`,
+`56-L1-plus-hover`, `57-L1-type-menu`.
+
+Owner: area bars go back to the ORIGINAL tan (`--ft-area-head`) — the bar and
+the white search rows must differ. Done; option bars mix their color into
+the tan.
+
+Owner: options get their OWN colors again — this reverses the 2026-08-26
+"one slate-blue tint, the letter is the identity" call in `src/options.js`.
+Proposed palette `54-option-palette.png` (`mockups/palette.html`), A–L:
+slate blue, berry, teal, violet, ochre, magenta, sky, brick, graphite,
+mauve, navy, walnut. Waiting on approval before touching OPTION_COLOR (it
+is shared by every layout, the Order summary and the phone).
+
 ## Round 2 — open: product rows
 
 What the mockups show (every board uses the same card treatment; the frame

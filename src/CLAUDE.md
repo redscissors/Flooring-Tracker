@@ -28,11 +28,14 @@ src/
                     # patch, wired as `onQuoteOptions` on both job-context
                     # vendor mounts (never on the Apps-hub copies).
                     # `cleanCards` (isWide && headerLayout "clean", 2026-09-27)
-                    # swaps the area frame for Clean's cards: 12px-radius
-                    # white cards with gaps, a name · count · subtotal · ⋯ row
-                    # (⋯ = the area menu + "Delete area…", hover-only grip)
-                    # and ONE column-heading row above all areas. Product rows
-                    # are shared with the other layouts.
+                    # swaps the area frame for Clean's cards: one slim tan bar
+                    # per area carrying name · column labels · subtotal · ⋯
+                    # (⋯ = the area menu + "Delete area…", hover-only grip);
+                    # an option area washes the bar in its option color with
+                    # the slot letter at the far left. On product lines, a
+                    # line with content swaps its type chip for the extras +
+                    # (type moves to LineMenu's `onType`), and the empty
+                    # "＋ Extras" strip is dropped.
   uiconst.js        # shared UI constants: TYPES/TLBL (incl. `underlayment`, ADR 0043), tier colors/labels,
                     # joints/thicknesses, grout color lists, sweep/keep constants,
                     # stock-loading messages, `skuSearchable`, `colorsFor`
@@ -299,6 +302,7 @@ src/
                     # quick-reason chips, optional note; CLAUDE_CLAY (#D97757)
                     # is the one non-theme color, marking everything Claude
   linemenu.jsx      # `LineMenu` — the product line's action menu (issue 087,
+                    # Clean layout: a "Type" item on top when `onType` is passed),
                     # owner "option A" 2026-08-13): opened by a plain CLICK on
                     # the row-end ⋯ (a HOLD on the same button drags — the dots
                     # are the row's one grip; no tip line, the grab cursor is

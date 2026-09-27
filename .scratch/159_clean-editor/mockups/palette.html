@@ -1,0 +1,38 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Option palette</title>
+<style>
+:root{--cream:#F6F3EC;--head:#E7E3D6;--ink:#1C1A17;--muted:#57534C;--faint:#8A8378;--deep:#40542A}
+*{box-sizing:border-box}body{margin:0;background:var(--cream);font:12px/1.3 system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink)}
+.board{width:880px;padding:16px 10px 18px}
+.tag{font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--deep);margin:0 0 4px 2px}
+.sub{font-size:12px;color:var(--muted);margin:0 0 12px 2px}
+.sw{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:16px}
+.s{border-radius:8px;overflow:hidden;border:1px solid rgba(28,26,23,.1);background:#fff}
+.s .c{height:34px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:15px}
+.s .n{padding:4px 7px;font-size:10.5px;color:var(--muted);font-weight:600}
+.bar{display:grid;grid-template-columns:0.85fr 2.75fr 1fr 0.55fr 0.5fr 0.55fr 0.7fr 0.8fr 44px;align-items:center;height:30px;border:1px solid rgba(28,26,23,.12);border-radius:8px 8px 0 0;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+.bar>div{padding:0 7px}.r{text-align:right}
+.nm{grid-column:1 / 3;display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;color:var(--ink);font-size:13.5px}
+.L{width:18px;height:18px;border-radius:4px;color:#fff;font-size:10.5px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.row{height:26px;background:#F6F3EC;border:1px solid rgba(28,26,23,.12);border-top:0;border-radius:0 0 8px 8px;margin-bottom:6px;font-size:11px;font-weight:700;display:flex;align-items:center;padding-left:34px;color:var(--muted)}
+</style></head><body>
+<section class="board" id="p">
+  <p class="tag">Option colors — one per letter</p>
+  <p class="sub">Twelve slots (A–L). A–F are the most different from each other — most jobs never go past C. None are green (that's the app's own color), amber (warnings) or red (delete).</p>
+  <div class="sw" id="sw"></div>
+  <p class="tag">How the area bars read</p>
+  <p class="sub">A shared area keeps the plain tan bar. An option area's bar takes a light wash of its color, with the letter at the far left.</p>
+  <div id="bars"></div>
+</section>
+<script>
+const P = [
+  ["A", "#3E5F8A", "Slate blue"], ["B", "#9A3F5E", "Berry"], ["C", "#2C7A7B", "Teal"],
+  ["D", "#6B4FA0", "Violet"], ["E", "#8C6D1F", "Ochre"], ["F", "#A0469A", "Magenta"],
+  ["G", "#2F7FA8", "Sky"], ["H", "#8E4A3A", "Brick"], ["I", "#5E6670", "Graphite"],
+  ["J", "#86607A", "Mauve"], ["K", "#2B3F6B", "Navy"], ["L", "#7A6448", "Walnut"],
+];
+document.getElementById("sw").innerHTML = P.map(([l, c, n]) => `<div class="s"><div class="c" style="background:${c}">${l}</div><div class="n">${n} <span style="color:#b0a99c">${c}</span></div></div>`).join("");
+const bar = (name, l, c) => `<div class="bar" style="background:${c ? `color-mix(in srgb, ${c} 16%, #E7E3D6)` : "#E7E3D6"}"><div class="nm">${l ? `<span class="L" style="background:${c}">${l}</span>` : `<span style="width:18px"></span>`}<b>${name}</b></div><div>SKU</div><div>Cov.</div><div class="r">SF/EA</div><div class="r">Price</div><div class="r">Order</div><div class="r" style="font-size:12.5px;color:var(--ink);letter-spacing:0">$907.00</div><div></div></div><div class="row">Carrara Hex · 95 sf</div>`;
+document.getElementById("bars").innerHTML = bar("Kitchen + Pantry (shared)") + P.slice(0, 6).map(([l, c], i) => bar(["Master Bath — tile", "Master Bath — LVP", "Master Bath — stone", "Hall bath — budget", "Hall bath — premium", "Basement — carpet"][i], l, c)).join("");
+</script>
+</body></html>

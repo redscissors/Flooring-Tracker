@@ -1776,7 +1776,7 @@ export default function App({ user, onSignOut }) {
                       return (
                         <div onContextMenu={(e) => { e.preventDefault(); setAreaMenu({ aid: a.id, x: e.clientX, y: e.clientY, clean: true }); }}
                           style={{ display: "grid", gridTemplateColumns: GRID_COLS, alignItems: "center", height: 30, borderBottom: "1px solid var(--ft-border-soft)", fontSize: 9, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--ft-faint)",
-                            background: oc ? `color-mix(in srgb, ${oc.main} 13%, var(--ft-card))` : undefined }}>
+                            background: oc ? `color-mix(in srgb, ${oc.main} 16%, var(--ft-area-head))` : "var(--ft-area-head)" }}>
                           <div className="flex items-center gap-2 min-w-0 normal-case tracking-normal" style={{ gridColumn: "1 / 3", padding: "0 4px 0 6px", color: "var(--ft-text)" }}>
                             {oc && <button tabIndex={-1} onClick={(e) => menuAt(e)} title={`${optionTitle(sel, a.option)} — press to change`} className="ft-noprint shrink-0 w-[18px] h-[18px] rounded flex items-center justify-center text-[10.5px] font-extrabold" style={{ background: oc.main, color: "#fff" }}>{a.option}</button>}
                             <button tabIndex={-1} onPointerDown={(e) => startAreaDrag(e, a.id, ai)} title="Drag to reorder areas" className="ft-noprint p-0.5 rounded touch-none cursor-grab text-slate-400 hover:text-slate-600 opacity-0 group-hover:opacity-100 focus:opacity-100 shrink-0"><AlignJustify size={12} /></button>
@@ -2141,7 +2141,17 @@ export default function App({ user, onSignOut }) {
                               setLineMenu({ x: e.clientX, y: e.clientY, aid: a.id, pid: p.id, pi });
                             }} style={{ display: "grid", gridTemplateColumns: GRID_COLS, fontSize: 11, fontWeight: 600, background: rowTint, ...(rowOpen ? { position: "relative", zIndex: 46, borderTop: matBorder, borderLeft: matBorder, borderRight: matBorder, marginTop: -3 } : null) }}>
                               <div style={{ ...gridCell, paddingLeft: 0, gap: 2 }}>
+                                {/* Clean (L1, 2026-09-27): once a line has content its type
+                                    chip gives way to the extras + (type moves to the line
+                                    menu); a blank manual line keeps the picker. */}
+                                {cleanCards && !rowBlank(p) ? (
+                                  <button ref={(el) => { if (el) typeRefs.current[p.id] = el; }} tabIndex={-1} onClick={p.type === "misc" ? undefined : openMats} disabled={p.type === "misc"}
+                                    title={p.type === "misc" ? TLBL[p.type] : hasMats ? "Extras — grout, mortar, underlayment…" : "Add extras — grout, mortar, underlayment…"}
+                                    className="ft-noprint shrink-0 self-stretch flex items-center justify-center hover:!text-[color:var(--ft-brand)]"
+                                    style={{ width: 18, color: hasMats ? "var(--ft-brand)" : "var(--ft-border-strong)", visibility: p.type === "misc" ? "hidden" : undefined }}><Plus size={13} strokeWidth={2.6} /></button>
+                                ) : (
                                 <TypeSelect compact type={p.type} onChange={(t) => updProduct(a.id, p.id, { type: t })} triggerRef={(el) => { if (el) typeRefs.current[p.id] = el; }} />
+                                )}
                                 {/* no expand carrot — the materials pill opens the drawer,
                                     clicking anywhere outside folds it */}
                                 <span className="w-1 shrink-0" />
@@ -2509,7 +2519,7 @@ export default function App({ user, onSignOut }) {
                               {showNote ? noteInput : null}
                               </div>
                             )}
-                            {stripMats.length === 0 && warns.length === 0 && !hasMats && addables.length > 0 && (
+                            {!cleanCards && stripMats.length === 0 && warns.length === 0 && !hasMats && addables.length > 0 && (
                               <div style={{ background: rowTint, width: "calc(100% - 44px)", padding: "4px 8px 7px 26px" }}>
                               {/* One invitation, not a manifest: an empty row's slot
                                   reads "＋ Extras" whatever is addable there, matching
@@ -2521,7 +2531,7 @@ export default function App({ user, onSignOut }) {
                               {showNote ? noteInput : null}
                               </div>
                             )}
-                            {stripMats.length === 0 && warns.length === 0 && (hasMats || addables.length === 0) && showNote && (
+                            {stripMats.length === 0 && warns.length === 0 && (hasMats || addables.length === 0 || cleanCards) && showNote && (
                               <div className="flex items-center" style={{ padding: "1px 12px 4px 26px" }}>
                                 {noteInput}
                               </div>
@@ -2908,6 +2918,7 @@ export default function App({ user, onSignOut }) {
           wasteText={takesWaste(p) ? (wasteTag(p, wSet)?.text || "none") : null}
           onWaste={takesWaste(p) ? () => setWastePop({ aid: a.id, pid: p.id, x: lineMenu.x, y: lineMenu.y }) : null}
           onFlag={() => setFlagCtx({ source: jobSource(sel, { name: areaLabel(a, ai) }, p) })}
+          type={p.type} onType={cleanCards ? (t) => updProduct(a.id, p.id, { type: t }) : null}
           onDelete={() => setConfirmProd({ aid: a.id, pid: p.id })} />;
       })()}
       {wastePop && sel && (
