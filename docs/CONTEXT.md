@@ -9,9 +9,11 @@ manage customer jobs, product selections, and material estimates.
 
 **Builder**:
 A general contractor or production builder that Customers come from (e.g. a GC
-who sends the shop many buyers). A canonical entry you **link to**, not free
-text, so "P&L" and "P & L" can't split into two groups. Has many Customers;
-optional (a Customer can be direct, with no builder).
+who sends the shop many buyers). A Builder **is a Customer** marked "This is a
+builder" (ADR 0050), so it has its own contact info and can own Projects (spec
+houses, model homes) while homeowners link to it by id. Has many Customers;
+optional (a Customer can be direct, with no builder). A builder has no builder
+of its own.
 _Avoid_: Company (that's the materials catalog term — see below), GC, vendor.
 
 **Customer**:
@@ -24,6 +26,12 @@ A single flooring job — its areas, selections, saved versions, and attachments
 Belongs to one Customer. This is what "Customer" meant before ADR 0005; the
 `customers` table was renamed `projects`.
 _Avoid_: Estimate (that's the printed output of a Project), order.
+
+**Salesman** (a.k.a. Salesperson):
+The team member who sold a Project, snapshotted onto the Project when it is
+created (ADR 0008). A Customer has no salesman of its own; one Customer's
+Projects can belong to different salesmen.
+_Avoid_: Owner (that's `owner_id`, "created by"), rep (that's a vendor's rep).
 
 **Area**:
 A named room or zone within a Customer (e.g. "Master Bath") that holds product
