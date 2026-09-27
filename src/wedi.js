@@ -29,6 +29,7 @@
 import { queryHit, parseQuery, querySummary, seedFromQuery } from "./wediquery.js";
 import { planPanels } from "./panelplan.js";
 import { groupOf } from "./slots.js";
+import { SDRY, sdryFit, sdryNearest, sdryCurb, sdryWalls, sdryProSet, sdryRole, sdrySlot } from "./sdry.js";
 import { WALL_THICK, CURB_LAP, panThick, benchFootprint, BENCH_DEPTH, curbWidthOf } from "./showerdraw.js";
 
 export { queryHit, parseQuery, querySummary, seedFromQuery };
@@ -4456,14 +4457,17 @@ function sealantItem(form, six20) {
   return item(form === "tube" ? SKU.sealantTube : SKU.sealantSausage);
 }
 
-export function figureConsumables(panelSf, form, fastenerKey) {
+// jointSf: floor area that takes joint sealant but no fasteners (a wedi pan's
+// pan/extension joints under S-DRY walls).
+export function figureConsumables(panelSf, form, fastenerKey, jointSf) {
   const sf = Math.max(0, +panelSf || 0);
+  const joint = Math.max(0, +jointSf || 0);
   form = form === "tube" ? "tube" : "sausage";
-  const oz = round2(sf * CONSUMABLES.sealantOzPerSf);
+  const oz = round2((sf + joint) * CONSUMABLES.sealantOzPerSf);
   const per = form === "tube" ? CONSUMABLES.tubeOz : CONSUMABLES.sausageOz;
   const fastenerCount = Math.ceil(sf * CONSUMABLES.fastenersPerSf);
   const lines = [];
-  if (sf > 0) {
+  if (sf + joint > 0) {
     // No per-ft² note (owner ask 2026-07-30): the line reads the kit's own
     // contents — "100 ct … Screws & … Washers with Tabs" — nothing else.
     // Guarded like push() is: a live book can SUBTRACT a row the table always
@@ -4481,7 +4485,7 @@ export function figureConsumables(panelSf, form, fastenerKey) {
     const fastenerStale = !!fastenerKey && !honoured;
     const ctM = honoured && honoured.key !== SKU.fastenerKit ? /(\d+)\s*ct/i.exec(honoured.sizeText || "") : null;
     const sealant = sealantItem(form, false);
-    if (fastenerKit) lines.push({
+    if (fastenerKit && sf > 0) lines.push({
       item: fastenerKit, qty: Math.ceil(fastenerCount / (ctM ? +ctM[1] : CONSUMABLES.fastenerKitCt)),
       group: "install", auto: true,
       note: fastenerStale ? fastenerKey + " not in the book — house kit" : "",
@@ -4489,7 +4493,8 @@ export function figureConsumables(panelSf, form, fastenerKey) {
     if (sealant) lines.push({
       item: sealant, qty: Math.ceil(oz / per),
       group: "install", auto: true,
-      note: CONSUMABLES.sealantOzPerSf + " oz per ft² — " + oz + " oz",
+      note: CONSUMABLES.sealantOzPerSf + " oz per ft² — " + oz + " oz"
+        + (joint > 0 ? " · covers the pan/extension joints (" + round2(joint) + " sf of floor)" : ""),
     });
   }
   return { panelSf: round2(sf), sealantOz: oz, fastenerCount: fastenerCount, form: form, lines: lines };
@@ -5008,6 +5013,19 @@ function familyOf(pan) {
 
 const BUILDUP_NOTE = 'the 2" pan runs deeper than the 1 37/64" extensions — build the extensions up flush with ½" building-panel strips underneath';
 const BUILDUP_SHEET = "US8000015";   // ½" 4×8 building panel — ripped into strips
+// The floor the pieces cover, as their bounding footprint: the solver's edge
+// strips can overlap at the corners, so a sum of pieces overstates it.
+function floorSfOf(option, pan) {
+  const ps = option && option.pieces ? option.pieces : [];
+  if (ps.length && ps.every((p) => p.x != null && p.y != null)) {
+    const w = Math.max(...ps.map((p) => p.x + p.w)) - Math.min(...ps.map((p) => p.x));
+    const d = Math.max(...ps.map((p) => p.y + p.d)) - Math.min(...ps.map((p) => p.y));
+    return round2(w * d / 144);
+  }
+  const d = panRoomDims(pan);
+  return round2(d.w * d.d / 144);
+}
+
 function extensionSf(option) {
   return round2((option && option.pieces ? option.pieces : [])
     .reduce((s, p) => s + (p.kind === "pan" || p.kind === "module" ? 0 : p.w * p.d / 144), 0));
@@ -5084,11 +5102,17 @@ export function coverAddOptions(key) {
   return { cur, sizes, styles, finishes };
 }
 
-/** Whether a saved coverPick bills on this pan — a point `{ key }` on a linear pan, or a `{ finish }` on a point pan, is kept but inert. */
-export function coverPickApplies(pick, panKey) {
+/**
+ * Whether a saved coverPick bills on this pan — a point `{ key }` on a linear
+ * pan, or a `{ finish }` on a point pan, is kept but inert; so is a wedi cover
+ * on an S-DRY base under Membrane, and an S-DRY cover anywhere else (kitFor).
+ */
+export function coverPickApplies(pick, panKey, wallSys) {
   const pan = typeof panKey === "string" ? item(panKey) : panKey;
   if (!pick || !pan) return false;
-  return familyOf(pan) === "linear" ? !!pick.finish : !!pick.key;
+  if (familyOf(pan) === "linear") return !!pick.finish;
+  const sdryCover = sdryRole(item(pick.key)) === "cover";
+  return !!pick.key && (familyOf(pan) === "sdry" && wallSys === "membrane" ? sdryCover : !sdryCover);
 }
 
 // wedi's channel frame is a trim ring the linear cover drops into — a design
@@ -5247,7 +5271,14 @@ export function markerCurbKey(cfg) {
   const room = cfg.room ? { w: +cfg.room.w || 0, d: +cfg.room.d || 0 } : panRoomDims(pan);
   const walls = cfg.walls && cfg.walls.length ? cfg.walls : defaultWalls(pan, cfg.room || null);
   const benches = (cfg.benches || []).map((b) => normBench(b, room));
-  const r = resolveCurb(cfg.curbPick, openLenOf(room, walls, cfg.corners, benches), familyOf(pan));
+  const openLen = openLenOf(room, walls, cfg.corners, benches);
+  // an S-DRY Membrane build bills the S-DRY curb (kitFor's sdryFloor rule)
+  if (pan.sub === "sdry" && cfg.wallSys === "membrane") {
+    if (cfg.solve && cfg.solve.input && cfg.solve.input.curb === "curbless") return null;
+    const sc = sdryCurb(openLen, cfg.curbPick, catalog());
+    return sc.item ? sc.item.key : null;
+  }
+  const r = resolveCurb(cfg.curbPick, openLen, familyOf(pan));
   return r.item ? r.item.key : null;
 }
 
@@ -5385,19 +5416,24 @@ export const WEDI_ADD_PARTS = {
     plusPart("base", "floor", "pan", "Pan", (i) => ["pan", "module", "kit"].includes(i.group)),
     plusPart("base", "floor", "ext", "Extension", (i) => ["extension", "modExt", "cornerExt"].includes(i.group)),
     plusPart("base", "install", "recess", "Recess kit", (i) => i.group === "recess"),
+    plusPart("base", "floor", "sdryExt", "S-DRY extension", (i) => sdryRole(i) === "ext"),
   ],
   drain: [
     plusPart("drain", "drain", "cover", "Cover", (i) => i.group === "cover", "cover"),
     plusPart("drain", "drain", "frame", "Frame", (i) => i.group === "coverFrame"),
     plusPart("drain", "drain", "drainKit", "Drain kit", (i) => i.group === "drainKit"),
+    plusPart("drain", "drain", "sdryDrain", "S-DRY drain", (i) => sdryRole(i) === "drain"),
+    plusPart("drain", "drain", "sdryCover", "S-DRY cover", (i) => sdryRole(i) === "cover"),
   ],
   curb: [
     plusPart("curb", "floor", "curb", "Curb", (i) => i.group === "curb" && !!i.len, "curb"),
     plusPart("curb", "floor", "ramp", "Ramp", (i) => i.group === "ramp"),
+    plusPart("curb", "floor", "sdryCurb", "S-DRY curb", (i) => sdryRole(i) === "curb"),
   ],
   walls: [
     plusPart("walls", "walls", "panel", "Panel", (i) => i.group === "panel" && i.sf > 0, "panel"),
     plusPart("walls", "install", "fastener", "Fasteners", (i) => i.group === "fastener"),
+    plusPart("walls", "walls", "sdryMembrane", "S-DRY membrane", (i) => sdryRole(i) === "membrane"),
   ],
   seams: [
     plusPart("seams", "install", "sealant", "Sealant", (i) => i.group === "sealant"),
@@ -5415,8 +5451,10 @@ export const WEDI_ADD_PARTS = {
   setting: [
     plusPart("setting", "install", "tool", "Tools", (i) => i.group === "tool"),
     plusPart("setting", "install", "proSet", "PRO-SET", (i) => i.key === SKU.proSet),
+    plusPart("setting", "install", "sdrySeal", "S-DRY SEAL", (i) => sdryRole(i) === "seal"),
   ],
-  extras: [plusPart("extras", "addon", "other", "Other", (i) => wediBucketOf(i) === "addon")],
+  // S-DRY samples are showroom pieces, never a shower's part
+  extras: [plusPart("extras", "addon", "other", "Other", (i) => wediBucketOf(i) === "addon" && sdryRole(i) !== "other")],
 };
 
 /** The "+" parts a shared group (`grp`, slots.js) offers with this book — a part with nothing to add never shows. */
@@ -5430,7 +5468,17 @@ export function wediSlotOf(line) {
   const it = (line && line.item) || {};
   if (it.key === SKU.proSet) return "setting";
   if (line.group === "bench" && it.group === "panel") return "bench";
-  return WEDI_SLOT[it.group] || "extra";
+  return sdrySlot(it) || WEDI_SLOT[it.group] || "extra";
+}
+
+const FIELD_SEAL_NOTE = "1 field seal — Subliner laps & perimeter";
+function withFieldSeal(rows) {
+  if (!rows.some((r) => r.key === SDRY.seal)) {
+    const at = rows.findIndex((r) => r.key === SDRY.sealTrowel);
+    const seal = { key: SDRY.seal, qty: 1, note: FIELD_SEAL_NOTE };
+    return at < 0 ? [...rows, seal] : [...rows.slice(0, at), seal, ...rows.slice(at)];
+  }
+  return rows.map((r) => (r.key === SDRY.seal ? { ...r, qty: r.qty + 1, note: r.note + " + " + FIELD_SEAL_NOTE } : r));
 }
 
 export const panRoomDims = (pan) => (pan.group === "module"
@@ -5442,6 +5490,13 @@ export function kitFor(panKey, opts) {
   const pan = typeof panKey === "string" ? item(panKey) : panKey;
   if (!pan) return null;
   const fam = familyOf(pan);
+  // Phase 2 (ADR 0051): the Membrane wall system bills S-DRY membrane in place
+  // of Building Panel; absent is Building Panel, so old markers bill as before.
+  const membrane = opts.wallSys === "membrane";
+  // The S-DRY floor recipe (bonding drain, S-DRY cover and curb) rides the
+  // Membrane choice: an S-DRY pan under Building Panel is only an old marker
+  // shape (wedimarkergolden pins it), and bills as it always did.
+  const sdryFloor = fam === "sdry" && membrane;
   const option = opts.option || null;
   const room = opts.room || (option ? { w: option.room.w, d: option.room.d } : null);
   const walls = opts.walls || defaultWalls(pan, room, opts.wallHeight);
@@ -5513,7 +5568,7 @@ export function kitFor(panKey, opts) {
   // A 2"-deep pan's extensions sit low — the kit carries the ½" sheet the
   // shop rips into build-up strips underneath them (owner practice).
   const floorOpt = panPlan ? panPlan.option : option;
-  if (floorOpt && floorPan.group !== "module" && panThick(floorPan) >= 1.9) {
+  if (floorOpt && fam !== "sdry" && floorPan.group !== "module" && panThick(floorPan) >= 1.9) {
     const extSf = extensionSf(floorOpt);
     const sheet = item(BUILDUP_SHEET);
     if (extSf > 0 && sheet && sheet.sf) {
@@ -5526,7 +5581,8 @@ export function kitFor(panKey, opts) {
   const sheets = panelSheets(panelSf, panel);
   // A live book can drop the default panel; the floor in usewedicatalog.js
   // refuses such a book, and this is the belt to that brace.
-  if (panel) push(lines, panel, sheets, "walls",
+  if (membrane) hints.push("backer");
+  else if (panel) push(lines, panel, sheets, "walls",
     round2(panelSf) + " sf of wall — " + (panel.sf || 0) + " sf/sheet"
       + (panelStale ? " · " + opts.panelKey + " not in the book — default panel used" : ""), true);
   else hints.push("no-panel");
@@ -5542,19 +5598,30 @@ export function kitFor(panKey, opts) {
   const openLen = openLenOf(roomDims, walls, opts.corners, benches);
   // an old marker's resolved curbKey reads as the choice it stood for (ADR 0049)
   const curbPick = opts.curbPick !== undefined ? opts.curbPick : legacyCurbPick(opts.curbKey, fam, openLen);
-  const curb = resolveCurb(curbPick, openLen, fam);
+  const curbless = !!(option && option.input && option.input.curb === "curbless");
+  const curb = sdryFloor
+    ? (curbless ? { item: null, qty: 0 } : sdryCurb(openLen, curbPick, catalog()))
+    : resolveCurb(curbPick, openLen, fam);
   if (curb.item && curb.qty > 0) push(lines, curb.item, curb.qty, "floor", curb.note, true);
 
   // --- drain finish ----------------------------------------------------------
   const coverPick = opts.coverPick || legacyCoverPick(opts.coverKey);
   let cover = null;
-  if (fam === "linear") {
+  if (sdryFloor) {
+    push(lines, SDRY.drain, 1, "drain", "", true);
+    const picked = coverPick && coverPick.key ? item(coverPick.key) : null;
+    cover = sdryRole(picked) === "cover" ? picked : item(SDRY.coverSS);
+  } else if (fam === "linear") {
     const ch = pan.channel || (option && option.drain && option.drain.len) || 0;
     cover = linearCoverFor(ch, (coverPick && coverPick.finish) || opts.coverFinish || "SS");
-  } else cover = item((coverPick && coverPick.key) || SKU.coverSS);
+  } else {
+    // an S-DRY cover picked under Membrane stays inert once a wedi pan is back
+    const picked = coverPick && coverPick.key ? item(coverPick.key) : undefined;
+    cover = picked === undefined || sdryRole(picked) === "cover" ? item(SKU.coverSS) : picked;
+  }
   if (cover) push(lines, cover, 1, "drain", "", true);
   else hints.push("no-cover");
-  const frame = cover && opts.coverFrame ? coverFrameFor(cover, opts.coverFrame === true ? null : opts.coverFrame) : null;
+  const frame = cover && !sdryFloor && opts.coverFrame ? coverFrameFor(cover, opts.coverFrame === true ? null : opts.coverFrame) : null;
   if (frame) push(lines, frame, 1, "drain", "trim ring around the cover", true);
 
   // --- curbless waterproofing ------------------------------------------------
@@ -5567,8 +5634,12 @@ export function kitFor(panKey, opts) {
     // Owner rule 2026-07-29: the field seal is wedi S-Dry Seal (trowel-
     // applied, stocked), not 620 sealant — 620 stays in the catalog for
     // steam/Subliner work.
-    push(lines, SKU.sdrySeal, 1, "install", "field seal — Subliner laps & perimeter", true);
-    push(lines, SKU.sdrySealTrowel, 1, "install", '3/16" x 5/32" notch', true);
+    // Under Membrane the wall rows below carry SEAL and its trowel; the field
+    // seal's unit folds into that one SEAL line.
+    if (!membrane) {
+      push(lines, SKU.sdrySeal, 1, "install", "field seal — Subliner laps & perimeter", true);
+      push(lines, SKU.sdrySealTrowel, 1, "install", '3/16" x 5/32" notch', true);
+    }
   }
   if (recess === "kit") push(lines, SKU.recessKit, 1, "install", "recess up to 5×5 ft in ¾ ply", true);
   if (recess === "ramp") push(lines, SKU.ramp, 1, "install", "surface mount — ADA slope", true);
@@ -5576,15 +5647,32 @@ export function kitFor(panKey, opts) {
   // --- consumables + install -------------------------------------------------
   // Bench surfaces (tops + faces, framed wraps) seal and fasten like wall
   // panel; premades whose kit already includes the sealant contribute nothing.
-  const con = figureConsumables(panelSf + bl.surfSf, form, opts.fastenerKey);
+  // Under Membrane only the bench surfaces are panel, so only they take
+  // fasteners. A wedi pan under S-DRY walls still seals its pan/extension
+  // joints (owner ruling, ticket 158): sealant on the floor footprint, no
+  // fasteners. An S-DRY floor's seams ride the S-DRY tape instead.
+  const jointSf = membrane && !sdryFloor ? floorSfOf(floorOpt, floorPan) : 0;
+  const con = figureConsumables((membrane ? 0 : panelSf) + bl.surfSf, form, opts.fastenerKey, jointSf);
   const fastener = con.lines.find((l) => l.item.group === "fastener");
   con.lines.forEach((l) => { lines.push(l); });
-  push(lines, SKU.collarValve, 1, "install", "mixing valve", true);
-  push(lines, SKU.collarPipe, 1, "install", "shower arm / pipe", true);
-  push(lines, SKU.trowel, 1, "install", "", true);
-  // Owner rule 2026-09-26 (ticket 158): one bag of PRO-SET sets the pan —
-  // flat, not figured by area, mirroring Schluter's ALL-SET line.
-  push(lines, SKU.proSet, 1, "install", "sets the pan — 1 bag", true);
+  let sdry = null;
+  if (membrane) {
+    sdry = sdryWalls({
+      wallSf: panelSf, walls, curbed: !!(curb.item && curb.qty > 0), openLen,
+      seams: sdryFloor && option && option.seams ? option.seams : [],
+    }, catalog());
+    const rows = fam === "curbless" ? withFieldSeal(sdry.rows) : sdry.rows;
+    rows.forEach((r) => push(lines, r.key, r.qty, r.key === SDRY.roll || r.key === SDRY.rollXL ? "walls" : "install", r.note, true));
+    push(lines, SKU.proSet, sdryProSet(sdry.membraneSf), "install",
+      "1 bag sets the base + 1 per 100 sf of membrane (1/8\" notch)", true);
+  } else {
+    push(lines, SKU.collarValve, 1, "install", "mixing valve", true);
+    push(lines, SKU.collarPipe, 1, "install", "shower arm / pipe", true);
+    push(lines, SKU.trowel, 1, "install", "", true);
+    // Owner rule 2026-09-26 (ticket 158): one bag of PRO-SET sets the pan —
+    // flat, not figured by area, mirroring Schluter's ALL-SET line.
+    push(lines, SKU.proSet, 1, "install", "sets the pan — 1 bag", true);
+  }
 
   // --- added lines (Phase 1c; old `addons` translate) -------------------------
   const added = addedRows(opts);
@@ -5616,6 +5704,8 @@ export function kitFor(panKey, opts) {
     ...(curbPick ? { curbPick } : {}),
     ...(fastener && fastener.item.key !== SKU.fastenerKit ? { fastenerKey: fastener.item.key } : {}),
     ...(coverPick ? { coverPick } : {}),
+    ...(membrane ? { wallSys: "membrane" } : {}),
+    ...(opts.sdryBase === "wedi" ? { sdryBase: "wedi" } : {}),
     coverFrame: frame ? frame.finish : null,
     sealantForm: form, recess: recess,
     ...(added.length ? { manual: added.map((r) => ({ ...r })) } : {}),
@@ -5627,10 +5717,16 @@ export function kitFor(panKey, opts) {
   };
 
   return {
-    pan: pan, lines: lines, panelSf: round2(panelSf), factory: factory, hints: hints,
+    pan: pan, lines: lines, panelSf: round2(panelSf), factory: factory, hints: hints, sdry: sdry,
     mode: opts.mode || (option ? "custom" : "kit"), cfg: cfg, curbFit: { openLen, fam },
     consumables: con, soNet: round2(soNet), benches: benches, panPlan: panPlan,
   };
+}
+
+/** The solver option a saved cfg was built on: id + pan, then pan alone, then the top option. */
+export function savedOption(res, solveId, panKey) {
+  return res.find((o) => o.pan && o.pan.key === panKey && o.id === solveId)
+    || res.find((o) => o.pan && o.pan.key === panKey) || res[0] || null;
 }
 
 // Re-derive the billed kit from a saved marker / staged basket entry
@@ -5649,8 +5745,7 @@ export function buildFromMarker(marker) {
     // different ranks — so the pan this cfg was actually built on (the same
     // panKey kitFor gets below) disambiguates; id alone still breaks a tie
     // between two candidates sharing that pan.
-    option = res.find((o) => o.pan && o.pan.key === cfg.panKey && o.id === cfg.solve.id)
-      || res.find((o) => o.pan && o.pan.key === cfg.panKey) || res[0] || null;
+    option = savedOption(res, cfg.solve.id, cfg.panKey);
   }
   return kitFor(cfg.panKey, {
     option: option || undefined,
@@ -5661,6 +5756,7 @@ export function buildFromMarker(marker) {
     curbPick: cfg.curbPick, curbKey: cfg.curbKey, fastenerKey: cfg.fastenerKey,
     coverPick: cfg.coverPick || legacyCoverPick(cfg.coverKey),
     coverFrame: cfg.coverFrame || undefined,
+    wallSys: cfg.wallSys, sdryBase: cfg.sdryBase,
     sealantForm: cfg.sealantForm, recess: cfg.recess,
     manual: addedRows(cfg), benches: (cfg.benches || []).map((b) => ({ ...b })),
     corners: (cfg.corners || []).slice(),
@@ -6236,6 +6332,7 @@ function mirrorOption(o) {
 }
 
 export function solve(input) {
+  const sys = input && input.system === "sdry" ? { system: "sdry", ...(input.nearest ? { nearest: true } : {}) } : null;
   input = {
     w: +(input && input.w) || 0, d: +(input && input.d) || 0,
     curb: (input && input.curb) === "curbless" ? "curbless" : "curbed",
@@ -6250,8 +6347,15 @@ export function solve(input) {
     // (extensions, covers) stay as picked and render flagged: a line with no
     // stocked substitute is never silently dropped.
     source: (input && input.source) === "stock" ? "stock" : "all",
+    ...sys,
   };
   if (!(input.w > 0) || !(input.d > 0)) return [];
+  // Phase 2 (ADR 0051): the S-DRY system has its own fit — base, extensions,
+  // cut evenly; `nearest` is the "use the nearest S-DRY base anyway" answer.
+  if (sys) {
+    if (input.nearest) { const o = sdryNearest(input, catalog()); return o ? [o] : []; }
+    return sdryFit(input, catalog()).options;
+  }
   const explicitTarget = input.drainX > 0 && input.drainY > 0;
   // Center clicked with no position given = the drain sits at the centre of
   // the ROOM, and the pan is cut to make that true (owner rule 2026-07-29).
@@ -6349,6 +6453,9 @@ const PANEL_SHEETS = [
   { key: "US8000014", w: 48, len: 60 },
   { key: "US8000017", w: 36, len: 60 },
 ];
+
+/** Why no S-DRY base fits a room ("" when one does) — the popup's fallback prompt reads it. */
+export const sdryNoFit = (input) => sdryFit({ ...input, w: +input.w || 0, d: +input.d || 0 }, catalog()).reason;
 
 export function panelPlan(walls) {
   return planPanels(walls, PANEL_SHEETS.map((s) => {

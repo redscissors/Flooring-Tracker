@@ -1673,8 +1673,8 @@ test("setAddedRow: rows key on bucket + key; 0 removes; order kept", () => {
 
 test("wediAddParts / wediAddPartOf: each shared group's '+' parts", () => {
   const keys = (b) => wediAddParts(b).map((p) => p.key);
-  assert.deepEqual(keys("walls"), ["panel", "fastener"]);
-  assert.deepEqual(keys("drain"), ["cover", "frame", "drainKit"].filter((k) => k !== "drainKit" || group("drainKit").length));
+  assert.deepEqual(keys("walls"), ["panel", "fastener", "sdryMembrane"]);
+  assert.deepEqual(keys("drain"), ["cover", "frame", "drainKit", "sdryDrain", "sdryCover"].filter((k) => k !== "drainKit" || group("drainKit").length));
   assert.ok(keys("niches").includes("niche") && keys("niches").includes("shelf"));
   assert.ok(keys("curb").includes("curb"));
   assert.ok(keys("setting").includes("proSet"));

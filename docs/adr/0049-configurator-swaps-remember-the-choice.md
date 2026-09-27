@@ -189,3 +189,16 @@ books no longer carry. The owner confirmed this on 2026-09-27, and tile sf
 
 ADR 0034's `COMPARE_CATS` / `WEDI_CAT` retire with this: Compare rows are
 group bands with one row per slot.
+
+## Amendment — Phase 2 (2026-09-27): the wall system is a choice too
+
+The wedi marker gains two ADR-0049 choices (ADR 0051): `cfg.wallSys`
+(`"membrane"`, absent = Building Panel) and `cfg.sdryBase` (`"wedi"`, absent =
+S-DRY). `kitFor` resolves them to parts on every build; an unknown value reads
+as the default, so every old marker bills as before (`src/wallsysgolden.test.js`
+pins it beside the 1b/1c goldens). S-DRY parts take their slot from
+`sdrySlot` (src/sdry.js) through `wediSlotOf` — tray, curb, drainBody, grate,
+wallMembrane, seam, corners, setting — which moves one existing line's
+DISPLAY only: the curbless Fundo kit's "S-DRY Seal — field seal" now draws
+under Setting (it was Seams). Its bill is unchanged. The S-DRY cover and curb
+⇄ store the usual `coverPick: { key }` / `curbPick: { sub: "lean" } | { none: true }`.
