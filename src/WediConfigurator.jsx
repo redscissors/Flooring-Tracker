@@ -629,6 +629,9 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   const s0 = init.current;
 
   const [tab, setTab] = useState(s0.tab);
+  // Compare's mirrored lines (Phase 1d): hand picks and drops for the other
+  // brand's column, keyed by host added line — kept for this popup session only.
+  const [mirror, setMirror] = useState({});
   const [panKey, setPanKey] = useState(s0.panKey);
   const [option, setOption] = useState(null);
   const [results, setResults] = useState([]);
@@ -2789,7 +2792,8 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
         stockRows={stockRows} bookStockReady={bookStockReady}
         books={books} loadBookItems={loadBookItems}
         mortars={mortars} mortarDefault={mortarDefault}
-        areaName={areaName} onQuoteOptions={onQuoteOptions} />
+        areaName={areaName} onQuoteOptions={onQuoteOptions}
+        mirror={mirror} onMirror={setMirror} />
     </Suspense>
   );
 

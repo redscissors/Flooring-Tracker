@@ -457,6 +457,9 @@ export default function SchluterConfigurator({
   const s0 = init.current;
 
   const [tab, setTab] = useState(s0.tab);
+  // Compare's mirrored lines (Phase 1d): hand picks and drops for the other
+  // brand's column, keyed by host added line — kept for this popup session only.
+  const [mirror, setMirror] = useState({});
   const [source, setSource] = useState(s0.source);
   const [w, setW] = useState(s0.w);
   const [d, setD] = useState(s0.d);
@@ -2515,7 +2518,8 @@ export default function SchluterConfigurator({
         wediBuilderPct={wediBuilderPct} schluterBuilderPct={bPct}
         books={books} loadBookItems={loadBookItems} bookStockReady={bookStockReady}
         mortars={mortars} mortarDefault={mortarDefault}
-        areaName={areaName} onQuoteOptions={onQuoteOptions} />
+        areaName={areaName} onQuoteOptions={onQuoteOptions}
+        mirror={mirror} onMirror={setMirror} />
     </Suspense>
   );
 

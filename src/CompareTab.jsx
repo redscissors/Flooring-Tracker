@@ -11,9 +11,13 @@
 import { Fragment, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import {
-  COMPARE_CATS, roomFromSchluter, roomFromWedi, wediBuildFor, schluterBuildFor,
+  roomFromSchluter, roomFromWedi, wediBuildFor, schluterBuildFor,
   wediCompareRows, schluterCompareRows, compareTotals,
+  mirrorPlan, mirrorRow, mirrorParts, mirrorCandidates, pruneMirror, hostAddedLines, compareLayout,
 } from "./comparekit.js";
+import { matchQty } from "./comparemirror.js";
+import { groupLabel, SLOT_LABEL } from "./slots.js";
+import { SwapPop } from "./swappop.jsx";
 import { useEscClose, HelpTip } from "./widgets.jsx";
 import { useSchluterCatalog } from "./useschlutercatalog.js";
 import { useWediCatalog } from "./usewedicatalog.js";
@@ -23,6 +27,7 @@ import { lineItems as schluterLineItems } from "./schluter.js";
 
 const fm = (n) => "$" + (+n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const DRAIN_LBL = { point: "point drain", offset: "offset drain", linear: "linear drain" };
+const BRAND = { wedi: "wedi", schluter: "Schluter" };
 
 const CSS = `
 .cmp-tab{flex:1 1 0;min-width:0;display:flex;flex-direction:column;overflow-y:auto;position:relative;
@@ -38,7 +43,8 @@ const CSS = `
 .cmp-tab .lensseg small{display:block;font-size:8.5px;font-weight:600;opacity:.75}
 .cmp-tab .cmp-grid{display:grid;grid-template-columns:150px 1fr 1fr;border-bottom:1px solid var(--ft-border)}
 .cmp-tab .cmp-grid>div{padding:7px 14px;font-size:12px;border-bottom:1px solid var(--ft-row-line)}
-.cmp-tab .cmp-grid .cat{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.11em;color:var(--ft-faint);display:flex;align-items:center}
+.cmp-tab .cmp-grid .gband{grid-column:1/-1;padding:6px 14px 4px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.11em;color:var(--ft-faint);background:var(--ft-tint);border-bottom:1px solid var(--ft-row-line)}
+.cmp-tab .cmp-grid .cat{font-size:11px;font-weight:700;color:var(--ft-muted);display:flex;align-items:center}
 .cmp-tab .cmp-grid .cell .ln{display:flex;justify-content:space-between;gap:10px;padding:1px 0}
 .cmp-tab .cmp-grid .cell .ln .n{min-width:0}
 .cmp-tab .cmp-grid .cell .ln .n small{color:var(--ft-faint);font-size:10px;display:block;overflow:hidden;text-overflow:ellipsis}
@@ -46,6 +52,11 @@ const CSS = `
 .cmp-tab .cmp-grid .cell .ln.so .n{color:var(--s-rust,#B4552D)}
 .cmp-tab .cmp-grid .cell .ln.note .n,.cmp-tab .cmp-grid .cell .ln.note .p{color:var(--ft-faint);font-style:italic;font-weight:600}
 .cmp-tab .cmp-grid .cell .ln.dash .n{color:var(--ft-faint)}
+.cmp-tab .cmp-grid .cell .ln .tag{font-size:8.5px;font-weight:800;color:var(--ft-brand-deep);background:var(--ft-brand-soft);border-radius:4px;padding:0 5px;margin-left:4px;vertical-align:1px;white-space:nowrap}
+.cmp-tab .cmp-grid .cell .ln .acts{display:inline-flex;gap:3px;flex:none;align-self:center}
+.cmp-tab .cmp-grid .cell .ln .acts button{width:20px;height:20px;border-radius:5px;border:1px solid var(--ft-border);background:var(--ft-card);color:var(--ft-muted);font-size:11px;font-weight:800;line-height:1;cursor:pointer;font-family:inherit}
+.cmp-tab .cmp-grid .cell .ln .acts button:hover{border-color:var(--ft-brand);color:var(--ft-brand-deep)}
+.cmp-tab .cmp-grid .cell .ln.plus .n{color:var(--ft-faint);font-style:italic;font-weight:600}
 .cmp-tab .cmp-grid .cell .miss{font-size:11.5px;color:var(--ft-faint);font-weight:600;line-height:1.5}
 .cmp-tab .cmp-grid .brandh{font-size:13px;font-weight:800;display:flex;align-items:center;gap:8px}
 .cmp-tab .cmp-grid .brandh small{font-size:10.5px;font-weight:600;color:var(--ft-faint)}
@@ -75,26 +86,53 @@ const CSS = `
 .cmp-tab .cmodal .orow .v{margin-left:auto;font-variant-numeric:tabular-nums}
 .cmp-tab .cmodal .bn{font-size:11px;color:var(--ft-muted);line-height:1.55;margin-top:9px}
 .cmp-tab .cmodal .bf{display:flex;gap:8px;justify-content:flex-end;padding:10px 14px;border-top:1px solid var(--ft-border-strong);background:var(--ft-sand)}
+.cmp-pick .cmp-list{max-height:300px;overflow-y:auto;margin-top:4px}
+.cmp-pick .srow{display:flex;align-items:center;gap:8px;width:100%;border:none;background:none;padding:6px 8px;border-radius:6px;cursor:pointer;text-align:left;font-family:inherit}
+.cmp-pick .srow:hover{background:var(--ft-tint)}
+.cmp-pick .srow.on{background:var(--ft-brand-soft);box-shadow:inset 0 0 0 1.5px var(--ft-brand)}
+.cmp-pick .sdot{flex:none;width:6px;height:6px;border-radius:50%;background:var(--ft-brand)}
+.cmp-pick .sdot.so{background:transparent;border:1.3px solid var(--ft-faint)}
+.cmp-pick .srow .n{flex:1;min-width:0;font-size:11.5px;font-weight:700;color:var(--ft-text);line-height:1.3}
+.cmp-pick .srow .n small{display:block;font-size:9.5px;color:var(--ft-faint);font-weight:600}
+.cmp-pick .srow .p{font-size:11.5px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--ft-text)}
 `;
 
-function Column({ rows, lens, cat, miss, first }) {
-  const ls = rows.filter((r) => r.cat === cat);
+// One side of a slot row: its lines (kit first, then added, then mirrored),
+// and for the mirrored side the host lines that found nothing — each with a
+// "+" when the brand has parts for that group at all.
+function Cell({ rows, plus, lens, miss, first, brand, onPick, onDrop, canAdd }) {
   if (miss) return <div className="cell">{first ? <div className="miss">{miss}</div> : null}</div>;
-  if (!ls.length) return <div className="cell"><div className="ln dash"><span className="n">—</span></div></div>;
+  if (!rows.length && !plus.length) return <div className="cell"><div className="ln dash"><span className="n">—</span></div></div>;
   return (
     <div className="cell">
-      {ls.map((r, i) => {
+      {rows.map((r, i) => {
         const amt = lens === "builder" ? r.builder : r.retail;
         return (
-          <div key={i} className={"ln" + (r.noteOnly ? " note" : !r.stock ? " so" : "")}>
+          <div key={i} className={"ln" + (r.noteOnly ? " note" : !r.stock ? " so" : "")} {...(r.mirror ? { "data-mirror-line": r.hostKey } : {})}>
             <span className="n">
               {r.qty > 1 ? r.qty + "× " : ""}{r.name}
+              {r.added && <span className="tag" data-added-tag>{r.mirror === "matched" ? "added · matched" : "added"}</span>}
               <small>{r.sub}{r.est ? " · est." : ""}</small>
             </span>
+            {r.mirror && (
+              <span className="acts">
+                <button type="button" title="pick another part" data-mirror-swap onClick={(ev) => onPick(r.hostKey, ev)}>⇄</button>
+                <button type="button" title="drop this line from the comparison" data-mirror-drop onClick={() => onDrop(r.hostKey)}>×</button>
+              </span>
+            )}
             <span className="p">{amt ? fm(amt) : "—"}</span>
           </div>
         );
       })}
+      {plus.map((e) => (
+        <div key={e.hostKey} className="ln plus" data-mirror-plus={e.hostKey}>
+          <span className="n">
+            {e.kind === "dropped" ? "Not mirrored" : canAdd(e) ? `Nothing comparable in the ${BRAND[brand]} book` : `No ${BRAND[brand]} ${SLOT_LABEL[e.slot].toLowerCase()} in the book`}
+            <small>for {e.host.qty > 1 ? e.host.qty + "× " : ""}{e.host.name}</small>
+          </span>
+          {canAdd(e) && <span className="acts"><button type="button" title={`add a ${BRAND[brand]} part`} data-mirror-add onClick={(ev) => onPick(e.hostKey, ev)}>+</button></span>}
+        </div>
+      ))}
     </div>
   );
 }
@@ -104,14 +142,17 @@ export default function CompareTab({
   wediBuilderPct, schluterBuilderPct,
   stockRows, bookStockReady, books, loadBookItems,
   mortars, mortarDefault, areaName, onQuoteOptions,
+  mirror, onMirror,
 }) {
   const [lens, setLens] = useState("retail");
   const [confirm, setConfirm] = useState(null);
+  const [pick, setPick] = useState(null);
 
   // The confirm modal is a layer of its own on the Esc ladder (ADR 0028): it
   // registers ABOVE the host popup's handler, so one press dismisses the modal
   // and the next closes the popup. Without it Esc threw away the live build.
   useEscClose(!!confirm, () => setConfirm(null));
+  useEscClose(!!pick, () => setPick(null));
 
   const wPct = wediBuilderPct == null ? 18 : wediBuilderPct;
   const sPct = schluterBuilderPct == null ? 8 : schluterBuilderPct;
@@ -149,19 +190,41 @@ export default function CompareTab({
     () => mortarItemFrom(mortarDefault || Object.keys(mortars || {})[0] || "", mortars || {}),
     [mortarDefault, mortars]);
 
+  // The mirror (Phase 1d): the host build's hand-added lines, each answered by
+  // the other brand's nearest part or a "+". Picks and drops are the popup's
+  // session state (`mirror`), so they outlive a tab switch but not the popup.
+  const hostBrand = wediHost ? "wedi" : "schluter";
+  const otherReady = wediHost ? schCatReady && schCat.length > 0 : wediCatReady;
+  const plan = useMemo(
+    () => (otherReady ? mirrorPlan(hostBuild, hostBrand, mirror, { cat: schCat, source })
+      : { brand: wediHost ? "schluter" : "wedi", entries: [], manual: [] }),
+    [otherReady, hostBuild, hostBrand, mirror, schCat, source, wediHost]);
+
   // The HOST column is whatever that popup has on screen; the other column is
-  // that engine's house kit for the same room.
+  // that engine's house kit for the same room, plus the mirrored lines.
   const wediBuild = useMemo(
-    () => (wediHost ? hostBuild || null : roomOk && wediCatReady ? wediBuildFor(room, { source, tier }) : null),
-    [wediHost, hostBuild, room, roomOk, wediCatReady, source, tier]);
+    () => (wediHost ? hostBuild || null : roomOk && wediCatReady ? wediBuildFor(room, { source, tier, manual: plan.manual }) : null),
+    [wediHost, hostBuild, room, roomOk, wediCatReady, source, tier, plan.manual]);
   const sch = useMemo(() => {
     if (!wediHost) return { build: hostBuild || null, cfg: hostCfg || null };
     if (!roomOk || !schCatReady || !schCat.length) return { build: null, cfg: null };
-    return schluterBuildFor(room, schCat, { source, mortarItem });
-  }, [wediHost, hostBuild, hostCfg, room, roomOk, schCat, schCatReady, source, mortarItem]);
+    return schluterBuildFor(room, schCat, { source, mortarItem, manual: plan.manual });
+  }, [wediHost, hostBuild, hostCfg, room, roomOk, schCat, schCatReady, source, mortarItem, plan.manual]);
 
-  const wediRows = useMemo(() => wediCompareRows(wediBuild, { builderPct: wPct }), [wediBuild, wPct]);
-  const schRows = useMemo(() => schluterCompareRows(sch.build, { builderPct: sPct }), [sch.build, sPct]);
+  // The other column draws its kit lines from its build and its mirrored
+  // lines from the plan, one per host line — the engine bills them summed.
+  const otherPct = plan.brand === "wedi" ? wPct : sPct;
+  const mirrorRows = useMemo(
+    () => plan.entries.filter((e) => e.match).map((e) => mirrorRow(e, plan.brand, { builderPct: otherPct })),
+    [plan, otherPct]);
+  const wediRows = useMemo(() => {
+    const rows = wediCompareRows(wediBuild, { builderPct: wPct });
+    return wediHost || !rows.length ? rows : [...rows.filter((r) => !r.added), ...mirrorRows];
+  }, [wediBuild, wPct, wediHost, mirrorRows]);
+  const schRows = useMemo(() => {
+    const rows = schluterCompareRows(sch.build, { builderPct: sPct });
+    return !wediHost || !rows.length ? rows : [...rows.filter((r) => !r.added), ...mirrorRows];
+  }, [sch.build, sPct, wediHost, mirrorRows]);
   const wTot = useMemo(() => compareTotals(wediRows), [wediRows]);
   const sTot = useMemo(() => compareTotals(schRows), [schRows]);
 
@@ -179,6 +242,30 @@ export default function CompareTab({
             : "No Schluter build for this room.";
 
   const bothPriced = !wediMiss && !schMiss;
+  const otherMiss = plan.brand === "wedi" ? wediMiss : schMiss;
+  const layout = useMemo(
+    () => compareLayout({ wedi: wediRows, schluter: schRows }, otherMiss ? {} : { [plan.brand]: plan.entries.filter((e) => !e.match) }),
+    [wediRows, schRows, plan, otherMiss]);
+
+  const hostKeys = () => hostAddedLines(hostBuild, hostBrand).map((h) => h.key);
+  const writeMirror = (key, v) => onMirror && onMirror((m) => pruneMirror({ ...m, [key]: v }, hostKeys()));
+  const partsFor = (e) => mirrorParts(plan.brand, e.grp, { cat: schCat, source });
+  const openPick = (hostKey, ev) => {
+    const e = plan.entries.find((x) => x.hostKey === hostKey);
+    if (!e) return;
+    const parts = partsFor(e);
+    const part = (e.match && parts.find((p) => p.g === e.match.g && p.parts.some((c) => c.id === e.match.id)))
+      || parts.find((p) => p.parts.some((c) => c.slot === e.slot)) || parts[0];
+    if (!part) return;
+    const list = mirrorCandidates(e.host, part);
+    const cur = e.match && list.find((c) => c.id === e.match.id);
+    const first = cur || list[0];
+    const r = ev.currentTarget.getBoundingClientRect();
+    setPick({
+      hostKey, part: part.key, id: first.id, qty: cur ? e.qty : matchQty(e.host.part, e.host.qty, first),
+      at: { anchor: ev.currentTarget.closest(".ln"), x: r.right - 470, y: r.bottom + 6 },
+    });
+  };
   const diff = bothPriced ? (lens === "builder" ? sTot.builder - wTot.builder : sTot.retail - wTot.retail) : 0;
   const wLess = diff > 0;
 
@@ -245,13 +332,27 @@ export default function CompareTab({
           <span className="bbadge slt">Schluter</span> KERDI system
           <small>{wediHost ? "house kit" : "this build"}</small>
         </div>
-        {COMPARE_CATS.map((c, i) => (
-          <Fragment key={c}>
-            <div className="cat">{c}</div>
-            <Column rows={wediRows} lens={lens} cat={c} miss={wediMiss} first={i === 0} />
-            <Column rows={schRows} lens={lens} cat={c} miss={schMiss} first={i === 0} />
+        {layout.map((g, gi) => (
+          <Fragment key={g.key}>
+            <div className="gband" data-cmp-group={g.key}>{g.label}</div>
+            {g.slots.map((r, ri) => (
+              <Fragment key={r.slot}>
+                <div className="cat" data-cmp-slot={r.slot}>{r.label}</div>
+                {["wedi", "schluter"].map((b) => (
+                  <Cell key={b} brand={b} rows={r[b]} plus={r[b + "Plus"]} lens={lens}
+                    miss={b === "wedi" ? wediMiss : schMiss} first={gi === 0 && ri === 0}
+                    onPick={openPick} onDrop={(k) => writeMirror(k, { dropped: true })}
+                    canAdd={(e) => partsFor(e).length > 0} />
+                ))}
+              </Fragment>
+            ))}
           </Fragment>
         ))}
+        {!layout.length && (<>
+          <div className="cat" />
+          <Cell brand="wedi" rows={[]} plus={[]} lens={lens} miss={wediMiss} first canAdd={() => false} />
+          <Cell brand="schluter" rows={[]} plus={[]} lens={lens} miss={schMiss} first canAdd={() => false} />
+        </>)}
       </div>
 
       <div className="cmp-tot">
@@ -274,6 +375,41 @@ export default function CompareTab({
           </button>
         </div>
       )}
+
+      {pick && (() => {
+        const e = plan.entries.find((x) => x.hostKey === pick.hostKey);
+        const parts = e ? partsFor(e) : [];
+        const part = parts.find((p) => p.key === pick.part) || parts[0];
+        if (!e || !part) return null;
+        const list = mirrorCandidates(e.host, part);
+        const cur = list.find((c) => c.id === pick.id) || list[0];
+        const setP = (patch) => setPick((p) => (p ? { ...p, ...patch } : p));
+        const partRow = parts.length > 1 ? [{ label: "Part", chips: parts.map((p) => ({
+          key: p.key, label: p.label, ok: true, on: p.key === part.key,
+          onPick: () => { const top = mirrorCandidates(e.host, p)[0]; setP({ part: p.key, id: top.id, qty: matchQty(e.host.part, e.host.qty, top) }); },
+        })) }] : [];
+        const price = (c) => (c.brand === "wedi" ? c.item.retail : c.retail);
+        return (
+          <SwapPop add at={pick.at} className="cmp-pick" stockFirst={false}
+            title={`${e.match ? "Swap" : "Add to"} ${BRAND[plan.brand]} · ${groupLabel(e.grp)} — for ${e.host.name}`}
+            rows={partRow} qty={pick.qty} onQty={(n) => setP({ qty: n })}
+            summary={{ what: (pick.qty > 1 ? pick.qty + " × " : "") + cur.item.name, why: [cur.id, cur.item.stock ? "stock" : "special order"].join(" · "),
+              delta: "retail", total: fm(price(cur) * pick.qty), up: false }}
+            onUse={() => { writeMirror(e.hostKey, { pick: { g: cur.g, id: cur.id, qty: pick.qty } }); setPick(null); }}
+            onClose={() => setPick(null)}>
+            <div className="cmp-list">
+              {list.slice(0, 60).map((c) => (
+                <button key={c.g + c.id} type="button" className={"srow" + (c.id === cur.id ? " on" : "")} data-mirror-row={c.id}
+                  onClick={() => setP({ id: c.id, qty: matchQty(e.host.part, e.host.qty, c) })}>
+                  <span className={"sdot" + (c.item.stock ? "" : " so")} />
+                  <span className="n">{c.item.name}<small>{[c.id, c.item.stock ? "stock" : "special order"].join(" · ")}</small></span>
+                  <span className="p">{fm(price(c))}</span>
+                </button>
+              ))}
+            </div>
+          </SwapPop>
+        );
+      })()}
 
       {confirm && (
         <div className="cmodal" onClick={() => setConfirm(null)}>
