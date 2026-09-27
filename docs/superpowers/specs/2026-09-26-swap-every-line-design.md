@@ -198,6 +198,64 @@ thumbnails under a fixed drain pick, and the note-wording items.
 - **Ticket 158:** 1b in the Phase 1 section; the carry-over list trimmed to
   what's left.
 
+### Amendments during planning and build (2026-09-27)
+
+Calls the plan author made while prototyping and the controller ruled on
+during execution (ledger: `.superpowers/sdd/2026-09-27-swap-every-line/progress.md`).
+
+- **AT curb profile.** wedi's AT style is two parts at 60″ (full-foam
+  `US3000048`, lean `US3000049`), so `curbPick` gains an optional
+  `profile: "full" | "lean"`, and the popover shows a Profile row for AT only.
+  With no profile, the cheaper stocked piece (lean AT) lands. An old AT
+  `curbKey` translates with its profile, so the bill is identical.
+- **Tile sf follows the marker.** `showersf.js` read `cfg.curbKey` directly for
+  the tile-sf pieces; it now resolves the billed curb through `markerCurbKey`,
+  the same way `kitFor` does, so tile-sf and bill can't disagree.
+- **Stale curb keys bill the recipe, not nothing.** A stale wedi `curbKey` —
+  not in the book — used to read as no curb; it now bills the recipe default
+  curb instead, the Schluter `swaps` precedent (a stale sku falls back to the
+  recipe rather than vanishing the line). Flagged for the owner to confirm.
+- **Stale fastener/panel keys fall back with a note.** A stale wedi
+  `fastenerKey` or `panelKey` — not in the book — falls back to the house
+  kit/default panel and says so on the line ("… not in the book — house kit /
+  default panel used"), rather than silently vanishing or silently
+  substituting. `fastenerKey` is honoured only for the two boxed kits
+  (`US5000070`, `US5000086`); an explicit house-kit pick keeps the recipe's
+  own count.
+- **Membrane scope and roll/band codes.** The membrane choice is wall-only —
+  the mortar-bed floor keeps the recipe's `pickRolls`. An unsuffixed KERDI (or
+  KEBA) roll's code is `"30M"`, the full roll. Band width labels come from a
+  table, not a formula: 125 → 5″, 185 → 7¼″, 250 → 10″; any other width is the
+  mm figure rounded to the nearest ¼″.
+- **Options chips ask the resolver, not their own rule.** `membraneOptions` /
+  `bandOptions` / `curbOptions` / `panelOptions` chip `ok` comes from running
+  the resolver, not a hand-written predicate — spec §3's "the popover asks the
+  engine instead of duplicating rules" outranks a hard-coded check, so a stale
+  choice's rows show what the resolver actually lands, not what a rule guesses
+  it should.
+- **wedi panel ⇄ is walls-only.** The panel swap lives on the wall panel line
+  only; the bench's own sheet line doesn't open it (it used to silently
+  rewrite the walls' panel). The Type row carries a third chip, "Panel kit"
+  (`US4000001`/`US4000002`).
+- **Re-solves keep `curbPick`.** A room re-solve keeps `curbPick`, exactly as
+  it keeps `coverPick`; a kit-card reset wipes both. "Turn into a curb" on a
+  curbless pan now drafts `{ sub: "lean" }` (Auto), where it used to pin the
+  60″ lean piece — it's a UI default, not a saved bill, so Auto costs nothing
+  if wrong.
+- **Bench board picks are per-build.** A bench's `board` pick is cleared when
+  that bench's build changes (framed ⇄ site); the bench-wrap list popover
+  offers ½″ boards only (`halfBoardPool`), the same pool the Walls one-size
+  list draws from, so a fatter board can't sneak into a wrap line.
+- **Swap lookups key on group (+ bench) + sku.** A list popover finds its line
+  by group + bench index + sku, so a bench board or a floor sheet sharing a
+  sku with another line's part can't hijack that other line's ⇄.
+- **Browse-only wedi builds hide opts-backed ⇄.** In a Browse-only wedi build
+  (no `build.pan`), the ⇄ on lines that write build-derived options (curb,
+  panel) are hidden — their picks have nothing to apply to on a manual line,
+  and rendering one crashed the popup before the guard.
+- **Selectors kept.** Both popovers keep 1a's `data-drain-*` DOM attributes, so
+  the 1a proof scripts still run unmodified.
+
 ## Out of scope (1b)
 
 - "Add another" / "+" per group, several niches in wedi (1c).
