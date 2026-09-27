@@ -12,6 +12,19 @@ const pg = await b.newPage({ viewport: { width: 1760, height: 1300 } });
 let err = false; pg.on("pageerror", (e) => { console.error("PAGEERROR", e); err = true; });
 const fail = (m) => { console.error("FAIL:", m); err = true; };
 const shot = async (name) => { await pg.waitForTimeout(500); await pg.screenshot({ path: `${OUT}/${name}.png` }); console.log("shot", name); };
+// The print sheet is portalled to <body> but styled display:none except
+// under @media print (SchluterConfigurator.jsx / WediConfigurator.jsx PRINT_CSS)
+// — emulate print media to actually render it, screenshot, then revert before
+// any further interaction (everything else is display:none !important while
+// print media is emulated). Stays inside the 2500ms afterprint fallback window.
+const printShot = async (name) => {
+  await pg.emulateMedia({ media: "print" });
+  await pg.waitForTimeout(200);
+  await pg.screenshot({ path: `${OUT}/${name}.png`, fullPage: true });
+  await pg.emulateMedia({ media: null });
+  console.log("shot", name);
+};
+const inOrder = (idx) => { idx.forEach(([label, i]) => { if (i < 0) fail(`print: missing ${label} row`); }); for (let i = 1; i < idx.length; i++) if (idx[i][1] <= idx[i - 1][1]) fail(`print order: ${idx[i - 1][0]} not before ${idx[i][0]}`); };
 const flat = (t) => t.replace(/\n+/g, " | ");
 const grp = (name) => pg.locator(".bgroup", { has: pg.locator(".bg-h", { hasText: new RegExp("^" + name, "i") }) });
 const grpText = async (name) => flat(await grp(name).innerText());
@@ -37,12 +50,12 @@ const sHeads = await heads();
 console.log("Schluter groups:", sHeads.join(" · "));
 if (sHeads.slice(0, 9).join() !== NINE.join()) fail("Schluter groups are not the nine in order");
 await shot("s1-schluter-groups");
-await pg.locator("[data-schluter-print]").click(); await pg.waitForTimeout(700);
+await pg.locator("[data-schluter-print]").click(); await pg.waitForTimeout(400);
 const sPrint = await pg.locator(".ps-table tbody tr").allInnerTexts();
 const sAt = (re) => sPrint.findIndex((t) => re.test(t));
 console.log("Schluter print:", sPrint.map((t) => t.replace(/\s+/g, " ").slice(0, 36)).join(" · "));
-if (!(sAt(/Tray/) < sAt(/curb/i) && sAt(/curb/i) < sAt(/membrane roll/) && sAt(/membrane roll/) < sAt(/niche/) && sAt(/niche/) < sAt(/ALL-SET/))) fail("Schluter print is not in group order");
-await shot("s2-schluter-print");
+inOrder([["Tray", sAt(/Tray/)], ["Drain", sAt(/flange kit|grate/i)], ["Curb", sAt(/curb/i)], ["Wall membrane", sAt(/membrane roll/)], ["Niche", sAt(/niche/i)], ["Bench", sAt(/bench/i)], ["Setting", sAt(/ALL-SET/)]]);
+await printShot("s2-schluter-print");
 await pg.keyboard.press("Escape"); await pg.waitForTimeout(300);
 
 // --- wedi ---
@@ -64,12 +77,12 @@ if (!/Seat/.test(await grpText("Bench"))) fail("the wedi seat is not under Bench
 if (!/Valve Seal/.test(await grpText("Seams"))) fail("the valve seal is not under Seams");
 if (!/Curb/.test(await grpText("Curb"))) fail("the curb is not under Curb");
 await shot("w1-wedi-groups");
-await pg.locator("[data-wedi-print], button:has-text('Print layout')").first().click(); await pg.waitForTimeout(700);
+await pg.locator("[data-wedi-print], button:has-text('Print layout')").first().click(); await pg.waitForTimeout(400);
 const wPrint = await pg.locator(".ps-table tbody tr").allInnerTexts();
 const wAt = (re) => wPrint.findIndex((t) => re.test(t));
 console.log("wedi print:", wPrint.map((t) => t.replace(/\s+/g, " ").slice(0, 36)).join(" · "));
-if (!(wAt(/Shower Base/) < wAt(/Curb/) && wAt(/Curb/) < wAt(/Building Panel/) && wAt(/Building Panel/) < wAt(/Niche/) && wAt(/Niche/) < wAt(/PRO-SET/))) fail("wedi print is not in group order");
-await shot("w2-wedi-print");
+inOrder([["Shower Base", wAt(/Shower Base/)], ["Drain Cover", wAt(/Drain Cover/)], ["Curb", wAt(/Curb/)], ["Fastener Kit", wAt(/Fastener Kit/)], ["Building Panel", wAt(/Building Panel/)], ["Niche", wAt(/Niche/)], ["PRO-SET", wAt(/PRO-SET/)]]);
+await printShot("w2-wedi-print");
 
 await b.close();
 if (err) { console.error("— checks FAILED"); process.exit(1); }
