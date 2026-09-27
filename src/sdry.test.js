@@ -52,6 +52,13 @@ test("nearest covers what it can and names the shortfall", () => {
   assert.match(o.warnings[0], /wider and .* deeper than the S-DRY floor/);
 });
 
+test("a layout with a trimmed piece never reads No cutting — the nearest room", () => {
+  const o = sdryNearest({ w: 100, d: 120, drain: "any" }, cat);
+  assert.ok(o.pieces.some((p) => p.cut), "the nearest layout trims an extension");
+  assert.ok(!o.badges.includes("No cutting"), o.badges.join(" · "));
+  assert.ok(o.badges.includes("Trim to fit"), o.badges.join(" · "));
+});
+
 test("curb: full by default, lean on pick, one 72 per 72 of opening", () => {
   assert.deepEqual([sdryCurb(60, null, cat).item.key, sdryCurb(60, null, cat).qty], [SDRY.curbFull, 1]);
   assert.equal(sdryCurb(80, { sub: "lean" }, cat).item.key, SDRY.curbLean);

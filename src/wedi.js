@@ -4457,14 +4457,17 @@ function sealantItem(form, six20) {
   return item(form === "tube" ? SKU.sealantTube : SKU.sealantSausage);
 }
 
-export function figureConsumables(panelSf, form, fastenerKey) {
+// jointSf: floor area that takes joint sealant but no fasteners (a wedi pan's
+// pan/extension joints under S-DRY walls).
+export function figureConsumables(panelSf, form, fastenerKey, jointSf) {
   const sf = Math.max(0, +panelSf || 0);
+  const joint = Math.max(0, +jointSf || 0);
   form = form === "tube" ? "tube" : "sausage";
-  const oz = round2(sf * CONSUMABLES.sealantOzPerSf);
+  const oz = round2((sf + joint) * CONSUMABLES.sealantOzPerSf);
   const per = form === "tube" ? CONSUMABLES.tubeOz : CONSUMABLES.sausageOz;
   const fastenerCount = Math.ceil(sf * CONSUMABLES.fastenersPerSf);
   const lines = [];
-  if (sf > 0) {
+  if (sf + joint > 0) {
     // No per-ft² note (owner ask 2026-07-30): the line reads the kit's own
     // contents — "100 ct … Screws & … Washers with Tabs" — nothing else.
     // Guarded like push() is: a live book can SUBTRACT a row the table always
@@ -4482,7 +4485,7 @@ export function figureConsumables(panelSf, form, fastenerKey) {
     const fastenerStale = !!fastenerKey && !honoured;
     const ctM = honoured && honoured.key !== SKU.fastenerKit ? /(\d+)\s*ct/i.exec(honoured.sizeText || "") : null;
     const sealant = sealantItem(form, false);
-    if (fastenerKit) lines.push({
+    if (fastenerKit && sf > 0) lines.push({
       item: fastenerKit, qty: Math.ceil(fastenerCount / (ctM ? +ctM[1] : CONSUMABLES.fastenerKitCt)),
       group: "install", auto: true,
       note: fastenerStale ? fastenerKey + " not in the book — house kit" : "",
@@ -4490,7 +4493,8 @@ export function figureConsumables(panelSf, form, fastenerKey) {
     if (sealant) lines.push({
       item: sealant, qty: Math.ceil(oz / per),
       group: "install", auto: true,
-      note: CONSUMABLES.sealantOzPerSf + " oz per ft² — " + oz + " oz",
+      note: CONSUMABLES.sealantOzPerSf + " oz per ft² — " + oz + " oz"
+        + (joint > 0 ? " · covers the pan/extension joints (" + round2(joint) + " sf of floor)" : ""),
     });
   }
   return { panelSf: round2(sf), sealantOz: oz, fastenerCount: fastenerCount, form: form, lines: lines };
@@ -5009,6 +5013,19 @@ function familyOf(pan) {
 
 const BUILDUP_NOTE = 'the 2" pan runs deeper than the 1 37/64" extensions — build the extensions up flush with ½" building-panel strips underneath';
 const BUILDUP_SHEET = "US8000015";   // ½" 4×8 building panel — ripped into strips
+// The floor the pieces cover, as their bounding footprint: the solver's edge
+// strips can overlap at the corners, so a sum of pieces overstates it.
+function floorSfOf(option, pan) {
+  const ps = option && option.pieces ? option.pieces : [];
+  if (ps.length && ps.every((p) => p.x != null && p.y != null)) {
+    const w = Math.max(...ps.map((p) => p.x + p.w)) - Math.min(...ps.map((p) => p.x));
+    const d = Math.max(...ps.map((p) => p.y + p.d)) - Math.min(...ps.map((p) => p.y));
+    return round2(w * d / 144);
+  }
+  const d = panRoomDims(pan);
+  return round2(d.w * d.d / 144);
+}
+
 function extensionSf(option) {
   return round2((option && option.pieces ? option.pieces : [])
     .reduce((s, p) => s + (p.kind === "pan" || p.kind === "module" ? 0 : p.w * p.d / 144), 0));
@@ -5626,8 +5643,11 @@ export function kitFor(panKey, opts) {
   // Bench surfaces (tops + faces, framed wraps) seal and fasten like wall
   // panel; premades whose kit already includes the sealant contribute nothing.
   // Under Membrane only the bench surfaces are panel, so only they take
-  // fasteners and joint sealant.
-  const con = figureConsumables((membrane ? 0 : panelSf) + bl.surfSf, form, opts.fastenerKey);
+  // fasteners. A wedi pan under S-DRY walls still seals its pan/extension
+  // joints (owner ruling, ticket 158): sealant on the floor footprint, no
+  // fasteners. An S-DRY floor's seams ride the S-DRY tape instead.
+  const jointSf = membrane && !sdryFloor ? floorSfOf(floorOpt, floorPan) : 0;
+  const con = figureConsumables((membrane ? 0 : panelSf) + bl.surfSf, form, opts.fastenerKey, jointSf);
   const fastener = con.lines.find((l) => l.item.group === "fastener");
   con.lines.forEach((l) => { lines.push(l); });
   let sdry = null;

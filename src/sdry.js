@@ -170,7 +170,7 @@ function optionOf(c, ext, W, D, input, rank) {
   if (fp.tier === 3) warnings.push("two extensions side by side — S-DRY tape seals the seam between them");
   return {
     id: "sdry-" + fp.tier + "-" + rank, kind: "sdry", title,
-    badges: [fp.tier === 1 ? "One piece" : fp.tier === 2 ? "Base + extension" : "Base + 2 extensions"].concat(cutTxt ? [cutTxt] : ["No cutting"]),
+    badges: [fp.tier === 1 ? "One piece" : fp.tier === 2 ? "Base + extension" : "Base + 2 extensions"].concat(cutTxt ? [cutTxt] : pieces.some((p) => p.cut) ? ["Trim to fit"] : ["No cutting"]),
     pieces, drain, warnings, seams,
     floorLines, floorPrice: r2(floorLines.reduce((t, l) => t + l.item.retail * l.qty, 0)),
     waste: r2(c.cut / 144), input: { ...input, system: "sdry" },

@@ -83,6 +83,50 @@ test("tile sf reads the S-DRY curb a Membrane marker bills", () => {
   assert.equal(markerCurbKey(build(cl).cfg), null);
 });
 
+const sealLines = (b) => b.lines.filter((l) => l.item.key === SKU.sealantSausage);
+
+test("S-DRY walls on a Fundo pan with extensions seal the pan and extension joints, with no fasteners", () => {
+  const o = solve(room(60, 72)).find((x) => x.id === "extend");
+  assert.ok(o.pieces.some((p) => p.kind === "ext"));
+  const b = build(o, { sdryBase: "wedi" });
+  const seal = sealLines(b);
+  assert.equal(seal.length, 1);
+  assert.ok(seal[0].qty > 0);
+  assert.match(seal[0].note, /pan\/extension joints/);
+  assert.equal(qty(b)[SKU.fastenerKit], undefined);
+  const keys = b.lines.map((l) => l.item.key);
+  assert.deepEqual(keys.filter((k, i) => keys.indexOf(k) !== i), []);
+});
+
+test("the pan/extension joint sealant figures the floor once where edge strips overlap", () => {
+  const o = solve(room(100, 120, "curbed", "center"))[0];
+  const pieceSf = o.pieces.reduce((t, p) => t + p.w * p.d / 144, 0);
+  assert.ok(pieceSf > 100 * 120 / 144 + 1, "the solver's corner strips overlap");
+  assert.match(sealLines(build(o, { sdryBase: "wedi" }))[0].note, /\(83\.33 sf of floor\)/);
+});
+
+test("a bench under S-DRY walls on a wedi pan fastens only its own surfaces", () => {
+  const o = solve(room(60, 72)).find((x) => x.id === "extend");
+  const benches = [{ kind: "wall", side: "left" }];
+  const b = build(o, { sdryBase: "wedi", benches });
+  const bench = kitFor(o.pan.key, { option: o, room: o.room, mode: "custom", wallSys: "membrane", benches }).consumables;
+  assert.ok(bench.panelSf > 0);
+  assert.equal(b.consumables.fastenerCount, Math.ceil(bench.panelSf));
+  assert.equal(sealLines(b).length, 1);
+});
+
+test("a linear module under S-DRY walls seals its module and extension joints", () => {
+  const o = solve(room(60, 36, "curbed", "linear")).find((x) => x.pan.group === "module");
+  const seal = sealLines(build(o, { sdryBase: "wedi" }));
+  assert.equal(seal.length, 1);
+  assert.ok(seal[0].qty > 0);
+});
+
+test("an S-DRY floor under Membrane bills no Joint & Seal — its seams ride the tape", () => {
+  const o = solve({ ...room(48, 90, "curbless"), system: "sdry" })[0];
+  assert.deepEqual(sealLines(build(o)), []);
+});
+
 test("an absent or unknown wallSys bills Building Panel exactly", () => {
   const o = solve(room(60, 36))[0];
   const plain = qty(kitFor(o.pan.key, { option: o, room: o.room, mode: "custom" }));
