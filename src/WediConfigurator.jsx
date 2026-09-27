@@ -1339,6 +1339,17 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   // --- swaps ----------------------------------------------------------------
   const swapChoices = (line) => {
     const g = line.item.group;
+    if (["niche", "seat", "bench", "shelf"].includes(g)) {
+      return {
+        title: GROUP_LABEL[g], list: bySource(group(g)), set: (k) => {
+          if (!k) return;
+          setAddons((a) => a.map((x) => (x === line.item.key ? k : x)));
+          setManual((mm) => mm.map((x) => (x.key === line.item.key ? { ...x, key: k } : x)));
+        },
+      };
+    }
+    // every other swap writes opts, which a Browse-only build (no pan) ignores
+    if (!build || !build.pan) return null;
     // the walls' panel only — a bench's own sheet is not the wall pick
     if (g === "panel") return line.group === "walls" ? { stepped: "panel" } : null;
     if (g === "cover") return { drain: true };
@@ -1349,7 +1360,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
         set: (k) => setOpts((o) => ({ ...o, coverFrame: k ? item(k).finish : undefined })),
       };
     }
-    if (g === "curb") return { stepped: "curb" };
+    if (g === "curb") return build.curbFit ? { stepped: "curb" } : null;
     if (g === "fastener" && fastenerKits().some((f) => f.key === line.item.key)) {
       return { title: "Fastener kit", list: bySource(fastenerKits()), set: (k) => setOpts((o) => ({ ...o, fastenerKey: k && k !== SKU.fastenerKit ? k : undefined })) };
     }
@@ -1358,15 +1369,6 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     }
     if (g === "recess" || g === "ramp") {
       return { title: "Curbless entry", list: [item(SKU.recessKit), item(SKU.ramp)], none: "Recess the subfloor (no part)", set: (k) => setOpts((o) => ({ ...o, recess: k === SKU.ramp ? "ramp" : k ? "kit" : "none" })) };
-    }
-    if (["niche", "seat", "bench", "shelf"].includes(g)) {
-      return {
-        title: GROUP_LABEL[g], list: bySource(group(g)), set: (k) => {
-          if (!k) return;
-          setAddons((a) => a.map((x) => (x === line.item.key ? k : x)));
-          setManual((mm) => mm.map((x) => (x.key === line.item.key ? { ...x, key: k } : x)));
-        },
-      };
     }
     return null;
   };
@@ -1971,8 +1973,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
                   const e = l.item;
                   const price = tierOf(e);
                   const ch = e.group === "panel" && panelFit ? null : swapChoices(l);
-                  // ⇄ shows only where the catalog offers a real alternative
-                  const can = ch && (ch.drain || ch.stepped || ch.list.length + (ch.none ? 1 : 0) > 1);
+                  const can = ch && (ch.drain || ch.stepped || new Set([...ch.list.map((x) => x.key), e.key]).size + (ch.none ? 1 : 0) > 1);
                   return (
                     <div className="bline" key={e.key + l.group}>
                       <div className="bn">

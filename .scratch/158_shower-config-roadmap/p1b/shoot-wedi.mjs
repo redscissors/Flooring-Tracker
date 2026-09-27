@@ -152,5 +152,43 @@ for (const row of ["Type", "Thickness", "Size"]) {
 }
 await shot("w7-stock-first-panel");
 
+// a pre-1b marker (curbKey only, the 96″ lean on a 60″ opening) reopens on that curb
+const legacy = { mode: "kits", cfg: { panKey: "US9100004", curbKey: "US3000040", source: "all", walls: [
+  { side: "back", len: 60, h: 96 }, { side: "left", len: 36, h: 96 }, { side: "right", len: 36, h: 96 }] } };
+await pg.goto("http://localhost:5199/wedi-preview.html?seed=" + encodeURIComponent(JSON.stringify(legacy)));
+await pg.waitForSelector(".stepper", { timeout: 20000 }); await pg.waitForTimeout(800);
+const legacyCurb = await lineText(/Curb/);
+console.log("pre-1b curbKey marker:", legacyCurb);
+if (!/^96" Lean Curb .* cut to 60" \| ⇄ \| − \| 1 \|/.test(legacyCurb)) fail("the pre-1b marker did not reopen on its 96″ lean curb");
+await open(/Curb/);
+await pg.waitForSelector("[data-drain-swap]", { timeout: 5000 });
+const lit = await pg.locator('[data-drain-chip].text-white').evaluateAll((els) => els.map((e) => e.dataset.drainChip));
+console.log("pre-1b curb popover lit:", lit.join(" "), "|", await popText());
+if (!lit.includes("Style:lean") || !lit.includes("Length:96")) fail("the pre-1b curb popover does not light Lean and 96″");
+await shot("w8-legacy-curbkey-reopen");
+await pg.keyboard.press("Escape"); await pg.waitForTimeout(300);
+
+// a Browse-only build (no pan): its curb, fastener-kit and sealant lines take no ⇄ (they would write opts it ignores)
+await pg.goto("http://localhost:5199/wedi-preview.html");
+await pg.waitForSelector("[data-wedi-pan]", { timeout: 20000 }); await pg.waitForTimeout(600);
+await pg.locator("[data-source-toggle]").click(); await pg.waitForTimeout(500);
+await pg.locator(".modetab", { hasText: "Browse" }).click(); await pg.waitForTimeout(500);
+for (const [sec, row] of [[/^Curbs/, /Lean/], [/^Fasteners/, /Tabless/], [/^Sealant/, /Joint Sealant/i]]) {
+  await pg.locator(".ft-hopt", { hasText: sec }).click(); await pg.waitForTimeout(300);
+  await pg.locator(".brow", { hasText: row }).first().locator(".stepper button", { hasText: "+" }).click(); await pg.waitForTimeout(300);
+}
+await pg.waitForSelector(".bline", { timeout: 5000 });
+for (const re of [/Curb/, /Fastener/, /Joint Sealant/i]) {
+  const n = await line(re).count() ? await line(re).locator(".swapb").count() : -1;
+  console.log(`browse-only ${re}:`, n < 0 ? "no line" : n ? "⇄" : "no ⇄", "|", n < 0 ? "" : await lineText(re));
+  if (n < 0) fail(`the Browse-only build has no ${re} line`);
+  if (n > 0) {
+    fail(`the Browse-only ${re} line shows a ⇄`);
+    await line(re).locator(".swapb").click(); await pg.waitForTimeout(400);
+    await pg.keyboard.press("Escape"); await pg.waitForTimeout(200);
+  }
+}
+await shot("w9-browse-only-no-swap");
+
 await b.close();
 if (err) process.exit(1);
