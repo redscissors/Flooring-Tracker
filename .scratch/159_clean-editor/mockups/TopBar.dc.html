@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>E · Customer header with compact bar</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap">
+<style>
+body{margin:0;font-family:Manrope,ui-sans-serif,system-ui,sans-serif;background:#F6F3EC;color:#1C1A17}
+button{font-family:inherit;cursor:pointer}
+a{color:#40542A}a:hover{color:#2E3B22}
+</style>
+</helmet>
+<div style="width: 1280px; height: 900px; display: flex; background: #F6F3EC; color: #1C1A17; font-family: Manrope, ui-sans-serif, system-ui, sans-serif; overflow: hidden">
+<dc-import name="Sidebar" hint-size="210px,900px"></dc-import>
+<main style="flex-grow: 1; min-width: 0; padding: 28px 32px 0; display: flex; flex-direction: column; gap: 22px">
+
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; align-items: flex-end; gap: 24px">
+<div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px">
+<h1 style="margin: 0; font-size: 34px; font-weight: 800; letter-spacing: -0.025em; line-height: 1.1">Eddie Schlabach</h1>
+<div style="display: flex; align-items: center; gap: 10px; font-size: 13px; color: #57534C; white-space: nowrap">
+<button title="Switch project" style="border: 0; background: none; padding: 0; font-size: 14px; font-weight: 700; color: #1C1A17; display: flex; align-items: center; gap: 4px">Kitchen &amp; mudroom<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8A8378" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+<span style="font-weight: 600; color: #8A8378">N214</span>
+<span style="color: #ABA494">·</span><span>214 Old Mill Rd, Chagrin Falls</span>
+<span style="color: #ABA494">·</span><span>Marcus</span>
+<span style="color: #ABA494">·</span><button style="border: 0; background: none; padding: 0; font-size: 13px; color: #8A8378">+ Notes</button>
+</div>
+</div>
+<div style="text-align: right">
+<div style="font-size: 12px; color: #57534C">Job total</div>
+<div style="font-size: 30px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1.15">$1,352.39</div>
+</div>
+</div>
+
+<div role="toolbar" aria-label="Job settings and actions" style="display: flex; align-items: center; height: 46px; box-sizing: border-box; padding: 0 6px 0 4px; border-radius: 12px; background: {{t.bg}}; border: 1px solid {{t.border}}; color: {{t.fg}}; white-space: nowrap">
+<button title="Price level" style="height: 32px; padding: 0 12px; border: 0; background: none; font-size: 13px; font-weight: 700; color: inherit; display: flex; align-items: center; gap: 5px">Retail<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="{{t.muted}}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+<button title="What the estimate shows" style="height: 32px; padding: 0 12px; border: 0; background: none; font-size: 13px; font-weight: 700; color: inherit; display: flex; align-items: center; gap: 5px">All prices<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="{{t.muted}}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+<button title="Waste rates" style="height: 32px; padding: 0 12px; border: 0; background: none; font-size: 13px; font-weight: 700; color: inherit; display: flex; align-items: center; gap: 5px">Tile 10%<span style="color: {{t.muted}}; font-weight: 500">·</span>Floor 5%</button>
+<button aria-label="Freight" aria-pressed="{{fr.pressed}}" title="{{fr.title}}" onClick="{{toggleFreight}}" style="height: 32px; padding: 0 {{fr.padX}}; margin-left: 4px; border: 1px solid {{fr.border}}; border-radius: 8px; background: {{fr.bg}}; color: {{fr.fg}}; font-size: 12.5px; font-weight: 700; display: flex; align-items: center; gap: 6px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2M15 18H9M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62L18.3 9.38A1 1 0 0 0 17.52 9H14"></path><circle cx="17" cy="18" r="2"></circle><circle cx="7" cy="18" r="2"></circle><sc-if value="{{fr.off}}" hint-placeholder-val="{{ false }}"><path d="M3 3l18 18"></path></sc-if></svg><sc-if value="{{fr.off}}" hint-placeholder-val="{{ false }}"><span>No freight</span></sc-if></button>
+<span style="width: 10px"></span>
+<button aria-label="Print preview" title="{{previewTitle}}" aria-pressed="{{previewPressed}}" onClick="{{togglePreview}}" style="width: 34px; height: 32px; border: 1px solid {{pv.border}}; border-radius: 8px; background: {{pv.bg}}; color: {{pv.fg}}; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path><path d="M14 2v4a2 2 0 0 0 2 2h4M16 13H8M16 17H8M10 9H8"></path></svg></button>
+<button aria-label="Attachments" title="Attachments" style="width: 34px; height: 32px; border: 0; border-radius: 8px; background: none; color: {{t.muted}}; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg></button>
+<button aria-label="Samples" title="Samples" style="width: 34px; height: 32px; border: 0; border-radius: 8px; background: none; color: {{t.muted}}; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 2 10 5-10 5L2 7l10-5z"></path><path d="m2 17 10 5 10-5M2 12l10 5 10-5"></path></svg></button>
+<span style="position: relative; display: flex">
+<button aria-label="More" aria-haspopup="menu" aria-expanded="{{menuExpanded}}" title="More" onClick="{{toggleMenu}}" style="width: 34px; height: 32px; border: 0; border-radius: 8px; background: {{moreBg}}; color: {{t.muted}}; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle></svg></button>
+<sc-if value="{{menuOpen}}" hint-placeholder-val="{{ false }}">
+<div role="menu" aria-label="More" style="position: absolute; top: 38px; left: 0; width: 230px; background: #FFFFFF; border: 1px solid rgba(28,26,23,.12); border-radius: 10px; box-shadow: 0 12px 32px rgba(28,26,23,.14), 0 2px 6px rgba(28,26,23,.06); padding: 6px; display: flex; flex-direction: column; gap: 1px; z-index: 5; color: #1C1A17">
+<button role="menuitem" style="height: 34px; border: 0; border-radius: 6px; background: none; font-size: 13px; font-weight: 600; color: #1C1A17; display: flex; align-items: center; gap: 10px; padding: 0 8px; text-align: left"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#57534C" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5M12 7v5l4 2"></path></svg><span style="flex-grow: 1">Versions</span><span style="font-size: 12px; font-weight: 500; color: #8A8378">3 saved</span></button>
+<button role="menuitem" style="height: 34px; border: 0; border-radius: 6px; background: none; font-size: 13px; font-weight: 600; color: #1C1A17; display: flex; align-items: center; gap: 10px; padding: 0 8px; text-align: left"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#57534C" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><path d="M17 21v-8H7v8M7 3v5h8"></path></svg><span style="flex-grow: 1">Save a named version…</span></button>
+<div style="height: 1px; background: #ECE8DC; margin: 4px 2px"></div>
+<button role="menuitem" style="height: 34px; border: 0; border-radius: 6px; background: none; font-size: 13px; font-weight: 600; color: #B42318; display: flex; align-items: center; gap: 10px; padding: 0 8px; text-align: left"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg><span style="flex-grow: 1">Delete project</span></button>
+</div>
+</sc-if>
+</span>
+<span style="flex-grow: 1"></span>
+<button title="{{o.title}}" style="height: 32px; padding: 0 12px; margin-right: 6px; border: 1px solid {{o.border}}; border-radius: 8px; background: {{o.bg}}; font-size: 12.5px; font-weight: 700; color: {{o.fg}}; display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums">
+<sc-if value="{{o.check}}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></sc-if>
+<sc-if value="{{o.copy}}" hint-placeholder-val="{{ true }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="14" height="14" rx="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg></sc-if>
+<span>{{o.label}}</span>
+<sc-if value="{{o.hasLeft}}" hint-placeholder-val="{{ false }}"><span style="padding: 1px 7px; border-radius: 999px; background: {{o.leftBg}}; color: {{o.leftFg}}; font-size: 11px; font-weight: 700">{{o.left}}</span></sc-if>
+</button>
+<button style="height: 32px; padding: 0 16px; border: 0; border-radius: 8px; background: {{t.printBg}}; font-size: 13px; font-weight: 800; color: {{t.printFg}}; display: flex; align-items: center; gap: 7px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V2h12v7"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>Print</button>
+</div>
+</div>
+
+<sc-if value="{{editing}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-direction: column; gap: 12px">
+<div style="display: grid; grid-template-columns: 96px minmax(0, 1fr) 88px 72px 76px 96px 92px 28px; column-gap: 12px; padding: 0 17px; font-size: 10px; font-weight: 700; letter-spacing: .1em; color: #8A8378">
+<span>SIZE / TYPE</span><span>PRODUCT</span><span>SKU</span><span style="text-align: right">COV.</span><span style="text-align: right">PRICE</span><span style="text-align: right">ORDER</span><span style="text-align: right">TOTAL</span><span></span>
+</div>
+<sc-for list="{{areas}}" as="area" hint-placeholder-count="3">
+<section style="background: #FFFFFF; border: 1px solid rgba(28,26,23,.10); border-radius: 12px; overflow: hidden">
+<div style="display: flex; align-items: center; gap: 10px; height: 46px; padding: 0 10px 0 16px">
+<h2 style="margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -0.01em">{{area.name}}</h2>
+<span style="font-size: 12px; color: #8A8378">{{area.meta}}</span>
+<span style="flex-grow: 1"></span>
+<span style="font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums">{{area.total}}</span>
+<button aria-label="Area options" style="width: 28px; height: 28px; border: 0; background: none; border-radius: 6px; color: #8A8378; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle></svg></button>
+</div>
+<sc-for list="{{area.rows}}" as="row" hint-placeholder-count="2">
+<div style="display: grid; grid-template-columns: 96px minmax(0, 1fr) 88px 72px 76px 96px 92px 28px; column-gap: 12px; align-items: center; height: 44px; padding: 0 16px; border-top: 1px solid #ECE8DC; font-size: 13px">
+<div style="display: flex; align-items: center; gap: 8px"><span style="width: 20px; height: 20px; border-radius: 5px; background: {{row.chip}}; color: #FFFFFF; font-size: 10.5px; font-weight: 800; display: flex; align-items: center; justify-content: center">{{row.letter}}</span><span style="color: #57534C">{{row.size}}</span></div>
+<div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600">{{row.name}}</div>
+<div style="color: #57534C; font-size: 12px">{{row.sku}}</div>
+<div style="text-align: right; color: #57534C; font-variant-numeric: tabular-nums">{{row.cov}}</div>
+<div style="text-align: right; font-variant-numeric: tabular-nums">{{row.price}}</div>
+<div style="text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap"><span style="color: #8A8378; font-size: 11px; margin-right: 6px">{{row.exact}}</span>{{row.order}}</div>
+<div style="text-align: right; font-weight: 700; font-variant-numeric: tabular-nums">{{row.total}}</div>
+<div></div>
+</div>
+</sc-for>
+<div style="display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 16px; border-top: 1px solid #ECE8DC; color: #8A8378; font-size: 13px">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5v14"></path></svg>
+<span>Search SKU or product…</span>
+</div>
+</section>
+</sc-for>
+<button style="height: 44px; border: 1px dashed rgba(28,26,23,.22); border-radius: 12px; background: transparent; color: #57534C; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M12 5v14"></path></svg>
+Add area
+</button>
+</div>
+</sc-if>
+
+<sc-if value="{{preview}}" hint-placeholder-val="{{ false }}">
+<div style="flex-grow: 1; min-height: 0; display: flex; justify-content: center; overflow: hidden">
+<article aria-label="Estimate print preview" style="width: 720px; box-sizing: border-box; background: #FFFFFF; border-radius: 4px 4px 0 0; box-shadow: 0 1px 3px rgba(28,26,23,.10), 0 12px 32px rgba(28,26,23,.08); padding: 40px 44px; color: #000000; display: flex; flex-direction: column; gap: 20px">
+<div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #1C1A17; padding-bottom: 16px">
+<div style="width: 110px; height: 40px; border: 1px dashed #ABA494; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; letter-spacing: .12em; color: #8A8378">[LOGO]</div>
+<div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px">
+<div style="font-size: 12px; font-weight: 800; letter-spacing: .14em; color: #40542A; line-height: 1.45; text-align: right">FLOORING &amp; TILE<br>SELECTIONS</div>
+<div style="font-size: 13px; font-weight: 800">N214</div>
+<div style="font-size: 9.5px; color: #57534C">9/27/2026</div>
+</div>
+</div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px">
+<div style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 8.5px; font-weight: 700; letter-spacing: .2em; color: #615B51">CUSTOMER</span><span style="font-size: 12.5px; font-weight: 700">Eddie Schlabach</span><span style="font-size: 11px; color: #403C36">214 Old Mill Rd, Chagrin Falls</span></div>
+<div style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 8.5px; font-weight: 700; letter-spacing: .2em; color: #615B51">YOUR SALESPERSON</span><span style="font-size: 12.5px; font-weight: 700">Marcus</span><span style="font-size: 11px; color: #403C36">330 893 1292</span></div>
+<div style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 8.5px; font-weight: 700; letter-spacing: .2em; color: #615B51">PROJECT</span><span style="font-size: 12.5px; font-weight: 700">Kitchen &amp; mudroom</span><span style="font-size: 11px; color: #403C36">Tile 10% · flooring 5% waste factor</span></div>
+</div>
+<sc-for list="{{paper}}" as="pa" hint-placeholder-count="2">
+<div style="display: flex; flex-direction: column">
+<div style="display: flex; justify-content: space-between; align-items: center; background: #EDE9DE; border-radius: 4px; padding: 8px 12px">
+<span style="font-size: 10px; font-weight: 700; letter-spacing: .22em; color: #40542A">{{pa.label}}</span>
+<span style="font-size: 10px">{{pa.meta}}</span>
+</div>
+<div style="display: grid; grid-template-columns: 56px minmax(0, 1fr) 60px 70px 44px 62px 52px 64px; column-gap: 7px; padding: 8px 12px 6px; border-bottom: 1px solid #1C1A17; font-size: 8px; font-weight: 700; letter-spacing: .12em; color: #615B51">
+<span>SIZE</span><span>PRODUCT / COLOR</span><span>SKU</span><span>COV.</span><span style="text-align: right">SF</span><span style="text-align: right">PRICE</span><span style="text-align: right">ORDER</span><span style="text-align: right">TOTAL</span>
+</div>
+<sc-for list="{{pa.rows}}" as="pr" hint-placeholder-count="2">
+<div style="display: grid; grid-template-columns: 56px minmax(0, 1fr) 60px 70px 44px 62px 52px 64px; column-gap: 7px; padding: 6px 12px; font-size: 11px; align-items: baseline; border-top: 1px solid rgba(28,26,23,.10)">
+<span style="white-space: nowrap">{{pr.size}}</span>
+<span><b style="font-weight: 700">{{pr.name}}</b><span style="font-size: 10px; color: #403C36"> · {{pr.kind}}</span></span>
+<span style="font-size: 9px">{{pr.sku}}</span>
+<span style="font-size: 9.5px">{{pr.cov}}</span>
+<span style="text-align: right">{{pr.sf}}</span>
+<span style="text-align: right; white-space: nowrap">{{pr.price}}</span>
+<span style="text-align: right; white-space: nowrap">{{pr.order}}</span>
+<span style="text-align: right; font-weight: 700">{{pr.total}}</span>
+</div>
+</sc-for>
+</div>
+</sc-for>
+<div style="display: flex; justify-content: flex-end; align-items: baseline; gap: 10px; border-top: 2px solid #1C1A17; padding-top: 12px">
+<span style="font-size: 10px; font-weight: 700; letter-spacing: .2em; color: #40542A">ESTIMATED TOTAL</span>
+<span style="font-size: 22px; font-weight: 700">$1,352.39</span>
+</div>
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px; padding-top: 18px">
+<div style="border-bottom: 1px solid #ABA494; padding-bottom: 20px; font-size: 9px; font-weight: 700; letter-spacing: .18em; color: #615B51">CUSTOMER APPROVAL</div>
+<div style="border-bottom: 1px solid #ABA494; padding-bottom: 20px; font-size: 9px; font-weight: 700; letter-spacing: .18em; color: #615B51">DATE</div>
+</div>
+</article>
+</div>
+</sc-if>
+
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"view":{"editor":"enum","options":["edit","preview"],"default":"edit"},"barTone":{"editor":"enum","options":["light","dark"],"default":"light"},"showMenu":{"editor":"boolean","default":false},"freight":{"editor":"enum","options":["on","off"],"default":"on"},"erp":{"editor":"enum","options":["none","partial","keyed","split"],"default":"partial"},"$preview":{"width":1280,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const dark = (this.props.barTone ?? 'light') === 'dark';
+    const st = this.state || {};
+    const preview = st.preview ?? ((this.props.view ?? 'edit') === 'preview');
+    const t = dark
+      ? { bg: '#1C1A17', border: '#1C1A17', fg: '#F6F3EC', muted: 'rgba(246,243,236,.68)', divider: 'rgba(246,243,236,.18)', on: '#A3BE7F', printBg: '#F6F3EC', printFg: '#1C1A17' }
+      : { bg: '#FFFFFF', border: 'rgba(28,26,23,.10)', fg: '#1C1A17', muted: '#57534C', divider: 'rgba(28,26,23,.14)', on: '#57703A', printBg: '#1C1A17', printFg: '#F6F3EC' };
+    const pv = preview
+      ? (dark ? { bg: 'rgba(163,190,127,.20)', border: 'rgba(163,190,127,.55)', fg: '#A3BE7F' } : { bg: 'rgba(87,112,58,.12)', border: 'rgba(87,112,58,.45)', fg: '#40542A' })
+      : { bg: 'transparent', border: 'transparent', fg: t.muted };
+    const erp = this.props.erp ?? 'partial';
+    const neutral = { bg: 'transparent', border: t.divider, fg: t.fg };
+    const green = dark
+      ? { bg: 'rgba(163,190,127,.20)', border: 'rgba(163,190,127,.55)', fg: '#C5DAA8' }
+      : { bg: 'rgba(87,112,58,.13)', border: 'rgba(87,112,58,.50)', fg: '#40542A' };
+    const o = {
+      none: { ...neutral, label: 'Order entry', copy: true, check: false, hasLeft: false, title: 'Order entry — add the ERP 1 order number to start keying' },
+      partial: { ...neutral, label: 'ERP 48213', copy: true, check: false, hasLeft: true, left: '3 left', title: 'ERP 1 order 48213 — 5 of 8 lines pasted' },
+      keyed: { ...green, label: 'ERP 48213', copy: false, check: true, hasLeft: false, title: 'ERP 1 order 48213 — every line pasted' },
+      split: { ...green, label: 'ERP 48260 +1', copy: false, check: true, hasLeft: false, title: 'ERP 1 orders 48260, 48213 — every line pasted' }
+    }[erp];
+    o.leftBg = dark ? 'rgba(246,243,236,.12)' : '#F1EDE2';
+    o.leftFg = dark ? '#F6F3EC' : '#57534C';
+    const freightOff = st.freightOff ?? ((this.props.freight ?? 'on') === 'off');
+    const fr = freightOff
+      ? { off: true, pressed: 'false', padX: '10px', bg: dark ? 'rgba(217,119,6,.18)' : '#FEF3C7', border: dark ? 'rgba(245,158,11,.55)' : 'rgba(180,83,9,.40)', fg: dark ? '#FBBF24' : '#B45309', title: 'No freight on this job — vendor shipping is left off. Press to add it back.' }
+      : { off: false, pressed: 'true', padX: '8px', bg: 'transparent', border: 'transparent', fg: t.muted, title: 'Freight included — $240 vendor shipping on this job’s special orders. Press to leave it off.' };
+    const menuOpen = st.menu ?? (this.props.showMenu === true);
+    return {
+      t, pv, o, fr, preview, editing: !preview,
+      toggleFreight: () => this.setState({ freightOff: !freightOff }),
+      menuOpen,
+      menuExpanded: menuOpen ? 'true' : 'false',
+      moreBg: menuOpen ? (dark ? 'rgba(246,243,236,.12)' : '#F1EDE2') : 'transparent',
+      toggleMenu: () => this.setState({ menu: !menuOpen }),
+      previewPressed: preview ? 'true' : 'false',
+      previewTitle: preview ? 'Back to editing' : 'Print preview',
+      togglePreview: () => this.setState({ preview: !preview }),
+      areas: [
+        { name: 'Kitchen', meta: '3 items', total: '$957.33', rows: [
+          { letter: 'T', chip: '#2E3B22', size: '12×24', name: 'Porcelain — Matte Ash', sku: 'PA-1224', cov: '15.5 sf', price: '$3.49', exact: '13.4', order: '14 ctn', total: '$757.33' },
+          { letter: 'G', chip: '#57703A', size: '25 lb', name: 'Sanded grout — Warm Gray', sku: 'G-104', cov: '—', price: '$24.00', exact: '2.6', order: '3 bag', total: '$72.00' },
+          { letter: 'M', chip: '#6E8A4B', size: '50 lb', name: 'Large-format mortar', sku: 'M-LFT', cov: '—', price: '$32.00', exact: '3.3', order: '4 bag', total: '$128.00' }
+        ] },
+        { name: 'Mudroom', meta: '1 item', total: '$395.06', rows: [
+          { letter: 'V', chip: '#40542A', size: '7×48', name: 'Rigid-core LVP — Natural Oak', sku: 'LV-778', cov: '23.6 sf', price: '$2.79', exact: '5.6', order: '6 ctn', total: '$395.06' }
+        ] },
+        { name: 'Area 3', meta: 'Empty', total: '', rows: [] }
+      ],
+      paper: [
+        { label: 'KITCHEN', meta: '189 SF · $957.33', rows: [
+          { size: '12×24', name: 'Porcelain — Matte Ash', kind: 'Tile', sku: 'PA-1224', cov: '15.5 SF/CT', sf: '189', price: '$3.49/sf', order: '14 CT', total: '$757.33' },
+          { size: '25 lb', name: 'Sanded grout — Warm Gray', kind: 'Grout', sku: 'G-104', cov: '—', sf: '—', price: '$24.00/bag', order: '3 BAG', total: '$72.00' },
+          { size: '50 lb', name: 'Large-format mortar', kind: 'Mortar', sku: 'M-LFT', cov: '—', sf: '—', price: '$32.00/bag', order: '4 BAG', total: '$128.00' }
+        ] },
+        { label: 'MUDROOM', meta: '126 SF · $395.06', rows: [
+          { size: '7×48', name: 'Rigid-core LVP — Natural Oak', kind: 'Vinyl', sku: 'LV-778', cov: '23.6 SF/CT', sf: '126', price: '$2.79/sf', order: '6 CT', total: '$395.06' }
+        ] }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -17,8 +17,14 @@ app_data.data : { profile: { name, phone, email },    // per user; stamped onto 
                         browserPanels: {              // only through saveUiPref
                           strip: bool,                // (best-effort, never toasts):
                           stripH: number|null,        // the customer browser's column
-                          linesH: number|null } } }   // order + its two side panels'
-                                                      // shown/dragged heights
+                          linesH: number|null },      // order + its two side panels'
+                        dockSide: "left"|"right",     // shown/dragged heights; the
+                        header: "bar"|"classic"|"clean" } }  // order-entry/Samples
+                                                      // drawer side; the desktop
+                                                      // project header layout
+                                                      // (per user since 2026-09-27;
+                                                      // absent = this device's old
+                                                      // localStorage "ft-header")
 
 customers row : { id (text), owner_id (uuid, nullable "created by"),
                   data: Customer, created_at, updated_at,
