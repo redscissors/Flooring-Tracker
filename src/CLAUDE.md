@@ -1628,6 +1628,24 @@ src/
                     # Compare draw a line under `groupOf(line.slot)`; the
                     # engines' own groups (Schluter `l.g`, wedi buckets) stay
                     # internal keys, never translated (slots.test.js)
+  kitlabel.js       # how a part READS inside the wedi / Schluter popups
+                    # (.scratch/160, owner 2026-09-28): `kitLabel(name, hint)`
+                    # → { size, name, fromHint, rest? } — the size leads, tight
+                    # ("48×96×½″", no spaces round ×; a foot-led trade size up
+                    # to 8′ reads in inches, a roll length past 8′ in feet),
+                    # then `cleanKitName` — wedi / Schluter / KERDI-family words
+                    # and Subliner Dry (as a prefix) off; S-Dry STAYS (owner).
+                    # The name's own size wins; `hint` (the item's sizeText /
+                    # size) fills in when the name has none or holds the fuller
+                    # size (curb profile, board sheet under the name's
+                    # thickness, band width × roll length). DISPLAY ONLY — the
+                    # rows that land, the print, order entry and Compare's
+                    # quote-option names keep the vendor text. Mounted by both
+                    # build columns and every Compare line (Qty | Size + item |
+                    # Price); Compare rows carry `size` for it (comparekit.js).
+                    # wedi's S-DRY SEAL "2 x 16 oz" and the drain covers'
+                    # "3/3/4" typo no longer parse as dims (wedi.js dims(),
+                    # ADR 0038 amendment 2026-09-28) (kitlabel.test.js)
   swappop.jsx       # `SwapPop` — the shared stepped popover (ticket 158 Phase
                     # 1a, mockup layout A; renamed from `DrainSwapPop` in 1b,
                     # which also folded in the two popups' duplicated Δ

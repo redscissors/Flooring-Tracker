@@ -44,6 +44,11 @@ test("wedi parsing: fractions, inch() and every dimension the two sheets print",
   assert.deepEqual(dims('32"x5-3/4" Wedi Riolito Neo'), [32, 5.75], 'dims ERP \'32"x5-3/4"\'');
 });
 
+test("wedi parsing: a pack count and a garbled fraction are not dimensions (ADR 0038 amendment 2026-09-28)", () => {
+  assert.equal(dims("SEAL Powder - 2 x 16 oz. bags (32 oz.)"), null, "2 x 16 oz is two bags");
+  assert.equal(dims('Size 3 3/4" x 3/3/4" x 3/16" thick'), null, "the sheet's 3/3/4 typo");
+});
+
 // --- catalog ------------------------------------------------------------------
 
 test("wedi catalog: 151 stock + 118 special-order-only entries, nothing in misc", () => {

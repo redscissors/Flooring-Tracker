@@ -262,6 +262,7 @@ export function wediCompareRows(build, { builderPct } = {}) {
       key: l.group + "|" + e.key,
       added: !!(l.added && build.pan),
       name: e.name,
+      size: e.sizeText || "",
       sub: sub(e.us, l.note),
       qty: l.qty,
       stock: !!e.stock,
@@ -274,7 +275,7 @@ export function wediCompareRows(build, { builderPct } = {}) {
   // hint, so Compare writes the same $0 note row the Schluter column carries
   if (build && build.hints && build.hints.includes("backer")) rows.push({
     group: "walls", slot: "wallBoard", key: "note|backer", added: false,
-    name: "Cement board / drywall substrate", sub: "by others · membrane needs a backer",
+    name: "Cement board / drywall substrate", size: "", sub: "by others · membrane needs a backer",
     qty: 1, stock: false, noteOnly: true, est: false, retail: 0, builder: 0, cost: 0,
   });
   return rows;
@@ -288,6 +289,7 @@ export function schluterCompareRows(build, { builderPct } = {}) {
       key: l.g + "|" + (e.sku || e.name),
       added: !!l.manual,
       name: e.name,
+      size: e.size || "",
       sub: sub(e.sku, l.note),
       qty: l.qty,
       stock: !!e.stock,
@@ -402,6 +404,7 @@ export function mirrorRow(entry, brand, { builderPct } = {}) {
     group: entry.grp, slot: entry.match.slot, key: entry.hostKey,
     added: true, mirror: entry.kind, hostKey: entry.hostKey,
     name: e.name,
+    size: (brand === "wedi" ? e.sizeText : e.size) || "",
     sub: "for " + (entry.host.qty > 1 ? entry.host.qty + "× " : "") + entry.host.name,
     qty: entry.qty, stock: !!e.stock, noteOnly: false, est: false,
     ...money(brand, e, entry.qty, builderPct),

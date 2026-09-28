@@ -27,6 +27,7 @@ import { SwapPop, fmDelta, inchGlyph } from "./swappop.jsx";
 import { GROUPS, groupOf, groupLabel } from "./slots.js";
 import { mortarItemFrom, MORTAR_BED_SF_PER_BAG } from "./schluteradapter.js";
 import { useSchluterCatalog } from "./useschlutercatalog.js";
+import { kitLabel } from "./kitlabel.js";
 import { normKitBasketEntry } from "./model.js";
 import { schluterDiag, schluterWalls, schluterWallOn, schluterCurb, schluterOpenCorners, schluterCuts } from "./schluterdraw.js";
 import { TopDown, Iso, railSplit, RAIL_DESIGN_W, round2, WALL_THICK } from "./showerdraw.jsx";
@@ -34,6 +35,7 @@ import { TopDown, Iso, railSplit, RAIL_DESIGN_W, round2, WALL_THICK } from "./sh
 // Standing help behind the headings' ? (ADR 0045).
 const ADDONS_TIP = <>Benches: the Bench chip, or hover the tray on the drawing along a wall or into a corner and click the zone - a bench's own zone edits its size and build. Right-click a wall band for its size.</>;
 const BENCH_PICK_TIP = <>A pick lands on the next open wall or corner; its zone on the drawing edits size, build and placement.</>;
+const KITS_TIP = <>Every price is the full shelf kit under this wall system - flip it to compare. Click a size to fill the build column; you stay on this tab. A green dot is stocked. The factory boxed kits (special order) live in Browse → Factory kits.</>;
 const NICHE_PICK_TIP = <>Self-contained: band frame + screws in the box.</>;
 
 // The Compare tab drags in comparekit → BOTH engines' tables, so it stays its
@@ -78,6 +80,11 @@ const sectionHit = (s, i) => (s.hit ? s.hit(i) : s.subs.some((sb) => sb.hit(i)))
 
 const inches = (n) => (n % 12 === 0 ? n / 12 + "'" : n + '"');
 const szLbl = (t) => `${inches(t.w)}×${inches(t.d)}`;
+// 38 → 3′2″: the Kits rows lead by the foot, as wedi's do
+const ftIn = (n) => {
+  const f = Math.floor(n / 12), i = Math.round(n % 12);
+  return f ? (i ? `${f}′${i}″` : `${f}′`) : `${i}″`;
+};
 
 const EDGE_LBL = { back: "Back", left: "Left", right: "Right", entry: "Entry" };
 // Which end of its edge an added wall returns from (the wedi naming): a
@@ -117,15 +124,16 @@ const CSS = `
 .sch-pop .fam-h:first-child{margin-top:0}
 .sch-pop .fam-h .t{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--ft-brand-deep)}
 .sch-pop .fam-h .hint{font-size:10.5px;color:var(--ft-faint);font-weight:600;line-height:1.4}
-.sch-pop .kitrow{display:flex;align-items:center;gap:10px;width:100%;padding:2px 6px;border:0;border-bottom:1px solid var(--ft-row-line);background:none;cursor:pointer;text-align:left;color:inherit;min-height:23px}
+.sch-pop .kitrow{display:flex;align-items:center;gap:8px;width:100%;padding:1px 5px;border:0;border-bottom:1px solid var(--ft-row-line);background:none;cursor:pointer;text-align:left;color:inherit;min-height:23px}
 .sch-pop .kitrow:hover{background:var(--ft-hover)}
 .sch-pop .kitrow.dis{opacity:.38;cursor:not-allowed}
 .sch-pop .kitrow.on{background:var(--ft-tint);box-shadow:inset 2px 0 0 var(--ft-brand)}
-.sch-pop .kitrow .sz{font-weight:800;width:110px;flex:none;font-size:12px;letter-spacing:-.01em}
-.sch-pop .kitrow .sz small{font-weight:600;color:var(--ft-faint);font-size:10px;margin-left:4px}
-.sch-pop .kitrow .tag{font-size:9.5px;font-weight:700;color:var(--ft-muted);background:var(--ft-sand);border-radius:4px;padding:1px 6px;flex:none}
-.sch-pop .kitrow .tag.so{color:var(--s-rust);background:var(--ft-hover-red,#F7E8E1)}
-.sch-pop .kitrow .sku{font-size:10.5px;color:var(--ft-faint);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.sch-pop .kitrow .sz{font-size:10px;font-weight:600;color:var(--ft-faint);white-space:nowrap}
+.sch-pop .kitrow .sz b{font-size:12px;font-weight:800;color:var(--ft-text);margin-right:4px}
+.sch-pop .kitrow .nm{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--s-rust);white-space:nowrap}
+.sch-pop .kitrow .dot{flex:none;width:5px;height:5px;border-radius:50%;background:var(--ft-brand)}
+.sch-pop .kitrow .dot.so{background:none;box-shadow:inset 0 0 0 1px var(--ft-faint)}
+.sch-pop .fam-h .aside{font-size:10px;font-weight:600;color:var(--ft-faint)}
 .sch-pop .kitrow .pr{font-weight:800;margin-left:auto;flex:none;font-size:11.5px;font-variant-numeric:tabular-nums}
 .sch-pop .roomform{background:var(--ft-tint);border:1px solid var(--ft-tint-border);border-radius:10px;padding:5px;margin-bottom:10px}
 .sch-pop .rfgrid{display:flex;flex-wrap:wrap;gap:5px}
@@ -257,6 +265,7 @@ const CSS = `
 .sch-pop .bline .bn .n .sotag{font-size:8.5px;font-weight:800;color:var(--s-rust);background:var(--ft-hover-red,#F7E8E1);border-radius:4px;padding:0 5px;margin-left:6px;vertical-align:1px}
 .sch-pop .bline .bn .m{font-size:9.5px;color:var(--ft-faint);font-weight:600;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sch-pop .bline .bn .m b{color:var(--ft-muted);font-weight:700}
+.sch-pop .bline .bn .n .lsz{font-weight:800}
 .sch-pop .bline .lp{flex:none;text-align:right;font-size:11.5px;font-weight:800;font-variant-numeric:tabular-nums;width:62px}
 .sch-pop .bline .lp small{display:block;font-size:9px;color:var(--ft-faint);font-weight:600}
 .sch-pop .bline.note .bn .n{color:var(--ft-muted);font-style:italic;font-weight:600}
@@ -1179,10 +1188,10 @@ export default function SchluterConfigurator({
   // side then longest so every 3-footer sits together. w is the longer dim
   // (classify), so d leads the sort.
   const TRAY_FAMS = [
-    ["point", "Point drain — KERDI-SHOWER-T", (t) => t.drain === "point" && !t.thin],
-    ["thin", "Curbless — TT (thin, no lip)", (t) => !!t.thin],
-    ["offset", "Offset drain — TS", (t) => t.drain === "offset"],
-    ["linear", "Linear drain — LTS", (t) => t.drain === "linear"],
+    ["point", "Point drain", (t) => t.drain === "point" && !t.thin],
+    ["thin", "Curbless", (t) => !!t.thin, "thin, no lip"],
+    ["offset", "Offset drain", (t) => t.drain === "offset"],
+    ["linear", "Linear drain", (t) => t.drain === "linear"],
   ];
   const lo = (t) => Math.min(t.w, t.d), hi = (t) => Math.max(t.w, t.d);
   const bySize = (a, b) => (lo(a) - lo(b)) || (hi(a) - hi(b)) || (b.w - a.w) || a.sku.localeCompare(b.sku);
@@ -1191,6 +1200,7 @@ export default function SchluterConfigurator({
   // linear tray also names its channel edge — the twins differ only there
   const rowSz = (t) => `${inches(lo(t))}×${inches(hi(t))}` +
     (t.drain === "linear" && t.w !== t.d ? ` · drain on ${inches(t.w)}` : "");
+  const drainSide = (t) => (t.drain === "linear" && t.w !== t.d ? `drain ${t.w}″ side` : "");
 
   // "Clear design" (the wedi header action): wipe the whole build — room back
   // to the default, walls, benches, add-ons, hand-set quantities — on any tab.
@@ -1243,32 +1253,25 @@ export default function SchluterConfigurator({
         <div className="t">Wall system</div>
         <div className="rseg">
           <button className={wallSys === "membrane" ? "on" : ""} onClick={() => setWallSys("membrane")} data-schluter-kits-membrane>Membrane</button>
-          <button className={wallSys === "board" ? "on" : ""} onClick={() => setWallSys("board")} data-schluter-kits-board>KERDI-BOARD</button>
+          <button className={wallSys === "board" ? "on" : ""} onClick={() => setWallSys("board")} data-schluter-kits-board>Board</button>
         </div>
-        <div className="hint">every price below is the FULL kit under this wall system — flip to compare</div>
+        <HelpTip className="self-center" w={280} tip={KITS_TIP} />
       </div>
-      {TRAY_FAMS.map(([key, label, hit]) => {
+      {TRAY_FAMS.map(([key, label, hit, aside]) => {
         const list = trays.filter(hit).sort(bySize);
         if (!list.length) return null;
-        // the wedi issue-075 idiom: a row is tagged only where it breaks its
-        // family's pattern — two rows must agree before anything is "usual"
-        const st = list.filter((x) => x.stock).length;
-        const usual = Math.max(st, list.length - st) >= 2 ? st >= list.length - st : null;
         return (
           <div key={key} style={{ marginBottom: 9 }}>
-            <div className="fam-h"><div className="t">{label}</div>
-              {key === "point" && <div className="hint">click one — the build column fills the shelf kit in and you stay here. The factory boxed kits (special order) live in Browse → Factory kits</div>}
-            </div>
+            <div className="fam-h"><div className="t">{label}</div>{aside && <span className="aside">{aside}</span>}</div>
             {list.map((t) => {
               const dis = source === "stock" && !t.stock;
               const on = kitPick && pickCand?.tray?.sku === t.sku;
               return (
-                <button key={t.sku} className={"kitrow" + (dis ? " dis" : "") + (on ? " on" : "")} disabled={dis} onClick={() => tryKit(t)} data-schluter-tray={t.sku}>
-                  <span className="sz">{rowSz(t)}</span>
-                  {usual != null && t.stock !== usual && (
-                    <span className={"tag" + (t.stock ? "" : " so")}>{t.stock ? "stock" : "special order"}</span>
-                  )}
-                  <span className="sku">{t.sku} — {shown(t.name)}</span>
+                <button key={t.sku} className={"kitrow" + (dis ? " dis" : "") + (on ? " on" : "")} disabled={dis} onClick={() => tryKit(t)} data-schluter-tray={t.sku}
+                  title={t.sku + " — " + shown(t.name) + (t.stock ? "" : " · special order")}>
+                  <span className={"dot" + (t.stock ? "" : " so")} />
+                  <span className="sz"><b>{ftIn(lo(t))}×{ftIn(hi(t))}</b>{lo(t)}×{hi(t)}</span>
+                  {drainSide(t) && <span className="nm">{drainSide(t)}</span>}
                   <span className="pr" style={{ color: tierColor }} title="the full shelf kit at this size">{fm(kitTotals[t.sku] != null ? kitTotals[t.sku] : tierOf(t))}</span>
                 </button>
               );
@@ -1414,7 +1417,7 @@ export default function SchluterConfigurator({
             <div className="h">Wall system — the Schluter fork</div>
             <div className="rseg">
               <button className={wallSys === "membrane" ? "on" : ""} onClick={custom(() => setWallSys("membrane"))}>Membrane</button>
-              <button className={wallSys === "board" ? "on" : ""} onClick={custom(() => setWallSys("board"))}>KERDI-BOARD</button>
+              <button className={wallSys === "board" ? "on" : ""} onClick={custom(() => setWallSys("board"))}>Board</button>
             </div>
             <div className="wsnote">{wallSys === "membrane"
               ? "Membrane needs cement board / drywall behind it (by others) — cheapest material bill."
@@ -1633,7 +1636,7 @@ export default function SchluterConfigurator({
         <div className="bc-scroll">
           <div className="bc-h">
             <div className="t">Build</div>
-            <div className="sub">{inches(cfg.w)}×{inches(cfg.d)}{cfg.maxIn ? " tray (max inside)" : ""} · {cfg.curbed ? "curbed" : "curbless"} · {effDrain} drain · {cfg.wallSys === "board" ? "KERDI-BOARD walls" : "Membrane walls (KERDI)"}{pickCand && pickCand.cut ? ` · tray cut ${pickCand.cut}″` : ""}</div>
+            <div className="sub">{inches(cfg.w)}×{inches(cfg.d)}{cfg.maxIn ? " tray (max inside)" : ""} · {cfg.curbed ? "curbed" : "curbless"} · {effDrain} drain · {cfg.wallSys === "board" ? "board walls" : "membrane walls"}{pickCand && pickCand.cut ? ` · tray cut ${pickCand.cut}″` : ""}</div>
           </div>
           {GROUPS.map(({ key: g, label }) => {
             const gl = build.lines.filter((l) => groupOf(l.slot) === g);
@@ -1657,11 +1660,12 @@ export default function SchluterConfigurator({
                   const price = tierOf(e);
                   // the kit's own lines of an added line's part — a double-up after a room or kit change
                   const kitAlso = l.manual ? build.lines.reduce((t, k) => t + (!k.manual && !k.noteOnly && k.item.sku === e.sku ? k.qty : 0), 0) : 0;
-                  const meta = [e.sku, e.size, l.note, kitAlso ? "kit also bills " + kitAlso : "", l.noteOnly ? "" : perUnit(e, false)].filter(Boolean);
+                  const lb = kitLabel(e.name, e.size);
+                  const meta = [e.sku, lb.fromHint ? lb.rest || "" : e.size, l.note, kitAlso ? "kit also bills " + kitAlso : "", l.noteOnly ? "" : perUnit(e, false)].filter(Boolean);
                   return (
                     <div className={"bline" + (l.noteOnly ? " note" : "")} key={g + (e.sku || e.name) + li}>
                       <div className="bn">
-                        <div className="n">{shown(e.name)}
+                        <div className="n">{lb.size && <><b className="lsz">{lb.size}</b>{" "}</>}{lb.name}
                           {l.manual && <>{" "}<span className="addtag" title="added by hand — doesn't re-figure when the room or kit changes" data-added-tag>added</span></>}
                           {!l.noteOnly && !e.stock && <span className="sotag">special order</span>}</div>
                         <div className="m" title={meta.join(" · ") || undefined}>{meta.map((s2, k) => (k ? " · " + s2 : <b key="k">{s2}</b>))}</div>

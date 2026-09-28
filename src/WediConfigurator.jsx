@@ -35,6 +35,7 @@ import { GROUPS, groupOf, groupLabel } from "./slots.js";
 import { TopDown, Iso, railSplit, RAIL_DESIGN_W, curbHeight } from "./showerdraw.jsx";
 import { normKitBasketEntry } from "./model.js";
 import { useWediCatalog } from "./usewedicatalog.js";
+import { kitLabel, tightSize } from "./kitlabel.js";
 
 // The Compare tab drags in comparekit → BOTH engines' tables, so it stays its
 // own chunk behind this popup's own lazy boundary (ADR 0026).
@@ -320,6 +321,7 @@ const CSS = `
 .wedi-pop .bline .bn .n{font-size:11.5px;font-weight:700;line-height:1.25;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .wedi-pop .bline .bn .m{font-size:9.5px;color:var(--ft-faint);font-weight:600;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .wedi-pop .bline .bn .m b{color:var(--ft-muted);font-weight:700}
+.wedi-pop .bline .bn .n .lsz{font-weight:800}
 .wedi-pop .bline .lp{flex:none;text-align:right;font-size:11.5px;font-weight:800;font-variant-numeric:tabular-nums;width:62px}
 .wedi-pop .bline .lp small{display:block;font-size:9px;color:var(--ft-faint);font-weight:600}
 .wedi-pop .bline .stepper button{width:20px;height:20px;font-size:12px}
@@ -1730,7 +1732,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
                     <div className="sz">
                       {p.group === "module"
                         ? <><b>{ftIn(p.len)}</b>{inch(p.len)}″</>
-                        : <><b>{ftIn(p.w)} × {ftIn(p.d)}</b>{inch(p.w)} × {inch(p.d)}</>}
+                        : <><b>{ftIn(p.w)}×{ftIn(p.d)}</b>{inch(p.w)}×{inch(p.d)}</>}
                     </div>
                     {tag && <div className="nm">{tag}</div>}
                     <div className="pr" style={{ color: tierColor }}>{fm(kitTotals[p.key] != null ? kitTotals[p.key] : tierOf(p))}</div>
@@ -2191,15 +2193,17 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
                   // tag and double-up hint only beside a kit — a Browse-only build is all added
                   const tagged = l.added && !!build.pan;
                   const kitAlso = tagged ? build.lines.reduce((t, k) => t + (!k.added && k.item.key === e.key ? k.qty : 0), 0) : 0;
+                  const lb = kitLabel(e.name, e.sizeText);
                   return (
                     <div className="bline" key={e.key + l.group + (l.added ? "+" : "")}>
                       <div className="bn">
-                        <div className="n"><FinDot e={e} />{unwedi(e.name)}
+                        <div className="n"><FinDot e={e} />{lb.size && <><b className="lsz">{lb.size}</b>{" "}</>}{lb.name}
                           {tagged && <>{" "}<span className="addtag" title="added by hand — doesn't re-figure when the room or kit changes" data-added-tag>added</span></>}</div>
                         {(() => {
                           // Contents lead, the auto note follows — the line truncates from
                           // the right, and "100 ct" is the part that must survive it.
-                          const meta = [finName(e) || e.sizeText, l.note, kitAlso ? "kit also bills " + kitAlso : "", perUnit(e, false)].filter(Boolean);
+                          const sz = lb.fromHint ? lb.rest || "" : tightSize(e.sizeText) === lb.size ? "" : e.sizeText;
+                          const meta = [finName(e) || sz, l.note, kitAlso ? "kit also bills " + kitAlso : "", perUnit(e, false)].filter(Boolean);
                           return (
                             <div className="m" title={meta.join(" · ") || undefined}><b>{e.stock ? e.erp : "SO " + e.us}</b>
                               {meta.map((s) => " · " + s).join("")}</div>

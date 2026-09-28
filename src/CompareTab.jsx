@@ -24,6 +24,7 @@ import { entryOf } from "./compareset.js";
 import { matchQty } from "./comparemirror.js";
 import { groupLabel, SLOT_LABEL } from "./slots.js";
 import { SwapPop } from "./swappop.jsx";
+import { kitLabel, cleanKitName } from "./kitlabel.js";
 import { useEscClose, HelpTip } from "./widgets.jsx";
 import { useSchluterCatalog } from "./useschlutercatalog.js";
 import { useWediCatalog } from "./usewedicatalog.js";
@@ -50,7 +51,12 @@ const CSS = `
 .cmp-tab .cmp-grid .corner .lbl{font-size:10px;font-weight:800;letter-spacing:.11em;text-transform:uppercase;color:var(--ft-faint);display:inline-flex;align-items:center;gap:4px}
 .cmp-tab .cmp-grid .corner .room{font-size:10px;font-weight:700;color:var(--ft-muted);line-height:1.35}
 .cmp-tab .cmp-grid .cell .ln{display:flex;justify-content:space-between;gap:8px;padding:1px 0;line-height:1.25}
-.cmp-tab .cmp-grid .cell .ln .n{min-width:0}
+.cmp-tab .cmp-grid .cell .ln .n{min-width:0;flex:1}
+.cmp-tab .cmp-grid .cell .ln .q,.cmp-tab .lnh .q{flex:none;width:22px;padding-right:5px;text-align:right;font-weight:700;color:var(--ft-muted);font-variant-numeric:tabular-nums;border-right:1px solid var(--ft-row-line)}
+.cmp-tab .cmp-grid .cell .ln .lsz{font-weight:800;color:var(--ft-text)}
+.cmp-tab .lnh{grid-column:1/-1;display:flex;gap:8px;margin-top:6px;font-size:8.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ft-faint)}
+.cmp-tab .lnh .q{border-right:0;color:inherit;font-weight:800}
+.cmp-tab .lnh .n{flex:1}
 .cmp-tab .cmp-grid .cell .ln .n small{display:none}
 .cmp-tab .cmp-grid .cell .ln.plus .n small{color:var(--ft-faint);font-size:10px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cmp-tab .cmp-grid .cell .ln .p{font-weight:700;font-variant-numeric:tabular-nums;flex:none}
@@ -140,11 +146,13 @@ function Cell({ cellKey, rows, plus, amtOf, miss, brand, onPick, onDrop, canAdd,
       {rows.map((r, i) => {
         const amt = amtOf(r);
         const detail = [r.sub, r.est ? "est." : ""].filter(Boolean).join(" · ");
+        const lb = kitLabel(r.name, r.size);
         return (
           <div key={i} className={"ln" + (r.noteOnly ? " note" : !r.stock ? " so" : "")} data-row-key={r.key}
             {...(r.mirror ? { "data-mirror-line": r.hostKey } : {})}>
+            <span className="q">{r.noteOnly ? "" : r.qty}</span>
             <span className="n" title={detail || undefined}>
-              {r.qty > 1 ? r.qty + "× " : ""}{r.name}
+              {lb.size && <><b className="lsz">{lb.size}</b>{" "}</>}{lb.name}
               {r.added && <span className="tag" data-added-tag>{r.mirror === "matched" ? "added · matched" : "added"}</span>}
               <small>{r.sub}{r.est ? " · est." : ""}</small>
             </span>
@@ -160,6 +168,7 @@ function Cell({ cellKey, rows, plus, amtOf, miss, brand, onPick, onDrop, canAdd,
       })}
       {plus.map((e) => (
         <div key={e.hostKey} className="ln plus" data-mirror-plus={e.hostKey} data-row-key={e.hostKey}>
+          <span className="q" />
           <span className="n">
             {e.kind === "dropped" ? "Not mirrored" : canAdd(e) ? `Nothing comparable in the ${BRAND[brand]} book` : `No ${BRAND[brand]} ${SLOT_LABEL[e.slot].toLowerCase()} in the book`}
             <small>for {e.host.qty > 1 ? e.host.qty + "× " : ""}{e.host.name}</small>
@@ -418,7 +427,7 @@ export default function CompareTab({
   );
 
   const roomText = roomOk
-    ? `${room.w}″ × ${room.d}″ · ${room.curbed ? "curbed" : "curbless"} · ${DRAIN_LBL[room.drain] || "point drain"}`
+    ? `${room.w}×${room.d}″ · ${room.curbed ? "curbed" : "curbless"} · ${DRAIN_LBL[room.drain] || "point drain"}`
       + (room.benches && room.benches.length ? ` · ${room.benches.length} bench${room.benches.length === 1 ? "" : "es"}` : "")
     : "no room yet";
   const showClear = setOn && others.length > 0;
@@ -434,7 +443,7 @@ export default function CompareTab({
         {cur && <span className="curtab">Current</span>}
         <div className="nm">
           <span className={"bbadge " + (c.brand === "wedi" ? "wedi" : "slt")}>{BRAND[c.brand]}</span>
-          <span className="sys">{c.label}</span>
+          <span className="sys">{c.brand === "schluter" ? cleanKitName(c.label) : c.label}</span>
         </div>
         <div className="st" data-cmp-status={c.status}>
           {c.status === "yours" && <span className="pill yours">Your build</span>}
@@ -470,6 +479,7 @@ export default function CompareTab({
             </label>
           )}
         </div>
+        {!miss && <div className="lnh"><span className="q">Qty</span><span className="n">Size + item</span><span>Price</span></div>}
       </div>
     );
   };
