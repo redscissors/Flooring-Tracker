@@ -194,7 +194,7 @@ Rationale, the change-classification table, and the sanctioned write paths live 
 auto-triggering skills, but read them like any other doc when their topic
 comes up. The general-purpose superpowers workflow skills (brainstorming,
 systematic-debugging, TDD, verification-before-completion, …) are VENDORED
-into `.claude/skills/` — copied from the superpowers plugin (v6.3.0, MIT,
+into `.claude/skills/` — copied from the superpowers plugin (v6.4.2, MIT,
 `.claude/skills/LICENSE`) — because cloud/web sessions never load the plugin:
 each session is a fresh container, and a plugin installed during session
 start lands after the skill registry is built, so only skills committed in
