@@ -11,7 +11,7 @@
 
 import {
   solve, kitFor, item, tierPrice as wediTierPrice, round2, WEDI_ADD_PARTS, wediSlotOf,
-  catalog as wediCatalog, coverageOf as wediCoverageOf,
+  catalog as wediCatalog, coverageOf as wediCoverageOf, sdryNoFit,
 } from "./wedi.js";
 import {
   trayCandidates, buildKit, addedLines, tierPrice as schluterTierPrice, ADD_PARTS, slotOf, coverageOf as schluterCoverageOf,
@@ -56,26 +56,34 @@ export function roomFromWedi(cfg) {
   };
 }
 
+// The wedi solver input for a neutral room — what wediBuildFor solves.
+function wediInput(room, source) {
+  room = room || {};
+  return {
+    w: +room.w || 0, d: +room.d || 0,
+    curb: room.curbed ? "curbed" : "curbless",
+    drain: WEDI_DRAIN[room.drain] || "center",
+    tolerance: 0.51, drainX: 0, drainY: 0, anchor: "left", source: source,
+  };
+}
+
 /**
  * Solve the room in wedi and build the house kit for the top-ranked option —
  * the composition WediConfigurator.jsx's `solveRoom`/`build` make, minus the
  * popup's own customizations (no add-ons, benches, overrides or curb inset).
  * Under Membrane (ADR 0051) the S-DRY fit goes first; when it can't fit, a
  * wedi pan takes the floor with S-DRY walls — no prompt here, the build's
- * `cfg.sdryBase` says so. Null when nothing solves.
+ * `cfg.sdryBase` says so. `sdryBase: "nearest"` is the popup prompt's other
+ * answer: the nearest S-DRY base anyway. Null when nothing solves.
  */
 export function wediBuildFor(room, { source, tier, manual, wallSys, sdryBase } = {}) {
   room = room || {};
   const walls = (room.walls || []).filter((w) => w.on)
     .map((w) => ({ side: w.side, len: +w.len || 0, h: +w.h || 84 }));
-  const input = {
-    w: +room.w || 0, d: +room.d || 0,
-    curb: room.curbed ? "curbed" : "curbless",
-    drain: WEDI_DRAIN[room.drain] || "center",
-    tolerance: 0.51, drainX: 0, drainY: 0, anchor: "left", source: source,
-  };
+  const input = wediInput(room, source);
   const membrane = wallSys === "membrane";
-  const sdry = membrane && sdryBase !== "wedi" ? solve({ ...input, system: "sdry" })[0] : null;
+  const sdry = membrane && sdryBase !== "wedi"
+    ? solve({ ...input, system: "sdry", ...(sdryBase === "nearest" ? { nearest: true } : {}) })[0] : null;
   const option = sdry || solve(input)[0];
   if (!option) return null;
   return kitFor(option.pan.key, {
@@ -85,6 +93,21 @@ export function wediBuildFor(room, { source, tier, manual, wallSys, sdryBase } =
     ...(membrane ? { wallSys: "membrane", ...(sdry ? {} : { sdryBase: "wedi" }) } : {}),
     ...(manual && manual.length ? { manual } : {}),
   });
+}
+
+/** Why no S-DRY base fits the room ("" when one does) — the grid's no-fit prompt reads it. */
+export const wediSdryNoFit = (room, { source } = {}) => sdryNoFit(wediInput(room, source));
+
+/**
+ * The solver option a wedi build was made from — its warnings and deep-cut
+ * flag are what the Compare grid's chips read. Re-solves the saved input and
+ * takes the option by id + pan; null for a Kits-tab pick (no solve) or when
+ * the option no longer comes back.
+ */
+export function wediOptionOf(build) {
+  const s = build && build.cfg && build.cfg.solve;
+  if (!s || !s.input || !build.pan) return null;
+  return solve(s.input).find((o) => o.id === s.id && o.pan && o.pan.key === build.pan.key) || null;
 }
 
 /**
@@ -296,17 +319,19 @@ export const pruneMirror = (state, hostKeys) => Object.fromEntries(Object.entrie
 /**
  * The grid: one band per shared group, one row per slot either column fills
  * (a mirror "+" counts), in slots.js order; empty slots and groups drop out.
- *   cols: { wedi: rows, schluter: rows }, plus: { wedi: entries, schluter: entries }
+ *   cols: { [col]: rows }, plus: { [col]: entries } — each slot row carries
+ *   r[col] and r[col + "Plus"] for every column named in `cols`.
  */
 export function compareLayout(cols, plus = {}) {
+  const keys = Object.keys(cols);
   const pick = (list, slot) => (list || []).filter((r) => r.slot === slot);
   const kitFirst = (rs) => [...rs.filter((r) => !r.added), ...rs.filter((r) => r.added)];
   return GROUPS.map((g) => ({
     key: g.key, label: g.label,
-    slots: g.slots.map((slot) => ({
-      slot, label: SLOT_LABEL[slot],
-      wedi: kitFirst(pick(cols.wedi, slot)), schluter: kitFirst(pick(cols.schluter, slot)),
-      wediPlus: pick(plus.wedi, slot), schluterPlus: pick(plus.schluter, slot),
-    })).filter((r) => r.wedi.length || r.schluter.length || r.wediPlus.length || r.schluterPlus.length),
+    slots: g.slots.map((slot) => {
+      const r = { slot, label: SLOT_LABEL[slot] };
+      for (const k of keys) { r[k] = kitFirst(pick(cols[k], slot)); r[k + "Plus"] = pick(plus[k], slot); }
+      return r;
+    }).filter((r) => keys.some((k) => r[k].length || r[k + "Plus"].length)),
   })).filter((g) => g.slots.length);
 }
