@@ -156,7 +156,7 @@ section{display:flex;flex-direction:column;gap:14px}
       <div class="scroll"><div class="app kits" id="schKits"></div></div>
       <ul class="notes">
         <li><b>Wall system</b> is one row, "Membrane | Board", with no "KERDI-". The two paragraphs move behind the <span class="help">?</span>.</li>
-        <li><b>Sizes</b> use wedi's form: nominal in feet, bold (3′2″ × 5′), then inches in grey (38 × 60). The list is sorted small to large.</li>
+        <li><b>Sizes</b> use wedi's form: nominal in feet, bold (3′2″×5′), then inches in grey (38×60). The list is sorted small to large.</li>
         <li><b>Linear drain side</b> becomes a small tag like wedi's OFFSET tag, so the row stays on one line.</li>
         <li><b>SKU and description</b> leave the list. The build column still shows the SKU, and hovering a row shows it too.</li>
         <li><b>Stock</b> gets the same dot as wedi. Special-order rows are grey with a hollow dot, so the "stock" pill goes.</li>
@@ -183,7 +183,7 @@ section{display:flex;flex-direction:column;gap:14px}
   <div class="sec-head">
     <div class="eyebrow">2 · The build column</div>
     <h2>Every line leads with its size</h2>
-    <p>Today the size is buried in the name ("Tray 38"×60"") or the grey sub-line ("3'3"×33' = 108 sf"), and some lines have none at all. After: the brand words come off the name, and every line starts with its size in bold, then the item name, read as one phrase ("5″ × 32′10″ Seam band"). Qty stays where it is, on the right. Both configurators use the same row.</p>
+    <p>Today the size is buried in the name ("Tray 38"×60"") or the grey sub-line ("3'3"×33' = 108 sf"), and some lines have none at all. After: the brand words come off the name, and every line starts with its size in bold, then the item name, read as one phrase ("5″×32′10″ Seam band"). Qty stays where it is, on the right. Both configurators use the same row.</p>
   </div>
   <div class="pair">
     <div class="side before">
@@ -205,7 +205,7 @@ section{display:flex;flex-direction:column;gap:14px}
       <div class="scroll"><div class="app build" id="wediBuild"></div></div>
       <ul class="notes">
         <li><b>Name</b> is what the part is: Shower base, Lean curb, Seam band. Subliner Dry, S-DRY, KERDI and the ® / ™ marks go.</li>
-        <li><b>Size</b> leads the name in bold, so the line reads as one: 42 × 60″ Shower base, 48 × 96 × ½″ Building panel, 25 lb PRO-SET tile adhesive.</li>
+        <li><b>Size</b> leads the name in bold, so the line reads as one: 42×60″ Shower base, 48×96×½″ Building panel, 25 lb PRO-SET tile adhesive.</li>
         <li><b>Grey line</b> keeps the SKU and the working notes (sf of wall, $/sf, "cut to entry width").</li>
       </ul>
     </div>
@@ -245,7 +245,7 @@ section{display:flex;flex-direction:column;gap:14px}
   <div class="rules">
     <div class="rule"><h4>Brand words come off item names</h4><p><span class="strike">wedi®</span> <span class="strike">™</span> <span class="strike">Schluter</span> <span class="strike">KERDI-</span> <span class="strike">S-DRY</span> <span class="strike">Subliner Dry</span>. Product names that tell two things apart stay: ALL-SET, PRO-SET, Building panel.</p></div>
     <div class="rule"><h4>Size leads the item name</h4><p>In the build column and in every Compare cell, bold, one space before the name. Read from the item's size on the price sheet. Blank when the sheet gives none.</p></div>
-    <div class="rule"><h4>One size format on both kit lists</h4><p>Bold nominal in feet, then inches in grey, smallest first: 3′2″ × 5′ 38 × 60.</p></div>
+    <div class="rule"><h4>One size format on both kit lists</h4><p>Bold nominal in feet, then inches in grey, smallest first: 3′2″×5′ 38×60.</p></div>
     <div class="rule"><h4>Standing help goes behind a ?</h4><p>"Every price below is the full kit…" and "click one — the build column fills…" become <span class="help">?</span> tips on the heading, per ADR 0045. Warnings stay inline.</p></div>
     <div class="rule"><h4>Same stock signal on both</h4><p>Moss dot means stocked. Grey text with a hollow dot means special order. The Schluter "stock" pill goes.</p></div>
     <div class="rule"><h4>Display only</h4><p>Nothing about pricing, the solver or what's stored changes. This is how rows read inside the two configurators.</p></div>
@@ -259,7 +259,7 @@ section{display:flex;flex-direction:column;gap:14px}
   </div>
   <ol class="q">
     <li><b>Brand words come off names inside the configurators only.</b> Lines added to the job, the print and order entry keep the full name ("Schluter KERDI-BAND 5" seam band").</li>
-    <li><b>Kit-list sizes use wedi's form:</b> bold feet, then inches in grey (3′2″ × 5′ 38 × 60).</li>
+    <li><b>Kit-list sizes use wedi's form:</b> bold feet, then inches in grey (3′2″×5′ 38×60).</li>
     <li><b>SKU is hidden on the kit list.</b> Hovering a row shows it; the build column still prints it on the grey line.</li>
   </ol>
 </section>
@@ -280,37 +280,37 @@ const group = (cap, aside, rows) => `<div class="kgroup"><div class="cap">${cap}
 $("schKits").innerHTML =
   `<div class="top"><span class="cap">Wall system</span><span class="seg"><span class="on">Membrane</span><span>Board</span></span><span class="help" title="Every price below is the full kit under this wall system. Flip to compare. Click a kit to fill the build column; factory boxed kits (special order) live in Browse → Factory kits.">?</span></div>` +
   group("Point drain", "", [
-    ["3′2″ × 5′", "38 × 60", "$671.87", {sku: "KST965/1525"}],
-    ["4′ × 5′", "48 × 60", "$826.17", {sku: "KST1220/1525"}],
-    ["4′ × 6′", "48 × 72", "$927.80", {sku: "KST1220/1830", sel: 1}],
-    ["5′ × 5′", "60 × 60", "$1,072.41", {sku: "KST1525"}],
-    ["6′ × 6′", "72 × 72", "$1,181.81", {sku: "KST1830"}],
+    ["3′2″×5′", "38×60", "$671.87", {sku: "KST965/1525"}],
+    ["4′×5′", "48×60", "$826.17", {sku: "KST1220/1525"}],
+    ["4′×6′", "48×72", "$927.80", {sku: "KST1220/1830", sel: 1}],
+    ["5′×5′", "60×60", "$1,072.41", {sku: "KST1525"}],
+    ["6′×6′", "72×72", "$1,181.81", {sku: "KST1830"}],
   ]) +
   group("Curbless", "thin, no lip", [
-    ["2′8″ × 3′2″", "32 × 38", "$519.44", {sku: "KST965/810BF"}],
-    ["3′ × 3′", "36 × 36", "$490.90", {sku: "KST915BF"}],
-    ["3′2″ × 3′2″", "38 × 38", "$501.26", {sku: "KST965BF"}],
-    ["3′ × 4′", "36 × 48", "$601.36", {sku: "KST915/1220BF"}],
-    ["4′ × 4′", "48 × 48", "$572.83", {sku: "KST1220BF"}],
+    ["2′8″×3′2″", "32×38", "$519.44", {sku: "KST965/810BF"}],
+    ["3′×3′", "36×36", "$490.90", {sku: "KST915BF"}],
+    ["3′2″×3′2″", "38×38", "$501.26", {sku: "KST965BF"}],
+    ["3′×4′", "36×48", "$601.36", {sku: "KST915/1220BF"}],
+    ["4′×4′", "48×48", "$572.83", {sku: "KST1220BF"}],
   ]) +
-  group("Offset drain", "", [["3′2″ × 5′", "38 × 60", "$671.87", {sku: "KST965/1525S"}]]) +
+  group("Offset drain", "", [["3′2″×5′", "38×60", "$671.87", {sku: "KST965/1525S"}]]) +
   group("Linear drain", "", [
-    ["3′ × 4′7″", "36 × 55", "$1,000.68", {so: 1, tag: "DRAIN 36″ SIDE", sku: "SLRKSLT9151395S"}],
-    ["3′ × 6′", "36 × 72", "$1,294.28", {so: 1, tag: "DRAIN 36″ SIDE", sku: "SLRKSLT9151830S"}],
-    ["3′2″ × 6′4″", "38 × 76", "$1,294.28", {tag: "DRAIN 38″ SIDE", sku: "KSLT965/1930S"}],
-    ["3′2″ × 6′4″", "38 × 76", "$317.61", {so: 1, tag: "DRAIN 76″ SIDE", sku: "SLRKSLT1930965S"}],
-    ["3′3″ × 3′3″", "39 × 39", "$194.64", {so: 1, sku: "SLRKSLT1000S"}],
-    ["4′ × 4′", "48 × 48", "$1,005.71", {so: 1, sku: "SLRKSLT1220S"}],
-    ["4′7″ × 4′7″", "55 × 55", "$1,321.55", {sku: "KSLT1395S"}],
+    ["3′×4′7″", "36×55", "$1,000.68", {so: 1, tag: "DRAIN 36″ SIDE", sku: "SLRKSLT9151395S"}],
+    ["3′×6′", "36×72", "$1,294.28", {so: 1, tag: "DRAIN 36″ SIDE", sku: "SLRKSLT9151830S"}],
+    ["3′2″×6′4″", "38×76", "$1,294.28", {tag: "DRAIN 38″ SIDE", sku: "KSLT965/1930S"}],
+    ["3′2″×6′4″", "38×76", "$317.61", {so: 1, tag: "DRAIN 76″ SIDE", sku: "SLRKSLT1930965S"}],
+    ["3′3″×3′3″", "39×39", "$194.64", {so: 1, sku: "SLRKSLT1000S"}],
+    ["4′×4′", "48×48", "$1,005.71", {so: 1, sku: "SLRKSLT1220S"}],
+    ["4′7″×4′7″", "55×55", "$1,321.55", {sku: "KSLT1395S"}],
   ]);
 
 $("wediKits").innerHTML =
   `<div class="top"><span class="cap">Wall system</span><span class="seg"><span class="on">Building panel</span><span>Membrane</span></span><span class="help" title="Every price below is the full kit under this wall system.">?</span></div>` +
   group("Curbed", "", [
-    ["3′ × 3′", "36 × 36", "$1,109.97"], ["3′ × 4′", "36 × 48", "$1,255.53"], ["3′ × 5′", "36 × 60", "$1,363.96"],
-    ["3′ × 6′", "36 × 72", "$1,646.17", {tag: "OFFSET"}], ["3′ × 6′", "36 × 72", "$1,646.17"],
-    ["3′6″ × 3′6″", "42 × 42", "$1,244.58"], ["3′6″ × 5′", "42 × 60", "$1,502.94"], ["3′6″ × 6′", "42 × 72", "$1,814.45"],
-    ["4′ × 4′", "48 × 48", "$1,442.36"], ["4′ × 5′", "48 × 60", "$1,656.06"],
+    ["3′×3′", "36×36", "$1,109.97"], ["3′×4′", "36×48", "$1,255.53"], ["3′×5′", "36×60", "$1,363.96"],
+    ["3′×6′", "36×72", "$1,646.17", {tag: "OFFSET"}], ["3′×6′", "36×72", "$1,646.17"],
+    ["3′6″×3′6″", "42×42", "$1,244.58"], ["3′6″×5′", "42×60", "$1,502.94"], ["3′6″×6′", "42×72", "$1,814.45"],
+    ["4′×4′", "48×48", "$1,442.36"], ["4′×5′", "48×60", "$1,656.06"],
   ]);
 
 // ---- build columns ----
@@ -323,29 +323,29 @@ const cat = (name, rows) => `<div class="bcat"><span class="cap">${name}</span><
 const buildHead = (sum) => `<div class="bhead"><h3>Build</h3><span class="sum">${sum}</span></div>` +
   `<div class="colhead"><span>Size + item</span><span></span><span style="text-align:center">Qty</span><span class="r">Retail</span></div>`;
 
-$("schBuild").innerHTML = buildHead("38 × 60″ · curbed · point drain · membrane walls") +
-  cat("Base", [["Shower tray, point drain", "KST965/1525 · exact fit", "38 × 60″", 0, 1, "$121.91", "$121.91 ea"]]) +
+$("schBuild").innerHTML = buildHead("38×60″ · curbed · point drain · membrane walls") +
+  cat("Base", [["Shower tray, point drain", "KST965/1525 · exact fit", "38×60″", 0, 1, "$121.91", "$121.91 ea"]]) +
   cat("Drain", [
     ["Drain flange kit, PVC", "KD2FLKPVC · bonded flange · incl. 4+2 corners, pipe + valve seals", "2″", 1, 1, "$84.62", "$84.62 ea"],
-    ["Grate, stainless", "KD4GRKE · tileable & floral stocked too", "4 × 4″", 1, 1, "$52.90", "$52.90 ea"],
+    ["Grate, stainless", "KD4GRKE · tileable & floral stocked too", "4×4″", 1, 1, "$52.90", "$52.90 ea"],
   ]) +
-  cat("Curb", [["Board curb", "KBSC1151501524 · cut to entry width · incl. 2+2 corners", "6 × 4½ × 60″", 1, 1, "$88.66", "$88.66 ea"]]) +
+  cat("Curb", [["Board curb", "KBSC1151501524 · cut to entry width · incl. 2+2 corners", "6×4½×60″", 1, 1, "$88.66", "$88.66 ea"]]) +
   cat("Walls", [
-    ["Membrane roll", "KERDI200/10M · 108 sf · 79 sf of wall · $1.92/sf", "3′3″ × 33′", 1, 1, "$207.65", "$207.65/rl"],
+    ["Membrane roll", "KERDI200/10M · 108 sf · 79 sf of wall · $1.92/sf", "3′3″×33′", 1, 1, "$207.65", "$207.65/rl"],
     ["Cement board / drywall substrate", "membrane needs a backer", "", 0, 0, "", "", {byo: 1}],
   ]) +
-  cat("Seams", [["Seam band", "KEBA100/125/10M · seams + tray perimeter · $1.14/lf", "5″ × 32′10″", 1, 1, "$37.71", "$37.71/rl"]]) +
+  cat("Seams", [["Seam band", "KEBA100/125/10M · seams + tray perimeter · $1.14/lf", "5″×32′10″", 1, 1, "$37.71", "$37.71/rl"]]) +
   cat("Setting", [["ALL-SET modified thin-set", "SLRSETA50W · sets membrane / board", "50 lb", 0, 2, "$78.42", "$39.21/bg"]]);
 
-$("wediBuild").innerHTML = buildHead("42 × 60″ base · drain at 30″, 19″ · building panel walls") +
-  cat("Base", [["Shower base", "1504160 · 1 37/64″ thick", "42 × 60″", 0, 1, "$704.99", "$704.99 ea"]]) +
-  cat("Drain", [["Drain cover, stainless", "1504181", "4 × 4″", 1, 1, "$67.30", "$67.30 ea"]]) +
+$("wediBuild").innerHTML = buildHead("42×60″ base · drain at 30″, 19″ · building panel walls") +
+  cat("Base", [["Shower base", "1504160 · 1 37/64″ thick", "42×60″", 0, 1, "$704.99", "$704.99 ea"]]) +
+  cat("Drain", [["Drain cover, stainless", "1504181", "4×4″", 1, 1, "$67.30", "$67.30 ea"]]) +
   cat("Curb", [["Lean curb", "29118", "60″", 1, 1, "$53.99", "$53.99 ea"]]) +
   cat("Walls", [
     ["Fastener kit", "28960 · 1 5/8″ screws + washers", "100 ct", 1, 1, "$32.83", "$32.83 ea"],
-    ["Building panel", "28862 · 0 vertical seams · $3.64/sf", "48 × 60 × ½″", 0, 1, "$72.74", "$72.74 ea"],
-    ["Building panel", "47828 · panel plan · $3.68/sf", "48 × 96 × ½″", 0, 2, "$235.50", "$117.75 ea"],
-    ["Building panel", "47700 · panel plan · $3.64/sf", "36 × 60 × ½″", 0, 1, "$54.66", "$54.66 ea"],
+    ["Building panel", "28862 · 0 vertical seams · $3.64/sf", "48×60×½″", 0, 1, "$72.74", "$72.74 ea"],
+    ["Building panel", "47828 · panel plan · $3.68/sf", "48×96×½″", 0, 2, "$235.50", "$117.75 ea"],
+    ["Building panel", "47700 · panel plan · $3.64/sf", "36×60×½″", 0, 1, "$54.66", "$54.66 ea"],
   ]) +
   cat("Seams", [
     ["Joint sealant", "29647 · 1.2 oz per ft² · 95.2 oz", "20 oz", 1, 5, "$144.15", "$28.83 ea"],
@@ -368,23 +368,23 @@ const heads = [
 const it = (q, n, z, p) => ({ q, n, z, p });
 const rows = [
   ["g", "Base"],
-  ["Tray", [[it(0, "Shower base", "42 × 60″", "$704.99")], [it(0, "Shower base", "38 × 64″", "$175.00")], [it(0, "Tray, point drain", "38 × 60″", "$121.91")], [it(0, "Tray, point drain", "38 × 60″", "$121.91")]]],
+  ["Tray", [[it(0, "Shower base", "42×60″", "$704.99")], [it(0, "Shower base", "38×64″", "$175.00")], [it(0, "Tray, point drain", "38×60″", "$121.91")], [it(0, "Tray, point drain", "38×60″", "$121.91")]]],
   ["g", "Drain"],
   ["Drain body", [null, [it(0, "Bonding flange drain", "", "$49.00")], null, null]],
-  ["Grate / cover", [[it(0, "Drain cover, stainless", "4 × 4″", "$67.30")], [it(0, "Drain cover, stainless", "3¾ × 3¾″", "$59.00")], [it(0, "Grate, tileable", "4 × 4″", "$52.90")], [it(0, "Grate, stainless", "4 × 4″", "$52.90")]]],
+  ["Grate / cover", [[it(0, "Drain cover, stainless", "4×4″", "$67.30")], [it(0, "Drain cover, stainless", "3¾×3¾″", "$59.00")], [it(0, "Grate, tileable", "4×4″", "$52.90")], [it(0, "Grate, stainless", "4×4″", "$52.90")]]],
   ["Flange", [null, null, [it(0, "Drain flange kit, PVC", "2″", "$84.62")], [it(0, "Drain flange kit, PVC", "2″", "$84.62")]]],
   ["g", "Curb"],
-  ["Curb", [[it(0, "Lean curb", "60″", "$53.99")], [it(0, "Shower curb", "4½ × 3½ × 72″", "$99.00")], [it(0, "Board curb", "6 × 4½ × 60″", "$88.66")], [it(0, "Board curb", "6 × 4½ × 60″", "$88.66")]]],
+  ["Curb", [[it(0, "Lean curb", "60″", "$53.99")], [it(0, "Shower curb", "4½×3½×72″", "$99.00")], [it(0, "Board curb", "6×4½×60″", "$88.66")], [it(0, "Board curb", "6×4½×60″", "$88.66")]]],
   ["g", "Walls"],
   ["Wall board", [
-    [it(0, "Fastener kit", "100 ct", "$32.83"), it(0, "Building panel", "48 × 60 × ½″", "$72.74"), it(2, "Building panel", "48 × 96 × ½″", "$235.50"), it(0, "Building panel", "36 × 60 × ½″", "$54.66")],
+    [it(0, "Fastener kit", "100 ct", "$32.83"), it(0, "Building panel", "48×60×½″", "$72.74"), it(2, "Building panel", "48×96×½″", "$235.50"), it(0, "Building panel", "36×60×½″", "$54.66")],
     "byo",
-    [it(2, "Board", "48 × 64 × ½″", "$148.76"), it(2, "Board", "48 × 96 × ½″", "$223.08"), it(2, "Board screws + washers", "", "$47.46")],
+    [it(2, "Board", "48×64×½″", "$148.76"), it(2, "Board", "48×96×½″", "$223.08"), it(2, "Board screws + washers", "", "$47.46")],
     "byo",
   ]],
-  ["Wall membrane", [null, [it(0, "Membrane, XL roll", "80″ × 16′", "$189.00")], null, [it(0, "Membrane roll", "3′3″ × 33′", "$207.65")]]],
+  ["Wall membrane", [null, [it(0, "Membrane, XL roll", "80″×16′", "$189.00")], null, [it(0, "Membrane roll", "3′3″×33′", "$207.65")]]],
   ["g", "Seams"],
-  ["Seam / band", [[it(5, "Joint sealant", "20 oz", "$144.15")], [it(0, "Seam tape", "", "$39.80")], [it(0, "Seam band", "5″ × 32′10″", "$37.71")], [it(0, "Seam band", "5″ × 32′10″", "$37.71")]]],
+  ["Seam / band", [[it(5, "Joint sealant", "20 oz", "$144.15")], [it(0, "Seam tape", "", "$39.80")], [it(0, "Seam band", "5″×32′10″", "$37.71")], [it(0, "Seam band", "5″×32′10″", "$37.71")]]],
   ["Corners", [
     [it(0, "Mixing valve seal", "", "$13.82"), it(0, "Pipe seal", "", "$12.38")],
     [it(2, "Inside corner 90°", "2 pc", "$32.50"), it(0, "Outside corner 90°", "2 pc", "$16.25"), it(0, "Mixing valve collar", "", "$14.25"), it(0, "Shower pipe collar", "", "$10.50")],
@@ -402,7 +402,7 @@ const cellHtml = (c) => c === "byo" ? `<div class="cell"><span class="byo">Cemen
   : !c ? `<div class="cell"><span class="none">—</span></div>`
   : `<div class="cell">${c.map((x) => `<div class="ci"><span class="qn">${x.q || 1}</span><span class="n">${x.z ? `<span class="z">${x.z}</span> ` : ""}${x.n}</span><span class="p">${x.p}</span></div>`).join("")}</div>`;
 $("cmp").innerHTML = `<div class="cgrid">` +
-  `<div class="chead" style="padding-left:8px"><div class="cap" style="color:var(--faint)">60 × 38″</div><div style="font-size:11px;color:var(--muted);font-weight:600">curbed · point drain</div></div>` +
+  `<div class="chead" style="padding-left:8px"><div class="cap" style="color:var(--faint)">60×38″</div><div style="font-size:11px;color:var(--muted);font-weight:600">curbed · point drain</div></div>` +
   heads.map(([b, sys, tot, delta, cur]) => `<div class="chead${cur ? " cur" : ""}"><span class="brand ${b}">${b === W ? "WEDI" : "SCHLUTER"}</span><span class="sys">${sys}</span><div class="tot">${tot}<small>${delta}</small></div></div>`).join("") +
   `<div class="csub" style="grid-template-columns:1fr"><span></span></div>` +
   heads.map(() => `<div class="csub"><span class="qh">Qty</span><span>Size + item</span><span class="r">Price</span></div>`).join("") +

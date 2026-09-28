@@ -46,4 +46,5 @@ compare-set-preview.html; afters are static HTML over the same fixture numbers.
 - v8 (current): size and item MERGED into one cell in both views — bold size,
   one space, the name ("48 × 96 × ½″ Building panel"). Compare = Qty | Size +
   item | Price; the build column keeps its qty stepper on the right.
+  v9: no spaces around × in any size (4×4″, 48×96×½″).
   Waiting on approval.
