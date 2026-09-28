@@ -12,6 +12,38 @@ import { RailSlide, DrawerList, APP_ITEMS, SETTINGS_ITEMS, PaneTitleBar } from "
 import { AppsWorkspace } from "./AppsWorkspace.jsx";
 import { normalizeSettings } from "./catalog.js";
 import { TYPES, TLBL } from "./uiconst.js";
+import { FIXTURE_ITEMS } from "./schluterfixture.js";
+import { normOrderItem, bookItemData, normBookItem } from "./orderbook.js";
+import { FIXTURE_ROWS as WEDI_STOCK_ROWS } from "./wedifixture.js";
+import { PRICELIST_SHEETS } from "./wedipricelistfixture.js";
+import { parseWediPricelist } from "./wedibook.js";
+import { parseMapped } from "./pricebook.js";
+
+// The shower configurators' registry bag (the Compare-set harness's): the
+// Schluter fixture pushed through normOrderItem, both wedi books — so the
+// hub's wedi/Schluter tabs price and their Compare columns fill.
+const lead = (name) => (/^schluter/i.test(name) ? name : `Schluter ${name}`);
+const SCH_STOCK = FIXTURE_ITEMS.filter((i) => i.stock).map((i) => normOrderItem({
+  sku: i.erp || i.sku, bookId: "bk_stock", description: lead(i.name), vendorSkus: i.erp ? [i.sku] : [],
+  size: i.size || "", unit: i.unit, price: i.price, cost: i.cost, leadTime: i.lead || "",
+}));
+const SCH_EFT = FIXTURE_ITEMS.filter((i) => !i.stock).map((i) => normOrderItem({
+  sku: i.sku, bookId: "bk_eft", description: lead(i.name), size: i.size || "", unit: i.unit,
+  cost: i.cost, price: i.price, leadTime: i.lead || "",
+}));
+const WEDI_STOCK = WEDI_STOCK_ROWS.map((r) => normBookItem(r, "bk_wedi"));
+const WEDI_SO = (() => {
+  const p = parseWediPricelist(PRICELIST_SHEETS);
+  const { items } = parseMapped(p.rows, p.mapping);
+  return items.map((it) => normBookItem({ sku: it.sku, active: true, data: bookItemData(it) }, "bk_wedi_so"));
+})();
+const SHOWER_BOOKS = [
+  { id: "bk_eft", kind: "order", active: true, name: "Schluter EFT" },
+  { id: "bk_wedi", kind: "stock", active: true, name: "wedi" },
+  { id: "bk_wedi_so", kind: "order", active: true, name: "wedi" },
+];
+const loadShowerBook = async (id) => (id === "bk_wedi" ? WEDI_STOCK : id === "bk_wedi_so" ? WEDI_SO : SCH_EFT);
+const SHOWER_MORTARS = { "Schluter All Set": { tier1: 95, tier2: 70, tier3: 45, unit: "bags", price: 39.21 } };
 
 const SettingsWorkspace = lazy(() => import("./SettingsWorkspace.jsx"));
 const CustomerBrowser = lazy(() => import("./CustomerBrowser.jsx"));
@@ -125,10 +157,11 @@ function Harness() {
             <div className={nav.pane?.kind === "app" ? "flex-1 min-h-0 flex flex-col" : "hidden"}>
               <AppsWorkspace app={nav.lastApp} visible={nav.pane?.kind === "app"} onClose={() => dispatch({ type: "closePane" })}
                 resume={nav.pane?.kind === "app" && !!nav.pane.resume} onResume={() => dispatch({ type: "resolveResume" })} progressRef={progress}
+                onSwitchApp={(id) => dispatch({ type: "switchApp", id })}
                 stock={[]} labels={[]} presets={[]} onAddLabel={noop} onAddLabelsBulk={noop} bookStockReady onUpdateLabel={noop} onUpdateLabelsBulk={noop} onDeleteLabel={noop} onDeleteLabels={noop} onSavePreset={noop}
                 sheoga={{ markupDefault: 40, ventMarkupDefault: 50, ...bag }}
-                wedi={{ builderPct: 0, schluterBuilderPct: 0, stockRows: [], bookStockReady: true, books: [], loadBookItems: async () => [], mortars: [], mortarDefault: "", ...bag }}
-                schluter={{ builderPct: 0, wediBuilderPct: 0, stockRows: [], bookStockReady: true, books: [], loadBookItems: async () => [], mortars: [], mortarDefault: "", ...bag }} />
+                wedi={{ builderPct: 0, schluterBuilderPct: 0, stockRows: SCH_STOCK, bookStockReady: true, books: SHOWER_BOOKS, loadBookItems: loadShowerBook, mortars: SHOWER_MORTARS, mortarDefault: "Schluter All Set", ...bag }}
+                schluter={{ builderPct: 0, wediBuilderPct: 0, stockRows: SCH_STOCK, bookStockReady: true, books: SHOWER_BOOKS, loadBookItems: loadShowerBook, mortars: SHOWER_MORTARS, mortarDefault: "Schluter All Set", ...bag }} />
             </div>
           )}
         </div>

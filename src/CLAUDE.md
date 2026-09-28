@@ -2640,8 +2640,9 @@ src/
                     # CURRENT tab (`data-cmp-current`); no absolute overlay.
                     # Every line / Subtotals (`data-cmp-view-*`, `grid.view`
                     # + `grid.open` in the session object; a chip jump opens
-                    # its folded group). Props `compareSet` (the area's set;
-                    # null in the Apps hub → no Open/Sync/Clear set),
+                    # its folded group). Props `compareSet` (the area's set,
+                    # or the Apps hub's session-only one; absent → no
+                    # Open/Sync/Clear set),
                     # `onCompareSet`, `onOpenCell(key, seed, target)`,
                     # `savedBy`. Open builds a `{ mode, cfg, tab: "compare" }`
                     # seed — a kept build as kept, a house kit as shown (its
@@ -3004,7 +3005,10 @@ src/
                     # each book's normal import preview.
   railnav.js        # rail drawers + work-area pane state (ADR 0047): pure
                     # reducer (toggleDrawer / pick / resolveResume /
-                    # closePane / projectChanged / restore), the "break"
+                    # closePane / projectChanged / restore / switchApp —
+                    # Compare's Open in the hub moves the pane to the other
+                    # configurator, drawers untouched, never a resume
+                    # prompt, ADR 0052 amendment), the "break"
                     # flags behind Continue / Start new, and the
                     # ft-open-layer mapping (layerOf / stateFromLayer,
                     # reads pre-0047 shapes). `openCustomers` puts the
@@ -3034,7 +3038,10 @@ src/
                     # preview proof for them; not part of the app build
   railpreview.jsx   # dev-only harness (rail-preview.html): the REAL drawers,
                     # reducer, pane header and workspaces over mock state —
-                    # preview proof for ADR 0047
+                    # preview proof for ADR 0047. The hub's wedi/Schluter
+                    # tabs get the fixture registry bag (the Compare-set
+                    # harness's), so their Compare columns price —
+                    # .scratch/158_shower-config-roadmap/p4/shoot-hub.mjs
   labels.js         # Label Generator pure logic (Apps hub): LABEL_FIELDS,
                     # built-in size presets, preset/label normalization
                     # (incl. "sp_" filler spacer lines — user-added blanks
@@ -3068,7 +3075,17 @@ src/
                     # `visible` prop (App.jsx: the pane is showing an app) and
                     # passes each configurator `escActive={visible &&
                     # shown(k)}` (ADR 0047) so a hidden, still-mounted
-                    # configurator's Escape handler stays off
+                    # configurator's Escape handler stays off.
+                    # The Compare set in the hub (ADR 0052 amendment): a
+                    # SESSION-ONLY `hubSet` handed to both shower tabs with
+                    # `keepLive` (the tabs stay mounted while hidden, so the
+                    # set follows each build as it changes rather than on
+                    # unmount); `openCell(key, seed)` stores the seed, bumps
+                    # that tab's generation key (a remount onto the seed, on
+                    # Compare) and calls `onSwitchApp` (App: the rail's
+                    # `switchApp`) when the target is the other tab; Start
+                    # new clears the tab's seed. No `onResume` is passed, so
+                    # the popups' resume prompt stays off here
   LabelMaker.jsx    # the Label Generator UI (spec 2026-09-25, mockups in
                     # .scratch/157): three columns like the configurators —
                     # find & fill (stock search with multi-pick: tick two →

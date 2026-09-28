@@ -41,6 +41,12 @@ export function railReducer(s, a) {
       if (same) return { ...s, drawer, broke };
       return { ...s, drawer, broke, pane: { kind: a.kind, id: a.id, resume }, lastApp: a.kind === "app" ? a.id : s.lastApp };
     }
+    // A configurator handing off to another from inside the pane (Compare's
+    // Open, ADR 0052): the pane moves, the drawers stay as they are, and
+    // nothing asks to resume — the hand-off IS the build being worked.
+    case "switchApp":
+      if (!CONFIGURATOR_IDS.includes(a.id)) return s;
+      return { ...s, pane: { kind: "app", id: a.id, resume: false }, lastApp: a.id };
     case "openCustomers":
       return s.pane?.kind === "customers" ? s : { ...s, pane: { kind: "customers" }, broke: leave(s, s.broke) };
     case "resolveResume":

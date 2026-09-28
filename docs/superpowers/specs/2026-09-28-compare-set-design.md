@@ -441,4 +441,17 @@ prompts.
     instead of adding a second copy.
 20. **(Final review.) The resume row notes "room changed since"** when the
     fresh start was seeded with another size (spec §5).
+21. **(After merge, owner 2026-09-28.) Open works in the Apps hub.** This
+    supersedes §5's "Apps hub" paragraph. The owner works the configurators
+    from the Apps tray.
+    - The hub keeps a **session-only** set (`AppsWorkspace` `hubSet`,
+      never saved).
+    - Open reseeds the target tab and moves the pane to it (the rail's
+      `switchApp`).
+    - The hidden-but-mounted tabs keep the set current as their builds
+      change (`keepLive`).
+    - Sync, Clear set, Your build and the room chip all work there.
+    - The resume prompt stays off: a popup only prompts when its host
+      passes `onResume`, and the hub doesn't.
+    - Proof: `p4/shoot-hub.mjs` on `rail-preview.html`.
 

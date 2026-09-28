@@ -455,7 +455,7 @@ export default function SchluterConfigurator({
   onClose, areaName, projectName,
   onConfigChange, onQuoteOptions, embedded = false, escActive = true,
   stockRows, bookStockReady, books, loadBookItems, mortars, mortarDefault,
-  compareSet, onCompareSet, onOpenCell, onResume, savedBy = "", startDetached = false,
+  compareSet, onCompareSet, onOpenCell, onResume, savedBy = "", startDetached = false, keepLive = false,
 }) {
   const init = useRef(null);
   if (!init.current) init.current = seedState(seed);
@@ -827,8 +827,19 @@ export default function SchluterConfigurator({
       }, 0);
     };
   }, []);
+  // The Apps hub keeps its configurators mounted while hidden, so an unmount
+  // save would come too late there: the set follows the build as it changes.
+  const keepSig = keep.current ? entrySig(keep.current.entry) : "";
+  useEffect(() => {
+    const k = keep.current;
+    if (!keepLive || !k || !onCompareSet || !compareSet) return;
+    const prev = compareSet[k.key];
+    if (prev && entrySig(prev) === keepSig) return;
+    onCompareSet({ ...compareSet, [k.key]: k.entry });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [keepLive, keepSig]);
   const [resume, setResume] = useState(() => {
-    const cs = compareSet && !isMarkerSeed(seed) ? resumeChoices(compareSet, "schluter") : [];
+    const cs = compareSet && onResume && !isMarkerSeed(seed) ? resumeChoices(compareSet, "schluter") : [];
     return cs.length ? cs : null;
   });
   const stageBuild = ({ open = true } = {}) => {

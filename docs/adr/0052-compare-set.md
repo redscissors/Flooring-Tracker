@@ -86,3 +86,23 @@ render. The owner wanted three things Phase 3 couldn't do:
   move.
 - The Apps hub has no shower to keep a set for. Its Compare shows the
   columns with no Open, Sync or Clear set, and it never prompts.
+  *(Superseded by the 2026-09-28 amendment below.)*
+
+## Amendment — 2026-09-28: Open in the Apps hub
+
+The owner works the configurators from the Apps tray, and missed Open there.
+The hub now gets the full Compare set, **for the session only**:
+
+- `AppsWorkspace` holds the set in state (`hubSet`). It is never saved:
+  there is no job or shower to hang it on, so it lasts until a page reload.
+- **Open** reseeds the target configurator (a remount by its generation
+  key, landing on Compare) and moves the pane to it. That uses the rail's
+  new `switchApp` action, which never opens the tray and never asks to
+  resume.
+- The hub keeps its configurators mounted while they're hidden, so an
+  unmount save would come too late. There, the popups keep the set current
+  as their build changes (`keepLive`).
+- Sync, Clear set, the room chip and Your build all work as on a job. The
+  resume prompt stays off in the hub (a popup only prompts when the host
+  passes `onResume`), since the hub has its own Continue / Start new.
+- Adding to a project is unchanged: the hub's destination prompt.

@@ -11,7 +11,7 @@ const SchluterConfigurator = lazy(() => import("./SchluterConfigurator.jsx"));
 
 const CONFIG_NAME = { sheoga: "Sheoga", wedi: "wedi", schluter: "Schluter" };
 
-export function AppsWorkspace({ app, visible = true, onClose, resume = false, onResume, progressRef, stock, bookStockReady, labels, labelGrouts, presets, onAddLabel, onAddLabelsBulk, onUpdateLabel, onUpdateLabelsBulk, onDeleteLabel, onDeleteLabels, onSavePreset, sheoga, wedi, schluter }) {
+export function AppsWorkspace({ app, visible = true, onClose, resume = false, onResume, onSwitchApp, progressRef, stock, bookStockReady, labels, labelGrouts, presets, onAddLabel, onAddLabelsBulk, onUpdateLabel, onUpdateLabelsBulk, onDeleteLabel, onDeleteLabels, onSavePreset, sheoga, wedi, schluter }) {
   // Configurators (Apps hub): builds stage locally — nothing touches a real
   // project until the salesperson picks a destination. A commit request parks
   // its lines in `pending` (with the configurator's own commit handlers as
@@ -57,8 +57,21 @@ export function AppsWorkspace({ app, visible = true, onClose, resume = false, on
     firstCfg.current[k] = undefined;
     lastCfg.current[k] = undefined;
     setTouched((t) => ({ ...t, [k]: false }));
+    setSeeds((s) => ({ ...s, [k]: null }));
     setGen((g) => ({ ...g, [k]: (g[k] || 0) + 1 }));
     onResume?.();
+  };
+  // The Compare set in the hub (ADR 0052 amendment): there's no shower to
+  // keep builds on, so they're kept for the session only. Open reseeds the
+  // target configurator (a remount — the build it held is kept on its way
+  // out) and moves the pane to it.
+  const [hubSet, setHubSet] = useState({});
+  const [seeds, setSeeds] = useState({});
+  const openCell = (key, seed) => {
+    const k = key.split(":")[0];
+    setSeeds((s) => ({ ...s, [k]: seed }));
+    setGen((g) => ({ ...g, [k]: (g[k] || 0) + 1 }));
+    if (k !== app) onSwitchApp?.(k);
   };
   const shown = (k) => app === k && !resume;
   const slot = (k) => (shown(k) ? "flex-1 min-h-0 flex flex-col" : "hidden");
@@ -139,6 +152,8 @@ export function AppsWorkspace({ app, visible = true, onClose, resume = false, on
                   onBasketChange={setWediBasket}
                   onMoveEntries={(groups, nextBasket) => requestCommit("wedi", wedi, groups.flatMap((g) => stampKit(g.lines)), nextBasket)}
                   onAdd={(lines) => requestCommit("wedi", wedi, lines, null)}
+                  seed={seeds.wedi || null}
+                  compareSet={hubSet} onCompareSet={setHubSet} onOpenCell={openCell} keepLive
                   onConfigChange={cfgSeen("wedi")}
                   escActive={visible && shown("wedi")}
                   onClose={() => { if (!pendingRef.current) onClose?.(); }}
@@ -162,6 +177,8 @@ export function AppsWorkspace({ app, visible = true, onClose, resume = false, on
                   onBasketChange={setSchluterBasket}
                   onMoveEntries={(groups, nextBasket) => requestCommit("schluter", schluter, groups.flatMap((g) => stampKit(g.lines)), nextBasket)}
                   onAdd={(lines) => requestCommit("schluter", schluter, lines, null)}
+                  seed={seeds.schluter || null}
+                  compareSet={hubSet} onCompareSet={setHubSet} onOpenCell={openCell} keepLive
                   onConfigChange={cfgSeen("schluter")}
                   escActive={visible && shown("schluter")}
                   onClose={() => { if (!pendingRef.current) onClose?.(); }}
