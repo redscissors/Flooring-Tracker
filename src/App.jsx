@@ -898,6 +898,33 @@ export default function App({ user, onSignOut }) {
     const patch = compareOptionsPatch(sel, aid, payload);
     if (patch) updateProject(sel.id, patch);
   };
+  // The Compare set (ADR 0052), one per shower (area). Written against the
+  // LATEST record: a popup keeps its build as it unmounts, often in the same
+  // tick as its own Add wrote the categories.
+  const writeCompareSet = (pid, aid, next) => {
+    const cur = dataRef.current.projects.find((p) => p.id === pid);
+    if (!cur) return;
+    const sets = { ...(cur.compareSets || {}) };
+    if (next && Object.keys(next).length) sets[aid] = next; else delete sets[aid];
+    updateProject(pid, { compareSets: sets });
+  };
+  const rowOf = (aid, pid) => sel?.categories.find((a) => a.id === aid)?.products.find((p) => p.id === pid);
+  const rowLive = (t) => !!(t && rowOf(t.areaId, t.rowId));
+  // A compare hand-off (or a resume) reopens on the kit a kept build came
+  // from while that row is still on the job; otherwise it stays on the row the
+  // popup was on — detached when that row already carries a configurator kit,
+  // so Add appends instead of writing one brand over the other.
+  const kitPop = (pop, seed, target) => {
+    const onTarget = rowLive(target);
+    const row = rowOf(pop.aid, pop.pid);
+    const marked = !!(row && (row.wedi?.cfg || row.schluter?.cfg || row.sheoga));
+    return { aid: onTarget ? target.areaId : pop.aid, pid: onTarget ? target.rowId : pop.pid, seed, n: (pop.n || 0) + 1, detached: !onTarget && marked };
+  };
+  const openCompareCell = (pop, key, seed, target) => {
+    const next = kitPop(pop, seed, target);
+    if (key.startsWith("wedi:")) { setSchluterPop(null); setWediPop(next); }
+    else { setWediPop(null); setSchluterPop(next); }
+  };
   // Sheoga opened from the Apps hub has no row/project context. Its lines drop
   // into the first area of whichever project the salesperson picks in the
   // Apps-hub destination prompt (filling a blank adder row if there is one, else
@@ -3018,6 +3045,12 @@ export default function App({ user, onSignOut }) {
             onOpenPlaced={(k) => setWediPop({ aid: k.areaId, pid: k.rowId, seed: k.marker, n: (wediPop.n || 0) + 1 })}
             onDeleteKit={(k) => { const next = removeKitLines(sel.categories, k.areaId, k.rowId); if (next) { updateProject(sel.id, { categories: next }); if (k.rowId === wediPop.pid) setWediPop(null); } }}
             onQuoteOptions={(p) => addCompareOptions(wediPop.aid, p)}
+            compareSet={(sel.compareSets || {})[wediPop.aid] || {}}
+            onCompareSet={(next) => writeCompareSet(sel.id, wediPop.aid, next)}
+            onOpenCell={(key, seed, target) => openCompareCell(wediPop, key, seed, target)}
+            onResume={(entry) => setWediPop(kitPop(wediPop, entry.snap, entry.target))}
+            savedBy={profile?.name || ""}
+            startDetached={!!wediPop.detached}
             editing={row.wedi?.cfg && !row.wedi.part ? { areaId: wediPop.aid, rowId: wediPop.pid, kitId: row.kitId || "" } : null}
             editRows={row.wedi?.cfg && !row.wedi.part ? kitRows(sel.categories, wediPop.aid, wediPop.pid) : null}
             onAdd={(lines) => { addWediLines(wediPop.aid, wediPop.pid, lines); setWediPop(null); setFocusQty(wediPop.pid); }}
@@ -3061,6 +3094,12 @@ export default function App({ user, onSignOut }) {
             onOpenPlaced={(k) => setSchluterPop({ aid: k.areaId, pid: k.rowId, seed: k.marker, n: (schluterPop.n || 0) + 1 })}
             onDeleteKit={(k) => { const next = removeKitLines(sel.categories, k.areaId, k.rowId); if (next) { updateProject(sel.id, { categories: next }); if (k.rowId === schluterPop.pid) setSchluterPop(null); } }}
             onQuoteOptions={(p) => addCompareOptions(schluterPop.aid, p)}
+            compareSet={(sel.compareSets || {})[schluterPop.aid] || {}}
+            onCompareSet={(next) => writeCompareSet(sel.id, schluterPop.aid, next)}
+            onOpenCell={(key, seed, target) => openCompareCell(schluterPop, key, seed, target)}
+            onResume={(entry) => setSchluterPop(kitPop(schluterPop, entry.snap, entry.target))}
+            savedBy={profile?.name || ""}
+            startDetached={!!schluterPop.detached}
             editing={row.schluter?.cfg && !row.schluter.part ? { areaId: schluterPop.aid, rowId: schluterPop.pid, kitId: row.kitId || "" } : null}
             editRows={row.schluter?.cfg && !row.schluter.part ? kitRows(sel.categories, schluterPop.aid, schluterPop.pid) : null}
             onAdd={(lines) => { addSchluterLines(schluterPop.aid, schluterPop.pid, lines); setSchluterPop(null); setFocusQty(schluterPop.pid); }}
