@@ -639,7 +639,7 @@ export default function App({ user, onSignOut }) {
   // shared request list actually changes, not on every render of the browser.
   const sampleTally = useMemo(() => projectSampleTally(sampleRequests), [sampleRequests]);
   const {
-    labels, refreshLabels, addLabel, addLabelsBulk, updateLabel, updateLabelsBulk, delLabel, delLabels, saveLabelPreset,
+    labels, refreshLabels, addLabel, addLabelsBulk, updateLabel, updateLabelsBulk, delLabel, delLabels, saveLabelPreset, saveLabelDropWords,
   } = useLabels({ user, profile, ping, flashSaved, settings, setSettings });
   useEffect(() => {
     if (railNav.pane?.kind === "app" && railNav.pane.id === "labels") refreshLabels();
@@ -2812,6 +2812,8 @@ export default function App({ user, onSignOut }) {
                 onDeleteLabel={delLabel}
                 onDeleteLabels={delLabels}
                 onSavePreset={saveLabelPreset}
+                dropWords={settings.apps?.labels?.dropWords}
+                onSaveDropWords={saveLabelDropWords}
                 sheoga={{
                   markupDefault: sheogaMarkups(books, settings).markupPct,
                   ventMarkupDefault: sheogaMarkups(books, settings).ventMarkupPct,

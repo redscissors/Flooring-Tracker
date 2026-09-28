@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULTS, GROUTS, MORTARS, mergeSettings, seedCatalog, resolveCatalog, normalizeSettings, normalizeCatalog, normWaste, wasteFor, lineWastePct, ownWaste, wasteVaries, wastePatch, projWaste, withProjWaste, serializeSettings, groutExact, mortarExact, getGrout, getGroutBase, groutBaseList, getMortar, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, offeredUnderlayments, catalogHasSeedUnderlayments, materialWarnings, addCategory, updateCategory, isDuplicateCategoryName, removeCategory, isDuplicateAttachedName, offeredAttached, offeredCategories, getAttached, attachedList, normShop, underlaymentForSku } from "./catalog.js";
-import { BUILTIN_IDS } from "./labels.js";
+import { BUILTIN_IDS, DEFAULT_DROP_WORDS } from "./labels.js";
 
 // A fully-checked tile selection used by the math tests.
 const tile = (over = {}) => ({
@@ -1358,6 +1358,15 @@ test("serializeSettings persists only custom label presets", () => {
   const ids = saved.apps.labels.presets.map((p) => p.id);
   assert.deepEqual(ids, ["c1"]);
   assert.ok(!ids.some((id) => BUILTIN_IDS.has(id)));
+});
+
+test("label drop words seed the default and persist only once changed", () => {
+  const s = normalizeSettings({});
+  assert.deepEqual(s.apps.labels.dropWords, DEFAULT_DROP_WORDS);
+  assert.equal(serializeSettings(s).apps.labels.dropWords, undefined);
+  const edited = normalizeSettings({ apps: { labels: { dropWords: ["WOW", "Bedrosians"] } } });
+  assert.deepEqual(serializeSettings(edited).apps.labels.dropWords, ["WOW", "Bedrosians"]);
+  assert.deepEqual(serializeSettings(normalizeSettings({ apps: { labels: { dropWords: [] } } })).apps.labels.dropWords, []);
 });
 
 // --- ERP stock-book links & families (spec 2026-07-21) -----------------------

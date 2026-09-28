@@ -219,20 +219,43 @@ export const faceSizeText = (size) => {
 
 const money = (n) => `$${(Math.round(n * 100) / 100).toFixed(2)}`;
 
+// The team's own list of words to drop from filled names — manufacturers
+// mostly, since some stock-book names lead with the maker and some don't
+// (owner 2026-09-28). Shared in settings; an absent list seeds these, an
+// explicitly empty one drops nothing.
+export const DEFAULT_DROP_WORDS = ["WOW", "Marazzi", "Daltile", "Anatolia", "Emser", "Mirage", "American Olean", "Florida Tile", "MSI"];
+export const normDropWords = (raw) => {
+  if (!Array.isArray(raw)) return [...DEFAULT_DROP_WORDS];
+  const seen = new Set();
+  const out = [];
+  for (const w of raw) {
+    const v = str(w).replace(/\s+/g, " ");
+    if (!v || seen.has(v.toLowerCase())) continue;
+    seen.add(v.toLowerCase());
+    out.push(v);
+  }
+  return out;
+};
+export const isDefaultDropWords = (words) => JSON.stringify(normDropWords(words)) === JSON.stringify(DEFAULT_DROP_WORDS);
+
 // Stock-book names carry words a sample label doesn't want: "Tile", the
 // vendor's code ("Marazzi Rice Tile - RC03 Natural"), and the dash that set it
 // off (owner 2026-09-25). A code is any word mixing letters and digits, an
 // all-digit word of 5+ digits ("Wow Skin Biscuit Matte 135296"), or the item's
 // own mfg; sizes, measures (12x24, 2in, 8mm) and short numbers stay. Also
 // Virginia Tile's "VT" prefix and dash-joined number codes of 5+ digits
-// ("Anatolia Soho Hexagon 4501-0467-0").
+// ("Anatolia Soho Hexagon 4501-0467-0"), and anything on the drop list.
 const MEASURE_RE = /^\d+(?:[./]\d+)?["']?(?:[x×]\d+(?:[./]\d+)?["']?|in|mm|cm|ft|mil)?$/i;
 const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-export const cleanLabelName = (name, mfg) => {
+const dropPhrase = (s, phrase) => {
+  const words = str(phrase).split(/\s+/).filter(Boolean);
+  if (!words.length) return s;
+  return s.replace(new RegExp(`(^|\\s)${words.map(escRe).join("\\s+")}(?=\\s|$)`, "gi"), " ");
+};
+export const cleanLabelName = (name, mfg, dropWords = []) => {
   const raw = str(name);
-  let s = raw;
-  const code = str(mfg);
-  if (code) s = s.replace(new RegExp(`(^|\\s)${escRe(code)}(?=\\s|$)`, "gi"), " ");
+  let s = dropPhrase(raw, mfg);
+  for (const w of dropWords || []) s = dropPhrase(s, w);
   const out = s.split(/\s+/).filter((w) => w
     && !/^tiles?$/i.test(w)
     && !/^[-–—]+$/.test(w)
@@ -245,12 +268,12 @@ export const cleanLabelName = (name, mfg) => {
 
 // Map a normalized StockItem (see stock.js normStockItem) to editable label
 // fields. A prefill only — the user edits freely afterward, nothing re-reads.
-export const stockToLabelFields = (item) => {
+export const stockToLabelFields = (item, dropWords) => {
   if (!item) return {};
   const psf = item.priceSqft != null ? item.priceSqft
     : (item.price != null && item.sfPerUnit > 0 ? item.price / item.sfPerUnit : null);
   return {
-    name: cleanLabelName(str(item.description) || str(item.product), item.mfg),
+    name: cleanLabelName(str(item.description) || str(item.product), item.mfg, dropWords),
     sku: str(item.sku),
     size: faceSizeText(item.size) || str(item.sheetSize),
     price: psf != null ? `${money(psf)}/sq ft` : (item.price != null ? money(item.price) : ""),
@@ -279,8 +302,8 @@ export const trimSize = (name) => str(name).replace(/\s+\d+(?:\.\d+)?\s*["']?\s*
 // One label, two sizes from two stock picks: the bigger face leads whatever
 // order they were picked in (owner 2026-09-25); the name is the bigger item's
 // with its size dropped, since each size prints in its own column.
-export const twoSizeDraft = (a, b) => {
-  const fa = stockToLabelFields(a), fb = stockToLabelFields(b);
+export const twoSizeDraft = (a, b, dropWords) => {
+  const fa = stockToLabelFields(a, dropWords), fb = stockToLabelFields(b, dropWords);
   const aa = faceArea(fa.size), ab = faceArea(fb.size);
   const swapped = aa != null && ab != null && ab > aa;
   const [first, second, it] = swapped ? [fb, fa, b] : [fa, fb, a];
@@ -306,13 +329,17 @@ export const restyleLabel = (label, preset) => ({
 // rest of a label may be hand-edited. `keysOf` is orderbook.js skuKeys, passed
 // in so this module stays import-free. Retired or switched-off items count as
 // gone, like everywhere the row search reads the cache.
-export const refreshPlan = (labels, stock, keysOf) => {
+const stockFinder = (stock, keysOf) => {
   const index = new Map();
   for (const it of stock || []) {
     if (!it.active || it.discontinued || it.disabled) continue;
     for (const k of keysOf(it.sku)) if (!index.has(k)) index.set(k, it);
   }
-  const find = (code) => { for (const k of keysOf(code)) if (index.has(k)) return index.get(k); return null; };
+  return (code) => { for (const k of keysOf(code)) if (index.has(k)) return index.get(k); return null; };
+};
+
+export const refreshPlan = (labels, stock, keysOf) => {
+  const find = stockFinder(stock, keysOf);
   const out = { changed: [], same: [], missing: [], noSku: [] };
   for (const label of labels || []) {
     const sku1 = str(label.fields?.sku) || str(label.sku);
@@ -329,6 +356,29 @@ export const refreshPlan = (labels, stock, keysOf) => {
     const patch = { fields: { ...label.fields, price: next } };
     if (sku2) patch.fields2 = { ...label.fields2, price: next2 };
     out.changed.push({ id: label.id, label, patch, before, after });
+  }
+  return out;
+};
+
+// Re-run the name fill on saved labels after the drop list changes. Rebuilt
+// from the stock book (a saved label keeps only the cleaned name, so a word
+// taken off the list can only come back from the source), which also undoes a
+// hand-typed name — hence a review the team ticks through, never a silent write.
+export const renamePlan = (labels, stock, keysOf, dropWords) => {
+  const find = stockFinder(stock, keysOf);
+  const out = { changed: [], same: 0, skipped: 0 };
+  for (const label of labels || []) {
+    const sku1 = str(label.fields?.sku) || str(label.sku);
+    const it1 = sku1 ? find(sku1) : null;
+    if (!it1) { out.skipped++; continue; }
+    const sku2 = label.twoVariant ? str(label.fields2?.sku) : "";
+    const it2 = sku2 ? find(sku2) : null;
+    const next = it2 ? twoSizeDraft(it1, it2, dropWords).fields.name
+      : label.twoVariant ? trimSize(stockToLabelFields(it1, dropWords).name) || stockToLabelFields(it1, dropWords).name
+        : stockToLabelFields(it1, dropWords).name;
+    const before = str(label.fields?.name);
+    if (!next || next === before) { out.same++; continue; }
+    out.changed.push({ id: label.id, label, before, after: next, patch: { fields: { ...label.fields, name: next } } });
   }
   return out;
 };

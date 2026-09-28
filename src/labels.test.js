@@ -8,6 +8,7 @@ import {
   isSpacer, clampSpace, newSpacerLine, SPACE_MIN, SPACE_MAX, SPACE_DEFAULT,
   PIN_KEY, splitPinned, builtinDefault, isBuiltinOverridden,
   NAME_FLOOR, fitNameSize, faceArea, trimSize, twoSizeDraft, restyleLabel, refreshPlan,
+  DEFAULT_DROP_WORDS, normDropWords, isDefaultDropWords, renamePlan,
 } from "./labels.js";
 
 // --- presets ------------------------------------------------------------------
@@ -164,6 +165,57 @@ test("stockToLabelFields cleans the stock-book name", () => {
   const f = stockToLabelFields({ sku: "15042.07", description: "Marazzi Rice Tile - RC03 Natural", mfg: "RC03" });
   assert.equal(f.name, "Marazzi Rice Natural");
   assert.equal(f.sku, "15042.07");
+});
+
+test("cleanLabelName drops words on the team list, whole words and phrases, any case", () => {
+  const drop = ["WOW", "Marazzi", "American Olean"];
+  assert.equal(cleanLabelName("Marazzi Rice Tile - RC03 Natural", "", drop), "Rice Natural");
+  assert.equal(cleanLabelName("Wow Skin Biscuit Matte 135296", "", drop), "Skin Biscuit Matte");
+  assert.equal(cleanLabelName("american  olean Mosaic White", "", drop), "Mosaic White");
+  assert.equal(cleanLabelName("Wowza Marazzian Gloss", "", drop), "Wowza Marazzian Gloss");
+  assert.equal(cleanLabelName("Rice Marazzi Natural", "", drop), "Rice Natural");
+  assert.equal(cleanLabelName("Marazzi", "", drop), "Marazzi");
+});
+
+test("normDropWords seeds the default list, keeps an explicit empty one, trims and dedupes", () => {
+  assert.deepEqual(normDropWords(undefined), DEFAULT_DROP_WORDS);
+  assert.deepEqual(normDropWords([]), []);
+  assert.deepEqual(normDropWords([" WOW ", "wow", "", "Florida   Tile", null]), ["WOW", "Florida Tile"]);
+  assert.ok(isDefaultDropWords(undefined));
+  assert.ok(isDefaultDropWords([...DEFAULT_DROP_WORDS]));
+  assert.ok(!isDefaultDropWords(["WOW"]));
+});
+
+test("stockToLabelFields applies the drop list; twoSizeDraft too", () => {
+  const a = { sku: "A", description: "Marazzi Rice 12x24", size: "12x24" };
+  const b = { sku: "B", description: "Marazzi Rice 3x12", size: "3x12" };
+  assert.equal(stockToLabelFields(a, ["Marazzi"]).name, "Rice 12x24");
+  assert.equal(twoSizeDraft(b, a, ["Marazzi"]).fields.name, "Rice");
+});
+
+test("renamePlan rebuilds names from the stock book under the current list", () => {
+  const stock = [
+    live({ sku: "M1", description: "Marazzi Rice Natural", size: "12x24" }),
+    live({ sku: "M2", description: "Marazzi Rice Natural 3x12", size: "3x12" }),
+    live({ sku: "W1", description: "Wow Skin Biscuit" }),
+    live({ sku: "OFF", description: "Emser Gone", disabled: true }),
+  ];
+  const labels = [
+    normLabel({ id: "a", fields: { name: "Marazzi Rice Natural", sku: "M1", grout: "Smoke" } }),
+    normLabel({ id: "b", fields: { name: "Skin Biscuit", sku: "W1" } }),
+    normLabel({ id: "c", fields: { name: "Hand typed" } }),
+    normLabel({ id: "d", fields: { name: "Emser Gone", sku: "OFF" } }),
+    normLabel({ id: "e", twoVariant: true, fields: { name: "Marazzi Rice Natural", sku: "M1" }, fields2: { sku: "M2" } }),
+  ];
+  const plan = renamePlan(labels, stock, keysOf, ["Marazzi"]);
+  assert.deepEqual(plan.changed.map((c) => [c.id, c.before, c.after]), [
+    ["a", "Marazzi Rice Natural", "Rice Natural"],
+    ["b", "Skin Biscuit", "Wow Skin Biscuit"],
+    ["e", "Marazzi Rice Natural", "Rice Natural"],
+  ]);
+  assert.equal(plan.changed[0].patch.fields.grout, "Smoke");
+  assert.equal(plan.skipped, 2);
+  assert.equal(plan.same, 0);
 });
 
 test("escapeHtml neutralizes markup", () => {

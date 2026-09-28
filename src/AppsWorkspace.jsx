@@ -11,7 +11,7 @@ const SchluterConfigurator = lazy(() => import("./SchluterConfigurator.jsx"));
 
 const CONFIG_NAME = { sheoga: "Sheoga", wedi: "wedi", schluter: "Schluter" };
 
-export function AppsWorkspace({ app, visible = true, onClose, resume = false, onResume, onSwitchApp, progressRef, stock, bookStockReady, labels, labelGrouts, presets, onAddLabel, onAddLabelsBulk, onUpdateLabel, onUpdateLabelsBulk, onDeleteLabel, onDeleteLabels, onSavePreset, sheoga, wedi, schluter }) {
+export function AppsWorkspace({ app, visible = true, onClose, resume = false, onResume, onSwitchApp, progressRef, stock, bookStockReady, labels, labelGrouts, presets, onAddLabel, onAddLabelsBulk, onUpdateLabel, onUpdateLabelsBulk, onDeleteLabel, onDeleteLabels, onSavePreset, dropWords, onSaveDropWords, sheoga, wedi, schluter }) {
   // Configurators (Apps hub): builds stage locally — nothing touches a real
   // project until the salesperson picks a destination. A commit request parks
   // its lines in `pending` (with the configurator's own commit handlers as
@@ -116,7 +116,8 @@ export function AppsWorkspace({ app, visible = true, onClose, resume = false, on
           {app === "labels" && (
             <LabelMaker stock={stock} bookStockReady={bookStockReady} labels={labels} grouts={labelGrouts} presets={presets}
               onAddLabel={onAddLabel} onAddLabelsBulk={onAddLabelsBulk} onUpdateLabel={onUpdateLabel} onUpdateLabelsBulk={onUpdateLabelsBulk}
-              onDeleteLabel={onDeleteLabel} onDeleteLabels={onDeleteLabels} onSavePreset={onSavePreset} />
+              onDeleteLabel={onDeleteLabel} onDeleteLabels={onDeleteLabels} onSavePreset={onSavePreset}
+              dropWords={dropWords} onSaveDropWords={onSaveDropWords} />
           )}
           {mounted.has("sheoga") && sheoga && (
             <div key={`sheoga-${gen.sheoga || 0}`} className={slot("sheoga")}>

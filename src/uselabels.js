@@ -66,11 +66,14 @@ export function useLabels({ user, profile, ping, flashSaved, settings, setSettin
   const saveLabelPreset = (preset) => {
     const cur = settings.apps?.labels?.presets || [];
     const presets = cur.some((p) => p.id === preset.id) ? cur.map((p) => (p.id === preset.id ? preset : p)) : [...cur, preset];
-    setSettings({ ...settings, apps: { ...settings.apps, labels: { presets } } });
+    setSettings({ ...settings, apps: { ...settings.apps, labels: { ...settings.apps?.labels, presets } } });
+  };
+  const saveLabelDropWords = (dropWords) => {
+    setSettings({ ...settings, apps: { ...settings.apps, labels: { ...settings.apps?.labels, dropWords } } });
   };
 
   return {
     labels, hydrateLabels: setLabels,
-    refreshLabels, addLabel, addLabelsBulk, updateLabel, updateLabelsBulk, delLabel, delLabels, saveLabelPreset,
+    refreshLabels, addLabel, addLabelsBulk, updateLabel, updateLabelsBulk, delLabel, delLabels, saveLabelPreset, saveLabelDropWords,
   };
 }

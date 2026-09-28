@@ -479,7 +479,8 @@ src/
                     # ONE upsert / ONE delete for a stock-book refresh or a
                     # template restyle, never a write per label.
                     # `saveLabelPreset` replaces in place, so an edited
-                    # built-in keeps its spot
+                    # built-in keeps its spot; `saveLabelDropWords` writes the
+                    # shared name drop list (both keep the other's key)
   useordersearch.js # `useOrderSearch` — fuzzy/synonym order-book search (ADR 0009 §6) + on-demand
                     # order-row drift fetch
   usetrims.js       # `useTrims` — session cache of a floor's trims (the ADR 0012
@@ -3067,7 +3068,15 @@ src/
                     # `twoSizeDraft` (bigger face first, size trimmed off the
                     # name), `restyleLabel` (template layout, text kept),
                     # `refreshPlan` (price only; retired/disabled items count
-                    # as gone; skuKeys injected so this file stays import-free)
+                    # as gone; skuKeys injected so this file stays import-free).
+                    # The drop list (owner 2026-09-28): `normDropWords` seeds
+                    # DEFAULT_DROP_WORDS (manufacturers) when absent, keeps an
+                    # explicit []; stored shared at settings.apps.labels.dropWords,
+                    # persisted only once it differs from the default.
+                    # `cleanLabelName` strips each entry as whole words; the
+                    # stock fill and `twoSizeDraft` take the list. `renamePlan`
+                    # rebuilds saved names from the stock book under the list
+                    # (the only way a removed word comes back) for a review
   AppsWorkspace.jsx # the Apps work-area pane (ADR 0047: no shell or app list
                     # of its own — the rail's Apps tray picks; configurators
                     # stay mounted after first pick, track in-progress, show
@@ -3113,6 +3122,9 @@ src/
                     # controls (and the editor/review) stop at a letter
                     # sheet's width (SHEET_W, owner 2026-09-25) while the cards
                     # use the whole column; an unselected card shows no
-                    # circle — it fades in on hover
+                    # circle — it fades in on hover. Under the stock search,
+                    # "Words dropped from names" edits the shared drop list;
+                    # its "Update saved labels…" opens the name review
+                    # (renamePlan, every label ticked, untick hand-typed names)
   lib/supabase.js   # Supabase client (reads VITE_ env vars)
 ```
