@@ -5497,7 +5497,7 @@ export function kitFor(panKey, opts) {
   // Phase 2 (ADR 0051): the Membrane wall system bills S-DRY membrane in place
   // of Building Panel; absent is Building Panel, so old markers bill as before.
   const membrane = opts.wallSys === "membrane";
-  // The S-DRY floor recipe (bonding drain, S-DRY cover and curb) rides the
+  // The S-DRY floor recipe (S-DRY cover and curb) rides the
   // Membrane choice: an S-DRY pan under Building Panel is only an old marker
   // shape (wedimarkergolden pins it), and bills as it always did.
   const sdryFloor = fam === "sdry" && membrane;
@@ -5612,7 +5612,8 @@ export function kitFor(panKey, opts) {
   const coverPick = opts.coverPick || legacyCoverPick(opts.coverKey);
   let cover = null;
   if (sdryFloor) {
-    push(lines, SDRY.drain, 1, "drain", "", true);
+    // an S-DRY base has its drain built in; the bonding-flange drain is for
+    // mortar-bed floors, which the configurator never builds (owner 2026-09-28)
     const picked = coverPick && coverPick.key ? item(coverPick.key) : null;
     cover = sdryRole(picked) === "cover" ? picked : item(SDRY.coverSS);
   } else if (fam === "linear") {

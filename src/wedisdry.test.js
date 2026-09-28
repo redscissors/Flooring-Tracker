@@ -21,7 +21,7 @@ test("an S-DRY Membrane build bills the S-DRY floor and walls, no panel", () => 
   const q = qty(b);
   assert.equal(q.US9176001, 1);
   assert.equal(q[SDRY.curbFull], 1);
-  assert.equal(q[SDRY.drain], 1);
+  assert.equal(q[SDRY.drain], undefined, "an S-DRY base has its drain built in");
   assert.equal(q[SDRY.coverSS], 1);
   assert.equal(q[SKU.proSet], 2);
   for (const gone of [SKU.panelDefault, SKU.fastenerKit, SKU.sealantSausage, SKU.collarValve, SKU.collarPipe, SKU.trowel, SKU.coverSS])
