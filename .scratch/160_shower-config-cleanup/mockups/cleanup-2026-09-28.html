@@ -99,7 +99,8 @@ section{display:flex;flex-direction:column;gap:14px}
 .cmp-stack .chead{padding-bottom:4px}
 .cmp-stack .gb{margin:6px -12px 0}
 .cmp-stack .ci{padding:4px 0;border-bottom:1px solid var(--line)}
-.cmp-stack .ci .z{border-right:0}
+.cmp-stack .ci .z{border-right:0;padding-right:4px}
+.cmp-stack .csub .zh{padding-right:4px}
 .cmp-stack .byo{font-style:italic;color:var(--muted)}
 .cgrid{display:grid;grid-template-columns:88px repeat(4,minmax(0,1fr));column-gap:14px}
 @media (max-width:1400px){.cmp .ci,.cmp .csub{grid-template-columns:96px minmax(0,1fr) 60px;gap:6px}}
@@ -117,7 +118,9 @@ section{display:flex;flex-direction:column;gap:14px}
 .ci .n{min-width:0}
 .csub{font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);padding:6px 0 4px;border-bottom:1px solid var(--border)}
 .csub .r{text-align:right}
-.ci .z{border-right:1px solid var(--line);padding-right:8px;align-self:stretch}
+.ci .z{border-right:1px solid var(--line);padding-right:8px;align-self:stretch;text-align:right}
+.csub .zh{text-align:right;padding-right:9px}
+.brow .sz,.colhead .zh{text-align:right;padding-right:6px}
 
 .ci .qty{color:var(--faint);font-weight:700}
 .ci .z{font-weight:800;white-space:nowrap}
@@ -329,7 +332,7 @@ const brow = ([n, sub, size, swap, qty, price, each, o = {}]) => o.byo
     `<div class="step"><i>−</i>${qty}<i>+</i></div><div class="pr">${price}${each ? `<small>${each}</small>` : ""}</div></div>`;
 const cat = (name, rows) => `<div class="bcat"><span class="cap">${name}</span><span class="plus">+</span></div>${rows.map(brow).join("")}`;
 const buildHead = (sum) => `<div class="bhead"><h3>Build</h3><span class="sum">${sum}</span></div>` +
-  `<div class="colhead"><span>Size</span><span>Item</span><span></span><span style="text-align:center">Qty</span><span class="r">Retail</span></div>`;
+  `<div class="colhead"><span class="zh">Size</span><span>Item</span><span></span><span style="text-align:center">Qty</span><span class="r">Retail</span></div>`;
 
 $("schBuild").innerHTML = buildHead("38 × 60″ · curbed · point drain · membrane walls") +
   cat("Base", [["Shower tray, point drain", "KST965/1525 · exact fit", "38 × 60″", 0, 1, "$121.91", "$121.91 ea"]]) +
@@ -413,7 +416,7 @@ $("cmp").innerHTML = `<div class="cgrid">` +
   `<div class="chead" style="padding-left:8px"><div class="cap" style="color:var(--faint)">60 × 38″</div><div style="font-size:11px;color:var(--muted);font-weight:600">curbed · point drain</div></div>` +
   heads.map(([b, sys, tot, delta, cur]) => `<div class="chead${cur ? " cur" : ""}"><span class="brand ${b}">${b === W ? "WEDI" : "SCHLUTER"}</span><span class="sys">${sys}</span><div class="tot">${tot}<small>${delta}</small></div></div>`).join("") +
   `<div class="csub" style="grid-template-columns:1fr"><span></span></div>` +
-  heads.map(() => `<div class="csub"><span>Size</span><span>Item</span><span class="r">Price</span></div>`).join("") +
+  heads.map(() => `<div class="csub"><span class="zh">Size</span><span>Item</span><span class="r">Price</span></div>`).join("") +
   rows.map((r) => r[0] === "g" ? `<div class="gb">${r[1]}</div>` : `<div class="slot">${r[0]}</div>` + r[1].map(cellHtml).join("")).join("") +
   `</div>`;
 // phone / narrow: one card per build, same Size | Item | Price rows
@@ -428,7 +431,7 @@ $("cmpStack").innerHTML = heads.map(([b, sys, tot, delta, cur], k) => {
       : c.map((x) => `<div class="ci"><span class="z">${x.z}</span><span class="n">${x.q ? `<span class="qty">${x.q}× </span>` : ""}${x.n}</span><span class="p">${x.p}</span></div>`).join("");
   }
   return `<div class="app"><div class="chead${cur ? " cur" : ""}"><span class="brand ${b}">${b === W ? "WEDI" : "SCHLUTER"}</span><span class="sys">${sys}</span><div class="tot">${tot}<small>${delta}</small></div></div>` +
-    `<div class="csub"><span>Size</span><span>Item</span><span class="r">Price</span></div>${out}</div>`;
+    `<div class="csub"><span class="zh">Size</span><span>Item</span><span class="r">Price</span></div>${out}</div>`;
 }).join("");
 })();
 </script>
