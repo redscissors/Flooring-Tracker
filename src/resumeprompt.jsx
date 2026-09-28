@@ -3,7 +3,7 @@
 // brand offers to pick it back up. Presentation only — the popup decides when
 // it shows and what a pick does.
 import { useEscClose } from "./widgets.jsx";
-import { roomLabel, savedAgo } from "./compareset.js";
+import { roomLabel, savedAgo, sizeChanged } from "./compareset.js";
 
 const BRAND = { wedi: "wedi", schluter: "Schluter" };
 const SYS_NAME = {
@@ -13,7 +13,9 @@ const SYS_NAME = {
 
 const fm = (n) => "$" + (+n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-export function ResumePrompt({ brand, choices, priceOf, onPick, onNew }) {
+// `room` is the size the fresh start was seeded with (a row search may name
+// one), so a kept build for another size says so.
+export function ResumePrompt({ brand, choices, priceOf, room, onPick, onNew }) {
   useEscClose(true, onNew);
   return (
     <div className="absolute inset-0 z-[58] flex items-center justify-center p-6" style={{ background: "rgba(20,15,10,.45)" }}
@@ -35,6 +37,7 @@ export function ResumePrompt({ brand, choices, priceOf, onPick, onNew }) {
                   {BRAND[brand]} · {SYS_NAME[key]}
                   <small className="block font-semibold text-[11px]" style={{ color: "var(--ft-faint)" }}>
                     {entry.room ? roomLabel(entry.room) + "″ · " : ""}saved {savedAgo(entry.savedAt)}{entry.savedBy ? " by " + entry.savedBy : ""}
+                    {room && +room.w > 0 && +room.d > 0 && entry.room && sizeChanged(entry.room, room) ? " · room changed since" : ""}
                   </small>
                 </span>
                 {price != null && <span className="ml-auto font-extrabold tabular-nums">{fm(price)}</span>}

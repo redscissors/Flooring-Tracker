@@ -93,9 +93,11 @@ export function entryOf({ snap, room, target, savedBy, now, dropped }) {
 
 const n = (v) => Math.round((+v || 0) * 100) / 100;
 const wallSig = (w) => [w.side, !!w.on, n(w.len), n(w.h)].join(":");
-// a bench's `part` is a brand SKU, not geometry — a Schluter premade and the
-// wedi seat it maps to are the same bench
-const benchSig = (b) => [b.kind, b.side || "", b.corner || "", b.build || "", n(b.len), n(b.depth), n(b.h), n(b.size)].join(":");
+// A bench compares by WHERE it sits only: each engine normalizes its own
+// dims and build (wedi fills len/depth/h, a crossed premade becomes a site
+// build), so the same bench seen from the other brand must not read as a
+// room change.
+const benchSig = (b) => (b.kind === "corner" ? "corner:" + (b.corner || "bl") : "wall:" + (b.side || "left"));
 const roomSig = (r) => [
   n(r.w), n(r.d), !!r.curbed, r.drain || "point",
   (r.walls || []).map(wallSig).sort().join("|"),
@@ -138,3 +140,10 @@ export function savedAgo(at, now = Date.now()) {
   const d = Math.round(h / 24);
   return d === 1 ? "yesterday" : d + " days ago";
 }
+
+// A key-order-free signature — the stored record comes back from jsonb with
+// its keys reordered, and "nothing changed" must still read as nothing.
+const stable = (v) => (Array.isArray(v) ? "[" + v.map(stable).join(",") + "]"
+  : v && typeof v === "object" ? "{" + Object.keys(v).sort().filter((k) => v[k] !== undefined).map((k) => JSON.stringify(k) + ":" + stable(v[k])).join(",") + "}"
+    : JSON.stringify(v === undefined ? null : v));
+export const entrySig = (e) => stable([e && e.snap, e && e.room, (e && e.target) || null]);

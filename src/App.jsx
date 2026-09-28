@@ -901,15 +901,27 @@ export default function App({ user, onSignOut }) {
   // The Compare set (ADR 0052), one per shower (area). Written against the
   // LATEST record: a popup keeps its build as it unmounts, often in the same
   // tick as its own Add wrote the categories.
-  const writeCompareSet = (pid, aid, next) => {
+  // `from` is the popup's row: when a kit just landed there (an Add from a
+  // fresh start carries no target yet), its kept build is stamped as that
+  // kit, so opening it again reattaches instead of adding a second copy.
+  const writeCompareSet = (pid, aid, next, from) => {
     const cur = dataRef.current.projects.find((p) => p.id === pid);
     if (!cur) return;
+    const row = from && cur.categories.find((a) => a.id === aid)?.products.find((p) => p.id === from.rowId);
+    const mk = row && row[from.brand];
+    if (mk && mk.cfg && !mk.part) {
+      const key = from.brand === "wedi" ? "wedi:" + (mk.cfg.wallSys === "membrane" ? "membrane" : "board")
+        : "schluter:" + (mk.cfg.wallSys === "board" ? "board" : "membrane");
+      if (next && next[key] && !next[key].target) next = { ...next, [key]: { ...next[key], target: { areaId: aid, rowId: row.id, kitId: row.kitId || "" } } };
+    }
     const sets = { ...(cur.compareSets || {}) };
     if (next && Object.keys(next).length) sets[aid] = next; else delete sets[aid];
     updateProject(pid, { compareSets: sets });
   };
   const rowOf = (aid, pid) => sel?.categories.find((a) => a.id === aid)?.products.find((p) => p.id === pid);
-  const rowLive = (t) => !!(t && rowOf(t.areaId, t.rowId));
+  // the target's row must still hold the SAME kit (moveKitEntries' rule) —
+  // a row reconfigured since carries a new kitId and is someone else's now
+  const rowLive = (t) => { const r = t && rowOf(t.areaId, t.rowId); return !!(r && (r.kitId || "") === (t.kitId || "")); };
   // A compare hand-off (or a resume) reopens on the kit a kept build came
   // from while that row is still on the job; otherwise it stays on the row the
   // popup was on — detached when that row already carries a configurator kit,
@@ -3046,7 +3058,7 @@ export default function App({ user, onSignOut }) {
             onDeleteKit={(k) => { const next = removeKitLines(sel.categories, k.areaId, k.rowId); if (next) { updateProject(sel.id, { categories: next }); if (k.rowId === wediPop.pid) setWediPop(null); } }}
             onQuoteOptions={(p) => addCompareOptions(wediPop.aid, p)}
             compareSet={(sel.compareSets || {})[wediPop.aid] || {}}
-            onCompareSet={(next) => writeCompareSet(sel.id, wediPop.aid, next)}
+            onCompareSet={(next) => writeCompareSet(sel.id, wediPop.aid, next, { rowId: wediPop.pid, brand: "wedi" })}
             onOpenCell={(key, seed, target) => openCompareCell(wediPop, key, seed, target)}
             onResume={(entry) => setWediPop(kitPop(wediPop, entry.snap, entry.target))}
             savedBy={profile?.name || ""}
@@ -3095,7 +3107,7 @@ export default function App({ user, onSignOut }) {
             onDeleteKit={(k) => { const next = removeKitLines(sel.categories, k.areaId, k.rowId); if (next) { updateProject(sel.id, { categories: next }); if (k.rowId === schluterPop.pid) setSchluterPop(null); } }}
             onQuoteOptions={(p) => addCompareOptions(schluterPop.aid, p)}
             compareSet={(sel.compareSets || {})[schluterPop.aid] || {}}
-            onCompareSet={(next) => writeCompareSet(sel.id, schluterPop.aid, next)}
+            onCompareSet={(next) => writeCompareSet(sel.id, schluterPop.aid, next, { rowId: schluterPop.pid, brand: "schluter" })}
             onOpenCell={(key, seed, target) => openCompareCell(schluterPop, key, seed, target)}
             onResume={(entry) => setSchluterPop(kitPop(schluterPop, entry.snap, entry.target))}
             savedBy={profile?.name || ""}

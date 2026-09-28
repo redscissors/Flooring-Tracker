@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   CELL_KEYS, normCompareSets, roomChanged, sizeChanged, roomLabel, saveEntry, clearSet,
-  resumeChoices, isMarkerSeed, mergeManual, entryOf, neutralRoomSchluter, neutralRoomWedi, savedAgo,
+  resumeChoices, isMarkerSeed, mergeManual, entryOf, neutralRoomSchluter, neutralRoomWedi, savedAgo, entrySig,
 } from "./compareset.js";
 
 const room = { w: 60, d: 38, curbed: true, drain: "point", walls: [{ side: "back", on: true, len: 60, h: 84 }], benches: [] };
@@ -123,4 +123,20 @@ test("savedAgo", () => {
   assert.equal(savedAgo(now - 2 * 3600000, now), "2 hrs ago");
   assert.equal(savedAgo(now - 30 * 3600000, now), "yesterday");
   assert.equal(savedAgo(now - 4 * 86400000, now), "4 days ago");
+});
+
+test("roomChanged: benches compare by placement only — the engines normalize dims and build differently", () => {
+  const r = { w: 60, d: 38, curbed: true, drain: "point", walls: [] };
+  const sch = { ...r, benches: [{ kind: "wall", side: "back", build: "premade", part: "KBSB4101220RA" }] };
+  const wedi = { ...r, benches: [{ kind: "wall", side: "back", build: "site", part: null, len: 60, depth: 14, h: 18 }] };
+  assert.equal(roomChanged(sch, wedi), false);
+  assert.equal(roomChanged(sch, { ...r, benches: [{ kind: "wall", side: "left", build: "site" }] }), true);
+  assert.equal(roomChanged({ ...r, benches: [{ kind: "corner", build: "site" }] }, { ...r, benches: [{ kind: "corner", corner: "bl", size: 16 }] }), false);
+});
+
+test("entrySig ignores key order (jsonb reorders keys)", () => {
+  const a = { snap: { mode: "kit", cfg: { a: 1, b: { c: 2, d: [1, { e: 3, f: 4 }] } } }, room: { w: 1, d: 2 } };
+  const b = { room: { d: 2, w: 1 }, snap: { cfg: { b: { d: [1, { f: 4, e: 3 }], c: 2 }, a: 1 }, mode: "kit" } };
+  assert.equal(entrySig(a), entrySig(b));
+  assert.notEqual(entrySig(a), entrySig({ ...a, room: { w: 1, d: 3 } }));
 });

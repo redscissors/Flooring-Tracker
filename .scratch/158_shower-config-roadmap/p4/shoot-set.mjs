@@ -97,6 +97,19 @@ if (await pg.locator("[data-resume]").count()) fail("the prompt stayed after a p
 await toCompare();
 if ((await total("wedi:board")) !== wediTotal) fail("resume did not reopen the kept build");
 
+// --- 6b. a sized fresh start builds a default kit; picking the kept build must
+// not write that default over it (final-review fix) ---
+const keptRoom = async () => JSON.parse(await pg.locator("[data-h-set-json]").textContent())["wedi:board"].room;
+await pg.locator("[data-h-close]").click(); await pg.waitForTimeout(800);
+const before = await keptRoom();
+await pg.locator("[data-h-fresh-wedi-sized]").click();
+await pg.waitForSelector("[data-resume]", { timeout: 20000 }); await pg.waitForTimeout(1500);
+if (!/room changed since/.test(await txt(pg.locator('[data-resume-pick="wedi:board"]')))) fail("the resume row does not note the size change");
+await pg.locator('[data-resume-pick="wedi:board"]').click(); await pg.waitForTimeout(1500);
+const after = await keptRoom();
+if (after.w !== before.w || after.d !== before.d) fail(`the resume pick overwrote the kept build: ${after.w}×${after.d}`);
+await toCompare();
+
 // --- 7. three options land A–C in column order ---
 const box = (k) => pg.locator(`[data-cmp-check="${k}"]`);
 if (!(await box("wedi:membrane").isChecked())) await box("wedi:membrane").check();

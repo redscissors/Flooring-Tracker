@@ -411,4 +411,34 @@ prompts.
     `p1d/shoot-compare.mjs` and `p2/shoot-compare.mjs` drove the retired
     grid and detail. They are superseded by `p4/shoot-set.mjs`, and their
     shots stay as history.
+12. **(Final review.) Picking a resume row never saves the build on
+    screen.** A sized row search builds a default kit on mount, and that
+    unmount used to write it over the kept build the rep had just picked.
+    The pick sets a skip flag. Proof step 6b pins it, and was shown to fail
+    without the fix.
+13. **(Final review.) The save waits a tick and checks the body is really
+    gone.** StrictMode's dev-only unmount/remount would otherwise write on
+    open under `npm run dev`, which talks to the live project.
+14. **(Final review.) The "nothing changed" check is key-order-free**
+    (`entrySig`), because jsonb returns the record's keys reordered.
+15. **(Final review.) Dropped-pick chips read the bill before the Fit
+    plan.**
+    - Schluter membrane/band swaps are width/roll choices, never checked as
+      SKUs.
+    - Board/fastener picks count only on a KERDI-BOARD build.
+    - A wedi Membrane build's `panelKey` is never flagged.
+16. **(Final review.) wedi Sync keeps the Membrane floor answer.** A kept
+    "wedi pan + S-DRY walls" stays a wedi pan where S-DRY now fits. "Nearest
+    S-DRY base" holds only while nothing fits.
+17. **(Final review.) A bench compares by where it sits (kind + wall or
+    corner) only.** Each engine normalizes its own dims and build, so the
+    same bench seen from the other brand isn't a room change.
+18. **(Final review.) A hand-off reattaches only to the same kit.** The
+    target row must still carry the kept `kitId` (moveKitEntries' rule);
+    otherwise the popup opens detached.
+19. **(Final review.) A kit Added from a fresh start is stamped as its kept
+    build's target** (App `writeCompareSet`), so reopening it reattaches
+    instead of adding a second copy.
+20. **(Final review.) The resume row notes "room changed since"** when the
+    fresh start was seeded with another size (spec §5).
 

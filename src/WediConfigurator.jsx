@@ -15,7 +15,7 @@ import { createPortal } from "react-dom";
 import { X, Plus, Printer, Copy, Eye } from "lucide-react";
 import { useEscClose, SourceSwitch, NumIn, KitBasketPanel, KitOverwriteConfirm, HelpTip, PriceLevelMenu, BasketButton, FLAT_BTN, PopMenu, PointPop } from "./widgets.jsx";
 import { PaneBack, PaneClose } from "./raildrawer.jsx";
-import { entryOf, resumeChoices, isMarkerSeed, neutralRoomWedi } from "./compareset.js";
+import { entryOf, entrySig, resumeChoices, isMarkerSeed, neutralRoomWedi } from "./compareset.js";
 import { ResumePrompt } from "./resumeprompt.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
@@ -1614,13 +1614,24 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   setRef.current = compareSet;
   const saveRef = useRef(onCompareSet);
   saveRef.current = onCompareSet;
-  useEffect(() => () => {
-    const k = keep.current;
-    if (!k || !k.entry || !saveRef.current || !setRef.current) return;
-    const sig = (e) => JSON.stringify([e.snap, e.room, e.target || null]);
-    const prev = setRef.current[k.key];
-    if (prev && sig(prev) === sig(k.entry)) return;
-    saveRef.current({ ...setRef.current, [k.key]: k.entry });
+  // The save waits a tick and checks the body is really gone: StrictMode's
+  // dev-only unmount/remount runs this cleanup once on open, and `npm run dev`
+  // talks to the live project. A resume pick skips it — the build on screen
+  // is the fresh default the rep chose to set aside.
+  const alive = useRef(false);
+  const skipSave = useRef(false);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+      setTimeout(() => {
+        const k = keep.current;
+        if (alive.current || skipSave.current || !k || !k.entry || !saveRef.current || !setRef.current) return;
+        const prev = setRef.current[k.key];
+        if (prev && entrySig(prev) === entrySig(k.entry)) return;
+        saveRef.current({ ...setRef.current, [k.key]: k.entry });
+      }, 0);
+    };
   }, []);
   const [resume, setResume] = useState(() => {
     const cs = compareSet && !isMarkerSeed(seed) ? resumeChoices(compareSet, "wedi") : [];
@@ -3009,7 +3020,8 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
         </div>
         {resume && (
           <ResumePrompt brand="wedi" choices={resume} priceOf={(e) => entryView(e.snap, {}).price}
-            onPick={(e) => { setResume(null); onResume && onResume(e); }} onNew={() => setResume(null)} />
+            room={seed && seed.input}
+            onPick={(e) => { skipSave.current = true; setResume(null); onResume && onResume(e); }} onNew={() => setResume(null)} />
         )}
         <div className={`absolute inset-0 z-[55] transition-opacity ${basketOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`} style={{ background: "rgba(20,15,10,.4)" }} onClick={() => setBasketOpen(false)} />
         <div className={`absolute top-0 right-0 bottom-0 z-[56] w-[400px] max-w-full bg-white border-l border-slate-300 shadow-2xl transition-transform ${basketOpen ? "translate-x-0" : "translate-x-full"}`}>

@@ -95,6 +95,8 @@ function Harness() {
       <span data-h-set>set: {Object.keys(set).join(", ") || "empty"}</span>
       <button data-h-close className="border rounded px-2" onClick={() => setPop((p) => ({ ...p, kind: null }))}>Close popup</button>
       <button data-h-fresh-wedi className="border rounded px-2" onClick={() => setPop((p) => ({ kind: "wedi", pid: p.pid, seed: null, n: p.n + 1, detached: false }))}>Fresh wedi</button>
+      <button data-h-fresh-wedi-sized className="border rounded px-2" onClick={() => setPop((p) => ({ kind: "wedi", pid: p.pid, seed: { tab: "custom", input: { w: 48, d: 36, curb: "curbed", drain: "any" } }, n: p.n + 1, detached: false }))}>Fresh wedi 48×36</button>
+      <span data-h-set-json hidden>{JSON.stringify(set)}</span>
       <button data-h-fresh-schluter className="border rounded px-2" onClick={() => setPop((p) => ({ kind: "schluter", pid: p.pid, seed: null, n: p.n + 1, detached: false }))}>Fresh Schluter</button>
     </div>
     {pop.kind === "wedi" && <WediConfigurator key={"wedi:" + pop.n} {...common} />}

@@ -541,3 +541,29 @@ test("syncKept (wedi): re-solves for the anchor room, keeps the choices", () => 
   assert.equal(out.snap.cfg.sealantForm, "sausage");
   assert.equal(out.snap.cfg.source, "all");
 });
+
+// --- review fixes (Phase 4 final review) ------------------------------------
+
+test("keptDropped: Schluter membrane/band picks are choices, never flagged as missing SKUs", () => {
+  const { build } = schluterBuildFor(room60x38(), CAT);
+  assert.deepEqual(keptDropped("schluter", { swaps: { membrane: { wide: true }, band: { width: 125 } } }, build), []);
+});
+
+test("keptDropped: board/fastener picks only count on a KERDI-BOARD build, checked before the Fit plan", () => {
+  const { build } = schluterBuildFor(room60x38(), CAT);
+  assert.deepEqual(keptDropped("schluter", { wallSys: "membrane", swaps: { board: "NOPE", fastener: "NOPE" } }, build), []);
+  const { cfg } = schluterBuildFor(room60x38(), CAT, { wallSys: "board" });
+  const raw = schluterFromMarker({ mode: "custom", cfg }, CAT);
+  const board = raw.lines.find((l) => l.item.g === "board" && l.item.sf).item.sku;
+  const out = syncKept("schluter", { snap: { mode: "custom", cfg: { ...cfg, swaps: { board } } } }, { room: room60x38(), hostBuild: null, hostBrand: "wedi", cat: CAT });
+  assert.deepEqual(out.dropped, []);
+});
+
+test("syncKept (wedi): a Membrane build's panelKey is never flagged; the kept sdryBase choice stands", () => {
+  const house = wediBuildFor(room60x38(), { wallSys: "membrane", sdryBase: "wedi" });
+  assert.equal(house.cfg.sdryBase, "wedi");
+  const entry = { snap: { mode: "custom", cfg: { ...house.cfg, panelKey: "US8000017", source: "all" } } };
+  const out = syncKept("wedi", entry, { room: room60x38(), hostBuild: null, hostBrand: "schluter", cat: CAT });
+  assert.equal(out.snap.cfg.sdryBase, "wedi", "the wedi-pan answer survives Sync even where S-DRY fits");
+  assert.ok(!out.dropped.includes("panel"));
+});

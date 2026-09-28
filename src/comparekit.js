@@ -140,7 +140,7 @@ export function schluterKeptBuild(snap, cat) {
   const source = cfg.source === "stock" ? "stock" : "all";
   const lines = cfg.wallSys === "board"
     ? applyBoardPlan(b.lines, cfg, boardPlan(expandBoardFaces(cfg), cat, { source }), cat) : b.lines;
-  return { build: { ...b, lines }, cfg: { ...cfg, pick: b.pick && b.pick.tray ? b.pick.tray.sku : null } };
+  return { build: { ...b, lines }, raw: b, cfg: { ...cfg, pick: b.pick && b.pick.tray ? b.pick.tray.sku : null } };
 }
 
 // The anchor's hand-added lines as a brand's `manual`: the same brand takes
@@ -164,8 +164,14 @@ export function keptDropped(brand, cfg, build) {
   const lines = (build && build.lines) || [];
   const out = [];
   if (brand === "schluter") {
+    // membrane/band swaps are width/roll choices, not parts; board and
+    // fastener picks only bill on a KERDI-BOARD build
     const skus = new Set(lines.map((l) => l.item && l.item.sku));
-    for (const [slot, sku] of Object.entries(cfg.swaps || {})) if (sku && !skus.has(sku)) out.push(slot);
+    const slots = ["grate", "curb", ...(cfg.wallSys === "board" ? ["board", "fastener"] : [])];
+    for (const slot of slots) {
+      const sku = (cfg.swaps || {})[slot];
+      if (typeof sku === "string" && sku && !skus.has(sku)) out.push(slot);
+    }
     if (cfg.drainPick && lines.some((l) => /can't be made here/.test(l.note || ""))) out.push("drain");
     return out;
   }
@@ -175,7 +181,7 @@ export function keptDropped(brand, cfg, build) {
   else if (cp && cp.finish && !has((it) => it.group === "cover" && it.finish === cp.finish)) out.push("cover");
   const kp = cfg.curbPick;
   if (kp && !kp.none && kp.sub && !has((it) => it.group === "curb" && it.sub === kp.sub)) out.push("curb");
-  if (cfg.panelKey && !has((it) => it.key === cfg.panelKey)) out.push("panel");
+  if (cfg.panelKey && cfg.wallSys !== "membrane" && !has((it) => it.key === cfg.panelKey)) out.push("panel");
   return out;
 }
 
@@ -194,13 +200,18 @@ export function syncKept(brand, entry, { room, hostBuild, hostBrand, cat, tier }
   if (brand === "wedi") {
     const manual = mergeManual(cfg.manual || [], incoming, (r) => r.key);
     const choices = Object.fromEntries(WEDI_CHOICES.filter((k) => cfg[k] != null).map((k) => [k, cfg[k]]));
+    const membrane = cfg.wallSys === "membrane";
+    // the Membrane floor answer is a choice too: a wedi pan stays a wedi pan;
+    // "nearest S-DRY base" holds only while nothing fits
+    const nearest = membrane && cfg.solve && cfg.solve.id === "sdry-nearest" && !!wediSdryNoFit(room, { source });
     const b = wediBuildFor(room, {
-      source, tier, manual, wallSys: cfg.wallSys === "membrane" ? "membrane" : "board",
+      source, tier, manual, wallSys: membrane ? "membrane" : "board",
+      ...(membrane && cfg.sdryBase === "wedi" ? { sdryBase: "wedi" } : nearest ? { sdryBase: "nearest" } : {}),
       benches: benchesFor("wedi", room, hostBrand), choices,
     });
     if (!b) return null;
-    const lines = panelFitLines(b.lines, b.cfg.walls, b.panelSf);
-    return { snap: { mode: "custom", cfg: { ...b.cfg, source } }, dropped: keptDropped("wedi", cfg, { lines }) };
+    // dropped picks read the bill before the Fit plan re-plans the panels
+    return { snap: { mode: "custom", cfg: { ...b.cfg, source } }, dropped: keptDropped("wedi", cfg, b) };
   }
   const w = +room.w || 0, d = +room.d || 0;
   const next = {
@@ -218,7 +229,8 @@ export function syncKept(brand, entry, { room, hostBuild, hostBrand, cat, tier }
   delete next.bench;
   const kept = schluterKeptBuild({ mode: "custom", cfg: next }, cat);
   if (!kept) return null;
-  return { snap: { mode: "custom", cfg: kept.cfg }, dropped: keptDropped("schluter", cfg, kept.build) };
+  // dropped picks read the bill before the board Fit plan replaces its sheets
+  return { snap: { mode: "custom", cfg: kept.cfg }, dropped: keptDropped("schluter", cfg, kept.raw) };
 }
 
 // One engine's three money columns for `qty` of a part. builderPct is that
