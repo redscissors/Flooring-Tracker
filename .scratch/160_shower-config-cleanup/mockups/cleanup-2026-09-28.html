@@ -57,7 +57,7 @@ section{display:flex;flex-direction:column;gap:14px}
 .seg span.on{background:var(--moss-soft);color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--moss)}
 
 /* kit list */
-.kits{padding:12px 14px 14px;width:100%;min-width:380px}
+.kits{padding:12px 14px 14px;width:100%}
 .kits .top{display:flex;align-items:center;gap:10px;margin-bottom:12px}
 .kgroup{margin-top:12px}
 .krow{display:grid;grid-template-columns:12px auto 1fr auto;align-items:center;gap:6px;height:22px;border-bottom:1px solid var(--line)}
@@ -70,7 +70,8 @@ section{display:flex;flex-direction:column;gap:14px}
 .krow.sel{background:var(--moss-soft)}
 
 /* build column */
-.build{padding:10px 14px 12px;min-width:560px}
+.build{padding:10px 14px 12px}
+@media (max-width:600px){.build .brow,.build .colhead{grid-template-columns:78px minmax(0,1fr) 14px 58px 64px;gap:6px}.build .brow .sz{font-size:11.5px;white-space:normal}.build .bhead{flex-wrap:wrap}}
 .bhead{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:4px}
 .bhead h3{margin:0;font-size:15px;font-weight:800}
 .bhead .sum{font-size:11px;color:var(--faint);font-weight:600}
@@ -90,8 +91,18 @@ section{display:flex;flex-direction:column;gap:14px}
 .colhead .r{text-align:right}
 
 /* compare */
-.cmp{min-width:1400px;padding:0 12px 10px 0;font-size:12px}
-.cgrid{display:grid;grid-template-columns:96px repeat(4,1fr);column-gap:14px}
+.cmp{padding:0 12px 10px 0;font-size:12px}
+.cmp-stack{display:none}
+@media (max-width:1000px){.cmp{display:none}.cmp-stack{display:grid}}
+.cmp-stack{grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.cmp-stack .app{padding:0 12px 8px}
+.cmp-stack .chead{padding-bottom:4px}
+.cmp-stack .gb{margin:6px -12px 0}
+.cmp-stack .ci{padding:4px 0;border-bottom:1px solid var(--line)}
+.cmp-stack .ci .z{border-right:0}
+.cmp-stack .byo{font-style:italic;color:var(--muted)}
+.cgrid{display:grid;grid-template-columns:88px repeat(4,minmax(0,1fr));column-gap:14px}
+@media (max-width:1400px){.cmp .ci,.cmp .csub{grid-template-columns:96px minmax(0,1fr) 60px;gap:6px}}
 .chead{padding:12px 0 8px}
 .chead .brand{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.12em;color:#fff;border-radius:3px;padding:1px 5px;vertical-align:2px}
 .chead .brand.w{background:var(--chip-wedi)} .chead .brand.s{background:var(--chip-sch)}
@@ -224,6 +235,7 @@ section{display:flex;flex-direction:column;gap:14px}
     <div class="side after">
       <div class="tagline"><span class="dot"></span>After</div>
       <div class="scroll"><div class="app cmp" id="cmp"></div></div>
+      <div class="cmp-stack" id="cmpStack"></div>
       <ul class="notes">
         <li>Column heads: <b>WEDI Building panel · WEDI Membrane · SCHLUTER Board · SCHLUTER Membrane</b>. Open, Sync, Option and "Built for 60×36" stay as they are and are left out of the mockup.</li>
         <li>Items with no size on the price sheet (drain body, tape, screws) leave the size blank. Nothing gets guessed.</li>
@@ -404,5 +416,19 @@ $("cmp").innerHTML = `<div class="cgrid">` +
   heads.map(() => `<div class="csub"><span>Size</span><span>Item</span><span class="r">Price</span></div>`).join("") +
   rows.map((r) => r[0] === "g" ? `<div class="gb">${r[1]}</div>` : `<div class="slot">${r[0]}</div>` + r[1].map(cellHtml).join("")).join("") +
   `</div>`;
+// phone / narrow: one card per build, same Size | Item | Price rows
+$("cmpStack").innerHTML = heads.map(([b, sys, tot, delta, cur], k) => {
+  let out = "", grp = "", pend = "";
+  for (const r of rows) {
+    if (r[0] === "g") { pend = r[1]; continue; }
+    const c = r[1][k];
+    if (!c) continue;
+    if (pend) { out += `<div class="gb">${pend}</div>`; pend = ""; }
+    out += c === "byo" ? `<div class="ci"><span class="z"></span><span class="n byo">Cement board / drywall — by others</span><span></span></div>`
+      : c.map((x) => `<div class="ci"><span class="z">${x.z}</span><span class="n">${x.q ? `<span class="qty">${x.q}× </span>` : ""}${x.n}</span><span class="p">${x.p}</span></div>`).join("");
+  }
+  return `<div class="app"><div class="chead${cur ? " cur" : ""}"><span class="brand ${b}">${b === W ? "WEDI" : "SCHLUTER"}</span><span class="sys">${sys}</span><div class="tot">${tot}<small>${delta}</small></div></div>` +
+    `<div class="csub"><span>Size</span><span>Item</span><span class="r">Price</span></div>${out}</div>`;
+}).join("");
 })();
 </script>
