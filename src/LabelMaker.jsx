@@ -1,13 +1,14 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Search, Trash2, Printer, Eye, EyeOff, GripVertical, ChevronDown, RefreshCw, X } from "lucide-react";
+import { Search, Trash2, Printer, Eye, EyeOff, GripVertical, ChevronDown, RefreshCw, X, Settings } from "lucide-react";
 import {
   LABEL_FIELDS, KIND_OF, VARIANT_KEYS, newDraftFromPreset, normPreset, stockToLabelFields, perLetterSheet, sheetsForLabels,
   labelCardHTML, clampSize, isKeimHeader, isSpacer, clampSpace, newSpacerLine, isPin, PIN_KEY, splitPinned, fitNameSize,
-  faceArea, twoSizeDraft, restyleLabel, refreshPlan, builtinDefault, isBuiltinOverridden, BUILTIN_IDS, GROUT_CAPTION, surfacePill,
+  faceArea, twoSizeDraft, restyleLabel, refreshPlan, renamePlan, normDropWords, builtinDefault, isBuiltinOverridden, BUILTIN_IDS, GROUT_CAPTION, surfacePill,
 } from "./labels.js";
 import { searchStock, groutColorOptions } from "./stock.js";
 import { skuKeys } from "./orderbook.js";
-import { HelpTip, FitSelect, GroutColorOptions, SearchPop, useAnchoredPanel, PopMenu } from "./widgets.jsx";
+import { HelpTip, FitSelect, GroutColorOptions, SearchPop, useAnchoredPanel, PopMenu, DotMenu } from "./widgets.jsx";
+import { PaneTitleBar, APP_ITEMS } from "./raildrawer.jsx";
 import keimLogo from "./assets/keim-logo-ink.png";
 
 const uid = () => "l" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
@@ -194,6 +195,46 @@ function SkuLookup({ stock, onPick, onTwo, onAddMany, single = false, placeholde
   );
 }
 
+// ── The shared drop list: words stripped from names on stock fill ─────────────
+function DropWordsMenu({ words, onSave, onUpdateSaved }) {
+  const btnRef = useRef(null);
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const add = () => {
+    const next = normDropWords([...words, text]);
+    if (next.length !== words.length) onSave(next);
+    setText("");
+  };
+  return (
+    <>
+      <button ref={btnRef} onClick={() => setOpen((o) => !o)} aria-label="Words dropped from names" title="Words dropped from names"
+        className={`shrink-0 rounded-md p-1 hover:bg-slate-50 hover:text-slate-600 ${open ? "text-slate-600 bg-slate-50" : "text-slate-400"}`}>
+        <Settings size={17} />
+      </button>
+      <DotMenu open={open} onClose={() => setOpen(false)} anchorRef={btnRef} width={300}>
+        <div className="px-2.5 py-1.5">
+          <div className={eyebrow + " mb-1.5 flex items-center gap-1"}>Words dropped from names<HelpTip className="align-middle" tip={<>Filling a label from the stock book takes these words out of the tile name (manufacturers, mostly). Whole words only, and capitals don't matter. The list is shared with the whole team. It changes new fills only. Use “Update saved labels” to redo the names already saved.</>} /></div>
+          <div className="flex flex-wrap gap-1 mb-2">
+            {words.length ? words.map((w) => (
+              <span key={w} className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white pl-2 pr-1 py-0.5 text-xs">
+                {w}
+                <button onClick={() => onSave(words.filter((x) => x !== w))} className="text-slate-400 hover:text-slate-800" title={`Stop dropping “${w}”`} aria-label={`Remove ${w}`}><X size={12} /></button>
+              </span>
+            )) : <span className="text-xs text-slate-400">Nothing yet</span>}
+          </div>
+          <div className="flex gap-1.5">
+            <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} placeholder="Add a word or name…" className={inp} />
+            <button onClick={add} disabled={!text.trim()} className="shrink-0 text-sm font-semibold rounded-md bg-slate-800 text-white px-3 disabled:opacity-40">Add</button>
+          </div>
+          <div className="border-t border-slate-100 mt-2.5 pt-2">
+            <button onClick={() => { setOpen(false); onUpdateSaved(); }} className="text-sm font-semibold flex items-center gap-1.5" style={{ color: "var(--ft-brand-deep)" }}><RefreshCw size={13} />Update saved labels…</button>
+          </div>
+        </div>
+      </DotMenu>
+    </>
+  );
+}
+
 // ── Template chip + menu: pick a template, edit it, or start a new one ─────────
 function TemplateMenu({ presets, current, editing, onPick, onEdit, onNew, onCloseEdit }) {
   const btnRef = useRef(null);
@@ -240,7 +281,7 @@ function TemplateMenu({ presets, current, editing, onPick, onEdit, onNew, onClos
   );
 }
 
-export function LabelMaker({ stock, bookStockReady = false, labels, grouts, presets, onAddLabel, onAddLabelsBulk, onUpdateLabel, onUpdateLabelsBulk, onDeleteLabel, onDeleteLabels, onSavePreset }) {
+export function LabelMaker({ stock, bookStockReady = false, labels, grouts, presets, onAddLabel, onAddLabelsBulk, onUpdateLabel, onUpdateLabelsBulk, onDeleteLabel, onDeleteLabels, onSavePreset, dropWords, onSaveDropWords, onClose }) {
   const first = presets[0] || normPreset({ id: "sample-tag" });
   const [draft, setDraft] = useState(() => newDraftFromPreset(first));
   const [editingId, setEditingId] = useState(null);
@@ -253,6 +294,8 @@ export function LabelMaker({ stock, bookStockReady = false, labels, grouts, pres
   const [tplEdit, setTplEdit] = useState(null);
   const [confirmDel, setConfirmDel] = useState(false);
   const [review, setReview] = useState(null);
+  const [nameReview, setNameReview] = useState(null);
+  const words = useMemo(() => normDropWords(dropWords), [dropWords]);
   const [doneBar, setDoneBar] = useState(null);
   const current = presets.find((p) => p.id === draft.presetId) || first;
   const saveRef = useRef(null);
@@ -319,16 +362,16 @@ export function LabelMaker({ stock, bookStockReady = false, labels, grouts, pres
       return d.twoVariant ? { ...next, ...widen(next, true) } : next;
     });
   };
-  const fillFrom = (item) => setDraft((d) => ({ ...d, sku: item.sku || null, fields: { ...d.fields, ...stockToLabelFields(item) } }));
+  const fillFrom = (item) => setDraft((d) => ({ ...d, sku: item.sku || null, fields: { ...d.fields, ...stockToLabelFields(item, words) } }));
   const fillFrom2 = (item) => setDraft((d) => {
-    const f = stockToLabelFields(item);
+    const f = stockToLabelFields(item, words);
     return { ...d, fields2: Object.fromEntries(VARIANT_KEYS.map((k) => [k, f[k] || ""])) };
   });
   const fillTwo = (a, b) => {
-    const t = twoSizeDraft(a, b);
+    const t = twoSizeDraft(a, b, words);
     setDraft((d) => ({ ...d, ...widen(d, true), sku: t.sku, fields: { ...d.fields, ...t.fields }, fields2: { ...d.fields2, ...t.fields2 } }));
   };
-  const addMany = (items) => onAddLabelsBulk(items.map((it) => ({ ...draft, sku: it.sku || null, fields: { ...draft.fields, ...stockToLabelFields(it) } })));
+  const addMany = (items) => onAddLabelsBulk(items.map((it) => ({ ...draft, sku: it.sku || null, fields: { ...draft.fields, ...stockToLabelFields(it, words) } })));
 
   const freshDraft = () => newDraftFromPreset(current);
   const save = () => {
@@ -400,7 +443,21 @@ export function LabelMaker({ stock, bookStockReady = false, labels, grouts, pres
   };
   const openReview = () => {
     setDoneBar(null);
+    setNameReview(null);
     setReview({ plan: refreshPlan(selectedLabels, stock, skuKeys), del: new Set() });
+  };
+  const openNameReview = () => {
+    const plan = renamePlan(labels, stock, skuKeys, words);
+    setDoneBar(null);
+    setReview(null);
+    setNameReview({ plan, on: new Set(plan.changed.map((c) => c.id)) });
+  };
+  const applyNameReview = () => {
+    const picks = nameReview.plan.changed.filter((c) => nameReview.on.has(c.id));
+    if (picks.length) onUpdateLabelsBulk(picks.map((c) => ({ id: c.id, patch: c.patch })));
+    if (picks.some((c) => c.id === editingId)) startNewLabel();
+    setDoneBar({ ids: picks.map((c) => c.id), deleted: 0, what: "name" });
+    setNameReview(null);
   };
   const applyReview = () => {
     const { plan, del } = review;
@@ -616,6 +673,45 @@ export function LabelMaker({ stock, bookStockReady = false, labels, grouts, pres
     );
   })();
 
+  const nameReviewPane = nameReview && (() => {
+    const { plan, on } = nameReview;
+    const setOn = (id, v) => setNameReview((r) => { const n = new Set(r.on); if (v) n.add(id); else n.delete(id); return { ...r, on: n }; });
+    const allOn = plan.changed.length > 0 && on.size === plan.changed.length;
+    return (
+      <div style={{ maxWidth: SHEET_W }}>
+        <div className="flex items-center gap-2 mb-1">
+          <div className="text-[15px] font-bold">Update saved label names</div>
+          <button onClick={() => setNameReview(null)} className="ml-auto text-slate-400 hover:text-slate-800" title="Cancel"><X size={16} /></button>
+        </div>
+        <p className="text-sm text-slate-500 mb-3">Names are rebuilt from the stock book with the current word list. A name you typed by hand gets replaced too, so untick those.</p>
+        {plan.changed.length ? (
+          <div className="rounded-lg border bg-white overflow-hidden mb-3" style={{ borderColor: "var(--ft-border)" }}>
+            <label className="px-3 py-2 text-[11px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-2 cursor-pointer" style={{ background: "var(--ft-sand)" }}>
+              <input type="checkbox" checked={allOn} onChange={(e) => setNameReview((r) => ({ ...r, on: new Set(e.target.checked ? plan.changed.map((c) => c.id) : []) }))} className="w-3.5 h-3.5" style={{ accentColor: "var(--ft-brand)" }} />
+              Name changes<span className="bg-white rounded-full px-1.5 text-slate-800">{plan.changed.length}</span>
+            </label>
+            {plan.changed.map((c) => (
+              <label key={c.id} className="grid grid-cols-[14px_minmax(0,1fr)] items-center gap-2.5 px-3 py-2 border-t border-slate-100 text-sm cursor-pointer">
+                <input type="checkbox" checked={on.has(c.id)} onChange={(e) => setOn(c.id, e.target.checked)} className="w-3.5 h-3.5" style={{ accentColor: "var(--ft-brand)" }} />
+                <div className="min-w-0">
+                  <div className="truncate"><s className="text-slate-400 mr-1.5">{c.before || "—"}</s><b style={{ color: "var(--ft-brand-deep)" }}>{c.after}</b></div>
+                  <div className="text-[11px] text-slate-400 truncate">{[c.label.fields.sku || c.label.sku, c.label.fields.size].filter(Boolean).join(" · ")}</div>
+                </div>
+              </label>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-lg border border-slate-200 bg-white px-3 py-3 text-sm text-slate-600 mb-3">Every saved name already matches the list.</div>
+        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={applyNameReview} disabled={!on.size} className="text-sm font-semibold rounded-md bg-slate-800 text-white px-3.5 py-1.5 disabled:opacity-40">Update {plural(on.size, "name")}</button>
+          <button onClick={() => setNameReview(null)} className="text-sm font-semibold rounded-md border border-slate-200 bg-white px-3.5 py-1.5 hover:bg-slate-50">Cancel</button>
+          {plan.skipped > 0 && <span className="text-xs text-slate-500 ml-auto">{plural(plan.skipped, "label")} skipped: no SKU, or no longer in the stock book</span>}
+        </div>
+      </div>
+    );
+  })();
+
   const doneLabels = doneBar ? labels.filter((l) => doneBar.ids.includes(l.id)) : [];
   const setPane = (
     <div>
@@ -638,7 +734,7 @@ export function LabelMaker({ stock, bookStockReady = false, labels, grouts, pres
       {doneBar && (
         <div className="flex items-center gap-2.5 flex-wrap rounded-lg border px-3 py-2 mb-3 text-sm" style={{ background: "var(--ft-tint)", borderColor: "var(--ft-tint-border)" }}>
           <b>✓ Updated {plural(doneBar.ids.length, "label")}{doneBar.deleted ? ` · deleted ${doneBar.deleted}` : ""}.</b>
-          {doneLabels.length > 0 && <span className="text-xs text-slate-500">Their printed tags on the shelf now show the old price.</span>}
+          {doneLabels.length > 0 && <span className="text-xs text-slate-500">Their printed tags on the shelf now show the old {doneBar.what || "price"}.</span>}
           <span className="ml-auto flex gap-2">
             {doneLabels.length > 0 && <button onClick={() => print(doneLabels)} className="text-xs font-semibold px-3 py-1.5 rounded-md bg-slate-800 text-white flex items-center gap-1.5"><Printer size={13} /> Print the {doneLabels.length} updated · {sheetsNote(doneLabels)}</button>}
             <button onClick={() => setDoneBar(null)} className="text-xs font-semibold px-3 py-1.5 rounded-md border border-slate-200 bg-white">Done</button>
@@ -694,6 +790,10 @@ export function LabelMaker({ stock, bookStockReady = false, labels, grouts, pres
       : null);
 
   return (
+    <>
+    <PaneTitleBar title={APP_ITEMS.find((x) => x.id === "labels").label} onClose={onClose}>
+      <DropWordsMenu words={words} onSave={(w) => onSaveDropWords?.(w)} onUpdateSaved={openNameReview} />
+    </PaneTitleBar>
     <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-[340px_300px_minmax(0,1fr)] md:overflow-hidden overflow-y-auto">
       {/* left: find & fill */}
       <div className="border-r border-slate-100 p-3.5 md:overflow-y-auto">
@@ -733,8 +833,9 @@ export function LabelMaker({ stock, bookStockReady = false, labels, grouts, pres
 
       {/* right: the set, or the template editor / update review */}
       <div className="p-4 md:overflow-y-auto min-w-0 bg-slate-50/40">
-        {tplEdit ? editorPane : review ? reviewPane : setPane}
+        {nameReview ? nameReviewPane : tplEdit ? editorPane : review ? reviewPane : setPane}
       </div>
     </div>
+    </>
   );
 }

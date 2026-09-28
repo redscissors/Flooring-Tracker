@@ -36,16 +36,18 @@ let n = 0;
 function Harness() {
   const [labels, setLabels] = useState([]);
   const [presets, setPresets] = useState(() => normLabelPresets([]));
+  const [dropWords, setDropWords] = useState(undefined);
   const add = (l) => setLabels((ls) => [...ls, { ...l, id: `l${++n}` }]);
   return (
-    <div style={{ height: "100vh" }}>
+    <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
       <LabelMaker stock={STOCK} bookStockReady labels={labels} grouts={GROUTS} presets={presets}
         onAddLabel={add} onAddLabelsBulk={(ls) => ls.forEach(add)}
         onUpdateLabel={(id, l) => setLabels((ls) => ls.map((x) => (x.id === id ? { ...l, id } : x)))}
         onUpdateLabelsBulk={(ups) => setLabels((ls) => ls.map((x) => { const u = ups.find((y) => y.id === x.id); return u ? { ...x, ...u.patch, ...u } : x; }))}
         onDeleteLabel={(id) => setLabels((ls) => ls.filter((x) => x.id !== id))}
         onDeleteLabels={(ids) => setLabels((ls) => ls.filter((x) => !ids.includes(x.id)))}
-        onSavePreset={(p) => setPresets((ps) => normLabelPresets([...ps.filter((x) => x.id !== p.id), p]))} />
+        onSavePreset={(p) => setPresets((ps) => normLabelPresets([...ps.filter((x) => x.id !== p.id), p]))}
+        dropWords={dropWords} onSaveDropWords={setDropWords} onClose={() => {}} />
     </div>
   );
 }

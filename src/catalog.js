@@ -5,7 +5,7 @@
 // catalog.test.js). App.jsx imports everything it needs from here. The one
 // module dependency is the equally pure vendorfetch.js (no React either).
 import { normVendorGroups } from "./vendorfetch.js";
-import { normLabelPresets, customLabelPresets } from "./labels.js";
+import { normLabelPresets, customLabelPresets, normDropWords, isDefaultDropWords } from "./labels.js";
 import { normLink, normBookFamily } from "./booklink.js";
 import { normQuickMarkups } from "./costentry.js";
 import { DEFAULT_DESC_LIMIT } from "./descfit.js";
@@ -822,10 +822,14 @@ export const normPricing = (raw) => ({ builderPct: pct100(raw?.builderPct, 8), s
 // The in-memory settings object carries the catalog plus derived grouts/mortars
 // maps the math reads. Only { waste, catalog, pricing, apps, ops } is persisted.
 export const withDerived = (s) => ({ ...s, ...resolveCatalog(s.catalog) });
-// Apps hub configuration. Currently just the Label Generator's size presets:
-// built-ins are code-defined and always seeded; only customs are persisted.
-const normApps = (raw) => ({ labels: { presets: normLabelPresets(raw?.labels?.presets) } });
-const serializeApps = (apps) => ({ labels: { presets: customLabelPresets(apps?.labels?.presets) } });
+// Apps hub configuration: the Label Generator's size presets (built-ins are
+// code-defined and always seeded; only customs are persisted) and its shared
+// name drop list (persisted only once it differs from the seeded default).
+const normApps = (raw) => ({ labels: { presets: normLabelPresets(raw?.labels?.presets), dropWords: normDropWords(raw?.labels?.dropWords) } });
+const serializeApps = (apps) => {
+  const dropWords = apps?.labels?.dropWords;
+  return { labels: { presets: customLabelPresets(apps?.labels?.presets), ...(dropWords && !isDefaultDropWords(dropWords) ? { dropWords: normDropWords(dropWords) } : {}) } };
+};
 
 export const serializeSettings = (s) => {
   const ops = normOps(s.ops);

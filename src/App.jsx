@@ -54,7 +54,7 @@ import { LineMenu } from "./linemenu.jsx";
 import { LineWastePop, wasteTag, wasteTagTitle, takesWaste, POP_W } from "./linewaste.jsx";
 import { useLabels } from "./uselabels.js";
 import { railReducer, initialRail, layerOf, CONFIGURATOR_IDS } from "./railnav.js";
-import { RailSlide, DrawerList, APP_ITEMS, SETTINGS_ITEMS, PaneTitleBar } from "./raildrawer.jsx";
+import { RailSlide, DrawerList, APP_ITEMS, SETTINGS_ITEMS } from "./raildrawer.jsx";
 import { useVersions } from "./useversions.js";
 import { useJobShowers } from "./usejobshowers.js";
 import { SfPartsMenu, SfPartsChips } from "./SfPartsMenu.jsx";
@@ -639,7 +639,7 @@ export default function App({ user, onSignOut }) {
   // shared request list actually changes, not on every render of the browser.
   const sampleTally = useMemo(() => projectSampleTally(sampleRequests), [sampleRequests]);
   const {
-    labels, refreshLabels, addLabel, addLabelsBulk, updateLabel, updateLabelsBulk, delLabel, delLabels, saveLabelPreset,
+    labels, refreshLabels, addLabel, addLabelsBulk, updateLabel, updateLabelsBulk, delLabel, delLabels, saveLabelPreset, saveLabelDropWords,
   } = useLabels({ user, profile, ping, flashSaved, settings, setSettings });
   useEffect(() => {
     if (railNav.pane?.kind === "app" && railNav.pane.id === "labels") refreshLabels();
@@ -2748,11 +2748,8 @@ export default function App({ user, onSignOut }) {
         {/* Customers, Apps and Settings open here, over the still-mounted
             project (spec 2026-09-24). AppsWorkspace stays mounted after its
             first pick so a configurator build survives a trip away. Each page
-            carries its own title bar; the Label Generator's is drawn here. */}
+            carries its own title bar. */}
         <div className={railNav.pane ? "absolute inset-0 z-20 flex flex-col bg-white" : "hidden"} style={zoomStyle}>
-          {railNav.pane?.kind === "app" && railNav.pane.id === "labels" && (
-            <PaneTitleBar title={APP_ITEMS.find((x) => x.id === "labels").label} onClose={() => railDispatch({ type: "closePane" })} />
-          )}
           {railNav.pane?.kind === "customers" && (
             <div className="flex-1 min-h-0">
               <LazyBoundary>
@@ -2812,6 +2809,8 @@ export default function App({ user, onSignOut }) {
                 onDeleteLabel={delLabel}
                 onDeleteLabels={delLabels}
                 onSavePreset={saveLabelPreset}
+                dropWords={settings.apps?.labels?.dropWords}
+                onSaveDropWords={saveLabelDropWords}
                 sheoga={{
                   markupDefault: sheogaMarkups(books, settings).markupPct,
                   ventMarkupDefault: sheogaMarkups(books, settings).ventMarkupPct,
