@@ -148,7 +148,8 @@ it outlives a tab switch but not the popup.
   - It keeps inserting fresh sibling areas right after the host area, tags
     them A–D in the order given (reading order, checked cells only, packed),
     and fills empty option-name slots with each cell's name
-    ("wedi · Membrane (S-DRY)").
+    ("wedi · S-DRY membrane", or "wedi · S-DRY membrane on a wedi pan"
+    when no S-DRY base fits).
   - It returns one patch, or `null` if any option is empty.
   - The only caller (`App.jsx`) moves in the same change.
 - **Cost and boot:** up to four builds (two wedi solves, two Schluter
@@ -265,8 +266,20 @@ Rulings 1–9 were made prototyping the plan; 10–14 were made building it.
     option carries no structured drain-match field (only `miss`/`deep`);
     the deep-cut chip reads `option.deep` first, falling back to the
     warning-string match only when that flag is absent.
+15. **(Final review.) A "nearest S-DRY base" answer applies only while the
+    room has no S-DRY fit.** The answer is stored per host cell, not per
+    room, so after the rep edits the room to one that fits, `cellBuild`
+    ignores it and the wedi Membrane cell is the plain S-DRY fit: no chip,
+    no prompt, no `sdry-nearest` solve on the landed anchor.
+16. **(Final review.) The tile is no longer a `role="button"`.** Its name is
+    a real `<button>` (`data-cmp-pick`) that takes focus and Enter/Space, so
+    the checkbox and chips are no longer nested inside a button. This
+    supersedes ruling 13's tile key handler. The delta line also hides on a
+    tie, where it used to read "$0.00 less".
 
 Also: the send composes each checked cell's own `lineItems` payload
 (`wediLineItems`/`schluterLineItems`, exactly as before) and hands
-`{options: [{lines, name}], label}` to `onQuoteOptions` — the N=2 case is
-what shipped before this phase, byte-identical (ruling 1).
+`{options: [{lines, name}], label}` to `onQuoteOptions`. The old N=2 payload
+shape stays byte-identical (ruling 1), but the tab now names options by cell,
+so a two-cell send lands the same lines under names like "Shower — wedi ·
+S-DRY membrane" rather than "Shower — wedi".

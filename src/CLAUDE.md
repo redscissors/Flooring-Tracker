@@ -145,14 +145,16 @@ src/
                     # its id is gone), each `lines.map(p => ({...newProduct(),
                     # ...p}))` plus a trailing blank adder row; `optionNames`
                     # fills empty slots only from each option's own `name`
-                    # ("wedi · Membrane (S-DRY)"), never over a custom name;
+                    # ("wedi · S-DRY membrane"), never over a custom name;
                     # null when `options` is empty, longer than the slot list,
                     # or ANY option's lines array is empty. The old
                     # `{wediLines, schluterLines}` shape still works, read as
                     # the N=2 case `[{lines: wediLines, name: "wedi"},
-                    # {lines: schluterLines, name: "Schluter"}]` — every
-                    # existing caller and test stays byte-identical (Phase 3
-                    # plan ruling 1). Returns the patch object for the
+                    # {lines: schluterLines, name: "Schluter"}]` — that
+                    # shape's payload is byte-identical (Phase 3 plan ruling
+                    # 1), but CompareTab now sends cell names, so a two-cell
+                    # send lands "Shower — wedi · S-DRY membrane" where it
+                    # used to land "Shower — wedi". Returns the patch object for the
                     # caller's single `updateProject` call — usedirectory's
                     # setter is built off a stale closure, so two calls in one
                     # tick would clobber each other (options.test.js)
@@ -1074,8 +1076,9 @@ src/
                     # (wallsysgolden.test.js)
   comparegridgolden.js  # the golden bill of the four-way Compare grid's four
                     # cells (ticket 158 Phase 3, `comparegrid.js`) over a
-                    # spread of fixture rooms — a curbed center-drain room, a
-                    # curbless linear room, a room no S-DRY base fits — each
+                    # spread of fixture rooms — 60×38 curbed point, 60×38
+                    # curbed linear (no S-DRY fit), 48×48 curbless point,
+                    # 30×30 (deep cut) and 100×60, each from both hosts — each
                     # cell's retail/builder totals and flag ids, so a
                     # `comparegrid.js`/`comparekit.js` change that moves a
                     # cell's bill or its chips fails loudly. Never hand-edited
@@ -2348,7 +2351,7 @@ src/
                     # `cfg.solve` is null) or an option that no longer comes
                     # back. One extra wedi solve per wedi cell, only while
                     # the Compare tab is open. `compareLayout(cols, plus)`
-                    # now takes ANY column keys (not just `L`/`R`) — each slot
+                    # now takes ANY column keys (was fixed `wedi`/`schluter`) — each slot
                     # row carries `r[k]`/`r[k+"Plus"]` per key given — so the
                     # same function still serves the two-column detail
                     # (CompareTab.jsx passes `{L, R}`) with no shape change.
@@ -2517,11 +2520,16 @@ src/
                     # build ruling 9). Sending composes each checked cell's
                     # own `lineItems` payload and hands `{options: [{lines,
                     # name}], label}` to `onQuoteOptions` (options.js
-                    # `compareOptionsPatch`'s new N-option signature) — the
-                    # N=2 case is what shipped before. A tile's keyboard
-                    # handler (Enter/Space) ignores keys from its own
-                    # checkbox and chips, since Space toggles a focused
-                    # checkbox and Enter fires a chip (build ruling 13). The
+                    # `compareOptionsPatch`'s new N-option signature) — a
+                    # two-cell send lands the same lines as before, under
+                    # cell names ("wedi · S-DRY membrane") rather than
+                    # "wedi"/"Schluter". A tile is a plain clickable div; its
+                    # keyboard target is the name `<button>` (`data-cmp-pick`,
+                    # `aria-pressed`), so the checkbox and chips are never
+                    # nested inside a role="button" (supersedes build ruling
+                    # 13's tile key handler). The delta line hides on a tie
+                    # (|diff| < half a cent). A stale "nearest S-DRY base"
+                    # answer is ignored once the room fits (`cellBuild`). The
                     # `CSS` stylesheet string SHADOWS the global `CSS` object
                     # (build ruling 6): the chip-jump code matches
                     # `data-row-key` by attribute value, never `CSS.escape`.

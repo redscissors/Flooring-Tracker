@@ -130,6 +130,12 @@ explanatory cell, and the delta line hides itself.
   auto-close, no navigation to the new areas. Deliberately left alone rather
   than guessed at — whether the popup should close, ping, or stay put is a
   workflow call.
+- **A send always letters from A.** `compareOptionsPatch` starts at A every
+  time and an existing custom option name wins, so a second Compare send on
+  a project that already has options A–B (or A/B named something else)
+  merges the new areas into those buckets. Pre-dates Phase 3, but the grid
+  widens it from two buckets to four. Whether a second send should continue
+  from the next free letter is an owner call.
 
 ## Consequences
 
@@ -173,8 +179,10 @@ brand pairing.
   `(project, hostAreaId, { options: [{ lines, name }], label })`; the old
   `{ wediLines, schluterLines }` shape still works and reads as the N=2 case
   `[{lines: wediLines, name: "wedi"}, {lines: schluterLines, name:
-  "Schluter"}]` — every existing caller and test stays byte-identical
-  (ruling 1 of the Phase 3 plan).
+  "Schluter"}]` — that shape's payload is byte-identical (ruling 1 of the
+  Phase 3 plan). The tab itself now names options by cell ("wedi · S-DRY
+  membrane", "Schluter · KERDI membrane"), so a two-cell send lands the
+  same lines as before under new option and area names.
 - **`comparegrid.js`** is the grid's pure per-cell builder and flag module
   (`cellBuild`, `cellFlags`). It imports `comparekit.js` only, never an
   engine directly — decision 1's rule (`comparekit.js` is the one place

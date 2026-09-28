@@ -16,12 +16,11 @@ owner answers and the carry-forward list. The earlier handoffs
 | **1b** ⇄ on every line | merged | [redscissors/Flooring-Tracker#438](https://github.com/redscissors/Flooring-Tracker/pull/438) |
 | **1c** "+" on every group, add another line | merged | [redscissors/Flooring-Tracker#441](https://github.com/redscissors/Flooring-Tracker/pull/441) |
 | **1d** shared group names, Compare alignment, the mirror | merged | [redscissors/Flooring-Tracker#444](https://github.com/redscissors/Flooring-Tracker/pull/444) |
-| **Phase 2** Board vs Membrane, wedi S-DRY | built, PR pending | branch `claude/shower-config-phase-1d-eafhd0` |
+| **Phase 2** Board vs Membrane, wedi S-DRY | merged | [redscissors/Flooring-Tracker#446](https://github.com/redscissors/Flooring-Tracker/pull/446) (`c5e9342`) |
 | **Phase 3** 4-way compare | built, PR pending | branch `claude/shower-config-phase3-4way` (this branch) |
 
-**Check both pending PRs have merged before starting anything new on top of
-this branch** — Phase 3 was built on top of Phase 2's own PR branch, not
-`main`.
+**Check Phase 3's PR has merged before starting anything new on top of
+this branch.** Phase 3 was built on Phase 2's merge commit `c5e9342`, which is on `main`.
 
 Records to read before touching any of this:
 - **ADR 0034** (`docs/adr/0034-cross-vendor-compare.md`), Phase 3 amendment:
@@ -72,8 +71,11 @@ Records to read before touching any of this:
 - **Sending checked cells lands N fresh sibling option areas A–D in one
   patch.** `compareOptionsPatch(project, hostAreaId, {options: [{lines,
   name}], label})` is the new signature; the old `{wediLines,
-  schluterLines}` shape still works, read as the N=2 case, so every
-  existing caller and test stays byte-identical.
+  schluterLines}` shape still works, read as the N=2 case, so its payload
+  is byte-identical. The tab no longer sends that shape, though: it names
+  each option by its cell, so a default two-cell send lands areas "Shower —
+  wedi · S-DRY membrane" / "Shower — Schluter · KERDI membrane" (was "— wedi"
+  / "— Schluter"). The lines are what shipped before.
 - **New goldens:** `src/comparegridgolden.js`/`comparegridgolden.test.js`
   pin all four cells' totals and flag ids over a spread of fixture rooms.
   `wallsysgolden.test.js`, `wedimarkergolden.test.js` and

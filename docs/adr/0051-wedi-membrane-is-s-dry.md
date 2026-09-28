@@ -128,6 +128,9 @@ anyway" answer decision 5 lists), never the third answer (back to Building
 Panel) — that only makes sense inside the popup that owns the choice. The
 chip also shows a cell already moved to the nearest base
 (`cfg.solve.id === "sdry-nearest"`) — there is still no true fit either way.
+The answer is kept for the Compare session, not tied to the room, so the grid
+honours it only while the room has no fit: after an edit to a room S-DRY
+fits, the cell is the plain fit whatever the stored answer (`cellBuild`).
 
 `wediBuildFor` grew `sdryBase: "nearest"` for this (`comparekit.js`),
 routed through `sdry.js`'s `sdryNearest` exactly as the popup's own prompt

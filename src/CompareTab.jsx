@@ -110,7 +110,9 @@ const CSS = `
 .cmp-tab .tile.sel{box-shadow:inset 0 0 0 2px var(--ft-brand)}
 .cmp-tab .tile .tt{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:800}
 .cmp-tab .tile .tt input{margin:0;accent-color:var(--ft-brand);cursor:pointer}
-.cmp-tab .tile .tt .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cmp-tab .tile .tt .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:none;border:0;padding:0;font:inherit;color:inherit;cursor:inherit;text-align:left}
+.cmp-tab .tile .tt .nm:focus{outline:none}
+.cmp-tab .tile:has(.nm:focus-visible){outline:2px solid var(--ft-brand);outline-offset:2px}
 .cmp-tab .tile .tv{font-size:18px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:3px}
 .cmp-tab .tile .dv{font-size:11px;font-weight:700;color:var(--ft-muted);font-variant-numeric:tabular-nums}
 .cmp-tab .tile .tmiss{font-size:11px;color:var(--ft-faint);font-weight:600;line-height:1.45;margin-top:4px}
@@ -387,16 +389,16 @@ export default function CompareTab({
   const tile = (c) => {
     const miss = missOf(c);
     return (
-      <div key={c.key} role="button" tabIndex={c.live ? -1 : 0} data-cmp-tile={c.key}
+      <div key={c.key} data-cmp-tile={c.key}
         className={"tile" + (c.live ? " live" : "") + (c.key === sel.key ? " sel" : "")}
-        onClick={() => pickCell(c.key)}
-        onKeyDown={(ev) => { if (ev.target !== ev.currentTarget) return; if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); pickCell(c.key); } }}>
+        onClick={() => pickCell(c.key)}>
         <div className="tt">
           {onQuoteOptions && (
             <input type="checkbox" data-cmp-check={c.key} checked={checked.includes(c.key) && !miss} disabled={!!miss}
               title="land as a quote option" onClick={(ev) => ev.stopPropagation()} onChange={() => toggle(c.key)} />
           )}
-          <span className="nm">{c.label}</span>
+          {/* the name is the tile's keyboard target; its click bubbles to the tile */}
+          <button type="button" className="nm" tabIndex={c.live ? -1 : 0} aria-pressed={c.key === sel.key} data-cmp-pick={c.key}>{c.label}</button>
         </div>
         {miss ? <div className="tmiss">{miss}</div> : (<>
           <div className="tv" data-cmp-total>{fm(amt(c))}</div>
@@ -508,7 +510,7 @@ export default function CompareTab({
         {totCell(right)}
       </div>
 
-      {bothPriced && (
+      {bothPriced && Math.abs(diff) >= 0.005 && (
         <div className="delta">
           <b>{cheaper.name} is {fm(Math.abs(diff))} less on material</b>{" "}
           for this room at this tier.

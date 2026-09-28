@@ -7,7 +7,7 @@
 // in exactly one module (ADR 0034 decision 1). LAZY-CHUNK-ONLY, like it.
 import {
   wediBuildFor, schluterBuildFor, wediCompareRows, schluterCompareRows, compareTotals,
-  mirrorPlan, mirrorRow, hostAddedLines, wediOptionOf,
+  mirrorPlan, mirrorRow, hostAddedLines, wediOptionOf, wediSdryNoFit,
 } from "./comparekit.js";
 
 // Reading order — quote options letter the checked cells in this order.
@@ -98,7 +98,8 @@ export function cellFlags(brand, build, rows, plan, option) {
  *     ready: { wedi, schluter }, cat, source, tier, mortarItem, wPct, sPct }
  * per-cell: { mirror } — this cell's mirror state (other-brand cells only) —
  * and { sdryPick } — "nearest" puts a no-fit wedi Membrane cell on the
- * nearest S-DRY base instead of a wedi pan.
+ * nearest S-DRY base instead of a wedi pan. It is ignored when the room fits
+ * S-DRY: the answer is stored per host cell, not per room, so it can go stale.
  * Returns { key, brand, sys, live, build, cfg, rows, plan, totals, flags, label, name };
  * rows is empty when the cell can't be built.
  */
@@ -116,9 +117,10 @@ export function cellBuild(key, ctx, { mirror, sdryPick } = {}) {
     plan = brand === ctx.hostBrand ? null : mirrorPlan(ctx.hostBuild, ctx.hostBrand, mirror, { cat: ctx.cat, source: ctx.source });
     const manual = plan ? plan.manual : sameBrandManual(ctx.hostBuild, brand);
     if (brand === "wedi") {
+      const nearest = sys === "membrane" && sdryPick === "nearest" && !!wediSdryNoFit(ctx.room, { source: ctx.source });
       build = wediBuildFor(ctx.room, {
         source: ctx.source, tier: ctx.tier, manual, wallSys: sys,
-        ...(sys === "membrane" && sdryPick === "nearest" ? { sdryBase: "nearest" } : {}),
+        ...(nearest ? { sdryBase: "nearest" } : {}),
       });
     } else {
       ({ build, cfg } = schluterBuildFor(ctx.room, ctx.cat, { source: ctx.source, mortarItem: ctx.mortarItem, manual, wallSys: sys }));

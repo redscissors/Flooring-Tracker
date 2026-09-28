@@ -1,8 +1,9 @@
 // Proof: the four-way Compare grid (ticket 158 Phase 3) — wedi and Schluter on
 // Board and Membrane, the host's live cell outlined, three house kits beside
 // it; a cell click drives the detail; a chip jumps to its line; the S-DRY
-// no-fit answer moves only the wedi Membrane cell; a mirror drop is per cell;
-// checked cells land as options A–D in reading order.
+// no-fit answer moves only the wedi Membrane cell; a mirror drop and a ⇄ pick
+// are per cell; checked cells land as options A–D in reading order, with the
+// money the modal showed.
 //   npx vite --port 5199 ; node .scratch/158_shower-config-roadmap/p3/shoot-grid.mjs
 import { createRequire } from "node:module";
 const { chromium } = createRequire("/opt/node22/lib/node_modules/playwright/")("playwright-core");
@@ -55,6 +56,11 @@ await cb.focus(); await pg.keyboard.press("Space"); await pg.waitForTimeout(200)
 if (!(await cb.isChecked())) fail("Space on a tile's checkbox did not toggle it");
 await pg.keyboard.press("Space"); await pg.waitForTimeout(200);
 if (await cb.isChecked()) fail("a second Space did not untoggle the checkbox");
+// The tile's name is its keyboard target — a real button, not a role="button" wrapper.
+if (await pg.locator('[data-cmp-tile][role="button"]').count()) fail("a tile still nests controls inside role=button");
+await pg.locator('[data-cmp-pick="wedi:board"]').focus(); await pg.keyboard.press("Enter"); await pg.waitForTimeout(400);
+if (!(await tile("wedi:board").getAttribute("class")).includes("sel")) fail("Enter on a tile's name did not select it");
+await pg.locator('[data-cmp-pick="schluter:board"]').focus(); await pg.keyboard.press("Enter"); await pg.waitForTimeout(400);
 
 // --- 3. three checked → options A–C in reading order ---
 await pg.locator('[data-cmp-check="wedi:board"]').check(); await pg.waitForTimeout(300);
@@ -68,6 +74,14 @@ await pg.locator("[data-compare-confirm]").click(); await pg.waitForTimeout(500)
 const p = sent.at(-1);
 if (!p || p.options.map((o) => o.name).join(" | ") !== "wedi · Building Panel | wedi · S-DRY membrane | Schluter · KERDI membrane"
   || !p.options.every((o) => o.lines.length > 0)) fail("onQuoteOptions did not carry the three options in order");
+// The money that lands is the money the modal showed, and every option keeps its reconfigure anchor.
+const cents = (t) => Math.round(Number(t.replace(/[$,]/g, "")) * 100);
+if (p) p.options.forEach((o, i) => {
+  const shown = cents(rows[i].match(/\$[\d,]+\.\d\d(?!.*\$)/)[0]);
+  const landed = Math.round(o.lines.reduce((s, l) => s + Number(l.priceSqft) * Number(l.qty), 0) * 100);
+  if (shown !== landed) fail(`${o.name}: the modal showed ${shown / 100}, the lines land ${landed / 100}`);
+  if (!o.lines.some((l) => (l.wedi || l.schluter) && (l.wedi || l.schluter).cfg)) fail(o.name + " has no anchor line with its configurator marker");
+});
 
 // --- 4. a linear room: the S-DRY no-fit chip, its jump, and the answer ---
 await toTab("Kits");
@@ -143,7 +157,6 @@ else {
   if (await tile("schluter:board").locator('[data-cmp-flag="unmatched"]').count()) fail("the drop leaked into the Board cell");
   if (await txt(tile("schluter:board")) !== sb) fail("the drop moved the Board cell's total");
   if (!(await tile("wedi:membrane").locator('[data-cmp-flag]').count() === 0)) fail("the same-brand cell grew a chip");
-  if (!/added/.test(await txt(pg.locator("body")))) fail("no added tag anywhere");
 }
 await pg.locator(".cmp-tab").evaluate((e) => { e.scrollTop = 0; });
 await shot("g6-wedi-host-per-cell-mirror");
@@ -152,6 +165,27 @@ const addedSame = await pg.locator('[data-cmp-cell="wedi:membrane"] [data-added-
 if (addedSame < 1) fail("the same-brand Membrane cell does not carry the host's added niche");
 await pg.locator('[data-cmp-cell="wedi:membrane"] [data-added-tag]').first().scrollIntoViewIfNeeded();
 await shot("g7-same-brand-added-line");
+
+// A ⇄ pick lands in its own cell only: the Membrane cell keeps its mirror as it was.
+await tile("schluter:board").click(); await pg.waitForTimeout(500);
+const swap = pg.locator('[data-cmp-cell="schluter:board"] [data-mirror-swap]');
+if (!(await swap.count())) fail("the Schluter Board cell has no mirrored line to swap");
+else {
+  const line = pg.locator('[data-cmp-cell="schluter:board"] [data-mirror-line]').first();
+  const lineBefore = await txt(line);
+  const memBefore = await txt(tile("schluter:membrane"));
+  await swap.first().click(); await pg.waitForTimeout(400);
+  const other = pg.locator(".cmp-pick [data-mirror-row]:not(.on)");
+  if (!(await other.count())) fail("the ⇄ list offers no other part");
+  else {
+    await other.first().click(); await pg.waitForTimeout(200);
+    await pg.locator(".cmp-pick [data-drain-use]").click(); await pg.waitForTimeout(700);
+    const lineAfter = await txt(line);
+    console.log("Schluter Board mirrored line:", lineBefore, "→", lineAfter);
+    if (lineAfter === lineBefore) fail("the ⇄ pick did not change its cell's line");
+    if (await txt(tile("schluter:membrane")) !== memBefore) fail("the ⇄ pick leaked into the Membrane cell");
+  }
+}
 
 await b.close();
 if (err) { console.error("checks FAILED"); process.exit(1); }

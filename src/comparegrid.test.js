@@ -114,6 +114,17 @@ test("S-DRY no-fit: the wedi Membrane cell prices a wedi pan + S-DRY walls, flag
   assert.equal(cellBuild("wedi:board", ctx, { sdryPick: "nearest" }).build.pan.key, cellBuild("wedi:board", ctx).build.pan.key);
 });
 
+test("a stale 'nearest' answer is ignored once the room fits S-DRY", () => {
+  const { build, cfg } = schHost(R60);
+  const ctx = ctxFor("schluter", build, cfg, R60);
+  const fit = cellBuild("wedi:membrane", ctx);
+  const stale = cellBuild("wedi:membrane", ctx, { sdryPick: "nearest" });
+  assert.deepEqual(stale.build, fit.build);
+  assert.deepEqual(stale.totals, fit.totals);
+  assert.equal(stale.flags.some((f) => f.id === "sdry"), false);
+  assert.notEqual(stale.build.cfg.solve && stale.build.cfg.solve.id, "sdry-nearest");
+});
+
 test("a room no Schluter tray fits flags the mortar bed at its Base row", () => {
   const { build, cfg } = schHost(LINEAR);
   const c = cellBuild("schluter:board", ctxFor("schluter", build, cfg, LINEAR));
