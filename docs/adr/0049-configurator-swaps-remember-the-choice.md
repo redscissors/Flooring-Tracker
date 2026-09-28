@@ -202,3 +202,13 @@ wallMembrane, seam, corners, setting — which moves one existing line's
 DISPLAY only: the curbless Fundo kit's "S-DRY Seal — field seal" now draws
 under Setting (it was Seams). Its bill is unchanged. The S-DRY cover and curb
 ⇄ store the usual `coverPick: { key }` / `curbPick: { sub: "lean" } | { none: true }`.
+
+## Note — Compare set Sync (2026-09-28, ADR 0052)
+
+Compare's **Sync** relies on this ADR. It moves a kept build to a new room
+and keeps its choice fields (Schluter `drainPick`/`swaps`/`mortarItem`;
+wedi `coverPick`/`curbPick`/`panelKey`/`fastenerKey`/`coverFrame`/
+`sealantForm`/`recess`), so the engines re-resolve them for the new room.
+Where a choice no longer resolves and the engine falls back to the house
+pick, `comparekit.js` `keptDropped` names the slot, and the column says so.
+

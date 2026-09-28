@@ -27,6 +27,18 @@ src/
                     # ONE `updateProject` with compareOptionsPatch's single
                     # patch, wired as `onQuoteOptions` on both job-context
                     # vendor mounts (never on the Apps-hub copies).
+                    # The Compare set (ADR 0052): both job-context shower
+                    # mounts get `compareSet` (the area's), `onCompareSet` →
+                    # `writeCompareSet(pid, aid, next)` (merges onto
+                    # dataRef's LATEST record — a popup saves as it unmounts,
+                    # often in the tick its own Add wrote categories),
+                    # `onOpenCell` → `openCompareCell` (closes one brand's
+                    # popup, opens the other's; same brand re-seeds), and
+                    # `onResume`, both through `kitPop`: reattach to a kept
+                    # build's `target` row while it lives, else stay on the
+                    # popup's row, `detached` when that row already holds a
+                    # configurator kit so Add appends rather than writing one
+                    # brand over another.
                     # `cleanCards` (isWide && either Clean layout, 2026-09-27)
                     # swaps the area frame for Clean's cards (the regular
                     # slate-200 card border): one slim tan bar
@@ -1040,6 +1052,10 @@ src/
                     # own guard (build amendment 20 — stops an S-DRY cover
                     # carried across a flip to Building Panel from billing
                     # over a wedi drain).
+                    # `panelFitLines(lines, walls, panelSf)` (ticket 158
+                    # Phase 4): the popup's panel Fit plan, moved here
+                    # verbatim so Compare prices a kept wedi build as the
+                    # popup showed it.
   wedimarkergolden.js  # the golden bill of every old wedi marker shape,
                     # captured from wedi.js BEFORE 1b changed how curbPick/
                     # panelKey are written (ticket 158 Phase 1b) — every
@@ -1502,6 +1518,18 @@ src/
                     # `confirmBoard`/`confirmBoardModal`) — Cancel keeps Membrane. It passes
                     # `BOARD_FLIP_COPY`, which says what the switch clears (the S-DRY base,
                     # drain, curb and membrane) and what each choice keeps.
+                    # Phase 4 (ADR 0052): props `compareSet`/`onCompareSet`/
+                    # `onOpenCell`/`onResume`/`savedBy`/`startDetached`. The
+                    # body keeps the build on screen in the shower's Compare
+                    # set AS IT UNMOUNTS (a `keep` ref + one cleanup effect —
+                    # every close path passes through it), skipping a write
+                    # that changes nothing; a Browse-only build has no marker
+                    # to keep. A `seed.tab: "compare"` marker seed lands on
+                    # Compare (the hand-off); `startDetached` starts the
+                    # `detached` fork (App: the row already holds a kit). A
+                    # fresh start (not `isMarkerSeed`) on a shower that keeps
+                    # a wedi build raises `ResumePrompt`. The panel Fit plan
+                    # moved into wedi.js (`panelFitLines`).
   panelplan.js      # `planPanels(walls, sheets)` — the wall-board course
                     # planner both shower engines share (wedi `panelPlan`,
                     # Schluter `boardPlan`; owner 2026-09-22): full courses
@@ -2239,6 +2267,10 @@ src/
                     # Phase 2: the wall-system segment reads
                     # "Membrane | KERDI-BOARD" (was "KERDI over backer") and the bill subtitle
                     # "Membrane walls (KERDI)"; the saved `cfg.wallSys` values are unchanged.
+                    # Phase 4 (ADR 0052): the wedi popup's Compare-set props,
+                    # keep-on-unmount (markCfg with a room; mode as the marker
+                    # writes it), `seed.tab: "compare"`, `startDetached` and
+                    # the resume prompt — the same contract.
   schluterpreview.jsx  # dev-only harness (schluter-preview.html): the REAL
                     # SchluterConfigurator over the fixture pushed BACKWARDS
                     # through normOrderItem into live registry shape (shop
@@ -2355,6 +2387,19 @@ src/
                     # row carries `r[k]`/`r[k+"Plus"]` per key given — so the
                     # same function still serves the two-column detail
                     # (CompareTab.jsx passes `{L, R}`) with no shape change.
+                    # Phase 4 (ADR 0052): the neutral room gains `benches` (it
+                    # now lives in compareset.js, re-exported here) and both
+                    # builders bill them (`benchesFor` — a premade SKU crosses
+                    # only within its brand). `wediKeptBuild`/
+                    # `schluterKeptBuild` price a kept marker exactly as its
+                    # popup showed it (buildFromMarker + the default Fit plan).
+                    # `syncKept(brand, entry, ctx)` is Sync: the anchor's room
+                    # + benches + added lines (`anchorManualFor` — same brand
+                    # as-is, other brand the auto nearest match) over the kept
+                    # cfg's choices and own lines (`mergeManual`), brand-only
+                    # geometry reset, the tray/pan re-ranked; `keptDropped`
+                    # names a kept choice that fell back to the house pick.
+                    # `wediBuildFor` takes `benches` and `choices`.
   comparemirror.js  # how Compare sizes and ranks the other brand's parts for
                     # a hand-added line (ticket 158 Phase 1d, ADR 0049) —
                     # pure and ENGINE-FREE: comparekit hands it parts
@@ -2416,6 +2461,47 @@ src/
                     # Never hand-edited outside a `CELLS`/flag-table change;
                     # `comparegridgolden.test.js` pins its output (the golden
                     # itself sits with the other goldens, `comparegridgolden.js`)
+                    # Phase 4 (ADR 0052): `CELLS` is the FIXED column order
+                    # (wedi Board, wedi Membrane, Schluter Board, Schluter
+                    # Membrane — option letters follow). `cellBuild(key, ctx,
+                    # {mirror, sdryPick, kept})` prices a kept entry as the
+                    # column (`status: "yours"`, no mirror, `kept` returned),
+                    # leading its flags with `room` ("Built for 60×36 — room
+                    # changed" / "Built for a different room") and
+                    # `dropped:<slot>`; a kept build that can't be rebuilt
+                    # falls back to the house kit with a `lost` chip; a kept
+                    # entry on the live cell is ignored. The golden test reads
+                    # the Phase 3 golden in its own pinned order (GOLDEN_ORDER).
+  compareset.js     # the Compare set (ticket 158 Phase 4, ADR 0052) — PURE
+                    # and ENGINE-FREE, because model.js imports it (boot
+                    # path): `CELL_KEYS` (the fixed column order),
+                    # `normCompareSets` (normC's normalizer — junk, unknown
+                    # cells and orphaned areas dropped), `entryOf` (a kept
+                    # build: marker + room + savedAt/savedBy + target +
+                    # dropped), `neutralRoomWedi`/`neutralRoomSchluter` (the
+                    # neutral room, benches included — comparekit re-exports
+                    # them as roomFromWedi/roomFromSchluter so a popup's kept
+                    # room and Compare's room are the same shape; the wedi one
+                    # takes the engine's item lookup as an argument),
+                    # `roomChanged`/`sizeChanged`/`roomLabel` (a bench's
+                    # brand `part` is not geometry), `saveEntry`/`clearSet`,
+                    # `resumeChoices`, `isMarkerSeed` (a Reconfigure/hand-off
+                    # never prompts), `mergeManual` (Sync's own-lines-first
+                    # merge) and `savedAgo`. Brand display names stay OUT of
+                    # it (they live in resumeprompt.jsx) so the boot-chunk
+                    # grep for KERDI stays 0 (compareset.test.js)
+  resumeprompt.jsx  # `ResumePrompt` — "Pick up where you left off?" (ADR
+                    # 0052): one row per kept build of the brand (system,
+                    # room, price now, saved ago by who) + Start new; its own
+                    # Esc rung. Presentation only; lazy (popups only)
+  comparesetpreview.jsx  # dev-only harness (compare-set-preview.html): BOTH
+                    # real configurators mounted the way App mounts them — one
+                    # open at a time, a per-shower set, the cross-brand
+                    # hand-off, the resume re-seed — over local state.
+                    # `?host=wedi|schluter`, `?kept=1` (a KERDI-BOARD build
+                    # kept for 60×36 with a hand-picked grate). Drives
+                    # .scratch/158_shower-config-roadmap/p4/shoot-set.mjs;
+                    # not part of the app build
   CompareTab.jsx    # the Compare surface (phase 5, ADR 0034, prototype P3):
                     # the fourth tab in EITHER vendor popup — the category rail
                     # beside a wedi column and a Schluter column, a Retail/
@@ -2539,6 +2625,32 @@ src/
                     # just the brand ("Add to wedi · Building Panel · Drain",
                     # "B Schluter · KERDI membrane — 7 lines" — build ruling
                     # 7, two cells of one brand can each hold a mirror).
+                    # Phase 4 (ADR 0052) SUPERSEDES the grid + detail: four
+                    # FIXED columns (`CELLS` order — wedi Board, wedi
+                    # Membrane, Schluter Board, Schluter Membrane) from either
+                    # popup, one CSS grid whose slot rows align across all
+                    # four (compareLayout with keys c0–c3). Each column header
+                    # (`data-cmp-col`) holds brand + system, a status tag
+                    # (`data-cmp-status`: House kit / Your build), total,
+                    # delta, up to two chips (`data-cmp-flag`, the room chip
+                    # first), Open (`data-cmp-open`), Sync (`data-cmp-sync`,
+                    # Your build only) and the Option checkbox. The host's
+                    # column wears the ring — `.cur` inset shadows on every
+                    # cell of that column, `top`/`bot` closing it, and a
+                    # CURRENT tab (`data-cmp-current`); no absolute overlay.
+                    # Every line / Subtotals (`data-cmp-view-*`, `grid.view`
+                    # + `grid.open` in the session object; a chip jump opens
+                    # its folded group). Props `compareSet` (the area's set;
+                    # null in the Apps hub → no Open/Sync/Clear set),
+                    # `onCompareSet`, `onOpenCell(key, seed, target)`,
+                    # `savedBy`. Open builds a `{ mode, cfg, tab: "compare" }`
+                    # seed — a kept build as kept, a house kit as shown (its
+                    # mirror rides cfg.manual). Sync runs comparekit
+                    # `syncKept` and writes one entry; Clear set
+                    # (`data-cmp-clear`, window.confirm) keeps only the
+                    # host's own. `grid.selected` is gone; the S-DRY no-fit
+                    # ask shows above the columns while wedi Membrane is a
+                    # house kit without a fit.
   descfit.js        # fitting an order description into a fixed-width ERP field.
                     # A special line has no SKU, so a dropped CATEGORY reads as a
                     # different product — this never truncates to fit, it climbs

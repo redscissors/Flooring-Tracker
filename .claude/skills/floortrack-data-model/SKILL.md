@@ -91,6 +91,23 @@ Customer { id, name, address, phone, email, notes, createdAt,
            printPricing: "full|unit|none", freight: bool,
            optionNames: {A?..L?},   // optionNames = quote-option labels (ADR 0031; slots A–L since 2026-08-26)
            sheogaBasket: [], wediBasket: [], schluterBasket: [],
+           compareSets: { [areaId]: { [cellKey]: { snap: { mode, cfg },
+             room: { w, d, curbed, drain, walls, benches }, savedAt, savedBy,
+             target?: { areaId, rowId, kitId }, dropped?: [slot] } } },
+           // compareSets (ADR 0052, ticket 158 Phase 4) = the Compare set:
+           // per shower (area), at most one KEPT build per Compare column
+           // (cellKey "wedi:board" | "wedi:membrane" | "schluter:board" |
+           // "schluter:membrane"). A kept build is a MARKER (choices, never
+           // prices — re-priced from the books on every render) + the neutral
+           // room it was built for (the room-changed chip) + who/when (the
+           // resume prompt) + the placed kit it came from (`target`, the
+           // basket's shape — a hand-off reattaches while that row lives).
+           // `dropped` names kept picks a Sync couldn't resolve. Written only
+           // through App.jsx `writeCompareSet` → updateProject (the popups
+           // save as they unmount; CompareTab's Sync / Clear set). Normalized
+           // by compareset.js `normCompareSets` (junk, unknown cells and
+           // areas no longer on the project dropped; absent = {}). No SQL.
+           // Not versioned (versions snapshot categories only).
            erpOrders: [{ no, addedBy, addedAt }],          // ERP 1 orders the job was keyed
            erpKeyed: { [lineId]: { no, at, by } } }        // under + one stamp per order-entry
            // line (ADR 0044, spec 2026-09-19). Normalized by src/erporders.js

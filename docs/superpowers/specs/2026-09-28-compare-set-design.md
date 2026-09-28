@@ -369,3 +369,46 @@ prompts.
 - Feedback after sending options (ADR 0034 "Open", still open).
 - Syncing *from* a non-anchor column to others ("push", option c).
 - Sheoga.
+
+## Amendments during planning and build
+
+1. **Kept builds store the marker only.** There is no `session`.
+   - Stepped quantities don't carry into a kept build. That's the rule a
+     placed kit's marker already follows.
+   - Hand-added lines already ride `cfg.manual` on both brands.
+2. **Browse-only builds are not kept.** They have no marker to reopen.
+3. **wedi's panel Fit plan moved into `wedi.js`** (`panelFitLines`,
+   verbatim). A kept wedi column prices exactly what the popup showed, and
+   no engine total moved.
+4. **Sync takes the neutral room** (`w`, `d`, `curbed`, `drain`, `walls`,
+   `benches`). It resets the brand-only geometry the room can't place
+   (Schluter `xwalls`/`corners`/drain offset/`ramp`/`maxIn`/`tileT`/`pick`;
+   wedi `corners`/`maxIn`/`tileT`/solve), and re-ranks the tray or pan.
+   - On a wedi Membrane build, Sync takes the default S-DRY-first route: an
+     S-DRY base if one fits, else a wedi pan.
+5. **The save happens as the popup body unmounts.** Every close path passes
+   through it. A save that changes nothing (same marker, room and target)
+   isn't written, so opening and closing a popup doesn't cost a database
+   write.
+6. **The neutral room moved into `compareset.js`** (`neutralRoomWedi`/
+   `neutralRoomSchluter`). The popups stamp a kept build with the same room
+   shape Compare compares against, without importing comparekit.
+   comparekit re-exports them under the old names.
+7. **Brand display names live in `resumeprompt.jsx`, not `compareset.js`.**
+   `compareset.js` is on the boot path through `model.js`, and "KERDI" in it
+   broke the boot-chunk grep.
+8. **The S-DRY no-fit answer shows above the columns** while wedi Membrane
+   is a house kit with no fit. It isn't inside that column's header, which
+   would stretch all four headers.
+9. **The Current ring is inset shadows on every cell of the host's
+   column** (`.cur`, with `top`/`bot` closing it), not an absolutely placed
+   overlay. It survives any row count and the Subtotals fold.
+10. **A cross-brand bench carries its geometry only.** The other engine's
+    `normBench` picks its own build for the kind, so a Schluter premade
+    corner reads as a wedi site-built corner seat in the wedi house kit.
+11. **Proof lives in a new two-popup harness** (`compare-set-preview.html`),
+    because the hand-off crosses popups. `p3/shoot-grid.mjs`,
+    `p1d/shoot-compare.mjs` and `p2/shoot-compare.mjs` drove the retired
+    grid and detail. They are superseded by `p4/shoot-set.mjs`, and their
+    shots stay as history.
+

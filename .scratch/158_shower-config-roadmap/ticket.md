@@ -228,6 +228,40 @@ works unchanged.
 - **Proof:** `.scratch/158_shower-config-roadmap/p3/`
 - **PR:** [redscissors/Flooring-Tracker#449](https://github.com/redscissors/Flooring-Tracker/pull/449)
 
-**Phase 3 is complete.** The ticket's phase list ends here — no Phase 4 is
-scoped yet. See `.scratch/handoffs/shower-config-phase4-2026-09-28.md` for
-where things stand and the carry-forward list.
+**Phase 3 is complete.** See `.scratch/handoffs/shower-config-phase4-2026-09-28.md`
+for where things stood after it.
+
+## Phase 4 — the Compare set (owner, 2026-09-28)
+
+The owner wanted to work a compared kit with the real configurator and find
+it still there when coming back, with every system in the same place every
+time.
+
+**Phase 4 DONE (2026-09-28), pending merge:**
+- **The columns.** Compare shows four fixed columns (wedi Building Panel ·
+  wedi S-DRY membrane · Schluter KERDI-BOARD · Schluter KERDI membrane) from
+  either popup. The popup's own column is ringed and tabbed CURRENT.
+- **Kept builds.** The build you leave is kept per shower on the project
+  (`compareSets`: markers, never prices). Other columns show it as Your
+  build, or else the house kit.
+- **Open** hands a column to its real configurator. It reattaches to the
+  placed kit a kept build came from, or starts detached so Add never writes
+  one brand over another.
+- **Sync** brings a kept build up to the anchor's room, benches and added
+  lines, keeping its own picks. A room-changed chip says when one is due,
+  and a dropped-pick chip names a pick that no longer fits.
+- **Subtotals** folds each group to one number per column.
+- **Resume.** A fresh start offers the kept build ("Pick up where you left
+  off?").
+- **Benches** now ride the room into every house kit.
+- **Quote-option letters** follow the column order.
+
+Records:
+- **Spec:** `docs/superpowers/specs/2026-09-28-compare-set-design.md`
+- **Plan:** `docs/superpowers/plans/2026-09-28-compare-set.md`
+- **Mockup:** `.scratch/mockups/compare-set-2026-09-28.html` (layout A)
+- **ADR:** `docs/adr/0052-compare-set.md`; ADR 0034 amended (decisions 3 and
+  5); ADR 0049 note (Sync)
+- **Proof:** `.scratch/158_shower-config-roadmap/p4/` (`shoot-set.mjs`,
+  c1–c8)
+- **Handoff:** `.scratch/handoffs/shower-config-phase5-2026-09-28.md`
