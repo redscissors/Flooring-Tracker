@@ -2,9 +2,9 @@
 issue_type: Feature
 summary: Clean up the wedi and Schluter configurators — Schluter kit list to
   wedi's form, a size column in the build column and in Compare, brand words
-  off item names inside the popups. Mockups out for owner review.
-status: open
-labels: [needs-info]
+  off item names inside the popups. Built 2026-09-28.
+status: done
+labels: []
 ---
 
 # Shower configurator cleanup
@@ -48,3 +48,27 @@ compare-set-preview.html; afters are static HTML over the same fixture numbers.
   item | Price; the build column keeps its qty stepper on the right.
   v9: no spaces around × in any size (4×4″, 48×96×½″).
   Waiting on approval.
+
+## Built (2026-09-28)
+
+Owner: "build it" on mockup v9, plus "keep S-Dry" mid-build.
+- `src/kitlabel.js` (+ tests): size + clean name for display.
+- Build column (both popups): bold tight size, then the clean name; qty and
+  price unchanged; the grey line drops the size text once it leads.
+- Schluter Kits: wedi's rows (moss stock dot / hollow SO dot, bold feet +
+  grey inches, DRAIN N″ SIDE tag, SKU on hover), families "Point drain /
+  Curbless (thin, no lip) / Offset drain / Linear drain", Membrane | Board
+  switch, help behind a ?. wedi Kits: sizes tight (3′×5′ 36×60).
+- Compare: Qty | Size + item | Price per line with column headings;
+  Schluter column labels read Board / Membrane; room chip 60×38″.
+- Kept as-is: the wedi "Membrane (S-DRY)" switch; Schluter prose that names
+  KERDI products (bench options, figure panel, cut list).
+
+Open for the owner: wedi's S-DRY SEAL shows "2×16″" and the S-DRY drain
+covers "3¾×1″" — the engine parses the price list's "2 x 16 oz" and its
+"3/3/4" typo as dimensions, and the wedi equivalence test records those as
+measured-not-fixed (spec decision 8). Fixing them means amending that
+decision.
+
+Proof: `shots/01…08` (preview harnesses, fixture catalog).
+
