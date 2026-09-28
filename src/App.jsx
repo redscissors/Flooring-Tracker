@@ -3148,6 +3148,7 @@ export default function App({ user, onSignOut }) {
         const cust = data.people.find((c) => c.id === sel.customerId);
         const custInfo = { custName: cust?.name || sel.name || "", address: sel.address || cust?.address || "", phone: sel.phone || cust?.phone || "" };
         return (
+          <LazyBoundary>
           <Suspense fallback={null}>
             <OrderEntryPanel name={name} projectNo={sel.projectNo || null} quick={!!sel.quick} custInfo={custInfo}
               special={[...rows.filter((r) => r.special), ...specialMats, ...freightRows]} stock={[...rows.filter((r) => !r.special), ...mats]} descLimit={descLimit}
@@ -3159,6 +3160,7 @@ export default function App({ user, onSignOut }) {
               side={dockSide} onFlip={flipDock}
               onClose={() => { setShowOrderCopy(false); setOrderScope(null); }} />
           </Suspense>
+          </LazyBoundary>
         );
       })()}
 

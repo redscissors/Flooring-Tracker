@@ -286,7 +286,7 @@ export function PopMenu({ at, ...props }) {
     : <PointMenu key={`${at.x},${at.y}`} at={at} {...props} />;
 }
 
-function GrownMenu({ at, width, align = "left", pad = 0, onClose, lead, trail, z, className = "", children }) {
+function GrownMenu({ at, width, align = "left", pad = 0, onClose, lead, trail, z, bg, className = "", children }) {
   const anchorRef = useRef(at.anchor);
   const panelRef = useRef(null);
   const pos = useAnchoredPanel(true, anchorRef, panelRef, onClose);
@@ -295,7 +295,7 @@ function GrownMenu({ at, width, align = "left", pad = 0, onClose, lead, trail, z
   const x = align === "right" ? pos.left + pos.width + pad - W : pos.left - pad;
   return (
     <SearchPop pos={pos} box={{ left: Math.max(8, Math.min(x, window.innerWidth - W - 8)), width: W }} fieldRef={anchorRef} panelRef={panelRef}
-      lead={lead} trail={trail} z={z} className={"overflow-y-auto " + className}>{children}</SearchPop>
+      lead={lead} trail={trail} z={z} bg={bg} className={"overflow-y-auto " + className}>{children}</SearchPop>
   );
 }
 
@@ -875,10 +875,10 @@ const levelInk = (t) => TIER_COLOR[t]?.main || "var(--ft-text)";
 // — Custom shows only its discount — and a click slides the list open while a
 // dark border grows around trigger and list as one piece (MorphSelect). `bg`
 // is the header's own fill, which the open box takes on.
-export function PriceLevelMenu({ value = "retail", customPct, onPick, onPct, bg = "var(--ft-cream)" }) {
+export function PriceLevelMenu({ value = "retail", customPct, onPick, onPct, bg = "var(--ft-cream)", align = "right" }) {
   const options = PRICE_LEVELS.map((t) => ({ v: t, label: t[0].toUpperCase() + t.slice(1), dot: levelInk(t) }));
   return (
-    <MorphSelect value={value} onChange={onPick} options={options} bg={bg} flat tinted bold align="right" minOpenW={170} title="Price level"
+    <MorphSelect value={value} onChange={onPick} options={options} bg={bg} flat tinted bold align={align} minOpenW={170} title="Price level"
       display={value === "custom" ? `−${customPct || 0}%` : undefined}
       renderRow={(it, { close }) => it.v !== "custom" ? undefined : (
         <span className="flex-1">
