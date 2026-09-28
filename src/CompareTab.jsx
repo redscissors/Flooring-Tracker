@@ -190,14 +190,23 @@ export default function CompareTab({
   // cells checked for quote options, and the wedi Membrane cell's no-fit
   // answer. It rides the popup's Compare session under the reserved key
   // `grid` (cell keys all contain ':'), so it outlives a tab switch but not
-  // the popup.
-  const grid = (mirror && mirror.grid) || {};
-  const selected = grid.selected || opposite(hostKey);
-  const checked = grid.checked || [hostKey, opposite(hostKey)];
-  const sdryPick = grid.sdryPick || "wedi";
-  const writeGrid = (patch) => onMirror && onMirror((all) => ({
-    ...(all || {}), grid: { ...((all || {}).grid || {}), ...patch },
-  }));
+  // the popup. It is stamped with the host cell it was made for: flip the
+  // wall system off-tab and the stale grid reads as absent, so the checks
+  // and the selection fall back to today's live cell and its opposite.
+  const gridOf = (all) => {
+    const g = ((all || {}).grid || {}).hostKey === hostKey ? all.grid : {};
+    return {
+      hostKey,
+      selected: g.selected || opposite(hostKey),
+      checked: g.checked || [hostKey, opposite(hostKey)],
+      sdryPick: g.sdryPick || "wedi",
+    };
+  };
+  const { selected, checked, sdryPick } = gridOf(mirror);
+  const writeGrid = (patch) => onMirror && onMirror((all) => {
+    const g = gridOf(all);
+    return { ...(all || {}), grid: { ...g, ...(typeof patch === "function" ? patch(g) : patch) } };
+  });
   const setSelected = (k) => writeGrid({ selected: k });
   const setSdryPick = (v) => writeGrid({ sdryPick: v });
   const [jumpTo, setJumpTo] = useState(null);
@@ -297,11 +306,7 @@ export default function CompareTab({
   }, [jumpTo]);
   const pickCell = (k) => { if (k !== hostKey) setSelected(k); };
   const jump = (k, rowKey) => { pickCell(k); setJumpTo({ cell: k, rowKey, n: Date.now() }); };
-  const toggle = (k) => onMirror && onMirror((all) => {
-    const g = (all || {}).grid || {};
-    const xs = g.checked || [hostKey, opposite(hostKey)];
-    return { ...(all || {}), grid: { ...g, checked: xs.includes(k) ? xs.filter((x) => x !== k) : [...xs, k] } };
-  });
+  const toggle = (k) => writeGrid(({ checked: xs }) => ({ checked: xs.includes(k) ? xs.filter((x) => x !== k) : [...xs, k] }));
 
   // The mirror: picks and drops are per cell, each pruned to the host lines
   // that still exist.

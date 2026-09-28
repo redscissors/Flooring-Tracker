@@ -105,6 +105,24 @@ if (await lin.count()) {
   if (!(await tile("wedi:membrane").getAttribute("class")).includes("sel")) fail("the selection did not survive a tab switch");
   if (!(await pg.locator('[data-cmp-sdry-answer="nearest"]').getAttribute("class")).includes("on")) fail("the S-DRY answer did not survive a tab switch");
   if (/on a wedi pan/.test(await txt(tile("wedi:membrane")))) fail("the wedi Membrane cell fell back to the pan after a tab switch");
+
+  // Flip the live cell off-tab (KERDI membrane → KERDI-BOARD): the stored grid
+  // was made for the old host, so the checks and selection reset to the new
+  // live cell and its opposite.
+  await toTab("Kits");
+  await pg.locator("[data-schluter-kits-board]").click(); await pg.waitForTimeout(600);
+  await pg.locator("[data-schluter-tray='KST965/1525']").first().click(); await pg.waitForTimeout(800);
+  await toCompare();
+  const ck3 = (await checkedKeys()).sort().join();
+  console.log("after the host flipped to KERDI-BOARD — checks:", ck3);
+  if (!(await tile("schluter:board").getAttribute("class")).includes("live")) fail("KERDI-BOARD is not the live cell after the flip");
+  if (!(await pg.locator('[data-cmp-check="schluter:board"]').isChecked())) fail("the new live cell is not checked");
+  if (ck3 !== "schluter:board,wedi:board") fail("the checks are not the new host's defaults: " + ck3);
+  if (!(await tile("wedi:board").getAttribute("class")).includes("sel")) fail("the selection is not the new host's opposite");
+  // The first write after the flip starts from those defaults, not the stale grid.
+  await pg.locator('[data-cmp-check="schluter:membrane"]').check(); await pg.waitForTimeout(300);
+  const ck4 = (await checkedKeys()).sort().join();
+  if (ck4 !== "schluter:board,schluter:membrane,wedi:board") fail("a check after the flip merged over the stale grid: " + ck4);
 } else fail("no linear tray in the preview book");
 
 // --- 5. wedi host with a hand-added niche: the mirror is per cell ---
