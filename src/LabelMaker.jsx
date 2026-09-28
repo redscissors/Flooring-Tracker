@@ -1,5 +1,5 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Search, Trash2, Printer, Eye, EyeOff, GripVertical, ChevronDown, RefreshCw, X } from "lucide-react";
+import { Search, Trash2, Printer, Eye, EyeOff, GripVertical, ChevronDown, RefreshCw, X, Settings } from "lucide-react";
 import {
   LABEL_FIELDS, KIND_OF, VARIANT_KEYS, newDraftFromPreset, normPreset, stockToLabelFields, perLetterSheet, sheetsForLabels,
   labelCardHTML, clampSize, isKeimHeader, isSpacer, clampSpace, newSpacerLine, isPin, PIN_KEY, splitPinned, fitNameSize,
@@ -7,7 +7,8 @@ import {
 } from "./labels.js";
 import { searchStock, groutColorOptions } from "./stock.js";
 import { skuKeys } from "./orderbook.js";
-import { HelpTip, FitSelect, GroutColorOptions, SearchPop, useAnchoredPanel, PopMenu } from "./widgets.jsx";
+import { HelpTip, FitSelect, GroutColorOptions, SearchPop, useAnchoredPanel, PopMenu, DotMenu } from "./widgets.jsx";
+import { PaneTitleBar, APP_ITEMS } from "./raildrawer.jsx";
 import keimLogo from "./assets/keim-logo-ink.png";
 
 const uid = () => "l" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
@@ -205,14 +206,14 @@ function DropWordsMenu({ words, onSave, onUpdateSaved }) {
     setText("");
   };
   return (
-    <div className="flex items-center gap-1 mt-1.5">
-      <button ref={btnRef} onClick={() => setOpen((o) => !o)} className="text-xs font-semibold text-slate-500 hover:text-slate-800 flex items-center gap-1">
-        Words dropped from names <span className="rounded-full bg-slate-100 px-1.5 text-[11px] text-slate-600">{words.length}</span><ChevronDown size={13} />
+    <>
+      <button ref={btnRef} onClick={() => setOpen((o) => !o)} aria-label="Words dropped from names" title="Words dropped from names"
+        className={`shrink-0 rounded-md p-1 hover:bg-slate-50 hover:text-slate-600 ${open ? "text-slate-600 bg-slate-50" : "text-slate-400"}`}>
+        <Settings size={17} />
       </button>
-      <HelpTip className="align-middle" tip={<>Filling a label from the stock book takes these words out of the tile name (manufacturers, mostly). Whole words only, and capitals don't matter. The list is shared with the whole team. It changes new fills only. Use “Update saved labels” to redo the names already saved.</>} />
-      {open && btnRef.current && (
-        <PopMenu at={{ anchor: btnRef.current }} width={300} onClose={() => setOpen(false)} className="p-2.5">
-          <div className={eyebrow + " mb-1.5"}>Drop from names</div>
+      <DotMenu open={open} onClose={() => setOpen(false)} anchorRef={btnRef} width={300}>
+        <div className="px-2.5 py-1.5">
+          <div className={eyebrow + " mb-1.5 flex items-center gap-1"}>Words dropped from names<HelpTip className="align-middle" tip={<>Filling a label from the stock book takes these words out of the tile name (manufacturers, mostly). Whole words only, and capitals don't matter. The list is shared with the whole team. It changes new fills only. Use “Update saved labels” to redo the names already saved.</>} /></div>
           <div className="flex flex-wrap gap-1 mb-2">
             {words.length ? words.map((w) => (
               <span key={w} className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white pl-2 pr-1 py-0.5 text-xs">
@@ -228,9 +229,9 @@ function DropWordsMenu({ words, onSave, onUpdateSaved }) {
           <div className="border-t border-slate-100 mt-2.5 pt-2">
             <button onClick={() => { setOpen(false); onUpdateSaved(); }} className="text-sm font-semibold flex items-center gap-1.5" style={{ color: "var(--ft-brand-deep)" }}><RefreshCw size={13} />Update saved labels…</button>
           </div>
-        </PopMenu>
-      )}
-    </div>
+        </div>
+      </DotMenu>
+    </>
   );
 }
 
@@ -280,7 +281,7 @@ function TemplateMenu({ presets, current, editing, onPick, onEdit, onNew, onClos
   );
 }
 
-export function LabelMaker({ stock, bookStockReady = false, labels, grouts, presets, onAddLabel, onAddLabelsBulk, onUpdateLabel, onUpdateLabelsBulk, onDeleteLabel, onDeleteLabels, onSavePreset, dropWords, onSaveDropWords }) {
+export function LabelMaker({ stock, bookStockReady = false, labels, grouts, presets, onAddLabel, onAddLabelsBulk, onUpdateLabel, onUpdateLabelsBulk, onDeleteLabel, onDeleteLabels, onSavePreset, dropWords, onSaveDropWords, onClose }) {
   const first = presets[0] || normPreset({ id: "sample-tag" });
   const [draft, setDraft] = useState(() => newDraftFromPreset(first));
   const [editingId, setEditingId] = useState(null);
@@ -789,11 +790,14 @@ export function LabelMaker({ stock, bookStockReady = false, labels, grouts, pres
       : null);
 
   return (
+    <>
+    <PaneTitleBar title={APP_ITEMS.find((x) => x.id === "labels").label} onClose={onClose}>
+      <DropWordsMenu words={words} onSave={(w) => onSaveDropWords?.(w)} onUpdateSaved={openNameReview} />
+    </PaneTitleBar>
     <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-[340px_300px_minmax(0,1fr)] md:overflow-hidden overflow-y-auto">
       {/* left: find & fill */}
       <div className="border-r border-slate-100 p-3.5 md:overflow-y-auto">
         <SkuLookup stock={stock} onPick={fillFrom} onTwo={fillTwo} onAddMany={addMany} />
-        <DropWordsMenu words={words} onSave={(w) => onSaveDropWords?.(w)} onUpdateSaved={openNameReview} />
         <div className="flex items-center gap-2 mt-2">
           <div className="flex items-center gap-1.5 text-xs text-slate-500 min-w-0">
             <span className="w-[7px] h-[7px] rounded-full shrink-0" style={{ background: editingId ? AMBER : "var(--ft-brand)" }} />
@@ -832,5 +836,6 @@ export function LabelMaker({ stock, bookStockReady = false, labels, grouts, pres
         {nameReview ? nameReviewPane : tplEdit ? editorPane : review ? reviewPane : setPane}
       </div>
     </div>
+    </>
   );
 }

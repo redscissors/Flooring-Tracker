@@ -117,7 +117,7 @@ export function AppsWorkspace({ app, visible = true, onClose, resume = false, on
             <LabelMaker stock={stock} bookStockReady={bookStockReady} labels={labels} grouts={labelGrouts} presets={presets}
               onAddLabel={onAddLabel} onAddLabelsBulk={onAddLabelsBulk} onUpdateLabel={onUpdateLabel} onUpdateLabelsBulk={onUpdateLabelsBulk}
               onDeleteLabel={onDeleteLabel} onDeleteLabels={onDeleteLabels} onSavePreset={onSavePreset}
-              dropWords={dropWords} onSaveDropWords={onSaveDropWords} />
+              dropWords={dropWords} onSaveDropWords={onSaveDropWords} onClose={onClose} />
           )}
           {mounted.has("sheoga") && sheoga && (
             <div key={`sheoga-${gen.sheoga || 0}`} className={slot("sheoga")}>

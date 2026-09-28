@@ -3122,8 +3122,9 @@ src/
                     # controls (and the editor/review) stop at a letter
                     # sheet's width (SHEET_W, owner 2026-09-25) while the cards
                     # use the whole column; an unselected card shows no
-                    # circle — it fades in on hover. Under the stock search,
-                    # "Words dropped from names" edits the shared drop list;
+                    # circle — it fades in on hover. It draws its own title
+                    # bar (PaneTitleBar); the gear beside the X edits the
+                    # shared drop list ("Words dropped from names");
                     # its "Update saved labels…" opens the name review
                     # (renamePlan, every label ticked, untick hand-typed names)
   lib/supabase.js   # Supabase client (reads VITE_ env vars)
