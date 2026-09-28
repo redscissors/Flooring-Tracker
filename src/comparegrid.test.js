@@ -23,8 +23,8 @@ const ctxFor = (hostBrand, hostBuild, hostCfg, r = R60, o = {}) => ({
 const schHost = (r = R60, o = {}) => schluterBuildFor(r, CAT, o);
 const wediHost = (r = R60, o = {}) => wediBuildFor(r, o);
 
-test("CELLS run in reading order: Board row, then Membrane row, wedi before Schluter", () => {
-  assert.deepEqual(CELLS.map((c) => c.key), ["wedi:board", "schluter:board", "wedi:membrane", "schluter:membrane"]);
+test("CELLS run in the fixed column order: wedi Board, wedi Membrane, Schluter Board, Schluter Membrane", () => {
+  assert.deepEqual(CELLS.map((c) => c.key), ["wedi:board", "wedi:membrane", "schluter:board", "schluter:membrane"]);
 });
 
 test("hostCellKey reads each brand's wallSys; absent is that brand's default", () => {
@@ -48,15 +48,16 @@ test("cellLabel names each system, and S-DRY walls on a wedi pan say so", () => 
 test("the live cell is the host build as it stands; the other three are house kits", () => {
   const { build, cfg } = schHost();
   const ctx = ctxFor("schluter", build, cfg);
-  const cells = CELLS.map((c) => cellBuild(c.key, ctx));
-  assert.deepEqual(cells.map((c) => c.live), [false, false, false, true]);
-  assert.equal(cells[3].build, build);
-  assert.deepEqual(cells[3].rows, schluterCompareRows(build, { builderPct: 8 }));
-  assert.equal(cells[0].totals.retail, compareTotals(wediCompareRows(wediBuildFor(R60), { builderPct: 18 })).retail);
-  assert.equal(cells[1].totals.retail, compareTotals(schluterCompareRows(schHost(R60, { wallSys: "board" }).build, { builderPct: 8 })).retail);
-  assert.equal(cells[2].totals.retail, compareTotals(wediCompareRows(wediBuildFor(R60, { wallSys: "membrane" }), { builderPct: 18 })).retail);
-  assert.ok(cells.every((c) => c.rows.length > 0));
-  assert.deepEqual(cells.map((c) => c.name), ["wedi · Building Panel", "Schluter · KERDI-BOARD", "wedi · S-DRY membrane", "Schluter · KERDI membrane"]);
+  const cells = Object.fromEntries(CELLS.map((c) => [c.key, cellBuild(c.key, ctx)]));
+  assert.deepEqual(CELLS.map((c) => cells[c.key].live), [false, false, false, true]);
+  assert.deepEqual(CELLS.map((c) => cells[c.key].status), ["house", "house", "house", "current"]);
+  assert.equal(cells["schluter:membrane"].build, build);
+  assert.deepEqual(cells["schluter:membrane"].rows, schluterCompareRows(build, { builderPct: 8 }));
+  assert.equal(cells["wedi:board"].totals.retail, compareTotals(wediCompareRows(wediBuildFor(R60), { builderPct: 18 })).retail);
+  assert.equal(cells["schluter:board"].totals.retail, compareTotals(schluterCompareRows(schHost(R60, { wallSys: "board" }).build, { builderPct: 8 })).retail);
+  assert.equal(cells["wedi:membrane"].totals.retail, compareTotals(wediCompareRows(wediBuildFor(R60, { wallSys: "membrane" }), { builderPct: 18 })).retail);
+  assert.ok(CELLS.every((c) => cells[c.key].rows.length > 0));
+  assert.deepEqual(CELLS.map((c) => cells[c.key].name), ["wedi · Building Panel", "wedi · S-DRY membrane", "Schluter · KERDI-BOARD", "Schluter · KERDI membrane"]);
 });
 
 test("a cell waits on its brand's catalog and the room", () => {
@@ -174,4 +175,62 @@ test("chips come most severe first, one per kind", () => {
   const f = cellFlags("schluter", { cand: { kind: "mortar", deep: true } }, rows, plan);
   assert.deepEqual(f.map((x) => x.id), ["mortar", "deep", "price", "unmatched"]);
   assert.equal(f.find((x) => x.id === "unmatched").rowKey, "h1");
+});
+
+// --- the Compare set (ticket 158 Phase 4) ------------------------------------
+
+const keptFrom = (r, o = {}) => {
+  const { cfg } = schluterBuildFor(r, CAT, { wallSys: "board" });
+  return { snap: { mode: "custom", cfg }, room: r, savedAt: 1, savedBy: "", ...o };
+};
+
+test("a kept entry fills its column as 'Your build', rows from the kept marker", () => {
+  const ctx = ctxFor("wedi", wediHost(), null);
+  const kept = keptFrom(R60);
+  const c = cellBuild("schluter:board", ctx, { kept });
+  assert.equal(c.status, "yours");
+  assert.equal(c.kept, kept);
+  assert.equal(c.plan, null);
+  assert.ok(c.rows.length > 0);
+  assert.ok(!c.flags.some((f) => f.id === "room"), "same room — no chip");
+});
+
+test("room-changed chip: size wording, then the any-other-change wording; ranked first", () => {
+  const ctx = ctxFor("wedi", wediHost(), null);
+  const small = room(60, 36, true, "point");
+  const c = cellBuild("schluter:board", ctx, { kept: keptFrom(small) });
+  assert.equal(c.flags[0].id, "room");
+  assert.equal(c.flags[0].label, "Built for 60×36 — room changed");
+  const taller = { ...R60, walls: R60.walls.map((w) => ({ ...w, h: 96 })) };
+  const d = cellBuild("schluter:board", ctx, { kept: keptFrom(taller) });
+  assert.equal(d.flags[0].label, "Built for a different room");
+});
+
+test("a dropped pick names itself; a lost build falls back to the house kit, chipped", () => {
+  const ctx = ctxFor("wedi", wediHost(), null);
+  const c = cellBuild("schluter:board", ctx, { kept: keptFrom(R60, { dropped: ["drain"] }) });
+  assert.ok(c.flags.some((f) => f.id === "dropped:drain" && f.label === "Your drain pick doesn't fit — house pick used"));
+  const lost = cellBuild("wedi:membrane", ctx, { kept: { snap: { mode: "kit", cfg: { panKey: "NOPE" } }, room: R60 } });
+  assert.equal(lost.status, "house");
+  assert.equal(lost.flags[0].id, "lost");
+  assert.ok(lost.rows.length > 0, "the house kit shows");
+});
+
+test("a kept entry on the live cell is ignored — the popup's build wins", () => {
+  const b = wediHost();
+  const ctx = ctxFor("wedi", b, null);
+  const c = cellBuild("wedi:board", ctx, { kept: { snap: { mode: "kit", cfg: b.cfg }, room: room(40, 40, true, "point") } });
+  assert.equal(c.status, "current");
+  assert.equal(c.build, b);
+  assert.ok(!c.flags.some((f) => f.id === "room"));
+});
+
+test("house kits carry the room's benches in every column", () => {
+  const r = { ...R60, benches: [{ kind: "corner", corner: "bl", build: "site" }] };
+  const ctx = ctxFor("wedi", wediBuildFor(r), null, r);
+  for (const k of ["wedi:membrane", "schluter:board", "schluter:membrane"]) {
+    const c = cellBuild(k, ctx);
+    const b = c.brand === "wedi" ? c.build.cfg.benches : c.cfg.benches;
+    assert.equal(b.length, 1, k);
+  }
 });
