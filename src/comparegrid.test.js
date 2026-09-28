@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
 import { catalogOf } from "./schluter.js";
 import { wediBuildFor, schluterBuildFor, wediCompareRows, schluterCompareRows, compareTotals } from "./comparekit.js";
-import { CELLS, hostCellKey, opposite, cellLabel, cellFlags, cellBuild } from "./comparegrid.js";
+import { CELLS, hostCellKey, opposite, cellLabel, cellFlags, cellBuild, levelAmt } from "./comparegrid.js";
 
 const CAT = catalogOf(FIXTURE_ITEMS);
 const room = (w, d, curbed, drain) => ({
@@ -233,4 +233,17 @@ test("house kits carry the room's benches in every column", () => {
     const b = c.brand === "wedi" ? c.build.cfg.benches : c.cfg.benches;
     assert.equal(b.length, 1, k);
   }
+});
+
+test("levelAmt prices a row or total at the popup's price level", () => {
+  const m = { retail: 200, builder: 164, cost: 100 };
+  assert.equal(levelAmt(m, "retail"), 200);
+  assert.equal(levelAmt(m, "builder"), 164);
+  assert.equal(levelAmt(m, "employee"), 106);
+  assert.equal(levelAmt(m, "sale", { salePct: 10 }), 180);
+  assert.equal(levelAmt(m, "sale"), 180);
+  assert.equal(levelAmt(m, "custom", { customPct: 25 }), 150);
+  assert.equal(levelAmt(m, "custom"), 200);
+  assert.equal(levelAmt(m, undefined), 200);
+  assert.equal(levelAmt({ retail: 10.01, builder: 0, cost: 3.33 }, "employee"), 3.53);
 });
