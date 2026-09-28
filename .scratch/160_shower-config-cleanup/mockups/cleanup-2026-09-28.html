@@ -103,7 +103,7 @@ section{display:flex;flex-direction:column;gap:14px}
 
 .cmp-stack .byo{font-style:italic;color:var(--muted)}
 .cgrid{display:grid;grid-template-columns:88px repeat(4,minmax(0,1fr));column-gap:14px}
-@media (max-width:1400px){.cmp .ci,.cmp .csub{grid-template-columns:96px minmax(0,1fr) 60px;gap:5px}}
+@media (max-width:1400px){.cmp .ci,.cmp .csub{grid-template-columns:24px 92px minmax(0,1fr) 60px;gap:5px}}
 .chead{padding:12px 0 8px}
 .chead .brand{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.12em;color:#fff;border-radius:3px;padding:1px 5px;vertical-align:2px}
 .chead .brand.w{background:var(--chip-wedi)} .chead .brand.s{background:var(--chip-sch)}
@@ -114,7 +114,7 @@ section{display:flex;flex-direction:column;gap:14px}
 .gb{grid-column:1/-1;font-size:9px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);background:var(--sand);padding:2px 8px;margin-top:0}
 .slot{font-size:11.5px;font-weight:700;color:var(--muted);padding:6px 0 6px 8px;border-bottom:1px solid var(--line)}
 .cell{padding:5px 0;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:2px;min-width:0}
-.ci,.csub{display:grid;grid-template-columns:108px 1fr 62px;gap:5px;align-items:baseline}
+.ci,.csub{display:grid;grid-template-columns:24px 104px 1fr 62px;gap:5px;align-items:baseline}
 .ci .n{min-width:0}
 .csub{font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);padding:6px 0 4px;border-bottom:1px solid var(--border)}
 .csub .r{text-align:right}
@@ -123,7 +123,8 @@ section{display:flex;flex-direction:column;gap:14px}
 .brow .sz,.colhead .zh{text-align:right;margin-right:-3px}
 .brow .sz{align-self:start;font-size:13px;line-height:1.3}
 
-.ci .qty{color:var(--faint);font-weight:700}
+.ci .qn{color:var(--muted);font-weight:700;text-align:right;padding-right:4px;border-right:1px solid var(--line);align-self:stretch}
+.csub .qh{text-align:right;padding-right:4px}
 .ci .z{font-weight:800;white-space:nowrap}
 .ci .p{text-align:right;font-weight:700}
 .cell .none{color:var(--faint)}
@@ -412,12 +413,12 @@ const rows = [
 ];
 const cellHtml = (c) => c === "byo" ? `<div class="cell"><span class="byo">Cement board / drywall — by others</span></div>`
   : !c ? `<div class="cell"><span class="none">—</span></div>`
-  : `<div class="cell">${c.map((x) => `<div class="ci"><span class="z">${x.z}</span><span class="n">${x.q ? `<span class="qty">${x.q}× </span>` : ""}${x.n}</span><span class="p">${x.p}</span></div>`).join("")}</div>`;
+  : `<div class="cell">${c.map((x) => `<div class="ci"><span class="qn">${x.q || 1}</span><span class="z">${x.z}</span><span class="n">${x.n}</span><span class="p">${x.p}</span></div>`).join("")}</div>`;
 $("cmp").innerHTML = `<div class="cgrid">` +
   `<div class="chead" style="padding-left:8px"><div class="cap" style="color:var(--faint)">60 × 38″</div><div style="font-size:11px;color:var(--muted);font-weight:600">curbed · point drain</div></div>` +
   heads.map(([b, sys, tot, delta, cur]) => `<div class="chead${cur ? " cur" : ""}"><span class="brand ${b}">${b === W ? "WEDI" : "SCHLUTER"}</span><span class="sys">${sys}</span><div class="tot">${tot}<small>${delta}</small></div></div>`).join("") +
   `<div class="csub" style="grid-template-columns:1fr"><span></span></div>` +
-  heads.map(() => `<div class="csub"><span class="zh">Size</span><span>Item</span><span class="r">Price</span></div>`).join("") +
+  heads.map(() => `<div class="csub"><span class="qh">Qty</span><span class="zh">Size</span><span>Item</span><span class="r">Price</span></div>`).join("") +
   rows.map((r) => r[0] === "g" ? `<div class="gb">${r[1]}</div>` : `<div class="slot">${r[0]}</div>` + r[1].map(cellHtml).join("")).join("") +
   `</div>`;
 // phone / narrow: one card per build, same Size | Item | Price rows
@@ -428,11 +429,11 @@ $("cmpStack").innerHTML = heads.map(([b, sys, tot, delta, cur], k) => {
     const c = r[1][k];
     if (!c) continue;
     if (pend) { out += `<div class="gb">${pend}</div>`; pend = ""; }
-    out += c === "byo" ? `<div class="ci"><span class="z"></span><span class="n byo">Cement board / drywall — by others</span><span></span></div>`
-      : c.map((x) => `<div class="ci"><span class="z">${x.z}</span><span class="n">${x.q ? `<span class="qty">${x.q}× </span>` : ""}${x.n}</span><span class="p">${x.p}</span></div>`).join("");
+    out += c === "byo" ? `<div class="ci"><span></span><span class="z"></span><span class="n byo">Cement board / drywall — by others</span><span></span></div>`
+      : c.map((x) => `<div class="ci"><span class="qn">${x.q || 1}</span><span class="z">${x.z}</span><span class="n">${x.n}</span><span class="p">${x.p}</span></div>`).join("");
   }
   return `<div class="app"><div class="chead${cur ? " cur" : ""}"><span class="brand ${b}">${b === W ? "WEDI" : "SCHLUTER"}</span><span class="sys">${sys}</span><div class="tot">${tot}<small>${delta}</small></div></div>` +
-    `<div class="csub"><span class="zh">Size</span><span>Item</span><span class="r">Price</span></div>${out}</div>`;
+    `<div class="csub"><span class="qh">Qty</span><span class="zh">Size</span><span>Item</span><span class="r">Price</span></div>${out}</div>`;
 }).join("");
 })();
 </script>
