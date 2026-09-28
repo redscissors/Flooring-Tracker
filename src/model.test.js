@@ -547,3 +547,11 @@ test("wasteNote/wasteMeta: flag lines that carry their own rate", () => {
   assert.equal(wasteMeta({ tile: 0, floor: 0 }, "waste factor", true), "waste by line");
   assert.equal(wasteMeta({ tile: 0, floor: 0 }), "");
 });
+
+test("normC: compareSets normalized, pruned to live areas (ADR 0052)", () => {
+  const c = normC({ id: "c", categories: [{ id: "a1", name: "Shower", products: [] }],
+    compareSets: { a1: { "wedi:board": { snap: { mode: "kit", cfg: { panKey: "P" } }, room: {} } }, gone: { "wedi:board": { snap: { cfg: {} } } } } });
+  assert.deepEqual(Object.keys(c.compareSets), ["a1"]);
+  assert.deepEqual(normC({ id: "c", categories: [] }).compareSets, {});
+  assert.deepEqual(newProject().compareSets, {});
+});

@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Compare set — layout prototypes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ft-cream:#F6F3EC;--ft-card:#FFFFFF;--ft-text:#1C1A17;--ft-muted:#57534C;--ft-faint:#8A8378;
+  --ft-border:rgba(28,26,23,.10);--ft-border-strong:rgba(28,26,23,.25);--ft-row-line:#ECE8DC;
+  --ft-brand:#57703A;--ft-brand-deep:#40542A;--ft-sand:#EDE9DD;
+  --ft-brand-soft:color-mix(in oklab,var(--ft-brand) 13%,transparent);
+  --ft-tint:color-mix(in oklab,var(--ft-brand) 6%,var(--ft-card));
+  --ft-tint-border:color-mix(in oklab,var(--ft-brand) 35%,var(--ft-border));
+  --ft-hover:color-mix(in oklab,var(--ft-brand) 7%,transparent);
+  --ft-hover-amber:#FFFBEB;--ft-seg-on-bg:color-mix(in oklab,var(--ft-brand) 16%,transparent);
+  --s-rust:#B4552D;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#7f7a73;font-family:Manrope,ui-sans-serif,system-ui,sans-serif;color:var(--ft-text);padding:18px}
+.proto-bar{max-width:1500px;margin:0 auto 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;color:#fff;font-size:13px;font-weight:700}
+.proto-bar .seg{display:inline-flex;border-radius:8px;overflow:hidden;border:1px solid rgba(255,255,255,.5)}
+.proto-bar .seg button{background:transparent;color:#fff;border:0;padding:7px 14px;font:inherit;cursor:pointer}
+.proto-bar .seg button.on{background:#fff;color:var(--ft-text)}
+.proto-bar .note{font-weight:600;opacity:.85;font-size:12px}
+.proto-bar .reset{margin-left:auto;background:transparent;border:1px solid rgba(255,255,255,.5);color:#fff;border-radius:8px;padding:6px 12px;font:inherit;cursor:pointer}
+
+.pop{max-width:1500px;margin:0 auto;background:var(--ft-cream);border:1px solid var(--ft-border-strong);border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.3);overflow:hidden}
+.pop-head{display:flex;align-items:center;padding:14px 18px 8px}
+.pop-head h2{margin:0;font-size:21px;font-weight:800}
+.pop-head .r{margin-left:auto;display:flex;gap:18px;font-size:13.5px;font-weight:700;align-items:center}
+.modetabs{display:flex;gap:4px;padding:0 16px;border-bottom:1px solid var(--ft-border-strong)}
+.modetab{border:1px solid var(--ft-border-strong);border-bottom:0;background:var(--ft-sand);border-radius:8px 8px 0 0;padding:7px 16px;font-size:13px;font-weight:800;color:var(--ft-muted)}
+.modetab small{font-weight:600;color:var(--ft-faint);margin-left:5px;font-size:11px}
+.modetab.on{background:var(--ft-card);color:var(--ft-text);margin-bottom:-1px}
+
+.cmp{background:var(--ft-card)}
+.cmp-head{display:flex;align-items:center;gap:14px;padding:12px 18px;border-bottom:1px solid var(--ft-border-strong);flex-wrap:wrap}
+.cmp-head .t{font-size:15px;font-weight:800}
+.room{font-size:11.5px;font-weight:700;color:var(--ft-muted);background:var(--ft-tint);border:1px solid var(--ft-tint-border);border-radius:6px;padding:3px 9px}
+.lensseg{display:inline-flex;border:1px solid var(--ft-border-strong);border-radius:7px;overflow:hidden}
+.lensseg button{border:0;background:var(--ft-card);color:var(--ft-muted);font:inherit;font-size:11.5px;font-weight:700;padding:5px 11px;cursor:pointer}
+.lensseg button+button{border-left:1px solid var(--ft-border-strong)}
+.lensseg button.on{background:var(--ft-seg-on-bg);color:var(--ft-brand-deep);font-weight:800;box-shadow:inset 0 0 0 1.5px var(--ft-brand)}
+.ml-auto{margin-left:auto}
+.linkbtn{border:0;background:none;color:var(--ft-muted);font:inherit;font-size:11.5px;font-weight:800;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+
+.bbadge{font-size:9.5px;font-weight:800;border-radius:4px;padding:2px 7px;text-transform:uppercase;letter-spacing:.08em;color:#F6F3EC;display:inline-block}
+.bbadge.wedi{background:var(--ft-brand)}
+.bbadge.slt{background:var(--s-rust)}
+.pill{font-size:9.5px;font-weight:800;border-radius:999px;padding:2px 8px;letter-spacing:.04em;white-space:nowrap}
+.pill.house{color:var(--ft-faint);border:1px solid var(--ft-border-strong)}
+.pill.yours{color:var(--ft-brand-deep);background:var(--ft-brand-soft)}
+.chip{border:1px solid var(--ft-border-strong);background:var(--ft-hover-amber);border-radius:5px;font-size:10px;font-weight:800;padding:2px 7px;font-family:inherit;cursor:pointer;color:var(--ft-text)}
+.chip.room{background:#FEF3C7}
+.cbtn{border:1px solid var(--ft-border-strong);background:var(--ft-card);color:var(--ft-text);border-radius:7px;font:inherit;font-size:11.5px;font-weight:800;padding:5px 11px;cursor:pointer}
+.cbtn:hover{border-color:var(--ft-text)}
+.cbtn.primary{background:var(--ft-brand);border-color:var(--ft-brand);color:#fff}
+.cbtn:disabled{opacity:.4;cursor:not-allowed}
+.chk{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--ft-muted);cursor:pointer}
+.chk input{accent-color:var(--ft-brand);margin:0}
+
+/* ---------- A: fixed columns ---------- */
+.fx{display:grid;grid-template-columns:104px repeat(4,minmax(0,1fr));position:relative;column-gap:10px;padding:0 14px 0 0}
+.fx .hd{padding:16px 12px 10px;position:sticky;top:0;background:var(--ft-card);z-index:2;border-bottom:1px solid var(--ft-border-strong);display:flex;flex-direction:column;gap:5px;min-width:0}
+.fx .hd.corner{justify-content:flex-end;font-size:10px;font-weight:800;letter-spacing:.11em;color:var(--ft-faint);text-transform:uppercase;padding-left:18px}
+.fx .hd .nm{font-size:13.5px;font-weight:800;display:flex;align-items:center;gap:7px;min-width:0}
+.fx .hd .nm span.sys{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fx .hd .tv{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1}
+.fx .hd .dv{font-size:11px;font-weight:700;color:var(--ft-muted);font-variant-numeric:tabular-nums;min-height:14px}
+.fx .hd .chips{display:flex;gap:4px;flex-wrap:wrap;min-height:20px}
+.fx .hd .acts{display:flex;gap:6px;align-items:center;margin-top:2px}
+.fx .hd .acts .chk{margin-left:auto}
+.fx .band{grid-column:1/-1;margin-right:-14px;padding:6px 18px 4px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.11em;color:var(--ft-faint);background:var(--ft-tint);border-bottom:1px solid var(--ft-row-line)}
+.fx .cat{padding:7px 0 7px 18px;font-size:11px;font-weight:700;color:var(--ft-muted);border-bottom:1px solid var(--ft-row-line);display:flex;align-items:center}
+.fx .cell{padding:7px 12px;font-size:12px;border-bottom:1px solid var(--ft-row-line);min-width:0}
+.ln{display:flex;justify-content:space-between;gap:8px;padding:1px 0}
+.ln .n{min-width:0}
+.ln .n small{display:block;color:var(--ft-faint);font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ln .p{font-weight:700;font-variant-numeric:tabular-nums;flex:none}
+.ln.note .n,.ln.note .p{color:var(--ft-faint);font-style:italic;font-weight:600}
+.ln.dash .n{color:var(--ft-faint)}
+.tag{font-size:8.5px;font-weight:800;color:var(--ft-brand-deep);background:var(--ft-brand-soft);border-radius:4px;padding:0 5px;margin-left:4px;vertical-align:1px;white-space:nowrap}
+.tag.pick{color:#7A4A12;background:#FDEBC8}
+.fx .sub{padding:7px 12px;font-size:12.5px;font-weight:800;font-variant-numeric:tabular-nums;border-bottom:1px solid var(--ft-row-line);display:flex;justify-content:space-between;cursor:pointer}
+.fx .sub small{font-weight:600;color:var(--ft-faint);font-size:10.5px}
+.fx .ring{pointer-events:none;border:2px solid var(--ft-brand);border-radius:10px;margin:6px -5px -2px;position:relative;z-index:3;background:transparent}
+.fx .ring.shade{border-color:transparent;background:color-mix(in oklab,var(--ft-brand) 7%,transparent);z-index:0}
+.fx .ring .tab{position:absolute;top:-11px;left:10px;background:var(--ft-brand);color:#fff;font-size:9.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;border-radius:5px;padding:3px 8px}
+.fx .ring.shade .tab{background:var(--ft-brand-deep)}
+.foot{border-top:1px solid var(--ft-border-strong);background:var(--ft-sand);padding:10px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--ft-muted);font-weight:600}
+
+/* ---------- B: grid + detail ---------- */
+.quad{display:grid;grid-template-columns:86px 1fr 1fr;gap:8px;padding:14px 18px;border-bottom:1px solid var(--ft-border-strong)}
+.quad .qrow{font-size:10px;font-weight:800;letter-spacing:.11em;text-transform:uppercase;color:var(--ft-faint);display:flex;align-items:center}
+.tile{border:1px solid var(--ft-border);border-radius:9px;background:var(--ft-card);padding:9px 11px;position:relative;cursor:pointer}
+.tile:hover{border-color:var(--ft-border-strong)}
+.tile.live{box-shadow:inset 0 0 0 2px var(--ft-brand);background:var(--ft-tint);cursor:default;margin-top:6px}
+.tile.live .tab{position:absolute;top:-10px;left:10px;background:var(--ft-brand);color:#fff;font-size:9.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;border-radius:5px;padding:2px 8px}
+.tile.sel{box-shadow:inset 0 0 0 2px var(--ft-text)}
+.tile .tt{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:800}
+.tile .tt .pill{margin-left:auto}
+.tile .tv{font-size:18px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:3px}
+.tile .row2{display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap}
+.tile .row2 .dv{font-size:11px;font-weight:700;color:var(--ft-muted)}
+.tile .row2 .sp{margin-left:auto;display:flex;gap:5px}
+.det{display:grid;grid-template-columns:150px 1fr 1fr}
+.det .dh{padding:10px 14px;font-size:13px;font-weight:800;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--ft-border-strong)}
+.det .dh small{font-size:10.5px;color:var(--ft-faint);font-weight:600}
+.det .band{grid-column:1/-1;padding:6px 14px 4px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.11em;color:var(--ft-faint);background:var(--ft-tint);border-bottom:1px solid var(--ft-row-line)}
+.det .cat{padding:7px 14px;font-size:11px;font-weight:700;color:var(--ft-muted);border-bottom:1px solid var(--ft-row-line)}
+.det .cell{padding:7px 14px;font-size:12px;border-bottom:1px solid var(--ft-row-line)}
+
+/* resume prompt */
+.scrim{position:fixed;inset:0;background:rgba(20,15,10,.5);display:none;align-items:center;justify-content:center;z-index:50}
+.scrim.on{display:flex}
+.box{width:480px;max-width:94vw;border-radius:11px;overflow:hidden;border:1px solid var(--ft-border-strong);background:var(--ft-cream);box-shadow:0 18px 40px rgba(20,15,10,.28)}
+.box .bh{padding:12px 16px;border-bottom:1px solid var(--ft-border-strong);font-size:14px;font-weight:800}
+.box .bb{padding:12px 16px;background:var(--ft-card);font-size:12.5px;color:var(--ft-muted);line-height:1.5}
+.opt{display:flex;align-items:center;gap:10px;border:1px solid var(--ft-border-strong);border-radius:8px;padding:9px 11px;margin-top:8px;cursor:pointer;color:var(--ft-text);font-weight:700}
+.opt:hover{border-color:var(--ft-brand);background:var(--ft-hover)}
+.opt small{display:block;color:var(--ft-faint);font-weight:600;font-size:11px}
+.opt .v{margin-left:auto;font-weight:800;font-variant-numeric:tabular-nums}
+.box .bf{display:flex;gap:8px;justify-content:flex-end;padding:10px 16px;border-top:1px solid var(--ft-border-strong);background:var(--ft-sand)}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--ft-text);color:var(--ft-cream);padding:9px 16px;border-radius:8px;font-size:12.5px;font-weight:700;opacity:0;transition:opacity .2s;pointer-events:none;z-index:60}
+.toast.on{opacity:1}
+.hint{max-width:1500px;margin:12px auto 0;color:#fff;font-size:12px;line-height:1.55;opacity:.92}
+</style>
+</head>
+<body>
+
+<div class="proto-bar">
+  <span>Prototype</span>
+  <div class="seg" id="protoSeg">
+    <button data-p="A" class="on">A · Fixed columns</button>
+    <button data-p="B">B · Grid + detail</button>
+  </div>
+  <span id="anchorStyleWrap">Anchor mark
+    <span class="seg" id="styleSeg"><button data-s="outline" class="on">Outline + tab</button><button data-s="shade">Shade + tab</button></span>
+  </span>
+  <span id="viewWrap">Rows
+    <span class="seg" id="viewSeg"><button data-v="lines" class="on">Every line</button><button data-v="sum">Subtotals</button></span>
+  </span>
+  <button class="reset" id="resumeBtn">Show the resume prompt</button>
+  <button class="reset" style="margin-left:0" id="resetBtn">Reset demo</button>
+</div>
+
+<div class="pop">
+  <div class="pop-head">
+    <h2 id="popTitle">wedi shower systems</h2>
+    <div class="r"><span>☐ Stock only</span><span>Clear design</span><span>Retail ▾</span><span>🧺</span><span>✕</span></div>
+  </div>
+  <div class="modetabs">
+    <div class="modetab">Kits<small>30 pans</small></div>
+    <div class="modetab">Custom shower<small>solver</small></div>
+    <div class="modetab">Browse<small>151 stock · 122 SO</small></div>
+    <div class="modetab on">Compare<small>wedi ⇄ Schluter</small></div>
+  </div>
+  <div class="cmp">
+    <div class="cmp-head">
+      <span class="t">Compare — one shower, four systems</span>
+      <span class="room" id="roomLbl">60″ × 38″ · curbed · point drain · 1 bench</span>
+      <span class="ml-auto"></span>
+      <button class="linkbtn" id="clearSet">Clear set</button>
+      <div class="lensseg"><button class="on">Retail</button><button>Builder</button></div>
+    </div>
+    <div id="view"></div>
+    <div class="foot">
+      <span id="checkedLbl"></span>
+      <button class="cbtn primary ml-auto" id="sendBtn">Add as quote options</button>
+    </div>
+  </div>
+</div>
+
+<div class="hint" id="hint"></div>
+
+<div class="scrim" id="scrim">
+  <div class="box">
+    <div class="bh">Pick up where you left off?</div>
+    <div class="bb">
+      This shower has wedi builds saved in its compare set.
+      <div class="opt" data-close><div>wedi · Building Panel<small>60″ × 38″ · saved 2 hrs ago by Dana</small></div><span class="v">$1,528.60</span></div>
+      <div class="opt" data-close><div>wedi · S-DRY membrane<small>60″ × 36″ · saved yesterday · room changed since</small></div><span class="v">$903.40</span></div>
+    </div>
+    <div class="bf"><button class="cbtn" data-close>Start new</button></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const ORDER = ["wedi:board","wedi:membrane","schluter:board","schluter:membrane"];
+const NAME = {"wedi:board":"Building Panel","wedi:membrane":"S-DRY membrane","schluter:board":"KERDI-BOARD","schluter:membrane":"KERDI membrane"};
+const BRAND = (k) => k.split(":")[0];
+const GROUPS = [
+  ["Base",[["Tray / pan","base"]]],
+  ["Drain",[["Grate / cover","grate"],["Flange","flange"]]],
+  ["Curb",[["Curb","curb"]]],
+  ["Walls",[["Wall board","wall"],["Wall membrane","memb"]]],
+  ["Seams",[["Seam / band","seam"],["Corners / seals","corner"]]],
+  ["Setting",[["Setting","set"]]],
+  ["Bench & extras",[["Bench","bench"],["Added","extra"]]],
+];
+// [slot, name, sub, price, flags]
+const L = {
+ "wedi:board":[
+  ["base","3'6\"x5' Shower Base","US9100007",704.99],
+  ["grate","4\"x4\" Drain Cover — Stainless","US1000057",67.30],
+  ["curb","60\" Lean Curb","US3000038",53.99],
+  ["wall","wedi Fastener Kit","US5000070",32.83],["wall","4'x5'x1/2\" Building Panel","US8000014 · 0 vertical seams",72.74],["wall","2× 4'x8'x1/2\" Building Panel","US8000015 · panel plan",235.50],["wall","3'x5'x1/2\" Building Panel","US8000017",54.66],
+  ["seam","5× Joint Sealant Sausage","US5000010 · 95.2 oz",144.15],
+  ["corner","Subliner Dry Mixing Valve Seal","US5000000",13.82],["corner","Subliner Dry Pipe Seal","US5000033",12.38],
+  ["set","PRO-SET Tile Adhesive 25 lb","US5076012",22.00],
+  ["bench","Fundo bench seat 16″ corner","US2300004",248.00],
+  ["extra","16x22\" wedi Niche","US3000007",112.40,"added"],
+ ],
+ "wedi:membrane":[
+  ["base","S-DRY base 38×60 point","US9200041",512.00],
+  ["grate","4\"x4\" Drain Cover — Stainless","US1000057",67.30],
+  ["curb","S-DRY curb 60\"","US9200090",61.00],
+  ["wall","Cement board / drywall substrate","by others · membrane needs a backer",0,"note"],
+  ["memb","S-DRY membrane 50″×25′","104 sf · US9200001",189.00],
+  ["seam","S-DRY tape 5″","US9200010",38.00],
+  ["corner","S-DRY inside corners (2)","US9200012",24.00],["corner","S-DRY SEAL","US9200030",44.00],
+  ["set","PRO-SET Tile Adhesive 25 lb","US5076012",22.00],
+  ["bench","Fundo bench seat 16″ corner","US2300004",248.00],
+  ["extra","16x22\" wedi Niche","US3000007 · passes through",112.40,"added"],
+ ],
+ "schluter:board":[
+  ["base","KERDI-SHOWER-T Tray 38″×60″","KST965/1525 · exact fit",121.91],
+  ["grate","KERDI-DRAIN grate 4″ brushed brass","KD4GRAMGB",79.40,"pick"],
+  ["flange","KERDI-DRAIN flange kit 2″ PVC","KD2FLKPVC",84.62],
+  ["curb","KERDI-BOARD-SC curb 60″","KBSC1151501524",88.66],
+  ["wall","3× KERDI-BOARD 1/2″ 4×8","KB12625100",238.20],
+  ["seam","KERDI-BAND 5″ seam band","KEBA100/125/10M",37.71],
+  ["corner","KERDI-KERECK corners (2)","KERECK/FI",19.80],
+  ["set","2× ALL-SET white","SETA50W",61.90],
+  ["bench","KERDI-BOARD-SB bench","KBSB406406",196.00],
+  ["extra","KERDI-BOARD-SN niche 12×20","KBSN305508 · nearest match",98.10,"added"],
+ ],
+ "schluter:membrane":[
+  ["base","KERDI-SHOWER-T Tray 38″×60″","KST965/1525 · exact fit",121.91],
+  ["grate","KERDI-DRAIN grate 4″ stainless","KD4GRKE",52.90],
+  ["flange","KERDI-DRAIN flange kit 2″ PVC","KD2FLKPVC",84.62],
+  ["curb","KERDI-BOARD-SC curb 60″","KBSC1151501524",88.66],
+  ["wall","Cement board / drywall substrate","by others · membrane needs a backer",0,"note"],
+  ["memb","KERDI membrane roll","KERDI200/10M · 79 sf of wall",207.65],
+  ["seam","KERDI-BAND 5″ seam band","KEBA100/125/10M",37.71],
+  ["corner","KERDI-KERECK corners (2)","KERECK/FI",19.80],
+  ["set","2× ALL-SET white","SETA50W",61.90],
+  ["bench","KERDI-BOARD-SB bench","KBSB406406",196.00],
+  ["extra","16x22\" wedi Niche","no Schluter match — pick one",0,"unmatched"],
+ ],
+};
+const total = (k) => L[k].reduce((s, r) => s + (r[3] || 0), 0);
+const money = (v) => "$" + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const init = () => ({
+  anchor: "wedi:board",
+  status: { "wedi:board": "current", "wedi:membrane": "house", "schluter:board": "yours", "schluter:membrane": "house" },
+  stale: { "schluter:board": "Built for 60×36 — room changed" },
+  checked: new Set(["wedi:board", "schluter:membrane"]),
+  selected: "schluter:board",
+});
+let S = init(), proto = "A", anchorStyle = "outline", rowView = "lines";
+
+function chipsFor(k) {
+  const c = [];
+  if (S.stale[k]) c.push(`<button class="chip room" title="Sync to update">${S.stale[k]}</button>`);
+  if (L[k].some((r) => r[4] === "unmatched")) c.push(`<button class="chip">Added line unmatched</button>`);
+  return c.join("");
+}
+function statusPill(k) {
+  const s = S.status[k];
+  return s === "yours" ? `<span class="pill yours">Your build</span>` : s === "house" ? `<span class="pill house">House kit</span>` : "";
+}
+function delta(k) {
+  if (k === S.anchor) return "Current build";
+  const d = total(k) - total(S.anchor);
+  return (d < 0 ? "−" : "+") + money(Math.abs(d)) + " vs current";
+}
+function actions(k) {
+  if (k === S.anchor) return `<button class="cbtn" disabled title="you are in this one">Open</button>`;
+  return `<button class="cbtn" data-open="${k}">Open</button>` +
+    (S.status[k] === "yours" ? `<button class="cbtn" data-sync="${k}">Sync</button>` : "");
+}
+function lineHtml(r) {
+  const [, n, sub, p, f] = r;
+  const tag = f === "added" ? `<span class="tag">added</span>` : f === "pick" ? `<span class="tag pick">your pick</span>` : f === "unmatched" ? `<span class="tag pick">unmatched</span>` : "";
+  const cls = f === "note" ? "ln note" : f === "unmatched" ? "ln dash" : "ln";
+  return `<div class="${cls}"><span class="n">${n}${tag}<small>${sub}</small></span><span class="p">${f === "note" ? "—" : f === "unmatched" ? "+" : money(p)}</span></div>`;
+}
+function cellLines(k, slot) {
+  const rows = L[k].filter((r) => r[0] === slot);
+  return rows.length ? rows.map(lineHtml).join("") : `<div class="ln dash"><span class="n">—</span></div>`;
+}
+
+function renderA() {
+  let h = `<div class="fx">`;
+  h += `<div class="hd corner" style="grid-row:1">System</div>`;
+  ORDER.forEach((k, i) => {
+    h += `<div class="hd" style="grid-column:${i + 2};grid-row:1">
+      <div class="nm"><span class="bbadge ${BRAND(k) === "wedi" ? "wedi" : "slt"}">${BRAND(k) === "wedi" ? "wedi" : "Schluter"}</span><span class="sys">${NAME[k]}</span></div>
+      <div style="display:flex;align-items:center;gap:6px;min-height:18px">${statusPill(k)}</div>
+      <div class="tv">${money(total(k))}</div>
+      <div class="dv">${delta(k)}</div>
+      <div class="chips">${chipsFor(k)}</div>
+      <div class="acts">${actions(k)}<label class="chk"><input type="checkbox" data-chk="${k}" ${S.checked.has(k) ? "checked" : ""}>Option</label></div>
+    </div>`;
+  });
+  let row = 2;
+  for (const [band, cats] of GROUPS) {
+    if (rowView === "sum") {
+      h += `<div class="cat" style="grid-row:${row};grid-column:1">${band}</div>`;
+      ORDER.forEach((k, i) => {
+        const slots = cats.map((c) => c[1]);
+        const rs = L[k].filter((r) => slots.includes(r[0]));
+        const sum = rs.reduce((s, r) => s + (r[3] || 0), 0);
+        const extra = rs.some((r) => r[4] === "pick") ? ` <span class="tag pick">your pick</span>` : rs.some((r) => r[4] === "unmatched") ? ` <span class="tag pick">unmatched</span>` : "";
+        h += `<div class="sub" style="grid-row:${row};grid-column:${i + 2}"><span>${money(sum)}${extra}</span><small>${rs.length} line${rs.length === 1 ? "" : "s"} ▸</small></div>`;
+      });
+      row++;
+      continue;
+    }
+    h += `<div class="band" style="grid-row:${row}">${band}</div>`; row++;
+    for (const [label, slot] of cats) {
+      h += `<div class="cat" style="grid-row:${row};grid-column:1">${label}</div>`;
+      ORDER.forEach((k, i) => { h += `<div class="cell" style="grid-row:${row};grid-column:${i + 2}">${cellLines(k, slot)}</div>`; });
+      row++;
+    }
+  }
+  const ai = ORDER.indexOf(S.anchor);
+  h += `<div class="ring ${anchorStyle === "shade" ? "shade" : ""}" style="grid-column:${ai + 2};grid-row:1 / ${row}"><span class="tab">Current</span></div>`;
+  h += `</div>`;
+  return h;
+}
+
+function renderB() {
+  const tile = (k) => {
+    const live = k === S.anchor, sel = !live && k === S.selected;
+    return `<div class="tile ${live ? "live" : ""} ${sel ? "sel" : ""}" data-sel="${k}">
+      ${live ? `<span class="tab">Current</span>` : ""}
+      <div class="tt"><input type="checkbox" data-chk="${k}" ${S.checked.has(k) ? "checked" : ""}> ${NAME[k]} ${statusPill(k)}</div>
+      <div class="tv">${money(total(k))}</div>
+      <div class="row2"><span class="dv">${delta(k)}</span>${chipsFor(k)}<span class="sp">${live ? "" : actions(k)}</span></div>
+    </div>`;
+  };
+  let h = `<div class="quad">
+    <div></div><div><span class="bbadge wedi">wedi</span></div><div><span class="bbadge slt">Schluter</span></div>
+    <div class="qrow">Board</div>${tile("wedi:board")}${tile("schluter:board")}
+    <div class="qrow">Membrane</div>${tile("wedi:membrane")}${tile("schluter:membrane")}
+  </div>`;
+  const pair = ORDER.filter((k) => k === S.anchor || k === S.selected);
+  h += `<div class="det"><div class="dh"></div>` + pair.map((k) =>
+    `<div class="dh"><span class="bbadge ${BRAND(k) === "wedi" ? "wedi" : "slt"}">${BRAND(k)}</span>${NAME[k]} <small>${k === S.anchor ? "current" : S.status[k] === "yours" ? "your build" : "house kit"}</small></div>`).join("");
+  for (const [band, cats] of GROUPS) {
+    h += `<div class="band">${band}</div>`;
+    for (const [label, slot] of cats) {
+      h += `<div class="cat">${label}</div>` + pair.map((k) => `<div class="cell">${cellLines(k, slot)}</div>`).join("");
+    }
+  }
+  return h + `</div>`;
+}
+
+const HINTS = {
+  A: "<b>A · Fixed columns.</b> Always wedi Panel · wedi Membrane · Schluter Board · Schluter Membrane, left to right, whichever popup you opened. The column you're in carries the Current mark. Try <b>Open</b> on another column: it becomes Current and the one you left turns into “Your build”. <b>Sync</b> clears the room-changed chip. “Subtotals” collapses each group to one number per column for a quicker read on narrower screens.",
+  B: "<b>B · Grid + detail</b> (today's layout, plus the new states). Click a tile to show it beside the current build below. Open / Sync live on each tile.",
+};
+
+function render() {
+  document.getElementById("view").innerHTML = proto === "A" ? renderA() : renderB();
+  document.getElementById("hint").innerHTML = HINTS[proto];
+  document.getElementById("popTitle").textContent = (BRAND(S.anchor) === "wedi" ? "wedi" : "Schluter") + " shower systems";
+  document.getElementById("anchorStyleWrap").style.display = proto === "A" ? "" : "none";
+  document.getElementById("viewWrap").style.display = proto === "A" ? "" : "none";
+  const n = S.checked.size;
+  document.getElementById("checkedLbl").textContent = n + " checked for quote options";
+  const b = document.getElementById("sendBtn");
+  b.textContent = n >= 2 ? `Add ${n} as quote options` : "Check two or more for quote options";
+  b.disabled = n < 2;
+}
+function toast(t) { const el = document.getElementById("toast"); el.textContent = t; el.classList.add("on"); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove("on"), 2200); }
+
+document.addEventListener("click", (e) => {
+  const t = e.target;
+  const seg = t.closest("#protoSeg button, #styleSeg button, #viewSeg button");
+  if (seg) {
+    seg.parentElement.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b === seg));
+    if (seg.dataset.p) proto = seg.dataset.p;
+    if (seg.dataset.s) anchorStyle = seg.dataset.s;
+    if (seg.dataset.v) rowView = seg.dataset.v;
+    return render();
+  }
+  if (t.dataset.open) {
+    const k = t.dataset.open, prev = S.anchor;
+    S.status[prev] = "yours"; S.status[k] = "current"; S.anchor = k;
+    if (S.selected === k) S.selected = prev;
+    toast(`Saved ${NAME[prev]} to the set · opening ${BRAND(k) === "wedi" ? "wedi" : "Schluter"} · ${NAME[k]}`);
+    return render();
+  }
+  if (t.dataset.sync) {
+    const k = t.dataset.sync; delete S.stale[k];
+    toast(`Synced ${NAME[k]} to the current room — your picks kept`);
+    return render();
+  }
+  if (t.dataset.chk) { t.checked ? S.checked.add(t.dataset.chk) : S.checked.delete(t.dataset.chk); return render(); }
+  const tile = t.closest("[data-sel]");
+  if (tile && !t.closest("button") && t.tagName !== "INPUT" && tile.dataset.sel !== S.anchor) { S.selected = tile.dataset.sel; return render(); }
+  if (t.id === "clearSet") {
+    ORDER.forEach((k) => { if (k !== S.anchor) S.status[k] = "house"; }); S.stale = {};
+    toast("Set cleared — every other column is back to its house kit");
+    return render();
+  }
+  if (t.id === "resumeBtn") return document.getElementById("scrim").classList.add("on");
+  if (t.closest("[data-close]") || t.id === "scrim") return document.getElementById("scrim").classList.remove("on");
+  if (t.id === "resetBtn") { S = init(); return render(); }
+});
+render();
+</script>
+</body>
+</html>

@@ -7,18 +7,21 @@
 //
 // The neutral room both sides speak:
 //   { w, d, curbed, drain: "point"|"offset"|"linear",
-//     walls: [{ side: "back"|"left"|"right", on, len, h }] }
+//     walls: [{ side: "back"|"left"|"right", on, len, h }], benches: [...] }
+// (defined in compareset.js, so the popups can stamp a kept build with it)
 
 import {
   solve, kitFor, item, tierPrice as wediTierPrice, round2, WEDI_ADD_PARTS, wediSlotOf,
   catalog as wediCatalog, coverageOf as wediCoverageOf, sdryNoFit,
+  buildFromMarker as wediFromMarker, panelFitLines,
 } from "./wedi.js";
 import {
   trayCandidates, buildKit, addedLines, tierPrice as schluterTierPrice, ADD_PARTS, slotOf, coverageOf as schluterCoverageOf,
-  boardPlan, expandBoardFaces, applyBoardPlan,
+  boardPlan, expandBoardFaces, applyBoardPlan, buildFromMarker as schluterFromMarker,
 } from "./schluter.js";
 import { GROUPS, groupOf, SLOT_LABEL } from "./slots.js";
 import { rankParts, nearest, matchQty } from "./comparemirror.js";
+import { neutralRoomSchluter, neutralRoomWedi, mergeManual } from "./compareset.js";
 
 const SIDES = [["Back", "back"], ["Left", "left"], ["Right", "right"]];
 const WEDI_DRAIN = { point: "center", offset: "offset", linear: "linear" };
@@ -26,37 +29,15 @@ const WEDI_DRAIN = { point: "center", offset: "offset", linear: "linear" };
 const sub = (lead, note) => [lead, note].filter(Boolean).join(" · ");
 const isEst = (note) => /allowance/i.test(note || "");
 
-export function roomFromSchluter(cfg) {
-  cfg = cfg || {};
-  return {
-    w: +cfg.w || 0, d: +cfg.d || 0,
-    curbed: !!cfg.curbed,
-    drain: cfg.drain || "point",
-    walls: (cfg.walls || []).map((w) => ({
-      side: String(w.name || "").toLowerCase(), on: !!w.on, len: +w.len || 0, h: +w.h || 84,
-    })),
-  };
-}
+export const roomFromSchluter = (cfg) => neutralRoomSchluter(cfg);
+export const roomFromWedi = (cfg) => neutralRoomWedi(cfg, item);
 
-export function roomFromWedi(cfg) {
-  cfg = cfg || {};
-  const input = (cfg.solve && cfg.solve.input) || null;
-  // A Kits-tab pick never ran the solver — kitFor stamps `solve: null` — so the
-  // PAN is the only record of what was built. Defaulting there quoted a linear
-  // or curbless build against a curbed point-drain house kit on the other side.
-  const pan = input ? null : (cfg.panKey ? item(cfg.panKey) : null);
-  const dr = input ? input.drain : (pan && pan.drain && pan.drain.type);
-  const drain = dr === "offset" ? "offset" : dr === "linear" ? "linear" : "point";
-  return {
-    w: (cfg.room && +cfg.room.w) || 0, d: (cfg.room && +cfg.room.d) || 0,
-    curbed: input ? input.curb !== "curbless" : !(pan && pan.sub === "curbless"),
-    drain: drain,
-    // a wedi cfg lists only the walls that are standing
-    walls: (cfg.walls || []).map((w) => ({ side: w.side, on: true, len: +w.len || 0, h: +w.h || 84 })),
-  };
-}
+// A room's benches for a brand. `part` is a brand-specific premade SKU, so it
+// crosses only within the brand it came from; the other engine's normBench
+// picks its own premade for the same geometry.
+export const benchesFor = (brand, room, fromBrand) =>
+  ((room && room.benches) || []).map(({ part, ...b }) => (brand === fromBrand && part ? { ...b, part } : b));
 
-// The wedi solver input for a neutral room — what wediBuildFor solves.
 function wediInput(room, source) {
   room = room || {};
   return {
@@ -76,7 +57,7 @@ function wediInput(room, source) {
  * `cfg.sdryBase` says so. `sdryBase: "nearest"` is the popup prompt's other
  * answer: the nearest S-DRY base anyway. Null when nothing solves.
  */
-export function wediBuildFor(room, { source, tier, manual, wallSys, sdryBase } = {}) {
+export function wediBuildFor(room, { source, tier, manual, wallSys, sdryBase, benches, choices } = {}) {
   room = room || {};
   const walls = (room.walls || []).filter((w) => w.on)
     .map((w) => ({ side: w.side, len: +w.len || 0, h: +w.h || 84 }));
@@ -90,6 +71,8 @@ export function wediBuildFor(room, { source, tier, manual, wallSys, sdryBase } =
     option: option, room: option.room,
     walls: walls, wallHeight: (walls[0] && walls[0].h) || 84,
     mode: "kit", tier: tier,
+    benches: (benches || room.benches || []).map((b) => ({ ...b })),
+    ...(choices || {}),
     ...(membrane ? { wallSys: "membrane", ...(sdry ? {} : { sdryBase: "wedi" }) } : {}),
     ...(manual && manual.length ? { manual } : {}),
   });
@@ -115,12 +98,13 @@ export function wediOptionOf(build) {
  * for its top-ranked tray. The cfg comes back beside the build because it is
  * what "Schluter — reconfigure" reopens on.
  */
-export function schluterBuildFor(room, cat, { source, mortarItem, manual, wallSys } = {}) {
+export function schluterBuildFor(room, cat, { source, mortarItem, manual, wallSys, benches } = {}) {
   room = room || {};
   const w = +room.w || 0, d = +room.d || 0;
   const cfg = {
     w: w, d: d, curbed: !!room.curbed, drain: room.drain || "point",
-    wallSys: wallSys === "board" ? "board" : "membrane", bench: null,
+    wallSys: wallSys === "board" ? "board" : "membrane",
+    benches: (benches || room.benches || []).map((b) => ({ ...b })),
     walls: SIDES.map(([name, side], i) => {
       const hit = (room.walls || []).find((x) => x.side === side);
       return { name: name, on: !!(hit && hit.on), len: i === 0 ? w : d, h: (hit && +hit.h) || 84 };
@@ -136,6 +120,117 @@ export function schluterBuildFor(room, cat, { source, mortarItem, manual, wallSy
   // buildKit bills the recipe only; added rows ride on top, as buildFromMarker does
   if (build && build.lines && cfg.manual) build.lines.push(...addedLines(cfg.manual, cat));
   return { build, cfg };
+}
+
+// --- the Compare set (ticket 158 Phase 4, ADR 0052) ---------------------------
+
+// Kept builds price exactly what their popup showed: the marker's build plus
+// the default Fit plan (wedi panels, KERDI-BOARD sheets). Stepped quantities
+// never ride a marker, so they don't ride a kept build either.
+export function wediKeptBuild(snap) {
+  const b = snap && snap.cfg ? wediFromMarker(snap) : null;
+  if (!b) return null;
+  return { ...b, cfg: { ...b.cfg, source: snap.cfg.source }, lines: panelFitLines(b.lines, b.cfg.walls, b.panelSf) };
+}
+
+export function schluterKeptBuild(snap, cat) {
+  const cfg = snap && snap.cfg;
+  const b = cfg ? schluterFromMarker(snap, cat) : null;
+  if (!b) return null;
+  const source = cfg.source === "stock" ? "stock" : "all";
+  const lines = cfg.wallSys === "board"
+    ? applyBoardPlan(b.lines, cfg, boardPlan(expandBoardFaces(cfg), cat, { source }), cat) : b.lines;
+  return { build: { ...b, lines }, raw: b, cfg: { ...cfg, pick: b.pick && b.pick.tray ? b.pick.tray.sku : null } };
+}
+
+// The anchor's hand-added lines as a brand's `manual`: the same brand takes
+// them as they are, the other brand its auto nearest match.
+export function anchorManualFor(brand, hostBuild, hostBrand, { cat, source } = {}) {
+  if (brand !== hostBrand) return mirrorPlan(hostBuild, hostBrand, {}, { cat, source }).manual;
+  return hostAddedLines(hostBuild, brand).map((h) => (brand === "wedi"
+    ? { key: h.part.item.key, qty: h.qty, group: h.part.g }
+    : { sku: h.part.item.sku, qty: h.qty, g: h.part.g }));
+}
+
+const WEDI_CHOICES = ["panelKey", "curbPick", "fastenerKey", "coverPick", "coverFrame", "sealantForm", "recess"];
+
+/**
+ * Which kept choices didn't resolve in a build: slot words ("drain", "curb",
+ * …). The engines already fall back to the house pick (ADR 0049); this only
+ * names it so the column can say so.
+ */
+export function keptDropped(brand, cfg, build) {
+  cfg = cfg || {};
+  const lines = (build && build.lines) || [];
+  const out = [];
+  if (brand === "schluter") {
+    // membrane/band swaps are width/roll choices, not parts; board and
+    // fastener picks only bill on a KERDI-BOARD build
+    const skus = new Set(lines.map((l) => l.item && l.item.sku));
+    const slots = ["grate", "curb", ...(cfg.wallSys === "board" ? ["board", "fastener"] : [])];
+    for (const slot of slots) {
+      const sku = (cfg.swaps || {})[slot];
+      if (typeof sku === "string" && sku && !skus.has(sku)) out.push(slot);
+    }
+    if (cfg.drainPick && lines.some((l) => /can't be made here/.test(l.note || ""))) out.push("drain");
+    return out;
+  }
+  const has = (pred) => lines.some((l) => l.item && pred(l.item, l));
+  const cp = cfg.coverPick;
+  if (cp && cp.key && !has((it) => it.key === cp.key)) out.push("cover");
+  else if (cp && cp.finish && !has((it) => it.group === "cover" && it.finish === cp.finish)) out.push("cover");
+  const kp = cfg.curbPick;
+  if (kp && !kp.none && kp.sub && !has((it) => it.group === "curb" && it.sub === kp.sub)) out.push("curb");
+  if (cfg.panelKey && cfg.wallSys !== "membrane" && !has((it) => it.key === cfg.panelKey)) out.push("panel");
+  return out;
+}
+
+/**
+ * Sync a kept build to the anchor (owner option b): the anchor's neutral room
+ * and hand-added lines come over; the kept build's own choices and added
+ * lines stay. Brand-only geometry the neutral room can't place (Schluter's
+ * added walls, corners, drain offset, ramp; wedi's corners and its solve)
+ * resets, and the tray / pan re-ranks for the new room.
+ * Returns { snap: { mode, cfg }, dropped } or null when nothing builds.
+ */
+export function syncKept(brand, entry, { room, hostBuild, hostBrand, cat, tier } = {}) {
+  const cfg = (entry && entry.snap && entry.snap.cfg) || {};
+  const source = cfg.source === "stock" ? "stock" : "all";
+  const incoming = anchorManualFor(brand, hostBuild, hostBrand, { cat, source });
+  if (brand === "wedi") {
+    const manual = mergeManual(cfg.manual || [], incoming, (r) => r.key);
+    const choices = Object.fromEntries(WEDI_CHOICES.filter((k) => cfg[k] != null).map((k) => [k, cfg[k]]));
+    const membrane = cfg.wallSys === "membrane";
+    // the Membrane floor answer is a choice too: a wedi pan stays a wedi pan;
+    // "nearest S-DRY base" holds only while nothing fits
+    const nearest = membrane && cfg.solve && cfg.solve.id === "sdry-nearest" && !!wediSdryNoFit(room, { source });
+    const b = wediBuildFor(room, {
+      source, tier, manual, wallSys: membrane ? "membrane" : "board",
+      ...(membrane && cfg.sdryBase === "wedi" ? { sdryBase: "wedi" } : nearest ? { sdryBase: "nearest" } : {}),
+      benches: benchesFor("wedi", room, hostBrand), choices,
+    });
+    if (!b) return null;
+    // dropped picks read the bill before the Fit plan re-plans the panels
+    return { snap: { mode: "custom", cfg: { ...b.cfg, source } }, dropped: keptDropped("wedi", cfg, b) };
+  }
+  const w = +room.w || 0, d = +room.d || 0;
+  const next = {
+    ...cfg,
+    w, d, curbed: !!room.curbed, drain: room.drain || "point",
+    walls: SIDES.map(([name, side], i) => {
+      const hit = (room.walls || []).find((x) => x.side === side);
+      return { name, on: !!(hit && hit.on), len: i === 0 ? w : d, h: (hit && +hit.h) || 84 };
+    }),
+    benches: benchesFor("schluter", room, hostBrand),
+    xwalls: [], corners: [], drainX: 0, drainY: 0, drainRef: "left", ramp: false, maxIn: false, tileT: 0,
+    pick: null,
+    manual: mergeManual(cfg.manual || [], incoming, (r) => r.sku),
+  };
+  delete next.bench;
+  const kept = schluterKeptBuild({ mode: "custom", cfg: next }, cat);
+  if (!kept) return null;
+  // dropped picks read the bill before the board Fit plan replaces its sheets
+  return { snap: { mode: "custom", cfg: kept.cfg }, dropped: keptDropped("schluter", cfg, kept.raw) };
 }
 
 // One engine's three money columns for `qty` of a part. builderPct is that

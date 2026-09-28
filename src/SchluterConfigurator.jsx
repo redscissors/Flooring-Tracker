@@ -13,6 +13,8 @@ import { createPortal } from "react-dom";
 import { X, Plus, Eye, Printer, Copy } from "lucide-react";
 import { useEscClose, SourceSwitch, NumIn, KitBasketPanel, KitOverwriteConfirm, HelpTip, PriceLevelMenu, BasketButton, FLAT_BTN, MorphSelect, PopMenu, PointPop } from "./widgets.jsx";
 import { PaneBack, PaneClose } from "./raildrawer.jsx";
+import { entryOf, entrySig, resumeChoices, isMarkerSeed, neutralRoomSchluter } from "./compareset.js";
+import { ResumePrompt } from "./resumeprompt.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
   trayCandidates, pickRolls, buildKit, tierPrice, coverageOf, lineItems, orderCopyLines, normBench, benchTrayRoom,
@@ -430,6 +432,8 @@ function seedState(seed) {
     s.pick = typeof cfg.pick === "string" ? cfg.pick : null;
     s.kitPick = seed.mode === "kit";
     s.started = true;
+    // a Compare hand-off lands on Compare, so the columns are what shows first
+    if (seed.tab === "compare") s.tab = "compare";
     return s;
   }
   if (seed.tab) s.tab = ["custom", "browse", "compare"].includes(seed.tab) ? seed.tab : "kits";
@@ -451,6 +455,7 @@ export default function SchluterConfigurator({
   onClose, areaName, projectName,
   onConfigChange, onQuoteOptions, embedded = false, escActive = true,
   stockRows, bookStockReady, books, loadBookItems, mortars, mortarDefault,
+  compareSet, onCompareSet, onOpenCell, onResume, savedBy = "", startDetached = false,
 }) {
   const init = useRef(null);
   if (!init.current) init.current = seedState(seed);
@@ -788,9 +793,44 @@ export default function SchluterConfigurator({
   // the build is a new kit — it appends instead of replacing, and Basket
   // stages a new entry rather than another update of the same row (the wedi
   // rule, 2026-09-02).
-  const [detached, setDetached] = useState(false);
+  const [detached, setDetached] = useState(!!startDetached);
   const edit = detached ? null : editing;
   const commitLines = detached && onAddNew ? onAddNew : onAdd;
+  // The Compare set (ADR 0052): the build on screen is kept for this shower on
+  // the way out — every close path unmounts the popup, so the cleanup is the
+  // one place that sees them all.
+  const keep = useRef(null);
+  keep.current = build && +markCfg.w > 0 && +markCfg.d > 0 ? {
+    key: "schluter:" + (markCfg.wallSys === "board" ? "board" : "membrane"),
+    entry: entryOf({ snap: { mode, cfg: JSON.parse(JSON.stringify(markCfg)) }, room: neutralRoomSchluter(markCfg), target: edit || undefined, savedBy }),
+  } : null;
+  const setRef = useRef(compareSet);
+  setRef.current = compareSet;
+  const saveRef = useRef(onCompareSet);
+  saveRef.current = onCompareSet;
+  // The save waits a tick and checks the body is really gone: StrictMode's
+  // dev-only unmount/remount runs this cleanup once on open, and `npm run dev`
+  // talks to the live project. A resume pick skips it — the build on screen
+  // is the fresh default the rep chose to set aside.
+  const alive = useRef(false);
+  const skipSave = useRef(false);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+      setTimeout(() => {
+        const k = keep.current;
+        if (alive.current || skipSave.current || !k || !k.entry || !saveRef.current || !setRef.current) return;
+        const prev = setRef.current[k.key];
+        if (prev && entrySig(prev) === entrySig(k.entry)) return;
+        saveRef.current({ ...setRef.current, [k.key]: k.entry });
+      }, 0);
+    };
+  }, []);
+  const [resume, setResume] = useState(() => {
+    const cs = compareSet && !isMarkerSeed(seed) ? resumeChoices(compareSet, "schluter") : [];
+    return cs.length ? cs : null;
+  });
   const stageBuild = ({ open = true } = {}) => {
     if (!build || !onBasketChange) return false;
     const entry = normKitBasketEntry({
@@ -2519,7 +2559,8 @@ export default function SchluterConfigurator({
         books={books} loadBookItems={loadBookItems} bookStockReady={bookStockReady}
         mortars={mortars} mortarDefault={mortarDefault}
         areaName={areaName} onQuoteOptions={onQuoteOptions}
-        mirror={mirror} onMirror={setMirror} />
+        mirror={mirror} onMirror={setMirror}
+        compareSet={compareSet} onCompareSet={onCompareSet} onOpenCell={onOpenCell} savedBy={savedBy} />
     </Suspense>
   );
 
@@ -2566,6 +2607,11 @@ export default function SchluterConfigurator({
             </>)}
           </div>
         </div>
+        {resume && (
+          <ResumePrompt brand="schluter" choices={resume} priceOf={(e) => entryView(e.snap, {}).price}
+            room={seed && seed.input}
+            onPick={(e) => { skipSave.current = true; setResume(null); onResume && onResume(e); }} onNew={() => setResume(null)} />
+        )}
         <div className={`absolute inset-0 z-[55] transition-opacity ${basketOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`} style={{ background: "rgba(20,15,10,.4)" }} onClick={() => setBasketOpen(false)} />
         <div className={`absolute top-0 right-0 bottom-0 z-[56] w-[400px] max-w-full bg-white border-l border-slate-300 shadow-2xl transition-transform ${basketOpen ? "translate-x-0" : "translate-x-full"}`}>
           <KitBasketPanel staged={stagedViews} sel={basketSel}

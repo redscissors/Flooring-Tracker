@@ -194,3 +194,17 @@ brand pairing.
 See ADR 0051's Phase 3 note for the grid's S-DRY no-fit answer, and
 `src/CLAUDE.md` (`comparegrid.js`, `comparekit.js`, `CompareTab.jsx`,
 `options.js`) for the implementation.
+
+## Amendment — Phase 4 (2026-09-28): the Compare set (ADR 0052)
+
+- **Decision 3** is amended. A non-live column is the rep's **kept build**
+  for that system when the shower's Compare set holds one, else the house
+  kit. The objection to a configurator inside Compare still stands: a
+  column is worked by **Open**, which hands it to its own popup. It is not
+  edited in place.
+- **Decision 5** is amended. Compare still caches no price. But kept
+  builds, which are markers (choices) plus the room they were built for,
+  now persist on the project (`compareSets`, per area).
+- The 2×2 grid and two-column detail are replaced by four fixed columns.
+  Quote-option letters follow the column order (B is now wedi Membrane).
+

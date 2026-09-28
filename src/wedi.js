@@ -6457,6 +6457,24 @@ const PANEL_SHEETS = [
 /** Why no S-DRY base fits a room ("" when one does) — the popup's fallback prompt reads it. */
 export const sdryNoFit = (input) => sdryFit({ ...input, w: +input.w || 0, d: +input.d || 0 }, catalog()).reason;
 
+// The Fit plan (level courses, mixed sheet sizes, a vertical single sheet
+// where it kills the seams) replaces the engine's by-area panel line — a
+// Membrane build has none, and its membrane line stays.
+export function panelFitLines(lines, wl, panelSf) {
+  if (!lines.some((l) => l.group === "walls" && l.auto !== false && l.item.group === "panel")) return lines;
+  const plan = panelPlan(expandWallFaces(wl));
+  const out = lines.filter((l) => !(l.group === "walls" && l.auto !== false));
+  const vWalls = plan.detail.filter((d) => d.vertical).length;
+  plan.lines.forEach((pl, i) => out.push({
+    item: item(pl.key), qty: pl.qty, group: "walls", auto: true, slot: "wallBoard",
+    note: i === 0
+      ? round2(panelSf) + " sf — " + plan.vSeams + " vertical seam" + (plan.vSeams === 1 ? "" : "s")
+        + (vWalls ? " · " + vWalls + " wall" + (vWalls === 1 ? "" : "s") + " stood vertical" : "")
+      : "panel plan",
+  }));
+  return out;
+}
+
 export function panelPlan(walls) {
   return planPanels(walls, PANEL_SHEETS.map((s) => {
     const e = item(s.key);

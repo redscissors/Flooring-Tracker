@@ -15,6 +15,8 @@ import { createPortal } from "react-dom";
 import { X, Plus, Printer, Copy, Eye } from "lucide-react";
 import { useEscClose, SourceSwitch, NumIn, KitBasketPanel, KitOverwriteConfirm, HelpTip, PriceLevelMenu, BasketButton, FLAT_BTN, PopMenu, PointPop } from "./widgets.jsx";
 import { PaneBack, PaneClose } from "./raildrawer.jsx";
+import { entryOf, entrySig, resumeChoices, isMarkerSeed, neutralRoomWedi } from "./compareset.js";
+import { ResumePrompt } from "./resumeprompt.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
   item, group, pans, kitFor, solve, savedOption, figureConsumables, panelPlan,
@@ -25,7 +27,7 @@ import {
   BENCH_CORNER_LBL, buildFromMarker, sessionFromRows, wediSlotOf, coverStyles, legacyCoverPick, coverPickApplies,
   resolveCurb, curbOptions, curbPickOf, panelOptions, panelSheets, fastenerKits,
   addedRows, setAddedRow, wediBucketOf, wediAddParts, wediAddPartOf, curbAddOptions, coverAddOptions, curbProfile, catalog,
-  sdryNoFit,
+  sdryNoFit, panelFitLines,
 } from "./wedi.js";
 import { SDRY, sdryRole } from "./sdry.js";
 import { SwapPop, fmDelta, inchGlyph } from "./swappop.jsx";
@@ -562,6 +564,8 @@ function seedState(seed) {
       s.inp = { ...DEF_INP, ...si, drainX: si.drainX || "", drainY: si.drainY || "" };
     }
     else if (cfg.room) s.inp = { ...s.inp, w: cfg.room.w, d: cfg.room.d };
+    // a Compare hand-off lands on Compare, so the columns are what shows first
+    if (seed.tab === "compare") s.tab = "compare";
     return s;
   }
   if (seed.tab) s.tab = ["custom", "browse", "compare"].includes(seed.tab) ? seed.tab : "kits";
@@ -650,7 +654,8 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   cat, caption = "",
   stockRows, bookStockReady, books, loadBookItems, mortars, mortarDefault,
   onAdd, onAddNew, editing = null, editRows = null, basket, onBasketChange, onMoveEntries, placed, onOpenPlaced, onDeleteKit,
-  onQuoteOptions, onClose, areaName, projectName, onConfigChange, embedded = false, escActive = true }) {
+  onQuoteOptions, onClose, areaName, projectName, onConfigChange, embedded = false, escActive = true,
+  compareSet, onCompareSet, onOpenCell, onResume, savedBy = "", startDetached = false }) {
   const init = useRef(null);
   if (!init.current) init.current = seedState(seed);
   const s0 = init.current;
@@ -917,23 +922,6 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   const sfOfWall = (len, h, faces) =>
     round2(((+len || 0) * (+h || 0) * (faces === "both" ? 2 : 1) + (faces === "in-end" ? WALL_THICK * (+h || 0) : 0)) / 144);
 
-  // The Fit plan (level courses, mixed sheet sizes, a vertical single sheet
-  // where it kills the seams) replaces the engine's by-area panel line — a
-  // Membrane build has none, and its membrane line stays.
-  const applyPanelFit = (lines, wl, panelSf) => {
-    if (!lines.some((l) => l.group === "walls" && l.auto !== false && l.item.group === "panel")) return lines;
-    const plan = panelPlan(expandWallFaces(wl));
-    const out = lines.filter((l) => !(l.group === "walls" && l.auto !== false));
-    const vWalls = plan.detail.filter((d) => d.vertical).length;
-    plan.lines.forEach((pl, i) => out.push({
-      item: item(pl.key), qty: pl.qty, group: "walls", auto: true, slot: "wallBoard",
-      note: i === 0
-        ? round2(panelSf) + " sf — " + plan.vSeams + " vertical seam" + (plan.vSeams === 1 ? "" : "s")
-          + (vWalls ? " · " + vWalls + " wall" + (vWalls === 1 ? "" : "s") + " stood vertical" : "")
-        : "panel plan",
-    }));
-    return out;
-  };
 
   // The build column's tail over a kitFor result — panel plan, stepped
   // quantities. The basket drawer runs it too, so a staged entry prices the
@@ -942,7 +930,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   // Phase 1c, whose extras rode the session — each its own line now.
   const applySession = (b, wl, s) => {
     let lines = b.lines.map((l) => ({ item: l.item, qty: l.qty, group: l.group, note: l.note, auto: l.auto, slot: l.slot, added: l.added }));
-    if (s.panelFit) lines = applyPanelFit(lines, wl, b.panelSf);
+    if (s.panelFit) lines = panelFitLines(lines, wl, b.panelSf);
     lines.forEach((l) => {
       const ov = s.qtyOv[l.item.key];
       if (ov != null && !l.added) { l.autoQty = l.qty; l.qty = ov; l.ov = true; }
@@ -1554,7 +1542,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
       const b = kitFor(p.key, { walls: wl, sealantForm: opts.sealantForm, room: { w: lens.back, d: lens.left },
         ...(p.sub === "sdry" ? { wallSys: "membrane" } : {}) });
       if (!b) return;
-      const lines = panelFit ? applyPanelFit(b.lines, wl, b.panelSf) : b.lines;
+      const lines = panelFit ? panelFitLines(b.lines, wl, b.panelSf) : b.lines;
       out[p.key] = round2(lines.reduce((t, l) => t + tierOf(l.item) * l.qty, 0));
     }));
     return out;
@@ -1612,8 +1600,43 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   // stages a new entry rather than another update of the same row. Without
   // the detach, a second shower staged from a Reconfigure would land on top
   // of the first (the trap behind the 2026-09-02 report).
-  const [detached, setDetached] = useState(false);
+  const [detached, setDetached] = useState(!!startDetached);
   const edit = detached ? null : editing;
+  // The Compare set (ADR 0052): the build on screen is kept for this shower on
+  // the way out — every close path unmounts the body, so the cleanup is the
+  // one place that sees them all. A Browse-only build has no marker to keep.
+  const keep = useRef(null);
+  keep.current = build && build.pan ? {
+    key: "wedi:" + (build.cfg.wallSys === "membrane" ? "membrane" : "board"),
+    entry: entryOf({ snap: { mode: build.mode, cfg: JSON.parse(JSON.stringify(build.cfg)) }, room: neutralRoomWedi(build.cfg, item), target: edit || undefined, savedBy }),
+  } : null;
+  const setRef = useRef(compareSet);
+  setRef.current = compareSet;
+  const saveRef = useRef(onCompareSet);
+  saveRef.current = onCompareSet;
+  // The save waits a tick and checks the body is really gone: StrictMode's
+  // dev-only unmount/remount runs this cleanup once on open, and `npm run dev`
+  // talks to the live project. A resume pick skips it — the build on screen
+  // is the fresh default the rep chose to set aside.
+  const alive = useRef(false);
+  const skipSave = useRef(false);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+      setTimeout(() => {
+        const k = keep.current;
+        if (alive.current || skipSave.current || !k || !k.entry || !saveRef.current || !setRef.current) return;
+        const prev = setRef.current[k.key];
+        if (prev && entrySig(prev) === entrySig(k.entry)) return;
+        saveRef.current({ ...setRef.current, [k.key]: k.entry });
+      }, 0);
+    };
+  }, []);
+  const [resume, setResume] = useState(() => {
+    const cs = compareSet && !isMarkerSeed(seed) ? resumeChoices(compareSet, "wedi") : [];
+    return cs.length ? cs : null;
+  });
   const commitLines = detached && onAddNew ? onAddNew : onAdd;
   const stageBuild = ({ open = true } = {}) => {
     if (!build || !onBasketChange) return false;
@@ -2940,7 +2963,8 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
         books={books} loadBookItems={loadBookItems}
         mortars={mortars} mortarDefault={mortarDefault}
         areaName={areaName} onQuoteOptions={onQuoteOptions}
-        mirror={mirror} onMirror={setMirror} />
+        mirror={mirror} onMirror={setMirror}
+        compareSet={compareSet} onCompareSet={onCompareSet} onOpenCell={onOpenCell} savedBy={savedBy} />
     </Suspense>
   );
 
@@ -2994,6 +3018,11 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
             </>)}
           </div>
         </div>
+        {resume && (
+          <ResumePrompt brand="wedi" choices={resume} priceOf={(e) => entryView(e.snap, {}).price}
+            room={seed && seed.input}
+            onPick={(e) => { skipSave.current = true; setResume(null); onResume && onResume(e); }} onNew={() => setResume(null)} />
+        )}
         <div className={`absolute inset-0 z-[55] transition-opacity ${basketOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`} style={{ background: "rgba(20,15,10,.4)" }} onClick={() => setBasketOpen(false)} />
         <div className={`absolute top-0 right-0 bottom-0 z-[56] w-[400px] max-w-full bg-white border-l border-slate-300 shadow-2xl transition-transform ${basketOpen ? "translate-x-0" : "translate-x-full"}`}>
           <KitBasketPanel staged={stagedViews} sel={basketSel}

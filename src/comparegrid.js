@@ -8,13 +8,16 @@
 import {
   wediBuildFor, schluterBuildFor, wediCompareRows, schluterCompareRows, compareTotals,
   mirrorPlan, mirrorRow, hostAddedLines, wediOptionOf, wediSdryNoFit,
+  wediKeptBuild, schluterKeptBuild,
 } from "./comparekit.js";
+import { roomChanged, sizeChanged, roomLabel } from "./compareset.js";
 
-// Reading order — quote options letter the checked cells in this order.
+// Column order, fixed whichever popup hosts Compare (ticket 158 Phase 4) —
+// quote options letter the checked columns in this order.
 export const CELLS = [
   { key: "wedi:board", brand: "wedi", sys: "board" },
-  { key: "schluter:board", brand: "schluter", sys: "board" },
   { key: "wedi:membrane", brand: "wedi", sys: "membrane" },
+  { key: "schluter:board", brand: "schluter", sys: "board" },
   { key: "schluter:membrane", brand: "schluter", sys: "membrane" },
 ];
 export const BRAND = { wedi: "wedi", schluter: "Schluter" };
@@ -44,6 +47,12 @@ function sameBrandManual(build, brand) {
     ? { key: h.part.item.key, qty: h.qty, group: h.part.g }
     : { sku: h.part.item.sku, qty: h.qty, g: h.part.g }));
 }
+
+// A kept pick that no longer resolves, in the words its chip uses.
+const DROP_WORD = {
+  drain: "drain", grate: "grate", cover: "drain cover", curb: "curb", board: "board",
+  panel: "panel", membrane: "membrane", band: "band", fastener: "fastener",
+};
 
 // Chip order is severity order; the cell shows the first two.
 const FLAG_ORDER = ["mortar", "drain", "sdry", "short", "deep", "price", "unmatched"];
@@ -103,16 +112,34 @@ export function cellFlags(brand, build, rows, plan, option) {
  * Returns { key, brand, sys, live, build, cfg, rows, plan, totals, flags, label, name };
  * rows is empty when the cell can't be built.
  */
-export function cellBuild(key, ctx, { mirror, sdryPick } = {}) {
+export function cellBuild(key, ctx, { mirror, sdryPick, kept } = {}) {
   const { brand, sys } = CELLS.find((c) => c.key === key);
   const live = key === ctx.hostKey;
   const pct = brand === "wedi" ? ctx.wPct : ctx.sPct;
   const rowsOf = (b) => (brand === "wedi" ? wediCompareRows(b, { builderPct: pct }) : schluterCompareRows(b, { builderPct: pct }));
-  let build = null, cfg = null, rows = [], plan = null;
+  let build = null, cfg = null, rows = [], plan = null, status = live ? "current" : "house", used = null;
+  const pre = [];
+  if (!live && kept && ctx.ready[brand]) {
+    if (brand === "wedi") build = wediKeptBuild(kept.snap);
+    else ({ build, cfg } = schluterKeptBuild(kept.snap, ctx.cat) || {});
+    if (build) {
+      rows = rowsOf(build);
+      status = "yours";
+      used = kept;
+      if (ctx.roomOk && roomChanged(kept.room, ctx.room)) pre.push({ id: "room",
+        label: sizeChanged(kept.room, ctx.room) ? "Built for " + roomLabel(kept.room) + " — room changed" : "Built for a different room" });
+      for (const slot of kept.dropped || []) pre.push({ id: "dropped:" + slot, label: `Your ${DROP_WORD[slot] || slot} pick doesn't fit — house pick used` });
+    } else {
+      build = null; cfg = null;
+      pre.push({ id: "lost", label: "Your build can't be rebuilt — showing the house kit" });
+    }
+  }
   if (live) {
     build = ctx.hostBuild || null;
     cfg = brand === "schluter" ? ctx.hostCfg || null : null;
     rows = rowsOf(build);
+  } else if (used) {
+    // the kept build stands as it is — no mirror; its added lines are its own
   } else if (ctx.roomOk && ctx.ready[brand]) {
     plan = brand === ctx.hostBrand ? null : mirrorPlan(ctx.hostBuild, ctx.hostBrand, mirror, { cat: ctx.cat, source: ctx.source });
     const manual = plan ? plan.manual : sameBrandManual(ctx.hostBuild, brand);
@@ -132,10 +159,11 @@ export function cellBuild(key, ctx, { mirror, sdryPick } = {}) {
   }
   const option = brand === "wedi" && rows.length ? wediOptionOf(build) : null;
   const label = cellLabel(key, build);
+  const baseKey = (rows.find((r) => r.group === "base") || rows[0] || {}).key || null;
   return {
-    key, brand, sys, live, build, cfg, rows, plan,
+    key, brand, sys, live, build, cfg, rows, plan, status, kept: used,
     totals: compareTotals(rows),
-    flags: rows.length ? cellFlags(brand, build, rows, plan, option) : [],
+    flags: [...pre.map((f) => ({ ...f, rowKey: baseKey })), ...(rows.length ? cellFlags(brand, build, rows, plan, option) : [])],
     label, name: BRAND[brand] + " · " + label,
   };
 }

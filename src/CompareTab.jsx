@@ -1,24 +1,26 @@
-// CompareTab — one room, four shower systems (phase 5, prototype P3; the
-// 4-way grid is ticket 158 Phase 3).
+// CompareTab — one shower, four systems (phase 5, prototype P3; four fixed
+// columns + the Compare set, ticket 158 Phase 4, ADR 0052).
 //
-// A fourth tab in EITHER vendor popup: the host popup passes its live cfg and
-// its build. A 2×2 grid prices the room as wedi and Schluter on Board and on
-// Membrane — the host's own cell is its live build, the other three are house
-// kits (comparegrid.js) — and the two-column detail below shows the live
-// build against the selected cell. The popups never import comparekit — they
-// hand over a raw `hostCfg` and the neutral room is derived HERE, so wedi.js
-// and schluter.js only meet inside comparekit.js (and, through it, this lazy
-// chunk).
+// A tab in EITHER vendor popup. Four columns, always in the same order
+// (comparegrid.js CELLS): the popup's own build is Current; every other column
+// is the rep's kept build for this shower when the Compare set holds one
+// (Your build), else that system's house kit for the room. Open hands the
+// column to its real configurator; Sync pulls the anchor's room and added
+// lines into a kept build while keeping its picks. The popups never import
+// comparekit — they hand over a raw `hostCfg` and the neutral room is derived
+// HERE, so wedi.js and schluter.js only meet inside comparekit.js (and,
+// through it, this lazy chunk).
 //
 // LAZY-CHUNK-ONLY (ADR 0026): imports comparekit.js → both engines. Nothing on
 // the boot path may import this file — the popups mount it via React.lazy.
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
 import {
-  roomFromSchluter, roomFromWedi, wediSdryNoFit,
+  roomFromSchluter, roomFromWedi, wediSdryNoFit, syncKept,
   mirrorParts, mirrorCandidates, pruneMirror, hostAddedLines, compareLayout,
 } from "./comparekit.js";
 import { CELLS, BRAND, hostCellKey, opposite, cellBuild } from "./comparegrid.js";
+import { entryOf } from "./compareset.js";
 import { matchQty } from "./comparemirror.js";
 import { groupLabel, SLOT_LABEL } from "./slots.js";
 import { SwapPop } from "./swappop.jsx";
@@ -35,22 +37,28 @@ const LETTERS = ["A", "B", "C", "D"];
 const signed = (n) => (Math.abs(n) < 0.005 ? "same" : (n > 0 ? "+" : "−") + fm(Math.abs(n)));
 
 const CSS = `
-.cmp-tab{flex:1 1 0;min-width:0;display:flex;flex-direction:column;overflow-y:auto;position:relative;
+.cmp-tab{flex:1 1 0;min-width:0;display:flex;flex-direction:column;overflow:auto;position:relative;
   background:var(--ft-card);color:var(--ft-text)}
-.cmp-tab .cmp-head{display:flex;align-items:center;gap:14px;padding:12px 18px;border-bottom:1px solid var(--ft-border-strong);flex-wrap:wrap}
+.cmp-tab .cmp-head{display:flex;align-items:center;gap:14px;padding:12px 18px;border-bottom:1px solid var(--ft-border-strong);flex-wrap:wrap;position:sticky;left:0}
 .cmp-tab .cmp-head .t{font-size:15px;font-weight:800;display:inline-flex;align-items:center;gap:6px}
 .cmp-tab .cmp-head .room{font-size:11.5px;font-weight:700;color:var(--ft-muted);background:var(--ft-tint);border:1px solid var(--ft-tint-border);border-radius:6px;padding:3px 9px}
-.cmp-tab .lensseg{margin-left:auto;display:inline-flex;border:1px solid var(--ft-border-strong);border-radius:7px;overflow:hidden;background:var(--ft-card)}
+.cmp-tab .cmp-head .sp{margin-left:auto}
+.cmp-tab .cmp-head .msg{font-size:11.5px;font-weight:700;color:var(--ft-muted)}
+.cmp-tab .linkbtn{border:0;background:none;color:var(--ft-muted);font:inherit;font-size:11.5px;font-weight:800;cursor:pointer;text-decoration:underline;text-underline-offset:3px;padding:0}
+.cmp-tab .linkbtn:hover{color:var(--ft-text)}
+.cmp-tab .lensseg{display:inline-flex;border:1px solid var(--ft-border-strong);border-radius:7px;overflow:hidden;background:var(--ft-card)}
 .cmp-tab .lensseg button{border:none;background:var(--ft-card);color:var(--ft-muted);font-size:11.5px;font-weight:700;padding:5px 11px;cursor:pointer;line-height:1.15;text-align:left;font-family:inherit}
 .cmp-tab .lensseg button + button{border-left:1px solid var(--ft-border-strong)}
 .cmp-tab .lensseg button:hover:not(.on){background:var(--ft-hover)}
 .cmp-tab .lensseg button.on{background:var(--ft-seg-on-bg);color:var(--ft-brand-deep);font-weight:800;box-shadow:inset 0 0 0 1.5px var(--ft-brand)}
 .cmp-tab .lensseg small{display:block;font-size:8.5px;font-weight:600;opacity:.75}
-.cmp-tab .cmp-grid{display:grid;grid-template-columns:150px 1fr 1fr;border-bottom:1px solid var(--ft-border)}
-.cmp-tab .cmp-grid>div{padding:7px 14px;font-size:12px;border-bottom:1px solid var(--ft-row-line)}
-.cmp-tab .cmp-grid .gband{grid-column:1/-1;padding:6px 14px 4px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.11em;color:var(--ft-faint);background:var(--ft-tint);border-bottom:1px solid var(--ft-row-line)}
-.cmp-tab .cmp-grid .cat{font-size:11px;font-weight:700;color:var(--ft-muted);display:flex;align-items:center}
-.cmp-tab .cmp-grid .cell .ln{display:flex;justify-content:space-between;gap:10px;padding:1px 0}
+.cmp-tab .cmp-grid{display:grid;grid-template-columns:104px repeat(4,minmax(236px,1fr));column-gap:10px;padding-right:14px;min-width:1100px}
+.cmp-tab .cmp-grid>div{padding:7px 12px;font-size:12px;border-bottom:1px solid var(--ft-row-line);min-width:0}
+.cmp-tab .cmp-grid .gband{padding:6px 12px 4px 18px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.11em;color:var(--ft-faint);background:var(--ft-tint);position:sticky;left:0;z-index:1}
+.cmp-tab .cmp-grid .gfill{background:var(--ft-tint)}
+.cmp-tab .cmp-grid .cat{padding-left:18px;font-size:11px;font-weight:700;color:var(--ft-muted);display:flex;align-items:center;position:sticky;left:0;background:var(--ft-card);z-index:1}
+.cmp-tab .cmp-grid .corner{position:sticky;left:0;top:0;z-index:4;background:var(--ft-card);border-bottom:1px solid var(--ft-border-strong);display:flex;align-items:flex-end;padding-left:18px;font-size:10px;font-weight:800;letter-spacing:.11em;text-transform:uppercase;color:var(--ft-faint)}
+.cmp-tab .cmp-grid .cell .ln{display:flex;justify-content:space-between;gap:8px;padding:1px 0}
 .cmp-tab .cmp-grid .cell .ln .n{min-width:0}
 .cmp-tab .cmp-grid .cell .ln .n small{color:var(--ft-faint);font-size:10px;display:block;overflow:hidden;text-overflow:ellipsis}
 .cmp-tab .cmp-grid .cell .ln .p{font-weight:700;font-variant-numeric:tabular-nums;flex:none}
@@ -62,25 +70,42 @@ const CSS = `
 .cmp-tab .cmp-grid .cell .ln .acts button{width:20px;height:20px;border-radius:5px;border:1px solid var(--ft-border);background:var(--ft-card);color:var(--ft-muted);font-size:11px;font-weight:800;line-height:1;cursor:pointer;font-family:inherit}
 .cmp-tab .cmp-grid .cell .ln .acts button:hover{border-color:var(--ft-brand);color:var(--ft-brand-deep)}
 .cmp-tab .cmp-grid .cell .ln.plus .n{color:var(--ft-faint);font-style:italic;font-weight:600}
-.cmp-tab .cmp-grid .cell .miss{font-size:11.5px;color:var(--ft-faint);font-weight:600;line-height:1.5}
-.cmp-tab .cmp-grid .brandh{font-size:13px;font-weight:800;display:flex;align-items:center;gap:8px}
-.cmp-tab .cmp-grid .brandh small{font-size:10.5px;font-weight:600;color:var(--ft-faint)}
-.cmp-tab .bbadge{font-size:9.5px;font-weight:800;border-radius:4px;padding:2px 7px;text-transform:uppercase;letter-spacing:.08em}
+.cmp-tab .cmp-grid .cell .ln.hl{background:var(--ft-hover-amber);border-radius:4px;transition:background .3s}
+.cmp-tab .cmp-grid .sub{padding:7px 12px;display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:12.5px;font-weight:800;font-variant-numeric:tabular-nums;cursor:pointer;background:none;border:0;border-bottom:1px solid var(--ft-row-line);font-family:inherit;color:var(--ft-text);text-align:left}
+.cmp-tab .cmp-grid .sub:hover{background:var(--ft-hover)}
+.cmp-tab .cmp-grid .sub small{font-weight:600;color:var(--ft-faint);font-size:10.5px}
+.cmp-tab .cmp-grid .colh{position:sticky;top:0;z-index:3;background:var(--ft-card);border-bottom:1px solid var(--ft-border-strong);padding:16px 12px 10px;display:flex;flex-direction:column;gap:4px}
+.cmp-tab .colh .nm{display:flex;align-items:center;gap:7px;font-size:13.5px;font-weight:800;min-width:0}
+.cmp-tab .colh .nm .sys{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cmp-tab .colh .st{min-height:18px;display:flex;align-items:center}
+.cmp-tab .colh .tv{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1}
+.cmp-tab .colh .dv{font-size:11px;font-weight:700;color:var(--ft-muted);font-variant-numeric:tabular-nums;min-height:14px}
+.cmp-tab .colh .tmiss{font-size:11px;color:var(--ft-faint);font-weight:600;line-height:1.45}
+.cmp-tab .colh .chips{display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-height:20px}
+.cmp-tab .colh .chip{border:1px solid var(--ft-border-strong);background:var(--ft-hover-amber);color:var(--ft-text);border-radius:5px;font-size:10px;font-weight:800;padding:2px 7px;cursor:pointer;font-family:inherit;text-align:left}
+.cmp-tab .colh .chip.room{background:var(--ft-hover-amber-strong)}
+.cmp-tab .colh .chip:hover{border-color:var(--ft-text)}
+.cmp-tab .colh .more{font-size:10px;font-weight:700;color:var(--ft-faint)}
+.cmp-tab .colh .acts{display:flex;align-items:center;gap:6px;margin-top:2px}
+.cmp-tab .colh .acts .opt{margin-left:auto;display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--ft-muted);cursor:pointer}
+.cmp-tab .colh .acts .opt input{margin:0;accent-color:var(--ft-brand);cursor:pointer}
+.cmp-tab .pill{font-size:9.5px;font-weight:800;border-radius:999px;padding:2px 8px;letter-spacing:.04em;white-space:nowrap}
+.cmp-tab .pill.house{color:var(--ft-faint);border:1px solid var(--ft-border-strong)}
+.cmp-tab .pill.yours{color:var(--ft-brand-deep);background:var(--ft-brand-soft)}
+.cmp-tab .cmp-grid .cur{box-shadow:inset 2px 0 0 var(--ft-brand),inset -2px 0 0 var(--ft-brand)}
+.cmp-tab .cmp-grid .cur.top{box-shadow:inset 2px 0 0 var(--ft-brand),inset -2px 0 0 var(--ft-brand),inset 0 2px 0 var(--ft-brand);border-radius:10px 10px 0 0}
+.cmp-tab .cmp-grid .cur.bot{box-shadow:inset 2px 0 0 var(--ft-brand),inset -2px 0 0 var(--ft-brand),inset 0 -2px 0 var(--ft-brand);border-radius:0 0 10px 10px}
+.cmp-tab .colh .curtab{position:absolute;top:-1px;left:10px;background:var(--ft-brand);color:#fff;font-size:9.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;border-radius:0 0 5px 5px;padding:2px 8px}
+.cmp-tab .bbadge{font-size:9.5px;font-weight:800;border-radius:4px;padding:2px 7px;text-transform:uppercase;letter-spacing:.08em;flex:none}
 .cmp-tab .bbadge.wedi{background:var(--ft-brand);color:#F6F3EC}
 .cmp-tab .bbadge.slt{background:var(--s-rust,#B4552D);color:#F6F3EC}
-.cmp-tab .cmp-tot{display:grid;grid-template-columns:150px 1fr 1fr}
-.cmp-tab .cmp-tot>div{padding:9px 14px}
-.cmp-tab .cmp-tot .k{font-size:10px;font-weight:800;letter-spacing:.11em;color:var(--ft-faint);text-transform:uppercase;display:flex;align-items:center}
-.cmp-tab .cmp-tot .tv{font-size:19px;font-weight:800;font-variant-numeric:tabular-nums}
-.cmp-tab .cmp-tot .tv small{font-size:10.5px;font-weight:600;color:var(--ft-faint);margin-left:6px}
-.cmp-tab .delta{margin:0 18px 12px;background:var(--ft-tint);border:1px solid var(--ft-border);border-radius:9px;padding:10px 14px;font-size:12.5px;line-height:1.5;color:var(--ft-muted)}
-.cmp-tab .delta b{color:var(--ft-text)}
-.cmp-tab .qfoot{margin-top:auto;flex:none;border-top:1px solid var(--ft-border-strong);background:var(--ft-sand);padding:9px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-.cmp-tab .cbtn{border:1px solid var(--ft-border-strong);background:var(--ft-card);color:var(--ft-text);border-radius:7px;font-size:11.5px;font-weight:800;padding:7px 14px;cursor:pointer;font-family:inherit}
-.cmp-tab .cbtn.primary{background:var(--ft-brand);border-color:var(--ft-brand);color:#fff}
-.cmp-tab .cbtn.primary:hover{background:var(--ft-brand-deep)}
+.cmp-tab .qfoot{margin-top:auto;flex:none;border-top:1px solid var(--ft-border-strong);background:var(--ft-sand);padding:9px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;position:sticky;bottom:0;left:0;z-index:5}
+.cmp-tab .cbtn{border:1px solid var(--ft-border-strong);background:var(--ft-card);color:var(--ft-text);border-radius:7px;font-size:11.5px;font-weight:800;padding:5px 11px;cursor:pointer;font-family:inherit}
+.cmp-tab .cbtn:hover:not(:disabled){border-color:var(--ft-text)}
+.cmp-tab .cbtn.primary{background:var(--ft-brand);border-color:var(--ft-brand);color:#fff;padding:7px 14px}
+.cmp-tab .cbtn.primary:hover:not(:disabled){background:var(--ft-brand-deep)}
 .cmp-tab .cbtn:disabled{opacity:.45;cursor:not-allowed}
-.cmp-tab .cmodal{position:absolute;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;padding:26px;background:rgba(20,15,10,.5)}
+.cmp-tab .cmodal{position:absolute;inset:0;z-index:6;display:flex;align-items:center;justify-content:center;padding:26px;background:rgba(20,15,10,.5)}
 .cmp-tab .cmodal .box{width:100%;max-width:520px;border-radius:11px;overflow:hidden;border:1px solid var(--ft-border-strong);background:var(--ft-cream);box-shadow:0 18px 40px rgba(20,15,10,.28)}
 .cmp-tab .cmodal .bh{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--ft-border-strong)}
 .cmp-tab .cmodal .bh .t{font-size:13.5px;font-weight:800}
@@ -89,6 +114,7 @@ const CSS = `
 .cmp-tab .cmodal .orow{display:flex;align-items:baseline;gap:9px;padding:6px 0;border-bottom:1px solid var(--ft-row-line);font-size:12px;font-weight:700}
 .cmp-tab .cmodal .orow .c{font-size:10px;font-weight:800;letter-spacing:.1em;color:var(--ft-faint);width:52px;flex:none}
 .cmp-tab .cmodal .orow .v{margin-left:auto;font-variant-numeric:tabular-nums}
+.cmp-tab .cmodal .orow .fl{font-size:9.5px;font-weight:800;color:var(--ft-muted);background:var(--ft-hover-amber);border-radius:4px;padding:0 5px}
 .cmp-tab .cmodal .bn{font-size:11px;color:var(--ft-muted);line-height:1.55;margin-top:9px}
 .cmp-tab .cmodal .bf{display:flex;gap:8px;justify-content:flex-end;padding:10px 14px;border-top:1px solid var(--ft-border-strong);background:var(--ft-sand)}
 .cmp-pick .cmp-list{max-height:300px;overflow-y:auto;margin-top:4px}
@@ -101,44 +127,24 @@ const CSS = `
 .cmp-pick .srow .n small{display:block;font-size:9.5px;color:var(--ft-faint);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cmp-pick .more{padding:6px 8px;font-size:9.5px;color:var(--ft-faint);font-weight:600}
 .cmp-pick .srow .p{font-size:11.5px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--ft-text)}
-.cmp-tab .quad{display:grid;grid-template-columns:86px 1fr 1fr;gap:8px;padding:12px 18px;border-bottom:1px solid var(--ft-border-strong)}
-.cmp-tab .quad .qh{display:flex;align-items:center}
-.cmp-tab .quad .qrow{font-size:10px;font-weight:800;letter-spacing:.11em;text-transform:uppercase;color:var(--ft-faint);display:flex;align-items:center}
-.cmp-tab .tile{border:1px solid var(--ft-border);border-radius:9px;background:var(--ft-card);padding:9px 11px;cursor:pointer;min-width:0;text-align:left}
-.cmp-tab .tile:hover{border-color:var(--ft-border-strong);background:var(--ft-hover)}
-.cmp-tab .tile.live{box-shadow:inset 0 0 0 1.5px var(--ft-border-strong);cursor:default;background:var(--ft-tint)}
-.cmp-tab .tile.sel{box-shadow:inset 0 0 0 2px var(--ft-brand)}
-.cmp-tab .tile .tt{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:800}
-.cmp-tab .tile .tt input{margin:0;accent-color:var(--ft-brand);cursor:pointer}
-.cmp-tab .tile .tt .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:none;border:0;padding:0;font:inherit;color:inherit;cursor:inherit;text-align:left}
-.cmp-tab .tile .tt .nm:focus{outline:none}
-.cmp-tab .tile:has(.nm:focus-visible){outline:2px solid var(--ft-brand);outline-offset:2px}
-.cmp-tab .tile .tv{font-size:18px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:3px}
-.cmp-tab .tile .dv{font-size:11px;font-weight:700;color:var(--ft-muted);font-variant-numeric:tabular-nums}
-.cmp-tab .tile .tmiss{font-size:11px;color:var(--ft-faint);font-weight:600;line-height:1.45;margin-top:4px}
-.cmp-tab .tile .chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;align-items:center}
-.cmp-tab .tile .chip{border:1px solid var(--ft-border-strong);background:var(--ft-hover-amber);color:var(--ft-text);border-radius:5px;font-size:10px;font-weight:800;padding:2px 7px;cursor:pointer;font-family:inherit}
-.cmp-tab .tile .chip:hover{border-color:var(--ft-text)}
-.cmp-tab .tile .more{font-size:10px;font-weight:700;color:var(--ft-faint)}
-.cmp-tab .cmp-grid .cell .ln.hl{background:var(--ft-hover-amber);border-radius:4px;transition:background .3s}
-.cmp-tab .sdryask{margin:10px 18px 0;border:1px solid var(--ft-border-strong);border-radius:9px;background:var(--ft-card);padding:10px 14px;font-size:12px;line-height:1.5}
+.cmp-tab .sdryask{margin:10px 18px 0;border:1px solid var(--ft-border-strong);border-radius:9px;background:var(--ft-card);padding:10px 14px;font-size:12px;line-height:1.5;position:sticky;left:18px;max-width:760px}
 .cmp-tab .sdryask .why{font-weight:700;margin-bottom:7px}
 .cmp-tab .sdryask .acts{display:flex;flex-wrap:wrap;gap:6px}
 .cmp-tab .sdryask button{border:1px solid var(--ft-border-strong);background:var(--ft-card);color:var(--ft-text);border-radius:7px;font-size:11.5px;font-weight:700;padding:5px 11px;cursor:pointer;font-family:inherit}
 .cmp-tab .sdryask button.on{background:var(--ft-seg-on-bg);color:var(--ft-brand-deep);box-shadow:inset 0 0 0 1.5px var(--ft-brand)}
-.cmp-tab .cmodal .orow .fl{font-size:9.5px;font-weight:800;color:var(--ft-muted);background:var(--ft-hover-amber);border-radius:4px;padding:0 5px}
 `;
 
 
-// One side of a slot row: its lines (kit first, then added, then mirrored),
-// and for the mirrored side the host lines that found nothing — each with a
-// "+" when the brand has parts for that group at all. `cellKey` scopes the
-// row keys a flag chip scrolls to.
-function Cell({ cellKey, rows, plus, lens, miss, first, brand, onPick, onDrop, canAdd }) {
-  if (miss) return <div className="cell" data-cmp-cell={cellKey}>{first ? <div className="miss">{miss}</div> : null}</div>;
-  if (!rows.length && !plus.length) return <div className="cell" data-cmp-cell={cellKey}><div className="ln dash"><span className="n">—</span></div></div>;
+// One column's lines in one slot row: kit lines first, then added, then
+// mirrored; for a house kit's mirror, the host lines that found nothing — each
+// with a "+" when the brand has parts for that group at all. `cellKey` scopes
+// the row keys a flag chip scrolls to.
+function Cell({ cellKey, rows, plus, lens, miss, brand, onPick, onDrop, canAdd, cls = "" }) {
+  const base = "cell" + (cls ? " " + cls : "");
+  if (miss) return <div className={base} data-cmp-cell={cellKey} />;
+  if (!rows.length && !plus.length) return <div className={base} data-cmp-cell={cellKey}><div className="ln dash"><span className="n">—</span></div></div>;
   return (
-    <div className="cell" data-cmp-cell={cellKey}>
+    <div className={base} data-cmp-cell={cellKey}>
       {rows.map((r, i) => {
         const amt = lens === "builder" ? r.builder : r.retail;
         return (
@@ -172,7 +178,7 @@ function Cell({ cellKey, rows, plus, lens, miss, first, brand, onPick, onDrop, c
   );
 }
 
-const CELL_AT = Object.fromEntries(CELLS.map((c, i) => [c.key, i]));
+const COL = CELLS.map((c, i) => ({ ...c, col: "c" + i }));
 
 export default function CompareTab({
   host, hostCfg, hostBuild, cat, source, tier, hostMode = "custom",
@@ -180,36 +186,38 @@ export default function CompareTab({
   stockRows, bookStockReady, books, loadBookItems,
   mortars, mortarDefault, areaName, onQuoteOptions,
   mirror, onMirror,
+  compareSet = null, onCompareSet, onOpenCell, savedBy = "",
 }) {
   const wediHost = host === "wedi";
   const hostBrand = wediHost ? "wedi" : "schluter";
   const hostKey = hostCellKey(hostBrand, hostCfg);
+  // The Apps hub has no shower to keep a set for: no Open, Sync or Clear set.
+  const setOn = !!(compareSet && onCompareSet);
 
   const [lens, setLens] = useState("retail");
   const [confirm, setConfirm] = useState(null);
   const [pick, setPick] = useState(null);
-  // The grid (Phase 3): the cell the detail shows beside the live build, the
-  // cells checked for quote options, and the wedi Membrane cell's no-fit
-  // answer. It rides the popup's Compare session under the reserved key
-  // `grid` (cell keys all contain ':'), so it outlives a tab switch but not
-  // the popup. It is stamped with the host cell it was made for: flip the
-  // wall system off-tab and the stale grid reads as absent, so the checks
-  // and the selection fall back to today's live cell and its opposite.
+  const [msg, setMsg] = useState("");
+  // Session state — the cells checked for quote options, the wedi Membrane
+  // house kit's no-fit answer, Every line / Subtotals and the subtotal groups
+  // opened — rides the popup's Compare session under the reserved key `grid`
+  // (cell keys all contain ':'), stamped with the host cell it was made for:
+  // flip the wall system off-tab and the stale grid reads as absent.
   const gridOf = (all) => {
     const g = ((all || {}).grid || {}).hostKey === hostKey ? all.grid : {};
     return {
       hostKey,
-      selected: g.selected || opposite(hostKey),
       checked: g.checked || [hostKey, opposite(hostKey)],
       sdryPick: g.sdryPick || "wedi",
+      view: g.view === "sum" ? "sum" : "lines",
+      open: g.open || [],
     };
   };
-  const { selected, checked, sdryPick } = gridOf(mirror);
+  const { checked, sdryPick, view, open } = gridOf(mirror);
   const writeGrid = (patch) => onMirror && onMirror((all) => {
     const g = gridOf(all);
     return { ...(all || {}), grid: { ...g, ...(typeof patch === "function" ? patch(g) : patch) } };
   });
-  const setSelected = (k) => writeGrid({ selected: k });
   const setSdryPick = (v) => writeGrid({ sdryPick: v });
   const [jumpTo, setJumpTo] = useState(null);
   const root = useRef(null);
@@ -219,6 +227,11 @@ export default function CompareTab({
   // and the next closes the popup. Without it Esc threw away the live build.
   useEscClose(!!confirm, () => setConfirm(null));
   useEscClose(!!pick, () => setPick(null));
+  useEffect(() => {
+    if (!msg) return;
+    const t = setTimeout(() => setMsg(""), 3200);
+    return () => clearTimeout(t);
+  }, [msg]);
 
   const wPct = wediBuilderPct == null ? 18 : wediBuilderPct;
   const sPct = schluterBuilderPct == null ? 8 : schluterBuilderPct;
@@ -255,22 +268,21 @@ export default function CompareTab({
     () => mortarItemFrom(mortarDefault || Object.keys(mortars || {})[0] || "", mortars || {}),
     [mortarDefault, mortars]);
 
-  // Every cell prices off one shared context; a cell's own mirror state (its
-  // picks and drops for the host's hand-added lines — the popup's session
-  // state, keyed by cell) and the S-DRY answer only rebuild that cell.
+  // Every column prices off one shared context; a column's own mirror state,
+  // its kept build and the S-DRY answer only rebuild that column.
   const ctx = useMemo(() => ({
     hostBrand, hostKey, hostBuild, hostCfg, room, roomOk,
     ready: { wedi: wediCatReady, schluter: schCatReady && schCat.length > 0 },
     cat: schCat, source, tier, mortarItem, wPct, sPct,
   }), [hostBrand, hostKey, hostBuild, hostCfg, room, roomOk, wediCatReady, schCatReady, schCat, source, tier, mortarItem, wPct, sPct]);
   const m = mirror || {};
-  const wB = useMemo(() => cellBuild("wedi:board", ctx, { mirror: m["wedi:board"] }), [ctx, m["wedi:board"]]);
-  const sB = useMemo(() => cellBuild("schluter:board", ctx, { mirror: m["schluter:board"] }), [ctx, m["schluter:board"]]);
-  const wM = useMemo(() => cellBuild("wedi:membrane", ctx, { mirror: m["wedi:membrane"], sdryPick }), [ctx, m["wedi:membrane"], sdryPick]);
-  const sM = useMemo(() => cellBuild("schluter:membrane", ctx, { mirror: m["schluter:membrane"] }), [ctx, m["schluter:membrane"]]);
-  const cells = { "wedi:board": wB, "schluter:board": sB, "wedi:membrane": wM, "schluter:membrane": sM };
+  const set = compareSet || {};
+  const wB = useMemo(() => cellBuild("wedi:board", ctx, { mirror: m["wedi:board"], kept: set["wedi:board"] }), [ctx, m["wedi:board"], set["wedi:board"]]);
+  const wM = useMemo(() => cellBuild("wedi:membrane", ctx, { mirror: m["wedi:membrane"], sdryPick, kept: set["wedi:membrane"] }), [ctx, m["wedi:membrane"], sdryPick, set["wedi:membrane"]]);
+  const sB = useMemo(() => cellBuild("schluter:board", ctx, { mirror: m["schluter:board"], kept: set["schluter:board"] }), [ctx, m["schluter:board"], set["schluter:board"]]);
+  const sM = useMemo(() => cellBuild("schluter:membrane", ctx, { mirror: m["schluter:membrane"], kept: set["schluter:membrane"] }), [ctx, m["schluter:membrane"], set["schluter:membrane"]]);
+  const cells = { "wedi:board": wB, "wedi:membrane": wM, "schluter:board": sB, "schluter:membrane": sM };
   const live = cells[hostKey];
-  const sel = cells[selected !== hostKey && cells[selected] ? selected : opposite(hostKey)];
 
   const missOf = (c) => {
     if (c.rows.length) return null;
@@ -287,15 +299,15 @@ export default function CompareTab({
   };
   const amt = (c) => (lens === "builder" ? c.totals.builder : c.totals.retail);
 
-  // The detail: the live build and the selected cell, in grid order.
-  const [left, right] = [live, sel].sort((a, b) => CELL_AT[a.key] - CELL_AT[b.key]);
   const plusOf = (c) => (c.plan && !missOf(c) ? c.plan.entries.filter((e) => !e.match) : []);
   const layout = useMemo(
-    () => compareLayout({ L: left.rows, R: right.rows }, { L: plusOf(left), R: plusOf(right) }),
+    () => compareLayout(
+      Object.fromEntries(COL.map((x) => [x.col, cells[x.key].rows])),
+      Object.fromEntries(COL.map((x) => [x.col, plusOf(cells[x.key])]))),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [left, right, roomOk, ownWedi.bookError, schCat]);
+    [wB, wM, sB, sM, roomOk, ownWedi.bookError, schCat]);
 
-  // A chip scrolls the detail to its line once the selected cell has drawn.
+  // A chip scrolls to its line once the column has drawn it.
   useEffect(() => {
     if (!jumpTo || !root.current) return;
     const el = [...root.current.querySelectorAll(`[data-cmp-cell="${jumpTo.cell}"] [data-row-key]`)]
@@ -306,9 +318,19 @@ export default function CompareTab({
     const t = setTimeout(() => el.classList.remove("hl"), 1600);
     return () => clearTimeout(t);
   }, [jumpTo]);
-  const pickCell = (k) => { if (k !== hostKey) setSelected(k); };
-  const jump = (k, rowKey) => { pickCell(k); setJumpTo({ cell: k, rowKey, n: Date.now() }); };
+  const groupOfRow = (k, rowKey) => {
+    const col = COL.find((x) => x.key === k).col;
+    const g = layout.find((gr) => gr.slots.some((r) => r[col].some((x) => x.key === rowKey) || r[col + "Plus"].some((e) => e.hostKey === rowKey)));
+    return g ? g.key : null;
+  };
+  const jump = (k, rowKey) => {
+    if (!rowKey) return;
+    const g = view === "sum" ? groupOfRow(k, rowKey) : null;
+    if (g && !open.includes(g)) writeGrid(({ open: o }) => ({ open: [...o, g] }));
+    setJumpTo({ cell: k, rowKey, n: Date.now() });
+  };
   const toggle = (k) => writeGrid(({ checked: xs }) => ({ checked: xs.includes(k) ? xs.filter((x) => x !== k) : [...xs, k] }));
+  const toggleGroup = (g) => writeGrid(({ open: o }) => ({ open: o.includes(g) ? o.filter((x) => x !== g) : [...o, g] }));
 
   // The mirror: picks and drops are per cell, each pruned to the host lines
   // that still exist.
@@ -356,9 +378,33 @@ export default function CompareTab({
     });
   };
 
-  const bothPriced = !missOf(left) && !missOf(right);
-  const diff = bothPriced ? amt(right) - amt(left) : 0;
-  const cheaper = diff > 0 ? left : right;
+  // --- the Compare set -------------------------------------------------------
+  // Open: the column's build as a seed for its own configurator — a kept build
+  // as it was kept, a house kit as shown (its mirrored lines already ride its
+  // cfg.manual). The popup keeps the build you're leaving on its way out.
+  const openCell = (c) => {
+    if (!onOpenCell || c.live || missOf(c)) return;
+    let seed;
+    if (c.kept) seed = { ...c.kept.snap };
+    else if (c.brand === "wedi") seed = { mode: c.build.mode || "custom", cfg: { ...c.build.cfg, source } };
+    else seed = { mode: "custom", cfg: { ...c.cfg, source, pick: c.build.cand && c.build.cand.tray ? c.build.cand.tray.sku : null } };
+    onOpenCell(c.key, { ...seed, tab: "compare" }, c.kept ? c.kept.target : undefined);
+  };
+  const syncCell = (c) => {
+    if (!setOn || !c.kept) return;
+    if (!roomOk) { setMsg("Enter a room size first — Sync takes the room from this build."); return; }
+    const out = syncKept(c.brand, c.kept, { room, hostBuild, hostBrand, cat: schCat, tier });
+    if (!out) { setMsg(`Nothing builds for this room as ${c.name} — the kept build stays as it was.`); return; }
+    onCompareSet({ ...set, [c.key]: entryOf({ snap: out.snap, room, target: c.kept.target, savedBy, dropped: out.dropped }) });
+    setMsg(out.dropped.length ? `${c.name} synced — ${out.dropped.length === 1 ? "one pick" : out.dropped.length + " picks"} didn't fit` : `${c.name} synced — your picks kept`);
+  };
+  const others = Object.keys(set).filter((k) => k !== hostKey);
+  const clearAll = () => {
+    if (!setOn || !others.length) return;
+    if (!window.confirm("Clear every kept build for this shower? Those columns go back to house kits.")) return;
+    onCompareSet(set[hostKey] ? { [hostKey]: set[hostKey] } : {});
+    setMsg("Set cleared — the other columns are house kits again");
+  };
 
   const sendable = CELLS.map((c) => cells[c.key]).filter((c) => checked.includes(c.key) && !missOf(c));
   const linesOf = (c) => (c.brand === "wedi"
@@ -369,10 +415,12 @@ export default function CompareTab({
 
   const tip = (
     <div className="space-y-1.5">
-      <p><b>The grid</b> - the same room as wedi and Schluter, each on Board (wedi Building Panel or KERDI-BOARD, no
-        backer) and Membrane (wedi S-DRY or KERDI, over cement board or drywall by others). Your build is the outlined
-        cell; the other three are house kits for the room, carrying your added lines. Click a cell to see it line by
-        line below; a chip names what didn't map cleanly and jumps to its line.</p>
+      <p><b>The columns</b> - the same shower as wedi Building Panel, wedi S-DRY membrane, Schluter KERDI-BOARD and
+        Schluter KERDI membrane, always in that order. The outlined column is the build you're in (Current).</p>
+      <p><b>Your build and house kits</b> - a system you've worked on for this shower shows as you left it (Your
+        build). The rest are house kits for the room, carrying your added lines. <b>Open</b> takes a column into its
+        configurator - the build you're leaving is kept. <b>Sync</b> brings a kept build up to this room and your
+        added lines, keeping its own picks. Kept builds are saved with the job, per shower; Clear set drops them.</p>
       <p><b>Fit strategy</b> - wedi extends pans and cuts them (extensions + the 6″/12″ deep-cut rule). Schluter cuts
         trays only - no extension parts - so odd rooms lean on the next tray up or a mortar bed.</p>
       <p><b>Pricing model</b> - wedi publishes retail; cost is the ERP net, no markup knob. Schluter is a markup book:
@@ -380,73 +428,138 @@ export default function CompareTab({
         Price book - <b>wedi builder %</b> ({wPct}% ≡ ×{((100 - wPct) / 100).toFixed(2)}) and <b>Schluter builder %</b>{" "}
         (−{sPct}%) - neither one moves the other.</p>
       {onQuoteOptions && (
-        <p><b>Quote options</b> - Check two to four cells and land them on this area as options A–D - the estimate
-          prints them side by side.</p>
+        <p><b>Quote options</b> - Check two to four columns and land them on this area as options A–D, in column
+          order - the estimate prints them side by side.</p>
       )}
     </div>
   );
 
-  const tile = (c) => {
+  const curCls = (k, where) => (k === hostKey ? "cur" + (where ? " " + where : "") : "");
+
+  const colHead = (c) => {
     const miss = missOf(c);
+    const cur = c.live;
     return (
-      <div key={c.key} data-cmp-tile={c.key}
-        className={"tile" + (c.live ? " live" : "") + (c.key === sel.key ? " sel" : "")}
-        onClick={() => pickCell(c.key)}>
-        <div className="tt">
-          {onQuoteOptions && (
-            <input type="checkbox" data-cmp-check={c.key} checked={checked.includes(c.key) && !miss} disabled={!!miss}
-              title="land as a quote option" onClick={(ev) => ev.stopPropagation()} onChange={() => toggle(c.key)} />
-          )}
-          {/* the name is the tile's keyboard target; its click bubbles to the tile */}
-          <button type="button" className="nm" tabIndex={c.live ? -1 : 0} aria-pressed={c.key === sel.key} data-cmp-pick={c.key}>{c.label}</button>
+      <div key={c.key} className={"colh " + curCls(c.key, "top")} data-cmp-col={c.key} data-cmp-sys={c.brand}
+        {...(cur ? { "data-cmp-current": "" } : {})}>
+        {cur && <span className="curtab">Current</span>}
+        <div className="nm">
+          <span className={"bbadge " + (c.brand === "wedi" ? "wedi" : "slt")}>{BRAND[c.brand]}</span>
+          <span className="sys">{c.label}</span>
+        </div>
+        <div className="st" data-cmp-status={c.status}>
+          {c.status === "yours" && <span className="pill yours">Your build</span>}
+          {c.status === "house" && <span className="pill house">House kit</span>}
         </div>
         {miss ? <div className="tmiss">{miss}</div> : (<>
           <div className="tv" data-cmp-total>{fm(amt(c))}</div>
-          <div className="dv" data-cmp-diff>{c.live ? "Current" : missOf(live) ? "" : signed(amt(c) - amt(live)) + " vs current"}</div>
+          <div className="dv" data-cmp-diff>{cur ? "Current build" : missOf(live) ? "" : signed(amt(c) - amt(live)) + " vs current"}</div>
         </>)}
-        {c.flags.length > 0 && (
-          <div className="chips">
-            {c.flags.slice(0, 2).map((f) => (
-              <button key={f.id} type="button" className="chip" data-cmp-flag={f.id} title="show this line"
-                onClick={(ev) => { ev.stopPropagation(); jump(c.key, f.rowKey); }}>{f.label}</button>
-            ))}
-            {c.flags.length > 2 && <span className="more" title={c.flags.slice(2).map((f) => f.label).join(" · ")}>+{c.flags.length - 2} more</span>}
-          </div>
-        )}
+        <div className="chips">
+          {c.flags.slice(0, 2).map((f) => (
+            <button key={f.id} type="button" className={"chip" + (f.id === "room" ? " room" : "")} data-cmp-flag={f.id}
+              title={f.id === "room" ? "Sync brings this build up to the room" : "show this line"}
+              onClick={() => jump(c.key, f.rowKey)}>{f.label}</button>
+          ))}
+          {c.flags.length > 2 && <span className="more" title={c.flags.slice(2).map((f) => f.label).join(" · ")}>+{c.flags.length - 2} more</span>}
+        </div>
+        <div className="acts">
+          {onOpenCell && setOn && (
+            <button type="button" className="cbtn" data-cmp-open={c.key} disabled={cur || !!miss}
+              title={cur ? "you're in this one" : `open this build in the ${BRAND[c.brand]} configurator`}
+              onClick={() => openCell(c)}>Open</button>
+          )}
+          {setOn && c.status === "yours" && (
+            <button type="button" className="cbtn" data-cmp-sync={c.key}
+              title="bring this build up to the current room and added lines — your picks stay"
+              onClick={() => syncCell(c)}>Sync</button>
+          )}
+          {onQuoteOptions && (
+            <label className="opt" title="land as a quote option">
+              <input type="checkbox" data-cmp-check={c.key} checked={checked.includes(c.key) && !miss} disabled={!!miss}
+                onChange={() => toggle(c.key)} />Option
+            </label>
+          )}
+        </div>
       </div>
     );
   };
 
-  const head = (c) => (
-    <div className="brandh" data-cmp-sys={c.brand}>
-      <span className={"bbadge " + (c.brand === "wedi" ? "wedi" : "slt")}>{BRAND[c.brand]}</span> {c.label}
-      <small>{c.live ? "this build" : "house kit"}</small>
-    </div>
-  );
-  const totCell = (c) => (
-    <div>
-      {missOf(c) ? <span className="tv">—</span>
-        : (
-          <span className="tv">{fm(amt(c))}
-            <small>{c.totals.stocked} of {c.totals.lines} lines stocked</small>
-          </span>
-        )}
-    </div>
-  );
-  const cellFor = (c, rows, plus, first) => (
-    <Cell key={c.key} cellKey={c.key} brand={c.brand} rows={rows} plus={plus} lens={lens} miss={missOf(c)} first={first}
+  const cellFor = (c, rows, plus, where) => (
+    <Cell key={c.key} cellKey={c.key} brand={c.brand} rows={rows} plus={plus} lens={lens} miss={missOf(c)}
+      cls={curCls(c.key, where)}
       onPick={(k, ev) => openPick(c.key, k, ev)} onDrop={(k) => writeMirror(c.key, k, { dropped: true })}
       canAdd={(e) => partsFor(c, e).length > 0} />
   );
-  const askSdry = !sel.live && sel.key === "wedi:membrane" && sel.flags.some((f) => f.id === "sdry");
+  const sumOf = (c, g) => {
+    const col = COL.find((x) => x.key === c.key).col;
+    const rs = g.slots.flatMap((r) => r[col]).filter((r) => !r.noteOnly);
+    return { total: rs.reduce((t, r) => t + (lens === "builder" ? r.builder : r.retail), 0), n: rs.length };
+  };
+  const askSdry = wM.status === "house" && hostKey !== "wedi:membrane" && wM.flags.some((f) => f.id === "sdry");
+
+  // The last grid row closes the Current ring.
+  const rowsOut = [];
+  layout.forEach((g) => {
+    const collapsed = view === "sum" && !open.includes(g.key);
+    if (collapsed) {
+      rowsOut.push({ k: g.key + ":sum", render: (last) => (
+        <Fragment key={g.key + ":sum"}>
+          <div className="cat" data-cmp-group={g.key}>{g.label}</div>
+          {COL.map((x) => {
+            const c = cells[x.key], s = sumOf(c, g);
+            return (
+              <button key={x.key} type="button" className={"sub " + curCls(x.key, last ? "bot" : "")} data-cmp-sub={x.key}
+                onClick={() => toggleGroup(g.key)} title="show the lines">
+                <span>{missOf(c) ? "" : s.n ? fm(s.total) : "—"}</span>
+                {!missOf(c) && s.n > 0 && <small>{s.n} line{s.n === 1 ? "" : "s"} ▸</small>}
+              </button>
+            );
+          })}
+        </Fragment>
+      ) });
+      return;
+    }
+    rowsOut.push({ k: g.key + ":band", render: (last) => (
+      <Fragment key={g.key + ":band"}>
+        <div className="gband" data-cmp-group={g.key}
+          {...(view === "sum" ? { onClick: () => toggleGroup(g.key), style: { cursor: "pointer" }, title: "fold to subtotals" } : {})}>
+          {g.label}{view === "sum" ? " ▾" : ""}
+        </div>
+        {COL.map((x) => <div key={x.key} className={"gfill " + curCls(x.key, last ? "bot" : "")} />)}
+      </Fragment>
+    ) });
+    g.slots.forEach((r) => {
+      rowsOut.push({ k: g.key + ":" + r.slot, render: (last) => (
+        <Fragment key={g.key + ":" + r.slot}>
+          <div className="cat" data-cmp-slot={r.slot}>{r.label}</div>
+          {COL.map((x) => cellFor(cells[x.key], r[x.col], r[x.col + "Plus"], last ? "bot" : ""))}
+        </Fragment>
+      ) });
+    });
+  });
+  if (!rowsOut.length) rowsOut.push({ k: "empty", render: (last) => (
+    <Fragment key="empty">
+      <div className="cat" />
+      {COL.map((x) => cellFor(cells[x.key], [], [], last ? "bot" : ""))}
+    </Fragment>
+  ) });
 
   return (
     <div className="cmp-tab" ref={root}>
       <style>{CSS}</style>
       <div className="cmp-head">
-        <div className="t">Compare — one room, four systems<HelpTip className="align-middle" w={340} tip={tip} /></div>
+        <div className="t">Compare — one shower, four systems<HelpTip className="align-middle" w={360} tip={tip} /></div>
         <div className="room">
-          {roomOk ? `${room.w}″ × ${room.d}″ · ${room.curbed ? "curbed" : "curbless"} · ${DRAIN_LBL[room.drain] || "point drain"}` : "no room yet"}
+          {roomOk ? `${room.w}″ × ${room.d}″ · ${room.curbed ? "curbed" : "curbless"} · ${DRAIN_LBL[room.drain] || "point drain"}`
+            + (room.benches && room.benches.length ? ` · ${room.benches.length} bench${room.benches.length === 1 ? "" : "es"}` : "") : "no room yet"}
+        </div>
+        {msg && <div className="msg" data-cmp-msg>{msg}</div>}
+        <div className="sp" />
+        {setOn && others.length > 0 && <button type="button" className="linkbtn" data-cmp-clear onClick={clearAll}>Clear set</button>}
+        <div className="lensseg" data-cmp-view>
+          <button className={view === "lines" ? "on" : ""} data-cmp-view-lines onClick={() => writeGrid({ view: "lines" })}>Every line</button>
+          <button className={view === "sum" ? "on" : ""} data-cmp-view-sum onClick={() => writeGrid({ view: "sum", open: [] })}>Subtotals</button>
         </div>
         <div className="lensseg">
           <button className={lens === "retail" ? "on" : ""} onClick={() => setLens("retail")}>Retail</button>
@@ -456,22 +569,9 @@ export default function CompareTab({
         </div>
       </div>
 
-      <div className="quad" data-cmp-quad>
-        <div />
-        <div className="qh"><span className="bbadge wedi">wedi</span></div>
-        <div className="qh"><span className="bbadge slt">Schluter</span></div>
-        {["board", "membrane"].map((sys) => (
-          <Fragment key={sys}>
-            <div className="qrow">{sys === "board" ? "Board" : "Membrane"}</div>
-            {tile(cells["wedi:" + sys])}
-            {tile(cells["schluter:" + sys])}
-          </Fragment>
-        ))}
-      </div>
-
       {askSdry && (
         <div className="sdryask" data-cmp-sdryask>
-          <div className="why">No S-DRY base fits — {wediSdryNoFit(room, { source }) || "the room is outside the S-DRY range"}.</div>
+          <div className="why">wedi · S-DRY membrane: no S-DRY base fits — {wediSdryNoFit(room, { source }) || "the room is outside the S-DRY range"}.</div>
           <div className="acts">
             <button className={sdryPick !== "nearest" ? "on" : ""} onClick={() => setSdryPick("wedi")} data-cmp-sdry-answer="wedi">
               Use a wedi pan + curb, with S-DRY walls</button>
@@ -481,46 +581,16 @@ export default function CompareTab({
         </div>
       )}
 
-      <div className="cmp-grid">
-        <div className="cat" />
-        {head(left)}
-        {head(right)}
-        {layout.map((g, gi) => (
-          <Fragment key={g.key}>
-            <div className="gband" data-cmp-group={g.key}>{g.label}</div>
-            {g.slots.map((r, ri) => (
-              <Fragment key={r.slot}>
-                <div className="cat" data-cmp-slot={r.slot}>{r.label}</div>
-                {cellFor(left, r.L, r.LPlus, gi === 0 && ri === 0)}
-                {cellFor(right, r.R, r.RPlus, gi === 0 && ri === 0)}
-              </Fragment>
-            ))}
-          </Fragment>
-        ))}
-        {!layout.length && (<>
-          <div className="cat" />
-          {cellFor(left, [], [], true)}
-          {cellFor(right, [], [], true)}
-        </>)}
+      <div className="cmp-grid" data-cmp-cols>
+        <div className="corner">System</div>
+        {COL.map((x) => colHead(cells[x.key]))}
+        {rowsOut.map((r, i) => r.render(i === rowsOut.length - 1))}
       </div>
-
-      <div className="cmp-tot">
-        <div className="k">Total</div>
-        {totCell(left)}
-        {totCell(right)}
-      </div>
-
-      {bothPriced && Math.abs(diff) >= 0.005 && (
-        <div className="delta">
-          <b>{cheaper.name} is {fm(Math.abs(diff))} less on material</b>{" "}
-          for this room at this tier.
-        </div>
-      )}
 
       {onQuoteOptions && (
         <div className="qfoot">
           <button className="cbtn primary" data-cmp-send disabled={sendable.length < 2} onClick={openQuote}>
-            {sendable.length < 2 ? "Check two or more cells for quote options" : `Add ${sendable.length} as quote options`}
+            {sendable.length < 2 ? "Check two or more columns for quote options" : `Add ${sendable.length} as quote options`}
           </button>
         </div>
       )}
