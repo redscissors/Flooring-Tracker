@@ -115,3 +115,20 @@ does.
   - extensions stacked two deep, and on the curbless entry side;
   - the drain height kit;
   - a four-way compare (Phase 3).
+
+## Amendment — Phase 3 (2026-09-28): the grid's no-fit cell
+
+Ticket 158 Phase 3's four-way Compare grid (ADR 0034's Phase 3 amendment)
+derives a wedi Membrane cell for rooms the host popup never solved under
+S-DRY. Decision 5's no-fit answers apply there too, without the popup's
+prompt: a derived wedi-Membrane cell with no S-DRY fit prices **a wedi pan +
+S-DRY walls**, flagged with a "No S-DRY base fits" chip (`sdry`); the
+cell's detail offers the nearest S-DRY base instead (the same "nearest base
+anyway" answer decision 5 lists), never the third answer (back to Building
+Panel) — that only makes sense inside the popup that owns the choice. The
+chip also shows a cell already moved to the nearest base
+(`cfg.solve.id === "sdry-nearest"`) — there is still no true fit either way.
+
+`wediBuildFor` grew `sdryBase: "nearest"` for this (`comparekit.js`),
+routed through `sdry.js`'s `sdryNearest` exactly as the popup's own prompt
+answer is; neither engine's kit logic changed for it.

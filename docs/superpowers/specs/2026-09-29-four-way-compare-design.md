@@ -202,4 +202,71 @@ it outlives a tab switch but not the popup.
 
 ## Amendments during planning and build
 
-_(none yet)_
+Rulings 1–9 were made prototyping the plan; 10–14 were made building it.
+
+1. **The old `compareOptionsPatch` shape stays readable.** A payload of
+   `{ wediLines, schluterLines }` reads as two options named "wedi" and
+   "Schluter". Keeping it means every existing `options.test.js` case stays
+   byte-identical and pins today's output. A new test proves the two shapes
+   land the same patch.
+2. **`cellFlags` takes the wedi option as an argument** rather than solving
+   inside. That keeps it pure and unit-testable against hand-made options:
+   the derived fixture rooms never produce a "no center-drain base" warning.
+   `cellBuild` supplies it through `wediOptionOf`.
+3. **`wediOptionOf` re-solves** the build's saved `cfg.solve.input` and takes
+   the option by id + pan. It returns null for a Kits-tab pick (no solve).
+   This costs one extra wedi solve per wedi cell, only while the Compare tab
+   is open.
+4. **The S-DRY chip covers both no-fit answers.** It shows when
+   `cfg.sdryBase === "wedi"` or `cfg.solve.id === "sdry-nearest"`. On a
+   linear room the nearest base also raises "No drain match", from the
+   option's "S-DRY has no linear base" warning.
+5. **`compareLayout` takes any column names** (`cols: { L, R }`) instead of
+   the fixed `wedi`/`schluter`. The existing calls and tests work unchanged,
+   and the detail can now show two cells of the same brand.
+6. **`CSS` is shadowed in CompareTab.jsx:** the file's stylesheet string is
+   `const CSS`. The chip jump therefore matches `data-row-key` by attribute
+   value instead of `CSS.escape`. The prototype hit a `CSS.escape is not a
+   function` page error before this change.
+7. **The picker title and modal rows name the cell** ("Add to wedi ·
+   Building Panel · Drain", "B Schluter · KERDI membrane — 7 lines"). Two
+   cells of one brand can each hold a mirror, so the brand alone is
+   ambiguous. `p1d/shoot-compare.mjs`'s two assertions follow the new
+   wording, and that is the only earlier-proof change.
+8. **The send button reads "Check two or more cells for quote options"**
+   (disabled) below two checked cells, and "Add N as quote options" at two or
+   more. The confirm reads "Add options A–X". `data-compare-confirm` is kept.
+9. **An unbuildable cell is unchecked and disabled.** `sendable` only counts
+   checked cells that have rows.
+10. **The grid's session state lives in the popup's existing Compare
+    session object** — the `mirror`/`onMirror` prop both popups already
+    hold — under a reserved key `grid` (per-cell mirror picks stay at
+    `mirror[cellKey]`; cell keys all contain `:`, so the reserved key can't
+    collide with one). This is what let the grid ship with no new prop and
+    no new storage: it outlives a tab switch but not the popup, exactly
+    like the mirror state it now sits beside. The stored grid is stamped
+    with the `hostKey` it was made for; when the live cell has changed
+    (e.g. the wall system flipped on another tab) the stored grid is
+    ignored and the defaults apply (live cell + its opposite checked, the
+    opposite selected, S-DRY answer "wedi"); nothing writes on read.
+11. **The S-DRY chip also shows for a cell already moved to the nearest
+    base** (`cfg.solve.id === "sdry-nearest"`) — there is still no true fit
+    (same as ruling 4 above, restated once the build's derived cells could
+    actually reach that state).
+12. **`cellBuild` returns empty rows for an unbuildable cell, not a
+    reason;** CompareTab's `missOf` words it (this spec's §3 said "or an
+    unbuildable reason" — the reason lives in the caller, not the pure
+    builder).
+13. **A tile's keyboard handler ignores keys from its own checkbox and
+    chips** (Space toggles a focused checkbox, Enter fires a chip) —
+    otherwise the tile's own Enter/Space handling double-fired on those
+    controls.
+14. **wedi's drain-miss chip reads the solver's warning strings** — the
+    option carries no structured drain-match field (only `miss`/`deep`);
+    the deep-cut chip reads `option.deep` first, falling back to the
+    warning-string match only when that flag is absent.
+
+Also: the send composes each checked cell's own `lineItems` payload
+(`wediLineItems`/`schluterLineItems`, exactly as before) and hands
+`{options: [{lines, name}], label}` to `onQuoteOptions` — the N=2 case is
+what shipped before this phase, byte-identical (ruling 1).

@@ -205,3 +205,29 @@ flag when something didn't map cleanly (no matching pan size, cut or
 mortar-bed fallback, no drain match, an "inquire" price). Click a cell to
 open that build; click a flag to jump to the line; check several and send
 them to the space as quote options A–D (ADR 0031/0034 machinery).
+
+**Phase 3 DONE (2026-09-28):** a 2×2 grid (wedi/Schluter × Board/Membrane,
+lettered A–D in reading order) sits above Compare's existing two-column
+detail and drives it — the cell matching the host popup's own brand and
+wall system is the live build, the other three are derived house kits
+carrying the host's hand-added lines (same-brand pass-through, other-brand
+per-cell mirror). Each tile shows its total, its difference from the
+current build, and up to two flag chips ("No tray fits — mortar bed", "No
+drain match", "No S-DRY base fits", "Channel runs short", "Deep cut", "No
+price", "Added line unmatched") that jump the detail to the flagged line. A
+derived wedi-Membrane cell with no S-DRY fit prices a wedi pan + S-DRY
+walls, flagged, with the nearest-base answer offered inline. Checking two to
+four cells and sending lands N fresh sibling option areas A–D in one patch
+(`compareOptionsPatch`'s new signature); the old two-option shape still
+works unchanged.
+
+- **Spec:** `docs/superpowers/specs/2026-09-29-four-way-compare-design.md`
+- **Plan:** `docs/superpowers/plans/2026-09-28-four-way-compare.md`
+- **ADR:** `docs/adr/0034-cross-vendor-compare.md` and
+  `docs/adr/0051-wedi-membrane-is-s-dry.md` (both amended)
+- **Proof:** `.scratch/158_shower-config-roadmap/p3/`
+- **PR:** pending
+
+**Phase 3 is complete.** The ticket's phase list ends here — no Phase 4 is
+scoped yet. See `.scratch/handoffs/shower-config-phase4-2026-09-28.md` for
+where things stand and the carry-forward list.
