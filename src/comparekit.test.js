@@ -7,6 +7,7 @@ import {
   roomFromSchluter, roomFromWedi, wediBuildFor, schluterBuildFor,
   wediCompareRows, schluterCompareRows, compareTotals,
   hostAddedLines, mirrorParts, mirrorCandidates, mirrorPlan, mirrorRow, pruneMirror, compareLayout,
+  wediSdryNoFit, wediOptionOf,
 } from "./comparekit.js";
 import { GROUPS, SLOTS } from "./slots.js";
 import { lineItems as wediLineItems, buildFromMarker as wediFromMarker } from "./wedi.js";
@@ -425,4 +426,45 @@ test("compareLayout puts added lines after the kit's in a cell", () => {
   const rows = [{ slot: "seam", added: true, name: "a" }, { slot: "seam", added: false, name: "k" }];
   const cell = compareLayout({ wedi: rows, schluter: [] }).find((g) => g.key === "seams").slots[0].wedi;
   assert.deepEqual(cell.map((r) => r.name), ["k", "a"]);
+});
+
+// --- Phase 3: the grid's engine-facing helpers -------------------------------
+
+const linearRoom = () => roomFromSchluter(schCfg({ drain: "linear" }));
+
+test("wediSdryNoFit says why no S-DRY base fits, and nothing when one does", () => {
+  assert.equal(wediSdryNoFit(room60x38()), "");
+  assert.equal(wediSdryNoFit(linearRoom()), "S-DRY has no linear-drain base");
+});
+
+test("wediBuildFor sdryBase 'nearest' puts a no-fit Membrane room on the nearest S-DRY base", () => {
+  const pan = wediBuildFor(linearRoom(), { wallSys: "membrane" });
+  assert.equal(pan.cfg.sdryBase, "wedi");
+  assert.notEqual(pan.pan.sub, "sdry");
+  const near = wediBuildFor(linearRoom(), { wallSys: "membrane", sdryBase: "nearest" });
+  assert.equal(near.pan.sub, "sdry");
+  assert.equal(near.cfg.solve.id, "sdry-nearest");
+  assert.equal(near.cfg.sdryBase, undefined);
+});
+
+test("wediOptionOf re-finds the solver option a build came from; a Kits pick has none", () => {
+  const b = wediBuildFor(room60x38());
+  const o = wediOptionOf(b);
+  assert.equal(o.id, b.cfg.solve.id);
+  assert.equal(o.pan.key, b.pan.key);
+  assert.ok(Array.isArray(o.warnings));
+  const near = wediBuildFor(linearRoom(), { wallSys: "membrane", sdryBase: "nearest" });
+  assert.deepEqual(wediOptionOf(near).warnings, ["S-DRY has no linear base — a point-drain base is used"]);
+  assert.equal(wediOptionOf(kitFor("US9100007", { mode: "kit" })), null);
+  assert.equal(wediOptionOf(null), null);
+});
+
+test("compareLayout takes any two column names", () => {
+  const rows = [{ slot: "tray", added: false, key: "a" }];
+  const plus = [{ slot: "niche", hostKey: "h" }];
+  const g = compareLayout({ L: rows, R: [] }, { R: plus });
+  assert.deepEqual(g.map((x) => x.key), ["base", "niches"]);
+  assert.deepEqual(g[0].slots[0].L.map((r) => r.key), ["a"]);
+  assert.deepEqual(g[0].slots[0].R, []);
+  assert.deepEqual(g[1].slots[0].RPlus.map((e) => e.hostKey), ["h"]);
 });

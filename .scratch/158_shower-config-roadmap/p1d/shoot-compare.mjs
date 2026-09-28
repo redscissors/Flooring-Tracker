@@ -48,7 +48,8 @@ await shot("c1-schluter-host");
 await pg.locator("[data-mirror-add]").click(); await pg.waitForSelector("[data-add-pop]"); await pg.waitForTimeout(300);
 const pick = flat(await pg.locator("[data-add-pop]").innerText());
 console.log("picker:", pick.slice(0, 160));
-if (!/Add to wedi · Drain/.test(pick) || !/PART \| Cover/.test(pick)) fail("the picker isn't the wedi Drain parts");
+// Phase 3: the picker names its grid cell — two wedi cells can each mirror
+if (!/Add to wedi · [^·]+ · Drain/.test(pick) || !/PART \| Cover/.test(pick)) fail("the picker isn't the wedi Drain parts");
 await shot("c2-picker", false);
 await pg.locator("[data-mirror-row]").nth(1).click(); await pg.waitForTimeout(200);
 await pg.locator("[data-drain-use]").click(); await pg.waitForTimeout(700);
@@ -90,7 +91,8 @@ const modal = flat(await pg.locator(".cmodal").innerText());
 console.log("modal:", modal.slice(0, 120));
 const sTot = (await pg.locator(".cmp-tot > div").nth(2).locator(".tv").innerText()).match(/\$[\d,]+\.\d\d/)[0];
 console.log("Schluter column total:", sTot);
-if (!new RegExp("B \\| Schluter — \\d+ lines \\| \\" + sTot).test(modal)) fail("option B's total isn't the column's total");
+// Phase 3: an option row names its system, and any chips ride before the total
+if (!new RegExp("B \\| Schluter · [^|]+ — \\d+ lines \\| (?:[^|$]+ \\| )*\\" + sTot).test(modal)) fail("option B's total isn't the column's total");
 await shot("c5-quote-options", false);
 
 // --- Stock only (the popups' default): the mirror pools like the popups — a

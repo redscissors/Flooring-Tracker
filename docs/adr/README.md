@@ -37,7 +37,7 @@ System-wide ADRs. Area-scoped ADRs live under `docs/<area>/adr/`.
 | [0031](0031-quote-options-shared-base.md) | Quote options are area tags over a shared base | Accepted | 2026-08-06 |
 | [0032](0032-schluter-registry-driven-pricing.md) | Schluter configurator pricing is registry-driven, not transcribed: no embedded catalog, retail = 1.5 × cost, own `schluterBuilderPct` knob | Accepted | 2026-08-21 |
 | [0033](0033-shared-shower-drawing-module.md) | Shared shower drawing module (`showerdraw.js`/`.jsx`), extracted with a pixel-parity gate; never imports `wedi.js` | Accepted | 2026-08-21 |
-| [0034](0034-cross-vendor-compare.md) | Cross-vendor compare: one dual-engine module off every boot path, semantic category map, host build vs derived kit, options A/B in one patch | Accepted | 2026-08-21 |
+| [0034](0034-cross-vendor-compare.md) | Cross-vendor compare: one dual-engine module off every boot path, semantic category map, host build vs derived kit, options A–D in one patch (a 2×2 grid, one live cell + three derived, since Phase 3) | Accepted | 2026-08-21 |
 | [0035](0035-configurator-kit-instance-id.md) | Configurator kits carry a shared `kitId`; reconfigure replaces the kit group; the basket derives placed kits from the rows | Accepted | 2026-08-28 |
 | [0036](0036-google-maps-relay-and-distance-snapshot.md) | Google Maps relay: a Netlify Function holds the key; a job-site distance is a snapshot, not a cache | Accepted | 2026-09-01 |
 | [0037](0037-wedi-stock-side-registry-driven.md) | wedi's stock side is registry-driven, not transcribed: `WEDI_STOCK` stays as a gated, visible fallback until the pricelist half (8b) moves too | Accepted | 2026-09-01 |

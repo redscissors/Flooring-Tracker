@@ -124,12 +124,18 @@ explanatory cell, and the delta line hides itself.
   host's wall system — wedi Building Panel faces KERDI-BOARD, wedi S-DRY
   faces KERDI membrane, and the Schluter host the other way round. Column
   headers name each side's system; the help tip's walls caveat is gone. A
-  four-way grid (any system vs any) is Phase 3.
+  four-way grid (any system vs any) is Phase 3 — see the amendment below.
 - **Landing options A/B gives no feedback in the popup.** The confirm modal
   closes and the two areas appear behind it; there is no toast, no
   auto-close, no navigation to the new areas. Deliberately left alone rather
   than guessed at — whether the popup should close, ping, or stay put is a
   workflow call.
+- **A send always letters from A.** `compareOptionsPatch` starts at A every
+  time and an existing custom option name wins, so a second Compare send on
+  a project that already has options A–B (or A/B named something else)
+  merges the new areas into those buckets. Pre-dates Phase 3, but the grid
+  widens it from two buckets to four. Whether a second send should continue
+  from the next free letter is an owner call.
 
 ## Consequences
 
@@ -149,3 +155,42 @@ explanatory cell, and the delta line hides itself.
 - Preview proof for all of the above lives in
   `.scratch/097_schluter-configurator/phase5-proof/` (shots c1–c5 + the
   `shoot-compare.mjs` rig).
+
+## Amendment — Phase 3 (2026-09-28): the four-way grid
+
+Ticket 158 Phase 3 (spec `docs/superpowers/specs/2026-09-29-four-way-compare-design.md`)
+replaces the fixed two-column pairing with a 2×2 grid — the same room as
+wedi and Schluter, each on Board and on Membrane — sitting above the
+existing two-column detail, which the grid now drives instead of a fixed
+brand pairing.
+
+- **Decision 3 becomes:** the cell matching the host popup's own brand and
+  wall system is the **live build**; the other three cells are **derived
+  house kits** for the same room, one per remaining brand/wall-system
+  combination (the asymmetry decision 3 first drew — host build vs. derived
+  kit — now applies per cell, not per column). A host's hand-added lines
+  carry into all three derived cells: the same brand's other wall system
+  bills them as-is (same parts), the other brand mirrors them per cell
+  (its own pick or drop, not shared across cells).
+- **Decision 4 becomes:** sending lands **N** fresh sibling option areas —
+  two to four, one per checked cell — lettered A–D in reading order (wedi
+  Board, Schluter Board, wedi Membrane, Schluter Membrane), still one patch,
+  still not `duplicateInto`. `compareOptionsPatch`'s new signature is
+  `(project, hostAreaId, { options: [{ lines, name }], label })`; the old
+  `{ wediLines, schluterLines }` shape still works and reads as the N=2 case
+  `[{lines: wediLines, name: "wedi"}, {lines: schluterLines, name:
+  "Schluter"}]` — that shape's payload is byte-identical (ruling 1 of the
+  Phase 3 plan). The tab itself now names options by cell ("wedi · S-DRY
+  membrane", "Schluter · KERDI membrane"), so a two-cell send lands the
+  same lines as before under new option and area names.
+- **`comparegrid.js`** is the grid's pure per-cell builder and flag module
+  (`cellBuild`, `cellFlags`). It imports `comparekit.js` only, never an
+  engine directly — decision 1's rule (`comparekit.js` is the one place
+  wedi.js and schluter.js meet) holds; `comparegrid.js` and `CompareTab.jsx`
+  are both lazy-chunk-only, same as before.
+- The **"Landing options gives no feedback" item below stays open** — N
+  options land the same silent way two did.
+
+See ADR 0051's Phase 3 note for the grid's S-DRY no-fit answer, and
+`src/CLAUDE.md` (`comparegrid.js`, `comparekit.js`, `CompareTab.jsx`,
+`options.js`) for the implementation.
