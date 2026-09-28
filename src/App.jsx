@@ -2798,6 +2798,7 @@ export default function App({ user, onSignOut }) {
                 onClose={() => railDispatch({ type: "closePane" })}
                 resume={railNav.pane?.kind === "app" && !!railNav.pane.resume}
                 onResume={() => railDispatch({ type: "resolveResume" })}
+                onSwitchApp={(id) => railDispatch({ type: "switchApp", id })}
                 progressRef={appsProgress}
                 stock={stockItems}
                 labels={labels}

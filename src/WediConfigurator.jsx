@@ -655,7 +655,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   stockRows, bookStockReady, books, loadBookItems, mortars, mortarDefault,
   onAdd, onAddNew, editing = null, editRows = null, basket, onBasketChange, onMoveEntries, placed, onOpenPlaced, onDeleteKit,
   onQuoteOptions, onClose, areaName, projectName, onConfigChange, embedded = false, escActive = true,
-  compareSet, onCompareSet, onOpenCell, onResume, savedBy = "", startDetached = false }) {
+  compareSet, onCompareSet, onOpenCell, onResume, savedBy = "", startDetached = false, keepLive = false }) {
   const init = useRef(null);
   if (!init.current) init.current = seedState(seed);
   const s0 = init.current;
@@ -1633,8 +1633,19 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
       }, 0);
     };
   }, []);
+  // The Apps hub keeps its configurators mounted while hidden, so an unmount
+  // save would come too late there: the set follows the build as it changes.
+  const keepSig = keep.current ? entrySig(keep.current.entry) : "";
+  useEffect(() => {
+    const k = keep.current;
+    if (!keepLive || !k || !onCompareSet || !compareSet) return;
+    const prev = compareSet[k.key];
+    if (prev && entrySig(prev) === keepSig) return;
+    onCompareSet({ ...compareSet, [k.key]: k.entry });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [keepLive, keepSig]);
   const [resume, setResume] = useState(() => {
-    const cs = compareSet && !isMarkerSeed(seed) ? resumeChoices(compareSet, "wedi") : [];
+    const cs = compareSet && onResume && !isMarkerSeed(seed) ? resumeChoices(compareSet, "wedi") : [];
     return cs.length ? cs : null;
   });
   const commitLines = detached && onAddNew ? onAddNew : onAdd;

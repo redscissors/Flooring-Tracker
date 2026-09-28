@@ -37,6 +37,15 @@ test("picking fills the pane, opens the matching drawer, remembers the last app"
   assert.equal(t.lastApp, "wedi");
 });
 
+test("switchApp (Compare's Open in the hub) moves the pane, leaves the drawers, never asks to resume", () => {
+  const s = run(pick("app", "wedi"), toggle("apps"));
+  const t = railReducer({ ...s, broke: { schluter: true } }, { type: "switchApp", id: "schluter" });
+  assert.deepEqual(t.pane, { kind: "app", id: "schluter", resume: false });
+  assert.equal(t.lastApp, "schluter");
+  assert.equal(t.drawer, s.drawer);
+  assert.equal(railReducer(s, { type: "switchApp", id: "labels" }), s, "only configurators hand off");
+});
+
 test("unknown ids are ignored", () => {
   assert.equal(run(pick("app", "nope")), initialRail);
   assert.equal(run(pick("settings", "nope")), initialRail);
