@@ -3905,8 +3905,12 @@ function isFeet(u) { return !!u && /^(?:'|ft\.?|feet)$/i.test(u.trim()); }
 // parenthetical splits a group — "19 in. x 19 in. (wall sides) x 4 in." —
 // so those drop first; parens carrying digits ARE the dims and stay.
 export function dims(text) {
-  const m = String(text == null ? "" : text).replace(/≈/g, "").replace(/\([^)\d]*\)/g, " ").match(DIM_RE);
+  const src = String(text == null ? "" : text).replace(/≈/g, "").replace(/\([^)\d]*\)/g, " ");
+  const m = src.match(DIM_RE);
   if (!m) return null;
+  // "2 x 16 oz. bags" counts packs; "3/3/4" is wedi's typo cut off mid-fraction
+  // (ADR 0038 amendment 2026-09-28)
+  if (/^(?:\s*(?:oz|lbs?|ct)\b|\/\d)/i.test(src.slice(m.index + m[0].length))) return null;
   const raw = [], units = [];
   for (let i = 1; i < 7; i += 2) {
     if (m[i] == null) continue;

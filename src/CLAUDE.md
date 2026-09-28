@@ -1643,9 +1643,9 @@ src/
                     # quote-option names keep the vendor text. Mounted by both
                     # build columns and every Compare line (Qty | Size + item |
                     # Price); Compare rows carry `size` for it (comparekit.js).
-                    # wedi's two measured-not-fixed parses (spec decision 8:
-                    # the S-DRY SEAL "2 x 16 oz" and the DCSS "3/3/4" typo)
-                    # still surface as sizes (kitlabel.test.js)
+                    # wedi's S-DRY SEAL "2 x 16 oz" and the drain covers'
+                    # "3/3/4" typo no longer parse as dims (wedi.js dims(),
+                    # ADR 0038 amendment 2026-09-28) (kitlabel.test.js)
   swappop.jsx       # `SwapPop` — the shared stepped popover (ticket 158 Phase
                     # 1a, mockup layout A; renamed from `DrainSwapPop` in 1b,
                     # which also folded in the two popups' duplicated Δ

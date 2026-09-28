@@ -64,11 +64,9 @@ Owner: "build it" on mockup v9, plus "keep S-Dry" mid-build.
 - Kept as-is: the wedi "Membrane (S-DRY)" switch; Schluter prose that names
   KERDI products (bench options, figure panel, cut list).
 
-Open for the owner: wedi's S-DRY SEAL shows "2×16″" and the S-DRY drain
-covers "3¾×1″" — the engine parses the price list's "2 x 16 oz" and its
-"3/3/4" typo as dimensions, and the wedi equivalence test records those as
-measured-not-fixed (spec decision 8). Fixing them means amending that
-decision.
+S-DRY sizes (owner: fix them): wedi.js `dims()` no longer reads the
+SEAL's "2 x 16 oz" or the drain covers' "3/3/4" typo as dimensions — ADR
+0038 amended, `GEOMETRY_GAINS` in wediequivalence.test.js loses those nine.
 
 Proof: `shots/01…08` (preview harnesses, fixture catalog).
 

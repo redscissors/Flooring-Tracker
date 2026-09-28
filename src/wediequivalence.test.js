@@ -243,25 +243,18 @@ const ALL_CHANGED_KEYS = [...NEW_TWINS, ...PINNED_DETAILS_STOCK_KEYS];
 
 // Spec decision 8, measured (fix round 1): 13 of the 34 NEW_TWINS keys had NO
 // dimensions at all before their pricelist twin arrived — the stock table
-// alone gives makeEntry nothing to parse w/d/t out of — and gain them here,
+// alone gives makeEntry nothing to parse w/d/t out of. Four gain them here,
 // null -> the exact value below (copied verbatim from the measurement, not
-// rounded). Two parse sources, left as measured, never "fixed": US5076011's
-// size cell reads "...Powder - 2 x 16 oz. bags..." -> w:2, d:16; the S-Dry
-// drain covers' size cells carry wedi's own typo `3/3/4"` -> d:1.
+// rounded). The other nine — US5076011 (S-DRY SEAL, "2 x 16 oz. bags") and
+// the eight S-Dry drain covers US1076001–08 (wedi's `3/3/4"` typo) — gained
+// w:2/d:16 and d:1 until the ADR 0038 amendment of 2026-09-28: the
+// configurators now lead every line with its size, so dims() refuses both
+// and they stay dimensionless.
 const GEOMETRY_GAINS = {
   "676800061": { w: 28, d: 2.5625, t: 0.25 },
   "676800064": { w: 43.78125, d: 2.5625, t: 0.25 },
   US3076001: { w: 4.5, d: 72, t: 3.5 },
   US3076002: { w: 3.5, d: 72, t: 2 },
-  US1076001: { w: 3.75, d: 1 },
-  US1076002: { w: 3.75, d: 1 },
-  US1076003: { w: 3.75, d: 1 },
-  US1076004: { w: 3.75, d: 1 },
-  US1076005: { w: 3.75, d: 1 },
-  US1076006: { w: 3.75, d: 1 },
-  US1076007: { w: 3.75, d: 1 },
-  US1076008: { w: 3.75, d: 1 },
-  US5076011: { w: 2, d: 16 },
 };
 const GEO_FIELDS = ["w", "d", "t", "len", "sf", "channel"];
 

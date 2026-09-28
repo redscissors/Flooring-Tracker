@@ -126,3 +126,16 @@ exempts the book from `bookNoMarkup`, and its Markup tab says so instead of
 asking for a number. Sell stays wedi's published retail; cost stays the
 distributor net; Builder stays `wediBuilderPct` in the configurator.
 
+
+## Amendment 2026-09-28 — the two S-DRY mis-parses are fixed in the parser
+
+Decision 6 left `US5076011` (S-DRY SEAL, "2 x 16 oz. bags" → 2×16) and the
+eight S-DRY drain covers `US1076001`–`08` (wedi's `3/3/4"` typo → d:1) as
+display-only prose for the owner to correct on the item. That held while
+the size text sat on a grey sub-line. The shower configurators now lead
+every build and Compare line with the part's size in bold (`kitlabel.js`,
+.scratch/160), so "2×16″ S-DRY SEAL" and "3¾×1″ S-DRY DCSS" read as facts.
+Owner call: fix them. `dims()` now refuses a match that runs into a weight
+or count unit (`oz`, `lb`, `ct`) or stops mid-fraction (`3/3/4`); the nine
+entries stay dimensionless and leave `GEOMETRY_GAINS`. Still display-only:
+none of them is a pan, so `kitFor`/`solve` never read the dims.
