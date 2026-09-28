@@ -3828,6 +3828,12 @@ const FIN_SHORT = {
   CHA: "Champagne", WHT: "White", CSL: "Chrome Slotted", SSP: "Stainless Perforated",
   MBP: "Matte Black Perforated", BP: "Brass Perforated", CP: "Chrome Perforated",
 };
+// S-DRY covers by color: the pricelist names them by code ("DCMB"), and the
+// stock export's Oil-Rubbed Bronze row carries the Chrome cover's SKU.
+const SDRY_COVER_NAMES = {
+  US1076002: "Stainless", US1076006: "Chrome", US1076001: "Oil-Rubbed Bronze", US1076003: "Matte Black",
+  US1076005: "Gold", US1076007: "Brass", US1076004: "Tileable", US1076008: "Stainless Commercial (screw-down)",
+};
 
 export const GROUP_LABEL = {
   pan: "Pans", module: "Linear modules", modExt: "Module extensions",
@@ -4318,6 +4324,7 @@ function makeEntry(stockRow, soRow) {
   } else {
     e.sizeText = e.w && e.d ? sizeTextOf(e.w, e.d, e.t) : (contentOf(e.size) || contentOf(e.details));
   }
+  if (SDRY_COVER_NAMES[e.us]) e.name = "S-Dry Drain Cover — " + SDRY_COVER_NAMES[e.us];
   return e;
 }
 
@@ -5497,7 +5504,7 @@ export function kitFor(panKey, opts) {
   // Phase 2 (ADR 0051): the Membrane wall system bills S-DRY membrane in place
   // of Building Panel; absent is Building Panel, so old markers bill as before.
   const membrane = opts.wallSys === "membrane";
-  // The S-DRY floor recipe (bonding drain, S-DRY cover and curb) rides the
+  // The S-DRY floor recipe (S-DRY cover and curb) rides the
   // Membrane choice: an S-DRY pan under Building Panel is only an old marker
   // shape (wedimarkergolden pins it), and bills as it always did.
   const sdryFloor = fam === "sdry" && membrane;
@@ -5612,7 +5619,8 @@ export function kitFor(panKey, opts) {
   const coverPick = opts.coverPick || legacyCoverPick(opts.coverKey);
   let cover = null;
   if (sdryFloor) {
-    push(lines, SDRY.drain, 1, "drain", "", true);
+    // an S-DRY base has its drain built in; the bonding-flange drain is for
+    // mortar-bed floors, which the configurator never builds (owner 2026-09-28)
     const picked = coverPick && coverPick.key ? item(coverPick.key) : null;
     cover = sdryRole(picked) === "cover" ? picked : item(SDRY.coverSS);
   } else if (fam === "linear") {

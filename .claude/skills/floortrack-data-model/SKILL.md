@@ -248,8 +248,8 @@ Product  { id, type:"tile|hardwood|vinyl|laminate|carpet|underlayment|misc",
            // Its cfg also carries `wallSys` ("membrane" — absent is Building
            // Panel) and `sdryBase` ("wedi" — absent is S-DRY), ticket 158
            // Phase 2 / ADR 0051: choices, not parts. Membrane bills S-DRY
-           // membrane walls; on an S-DRY base it also bills the S-DRY curb,
-           // drain and cover. `cfg.solve.input` may carry `system: "sdry"`
+           // membrane walls; on an S-DRY base it also bills the S-DRY curb
+           // and cover (the base's drain is built in). `cfg.solve.input` may carry `system: "sdry"`
            // and `nearest: true`, so buildFromMarker re-solves the same
            // S-DRY option. Old markers carry neither and bill as before.
            // attached = add-on material categories (ADR 0016, PR 3): one entry

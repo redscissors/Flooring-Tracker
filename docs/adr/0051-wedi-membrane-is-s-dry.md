@@ -74,8 +74,9 @@ does.
      its own SEAL and trowel a second time.
    - PRO-SET: 1 + ⌈membrane sf ÷ 100⌉ at the 1/8″ notch. This matches
      wedi's TDS: a 36×60 alcove takes 2 bags, a 48×72 takes 3.
-   - An S-DRY base also bills the S-DRY curb (⌈open ÷ 72⌉), the
-     bonding-flange drain and an S-DRY cover.
+   - An S-DRY base also bills the S-DRY curb (⌈open ÷ 72⌉) and an S-DRY
+     cover. (It no longer bills the bonding-flange drain — see the
+     2026-09-28 drain amendment.)
    - **A wedi pan under S-DRY walls (`sdryBase: "wedi"`) seals its own
      pan/extension floor joints with wedi Joint & Seal too** (owner
      decision, made during the build): figured on the pan + extension
@@ -135,3 +136,14 @@ fits, the cell is the plain fit whatever the stored answer (`cellBuild`).
 `wediBuildFor` grew `sdryBase: "nearest"` for this (`comparekit.js`),
 routed through `sdry.js`'s `sdryNearest` exactly as the popup's own prompt
 answer is; neither engine's kit logic changed for it.
+
+## Amendment — no bonding-flange drain on an S-DRY base (2026-09-28)
+
+Owner correction: an S-DRY base has its drain built in. The S-DRY
+bonding-flange drain (`US9476006`, "BFD") is for mortar-bed showers only.
+The configurator never builds a mortar-bed shower, so an S-DRY floor no
+longer bills it. That takes $49 retail off each S-DRY build. The part stays
+in the catalog as an "S-DRY drain" add-part under the Drain group, so it can
+still be added by hand. A saved S-DRY build drops the line when it is
+reopened (`buildFromMarker` re-runs `kitFor`). Its saved selection rows keep
+the line until the build is saved again.
