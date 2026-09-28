@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { ChevronDown, Building2, Lock, LockOpen, Save, History, ClipboardList, Copy, Printer, Trash2, Check, Truck, X, Layers, FileText, MoreHorizontal, MapPin } from "lucide-react";
-import { SalespersonPop, SegBar, WasteBar, FilesPop, useAnchoredPanel, useEscClose, SearchPop, growBox, PriceLevelMenu, MorphSelect, DotMenu, AddressField } from "./widgets.jsx";
+import { SalespersonPop, SegBar, WasteBar, FilesPop, useAnchoredPanel, useEscClose, SearchPop, growBox, PriceLevelMenu, MorphSelect, PopMenu, AddressField } from "./widgets.jsx";
 import { FreightColumn } from "./freightui.jsx";
 import { normPricing } from "./pricing.js";
 import { TIER_COLOR, tierBadgeText, PROJECT_NAME_MAX } from "./uiconst.js";
@@ -541,6 +541,7 @@ function FreightToggle({ on, amount, onSet }) {
 export function ProjectHeaderClean({ sel, cust, builderName, profile, freightCost = 0, saveOk, settings, jobWasteUI, updateProject, onOpenCustomer, onPromote, nameRef, nameTabRef, orderEntryRef, focusName, namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion, openAttachment, delAttachment, attRef, addAttachment, setShowVersions, setPrintMode, setConfirm, setShowOrderCopy, samples = null, onOpenSamples, preview = false, onTogglePreview, erp = null, ping, compact = false }) {
   const [menu, setMenu] = useState(false);
   const [addrAt, setAddrAt] = useState(null);
+  useEscClose(menu, () => setMenu(false));
   const moreRef = useRef(null);
   const addrRef = useRef(null);
   const upd = (patch) => updateProject(sel.id, patch);
@@ -590,7 +591,7 @@ export function ProjectHeaderClean({ sel, cust, builderName, profile, freightCos
     </div>
   );
   const settingsEl = <>
-    <PriceLevelMenu value={sel.priceTier || "retail"} customPct={sel.customPct} onPick={(v) => upd({ priceTier: v })} onPct={(v) => upd({ priceTier: "custom", customPct: v })} />
+    <PriceLevelMenu value={sel.priceTier || "retail"} customPct={sel.customPct} onPick={(v) => upd({ priceTier: v })} onPct={(v) => upd({ priceTier: "custom", customPct: v })} align="left" />
     <MorphSelect value={sel.printPricing || "full"} onChange={(v) => upd({ printPricing: v })} bg="var(--ft-cream)" flat bold minOpenW={150} title="What the estimate shows"
       options={[
         { v: "full", label: "All prices", title: "Print every price and total" },
@@ -613,7 +614,7 @@ export function ProjectHeaderClean({ sel, cust, builderName, profile, freightCos
       </button>
     )}
     <button ref={moreRef} onClick={() => setMenu((m) => !m)} aria-label="More" aria-expanded={menu} data-tip="Project address, versions and delete" className={ICON + " text-slate-500"}><MoreHorizontal size={17} /></button>
-    <DotMenu open={menu} onClose={() => setMenu(false)} anchorRef={moreRef} align="left" width={230} bg="var(--ft-cream)">
+    {menu && moreRef.current && <PopMenu at={{ anchor: moreRef.current }} width={264} onClose={() => setMenu(false)} bg="var(--ft-cream)" className="py-1 text-sm whitespace-nowrap">
       <button onClick={() => { setMenu(false); setAddrAt(moreRef); }} className="w-full flex items-center gap-2.5 px-3 py-1.5 text-left font-semibold hover:bg-[color:var(--ft-hover)]">
         <MapPin size={15} className="text-slate-500" /><span className="flex-1">{sel.address ? "Change project address…" : "Add project address…"}</span>
       </button>
@@ -628,7 +629,7 @@ export function ProjectHeaderClean({ sel, cust, builderName, profile, freightCos
       <button onClick={() => { setMenu(false); setConfirm({ id: sel.id }); }} className="w-full flex items-center gap-2.5 px-3 py-1.5 text-left font-semibold text-red-600 hover:bg-[color:var(--ft-hover-red)]">
         <Trash2 size={15} /><span className="flex-1">Delete project</span>
       </button>
-    </DotMenu>
+    </PopMenu>}
     <SaveVersionPop anchor={moreRef} open={namingVersion} onOpen={startVersionName} onClose={() => setNamingVersion(false)} name={versionName} setName={setVersionName} onConfirm={confirmVersion} />
   </>;
   const actionsEl = (h) => <>
