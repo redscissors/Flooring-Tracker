@@ -34,6 +34,7 @@ section{display:flex;flex-direction:column;gap:14px}
 .sec-head p{margin:4px 0 0;color:var(--muted);max-width:72ch}
 .pair{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
 .pair.stack{grid-template-columns:1fr}
+.bleed{width:min(1440px,calc(100vw - 32px));margin-left:50%;transform:translateX(-50%)}
 @media (max-width:900px){.pair{grid-template-columns:1fr}}
 .side{display:flex;flex-direction:column;gap:8px;min-width:0}
 .tagline{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
@@ -89,9 +90,9 @@ section{display:flex;flex-direction:column;gap:14px}
 .colhead .r{text-align:right}
 
 /* compare */
-.cmp{min-width:1320px;padding:0 12px 10px 0}
+.cmp{min-width:1400px;padding:0 12px 10px 0;font-size:12px}
 .cgrid{display:grid;grid-template-columns:96px repeat(4,1fr);column-gap:14px}
-.chead{padding:12px 0 10px;border-bottom:1px solid var(--border)}
+.chead{padding:12px 0 8px}
 .chead .brand{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.12em;color:#fff;border-radius:3px;padding:1px 5px;vertical-align:2px}
 .chead .brand.w{background:var(--chip-wedi)} .chead .brand.s{background:var(--chip-sch)}
 .chead .sys{font-size:14px;font-weight:800;margin-left:6px}
@@ -101,8 +102,12 @@ section{display:flex;flex-direction:column;gap:14px}
 .gb{grid-column:1/-1;font-size:9px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);background:var(--sand);padding:2px 8px;margin-top:0}
 .slot{font-size:11.5px;font-weight:700;color:var(--muted);padding:6px 0 6px 8px;border-bottom:1px solid var(--line)}
 .cell{padding:5px 0;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:2px;min-width:0}
-.ci{display:grid;grid-template-columns:1fr auto 62px;gap:8px;align-items:baseline}
-.ci .n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ci,.csub{display:grid;grid-template-columns:1fr 96px 62px;gap:8px;align-items:baseline}
+.ci .n{min-width:0}
+.csub{font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);padding:6px 0 4px;border-bottom:1px solid var(--border)}
+.csub .r{text-align:right}
+.ci .z{border-left:1px solid var(--line);padding-left:8px}
+.csub .zh{padding-left:9px}
 .ci .qty{color:var(--faint);font-weight:700}
 .ci .z{font-weight:800;white-space:nowrap}
 .ci .p{text-align:right;font-weight:700}
@@ -209,9 +214,9 @@ section{display:flex;flex-direction:column;gap:14px}
   <div class="sec-head">
     <div class="eyebrow">3 · Compare tab</div>
     <h2>Compare shows sizes and drops brand words from lines</h2>
-    <p>Today a Compare cell is just quantity + name + price, so "2× Schluter KERDI-BOARD 1/2" panel" twice in a row doesn't tell you which panels. After: every item shows its size in bold between the name and the price. The brand chip stays on each column head, since Compare is the one place wedi and Schluter sit side by side.</p>
+    <p>Today a Compare cell is just quantity + name + price, so "2× Schluter KERDI-BOARD 1/2" panel" twice in a row doesn't tell you which panels. After: every column gets its own Size column between Item and Price, so sizes line up and you can read straight down them. The brand chip stays on each column head, since Compare is the one place wedi and Schluter sit side by side.</p>
   </div>
-  <div class="pair stack">
+  <div class="pair stack bleed">
     <div class="side before">
       <div class="tagline"><span class="dot"></span>Before · Compare today</div>
       <div class="shot"><img src="shots/b-compare.png" alt="Compare tab today: four columns, item names with brand prefixes, no sizes"></div>
@@ -245,13 +250,13 @@ section{display:flex;flex-direction:column;gap:14px}
 
 <section>
   <div class="sec-head">
-    <div class="eyebrow">Decide before building</div>
-    <h2>Open questions</h2>
+    <div class="eyebrow">Decided 2026-09-28</div>
+    <h2>Your answers</h2>
   </div>
   <ol class="q">
-    <li><b>Where does the brand-word cleanup stop?</b> The mockups only change how names read inside the configurators. Lines added to the job, the print and order entry keep the full name ("Schluter KERDI-BAND 5" seam band"), since a customer or the ERP reading one line alone needs the brand.</li>
-    <li><b>Kit-list sizes:</b> wedi's feet form (3′2″ × 5′ 38 × 60), as mocked, or bold inches only (38 × 60″)? Schluter sizes are often odd inches, so feet can read awkwardly.</li>
-    <li><b>SKU on the kit list:</b> hidden, with hover showing it, as mocked? Or kept as a faint third column?</li>
+    <li><b>Brand words come off names inside the configurators only.</b> Lines added to the job, the print and order entry keep the full name ("Schluter KERDI-BAND 5" seam band").</li>
+    <li><b>Kit-list sizes use wedi's form:</b> bold feet, then inches in grey (3′2″ × 5′ 38 × 60).</li>
+    <li><b>SKU is hidden on the kit list.</b> Hovering a row shows it; the build column still prints it on the grey line.</li>
   </ol>
 </section>
 
@@ -395,6 +400,8 @@ const cellHtml = (c) => c === "byo" ? `<div class="cell"><span class="byo">Cemen
 $("cmp").innerHTML = `<div class="cgrid">` +
   `<div class="chead" style="padding-left:8px"><div class="cap" style="color:var(--faint)">60 × 38″</div><div style="font-size:11px;color:var(--muted);font-weight:600">curbed · point drain</div></div>` +
   heads.map(([b, sys, tot, delta, cur]) => `<div class="chead${cur ? " cur" : ""}"><span class="brand ${b}">${b === W ? "WEDI" : "SCHLUTER"}</span><span class="sys">${sys}</span><div class="tot">${tot}<small>${delta}</small></div></div>`).join("") +
+  `<div class="csub" style="grid-template-columns:1fr"><span></span></div>` +
+  heads.map(() => `<div class="csub"><span>Item</span><span class="zh">Size</span><span class="r">Price</span></div>`).join("") +
   rows.map((r) => r[0] === "g" ? `<div class="gb">${r[1]}</div>` : `<div class="slot">${r[0]}</div>` + r[1].map(cellHtml).join("")).join("") +
   `</div>`;
 })();

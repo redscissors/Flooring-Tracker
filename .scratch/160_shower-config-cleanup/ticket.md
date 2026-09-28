@@ -3,7 +3,7 @@ issue_type: Feature
 summary: Clean up the wedi and Schluter configurators — Schluter kit list to
   wedi's form, a size column in the build column and in Compare, brand words
   off item names inside the popups. Mockups out for owner review.
-status: needs-info
+status: open
 labels: [needs-info]
 ---
 
@@ -31,9 +31,11 @@ compare-set-preview.html; afters are static HTML over the same fixture numbers.
 4. Standing help paragraphs move behind a HelpTip ? (ADR 0045).
 5. Same stock signal on both lists (moss dot / hollow dot + grey for SO).
 
-## Open (owner)
+## Decided (owner, 2026-09-28)
 
-- Does the name cleanup stop at the popups (job lines, print, order entry
-  keep full names)? Mocked as yes.
-- Kit sizes in feet (wedi's form) or inches only?
-- SKU on the Schluter kit list: hidden (hover) or faint column?
+- Name cleanup stops at the popups; job lines, print and order entry keep
+  full names.
+- Kit sizes in wedi's form (bold feet, grey inches).
+- SKU hidden on the Schluter kit list (hover shows it).
+- Before building: show Compare with a true, aligned Size column — mockup v2
+  gives each brand column Item | Size | Price headings. Waiting on approval.
