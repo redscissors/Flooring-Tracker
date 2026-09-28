@@ -76,7 +76,7 @@ section{display:flex;flex-direction:column;gap:14px}
 .bhead .sum{font-size:11px;color:var(--faint);font-weight:600}
 .bcat{display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-bottom:3px;border-bottom:1px solid var(--line)}
 .bcat .plus{color:var(--faint);font-weight:700}
-.brow{display:grid;grid-template-columns:1fr 104px 20px 70px 76px;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)}
+.brow{display:grid;grid-template-columns:104px 1fr 20px 70px 76px;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)}
 .brow .n{font-weight:700;font-size:13px}
 .brow .s2{font-size:10.5px;color:var(--faint);font-weight:600;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .brow .sz{font-weight:800;font-size:12.5px;white-space:nowrap}
@@ -86,7 +86,7 @@ section{display:flex;flex-direction:column;gap:14px}
 .brow .pr{text-align:right;font-weight:800}
 .brow .pr small{display:block;font-size:10px;color:var(--faint);font-weight:600}
 .brow.byo .n{font-style:italic;color:var(--muted);font-weight:700}
-.colhead{display:grid;grid-template-columns:1fr 104px 20px 70px 76px;gap:8px;font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);padding-top:6px}
+.colhead{display:grid;grid-template-columns:104px 1fr 20px 70px 76px;gap:8px;font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);padding-top:6px}
 .colhead .r{text-align:right}
 
 /* compare */
@@ -102,12 +102,12 @@ section{display:flex;flex-direction:column;gap:14px}
 .gb{grid-column:1/-1;font-size:9px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);background:var(--sand);padding:2px 8px;margin-top:0}
 .slot{font-size:11.5px;font-weight:700;color:var(--muted);padding:6px 0 6px 8px;border-bottom:1px solid var(--line)}
 .cell{padding:5px 0;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:2px;min-width:0}
-.ci,.csub{display:grid;grid-template-columns:1fr 96px 62px;gap:8px;align-items:baseline}
+.ci,.csub{display:grid;grid-template-columns:108px 1fr 62px;gap:8px;align-items:baseline}
 .ci .n{min-width:0}
 .csub{font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);padding:6px 0 4px;border-bottom:1px solid var(--border)}
 .csub .r{text-align:right}
-.ci .z{border-left:1px solid var(--line);padding-left:8px}
-.csub .zh{padding-left:9px}
+.ci .z{border-right:1px solid var(--line);padding-right:8px;align-self:stretch}
+
 .ci .qty{color:var(--faint);font-weight:700}
 .ci .z{font-weight:800;white-space:nowrap}
 .ci .p{text-align:right;font-weight:700}
@@ -180,7 +180,7 @@ section{display:flex;flex-direction:column;gap:14px}
   <div class="sec-head">
     <div class="eyebrow">2 · The build column</div>
     <h2>Every line gets a size column</h2>
-    <p>Today the size is buried in the name ("Tray 38"×60"") or the grey sub-line ("3'3"×33' = 108 sf"), and some lines have none at all. After: the brand words come off the name, and every line shows its size in one bold column just before the quantity. Both configurators use the same row.</p>
+    <p>Today the size is buried in the name ("Tray 38"×60"") or the grey sub-line ("3'3"×33' = 108 sf"), and some lines have none at all. After: the brand words come off the name, and every line shows its size in one bold column on the far left, before the item name. Both configurators use the same row.</p>
   </div>
   <div class="pair">
     <div class="side before">
@@ -214,7 +214,7 @@ section{display:flex;flex-direction:column;gap:14px}
   <div class="sec-head">
     <div class="eyebrow">3 · Compare tab</div>
     <h2>Compare shows sizes and drops brand words from lines</h2>
-    <p>Today a Compare cell is just quantity + name + price, so "2× Schluter KERDI-BOARD 1/2" panel" twice in a row doesn't tell you which panels. After: every column gets its own Size column between Item and Price, so sizes line up and you can read straight down them. The brand chip stays on each column head, since Compare is the one place wedi and Schluter sit side by side.</p>
+    <p>Today a Compare cell is just quantity + name + price, so "2× Schluter KERDI-BOARD 1/2" panel" twice in a row doesn't tell you which panels. After: every column gets its own Size column, first, to the left of Item, so sizes line up and you can read straight down them. The brand chip stays on each column head, since Compare is the one place wedi and Schluter sit side by side.</p>
   </div>
   <div class="pair stack bleed">
     <div class="side before">
@@ -311,13 +311,13 @@ $("wediKits").innerHTML =
 
 // ---- build columns ----
 const brow = ([n, sub, size, swap, qty, price, each, o = {}]) => o.byo
-  ? `<div class="brow byo"><div><div class="n">${n}</div><div class="s2">${sub}</div></div><div></div><div></div><div></div><div class="pr"><small>by others</small></div></div>`
-  : `<div class="brow"><div style="min-width:0"><div class="n">${n}</div><div class="s2">${sub}</div></div>` +
-    `<div class="sz">${size || ""}</div><div class="sw">${swap ? "⇄" : ""}</div>` +
+  ? `<div class="brow byo"><div></div><div><div class="n">${n}</div><div class="s2">${sub}</div></div><div></div><div></div><div class="pr"><small>by others</small></div></div>`
+  : `<div class="brow"><div class="sz">${size || ""}</div><div style="min-width:0"><div class="n">${n}</div><div class="s2">${sub}</div></div>` +
+    `<div class="sw">${swap ? "⇄" : ""}</div>` +
     `<div class="step"><i>−</i>${qty}<i>+</i></div><div class="pr">${price}${each ? `<small>${each}</small>` : ""}</div></div>`;
 const cat = (name, rows) => `<div class="bcat"><span class="cap">${name}</span><span class="plus">+</span></div>${rows.map(brow).join("")}`;
 const buildHead = (sum) => `<div class="bhead"><h3>Build</h3><span class="sum">${sum}</span></div>` +
-  `<div class="colhead"><span>Item</span><span>Size</span><span></span><span style="text-align:center">Qty</span><span class="r">Retail</span></div>`;
+  `<div class="colhead"><span>Size</span><span>Item</span><span></span><span style="text-align:center">Qty</span><span class="r">Retail</span></div>`;
 
 $("schBuild").innerHTML = buildHead("38 × 60″ · curbed · point drain · membrane walls") +
   cat("Base", [["Shower tray, point drain", "KST965/1525 · exact fit", "38 × 60″", 0, 1, "$121.91", "$121.91 ea"]]) +
@@ -396,12 +396,12 @@ const rows = [
 ];
 const cellHtml = (c) => c === "byo" ? `<div class="cell"><span class="byo">Cement board / drywall — by others</span></div>`
   : !c ? `<div class="cell"><span class="none">—</span></div>`
-  : `<div class="cell">${c.map((x) => `<div class="ci"><span class="n">${x.q ? `<span class="qty">${x.q}× </span>` : ""}${x.n}</span><span class="z">${x.z}</span><span class="p">${x.p}</span></div>`).join("")}</div>`;
+  : `<div class="cell">${c.map((x) => `<div class="ci"><span class="z">${x.z}</span><span class="n">${x.q ? `<span class="qty">${x.q}× </span>` : ""}${x.n}</span><span class="p">${x.p}</span></div>`).join("")}</div>`;
 $("cmp").innerHTML = `<div class="cgrid">` +
   `<div class="chead" style="padding-left:8px"><div class="cap" style="color:var(--faint)">60 × 38″</div><div style="font-size:11px;color:var(--muted);font-weight:600">curbed · point drain</div></div>` +
   heads.map(([b, sys, tot, delta, cur]) => `<div class="chead${cur ? " cur" : ""}"><span class="brand ${b}">${b === W ? "WEDI" : "SCHLUTER"}</span><span class="sys">${sys}</span><div class="tot">${tot}<small>${delta}</small></div></div>`).join("") +
   `<div class="csub" style="grid-template-columns:1fr"><span></span></div>` +
-  heads.map(() => `<div class="csub"><span>Item</span><span class="zh">Size</span><span class="r">Price</span></div>`).join("") +
+  heads.map(() => `<div class="csub"><span>Size</span><span>Item</span><span class="r">Price</span></div>`).join("") +
   rows.map((r) => r[0] === "g" ? `<div class="gb">${r[1]}</div>` : `<div class="slot">${r[0]}</div>` + r[1].map(cellHtml).join("")).join("") +
   `</div>`;
 })();

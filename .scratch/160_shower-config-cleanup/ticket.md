@@ -38,4 +38,5 @@ compare-set-preview.html; afters are static HTML over the same fixture numbers.
 - Kit sizes in wedi's form (bold feet, grey inches).
 - SKU hidden on the Schluter kit list (hover shows it).
 - Before building: show Compare with a true, aligned Size column — mockup v2
-  gives each brand column Item | Size | Price headings. Waiting on approval.
+  gives each brand column Size | Item | Price headings (owner: size LEFT of
+  item, also in the build column — v3). Waiting on approval.
