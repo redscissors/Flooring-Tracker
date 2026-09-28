@@ -24,9 +24,9 @@ compare-set-preview.html; afters are static HTML over the same fixture numbers.
 1. Brand words stripped from item names inside the popups: wedi®, ™,
    Schluter, KERDI-, S-DRY, Subliner Dry. Distinguishing product names stay
    (ALL-SET, PRO-SET, Building panel). Compare column heads keep a brand chip.
-2. Size is its own bold column in the build column and in every Compare cell
-   (today CompareTab.jsx renders only qty + name + price). Blank when the
-   sheet states none.
+2. Size leads the item name in bold (one phrase) in the build column and in
+   every Compare cell (today CompareTab.jsx renders only qty + name + price);
+   Compare's qty gets its own left column. No size on the sheet = name alone.
 3. One kit-list size format: bold nominal feet, inches in grey, smallest first.
 4. Standing help paragraphs move behind a HelpTip ? (ADR 0045).
 5. Same stock signal on both lists (moss dot / hollow dot + grey for SO).
@@ -42,4 +42,8 @@ compare-set-preview.html; afters are static HTML over the same fixture numbers.
   item, also in the build column — v3; size right-aligned against the item —
   v5; top-aligned with the name line, one space apart, no divider — v6).
   Compare gets its own Qty column at the far left — v7 (every row shows
-  its qty, 1 included). Waiting on approval.
+  its qty, 1 included).
+- v8 (current): size and item MERGED into one cell in both views — bold size,
+  one space, the name ("48 × 96 × ½″ Building panel"). Compare = Qty | Size +
+  item | Price; the build column keeps its qty stepper on the right.
+  Waiting on approval.
