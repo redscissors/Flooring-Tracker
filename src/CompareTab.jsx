@@ -5,9 +5,10 @@
 // its build. A 2×2 grid prices the room as wedi and Schluter on Board and on
 // Membrane — the host's own cell is its live build, the other three are house
 // kits (comparegrid.js) — and the two-column detail below shows the live
-// build against the selected cell. The popups never import comparekit — they hand over a raw `hostCfg`
-// and the neutral room is derived HERE, so wedi.js and schluter.js only meet
-// inside comparekit.js (and, through it, this lazy chunk).
+// build against the selected cell. The popups never import comparekit — they
+// hand over a raw `hostCfg` and the neutral room is derived HERE, so wedi.js
+// and schluter.js only meet inside comparekit.js (and, through it, this lazy
+// chunk).
 //
 // LAZY-CHUNK-ONLY (ADR 0026): imports comparekit.js → both engines. Nothing on
 // the boot path may import this file — the popups mount it via React.lazy.
@@ -187,10 +188,18 @@ export default function CompareTab({
   const [pick, setPick] = useState(null);
   // The grid (Phase 3): the cell the detail shows beside the live build, the
   // cells checked for quote options, and the wedi Membrane cell's no-fit
-  // answer. Session state — it goes when the tab does.
-  const [selected, setSelected] = useState(() => opposite(hostKey));
-  const [checked, setChecked] = useState(() => [hostKey, opposite(hostKey)]);
-  const [sdryPick, setSdryPick] = useState("wedi");
+  // answer. It rides the popup's Compare session under the reserved key
+  // `grid` (cell keys all contain ':'), so it outlives a tab switch but not
+  // the popup.
+  const grid = (mirror && mirror.grid) || {};
+  const selected = grid.selected || opposite(hostKey);
+  const checked = grid.checked || [hostKey, opposite(hostKey)];
+  const sdryPick = grid.sdryPick || "wedi";
+  const writeGrid = (patch) => onMirror && onMirror((all) => ({
+    ...(all || {}), grid: { ...((all || {}).grid || {}), ...patch },
+  }));
+  const setSelected = (k) => writeGrid({ selected: k });
+  const setSdryPick = (v) => writeGrid({ sdryPick: v });
   const [jumpTo, setJumpTo] = useState(null);
   const root = useRef(null);
 
@@ -273,7 +282,7 @@ export default function CompareTab({
   const layout = useMemo(
     () => compareLayout({ L: left.rows, R: right.rows }, { L: plusOf(left), R: plusOf(right) }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [left, right]);
+    [left, right, roomOk, ownWedi.bookError, schCat]);
 
   // A chip scrolls the detail to its line once the selected cell has drawn.
   useEffect(() => {
@@ -288,7 +297,11 @@ export default function CompareTab({
   }, [jumpTo]);
   const pickCell = (k) => { if (k !== hostKey) setSelected(k); };
   const jump = (k, rowKey) => { pickCell(k); setJumpTo({ cell: k, rowKey, n: Date.now() }); };
-  const toggle = (k) => setChecked((xs) => (xs.includes(k) ? xs.filter((x) => x !== k) : [...xs, k]));
+  const toggle = (k) => onMirror && onMirror((all) => {
+    const g = (all || {}).grid || {};
+    const xs = g.checked || [hostKey, opposite(hostKey)];
+    return { ...(all || {}), grid: { ...g, checked: xs.includes(k) ? xs.filter((x) => x !== k) : [...xs, k] } };
+  });
 
   // The mirror: picks and drops are per cell, each pruned to the host lines
   // that still exist.
@@ -372,7 +385,7 @@ export default function CompareTab({
       <div key={c.key} role="button" tabIndex={c.live ? -1 : 0} data-cmp-tile={c.key}
         className={"tile" + (c.live ? " live" : "") + (c.key === sel.key ? " sel" : "")}
         onClick={() => pickCell(c.key)}
-        onKeyDown={(ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); pickCell(c.key); } }}>
+        onKeyDown={(ev) => { if (ev.target !== ev.currentTarget) return; if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); pickCell(c.key); } }}>
         <div className="tt">
           {onQuoteOptions && (
             <input type="checkbox" data-cmp-check={c.key} checked={checked.includes(c.key) && !miss} disabled={!!miss}

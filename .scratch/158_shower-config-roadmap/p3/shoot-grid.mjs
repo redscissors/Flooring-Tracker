@@ -49,6 +49,12 @@ if (!/KERDI-BOARD/.test(h[0]) || !/KERDI membrane.*this build/.test(h[1])) fail(
 await tile("schluter:membrane").click(); await pg.waitForTimeout(400);
 if (!(await tile("schluter:board").getAttribute("class")).includes("sel")) fail("clicking the live cell moved the selection");
 await shot("g2-same-brand-detail");
+// Space on a focused checkbox toggles it — the tile's key handler leaves it be.
+const cb = pg.locator('[data-cmp-check="schluter:board"]');
+await cb.focus(); await pg.keyboard.press("Space"); await pg.waitForTimeout(200);
+if (!(await cb.isChecked())) fail("Space on a tile's checkbox did not toggle it");
+await pg.keyboard.press("Space"); await pg.waitForTimeout(200);
+if (await cb.isChecked()) fail("a second Space did not untoggle the checkbox");
 
 // --- 3. three checked → options A–C in reading order ---
 await pg.locator('[data-cmp-check="wedi:board"]').check(); await pg.waitForTimeout(300);
@@ -86,6 +92,19 @@ if (await lin.count()) {
   if (!/No S-DRY base fits/.test(after)) fail("the nearest base lost its no-fit chip");
   if (await txt(tile("wedi:board")) !== boardBefore) fail("the S-DRY answer moved another cell");
   await shot("g5-sdry-nearest");
+
+  // The grid state rides the popup's Compare session: it outlives a tab switch.
+  const ck = (await checkedKeys()).sort().join();
+  if (ck !== "schluter:membrane,wedi:board,wedi:membrane") fail("the three checks did not carry into the linear room: " + ck);
+  await toTab("Browse");
+  if (await pg.locator("[data-cmp-quad]").count()) fail("the Browse tab still draws the grid");
+  await toCompare();
+  const ck2 = (await checkedKeys()).sort().join();
+  console.log("after tab round trip — checks:", ck2);
+  if (ck2 !== ck) fail("the checks did not survive a tab switch");
+  if (!(await tile("wedi:membrane").getAttribute("class")).includes("sel")) fail("the selection did not survive a tab switch");
+  if (!(await pg.locator('[data-cmp-sdry-answer="nearest"]').getAttribute("class")).includes("on")) fail("the S-DRY answer did not survive a tab switch");
+  if (/on a wedi pan/.test(await txt(tile("wedi:membrane")))) fail("the wedi Membrane cell fell back to the pan after a tab switch");
 } else fail("no linear tray in the preview book");
 
 // --- 5. wedi host with a hand-added niche: the mirror is per cell ---
