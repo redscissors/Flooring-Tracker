@@ -99,11 +99,11 @@ section{display:flex;flex-direction:column;gap:14px}
 .cmp-stack .chead{padding-bottom:4px}
 .cmp-stack .gb{margin:6px -12px 0}
 .cmp-stack .ci{padding:4px 0;border-bottom:1px solid var(--line)}
-.cmp-stack .ci .z{border-right:0;padding-right:4px}
-.cmp-stack .csub .zh{padding-right:4px}
+.cmp-stack .ci .z{border-right:0}
+
 .cmp-stack .byo{font-style:italic;color:var(--muted)}
 .cgrid{display:grid;grid-template-columns:88px repeat(4,minmax(0,1fr));column-gap:14px}
-@media (max-width:1400px){.cmp .ci,.cmp .csub{grid-template-columns:96px minmax(0,1fr) 60px;gap:6px}}
+@media (max-width:1400px){.cmp .ci,.cmp .csub{grid-template-columns:96px minmax(0,1fr) 60px;gap:5px}}
 .chead{padding:12px 0 8px}
 .chead .brand{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.12em;color:#fff;border-radius:3px;padding:1px 5px;vertical-align:2px}
 .chead .brand.w{background:var(--chip-wedi)} .chead .brand.s{background:var(--chip-sch)}
@@ -114,13 +114,14 @@ section{display:flex;flex-direction:column;gap:14px}
 .gb{grid-column:1/-1;font-size:9px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);background:var(--sand);padding:2px 8px;margin-top:0}
 .slot{font-size:11.5px;font-weight:700;color:var(--muted);padding:6px 0 6px 8px;border-bottom:1px solid var(--line)}
 .cell{padding:5px 0;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:2px;min-width:0}
-.ci,.csub{display:grid;grid-template-columns:108px 1fr 62px;gap:8px;align-items:baseline}
+.ci,.csub{display:grid;grid-template-columns:108px 1fr 62px;gap:5px;align-items:baseline}
 .ci .n{min-width:0}
 .csub{font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);padding:6px 0 4px;border-bottom:1px solid var(--border)}
 .csub .r{text-align:right}
-.ci .z{border-right:1px solid var(--line);padding-right:8px;align-self:stretch;text-align:right}
-.csub .zh{text-align:right;padding-right:9px}
-.brow .sz,.colhead .zh{text-align:right;padding-right:6px}
+.ci .z{text-align:right}
+.csub .zh{text-align:right}
+.brow .sz,.colhead .zh{text-align:right;margin-right:-3px}
+.brow .sz{align-self:start;font-size:13px;line-height:1.3}
 
 .ci .qty{color:var(--faint);font-weight:700}
 .ci .z{font-weight:800;white-space:nowrap}

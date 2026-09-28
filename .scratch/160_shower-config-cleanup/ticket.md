@@ -40,4 +40,5 @@ compare-set-preview.html; afters are static HTML over the same fixture numbers.
 - Before building: show Compare with a true, aligned Size column — mockup v2
   gives each brand column Size | Item | Price headings (owner: size LEFT of
   item, also in the build column — v3; size right-aligned against the item —
-  v5). Waiting on approval.
+  v5; top-aligned with the name line, one space apart, no divider — v6).
+  Waiting on approval.
