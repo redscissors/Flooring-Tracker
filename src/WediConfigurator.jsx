@@ -25,7 +25,7 @@ import {
   BENCH_CORNER_LBL, buildFromMarker, sessionFromRows, wediSlotOf, coverStyles, legacyCoverPick, coverPickApplies,
   resolveCurb, curbOptions, curbPickOf, panelOptions, panelSheets, fastenerKits,
   addedRows, setAddedRow, wediBucketOf, wediAddParts, wediAddPartOf, curbAddOptions, coverAddOptions, curbProfile, catalog,
-  sdryNoFit,
+  sdryNoFit, panelFitLines,
 } from "./wedi.js";
 import { SDRY, sdryRole } from "./sdry.js";
 import { SwapPop, fmDelta, inchGlyph } from "./swappop.jsx";
@@ -917,23 +917,6 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   const sfOfWall = (len, h, faces) =>
     round2(((+len || 0) * (+h || 0) * (faces === "both" ? 2 : 1) + (faces === "in-end" ? WALL_THICK * (+h || 0) : 0)) / 144);
 
-  // The Fit plan (level courses, mixed sheet sizes, a vertical single sheet
-  // where it kills the seams) replaces the engine's by-area panel line — a
-  // Membrane build has none, and its membrane line stays.
-  const applyPanelFit = (lines, wl, panelSf) => {
-    if (!lines.some((l) => l.group === "walls" && l.auto !== false && l.item.group === "panel")) return lines;
-    const plan = panelPlan(expandWallFaces(wl));
-    const out = lines.filter((l) => !(l.group === "walls" && l.auto !== false));
-    const vWalls = plan.detail.filter((d) => d.vertical).length;
-    plan.lines.forEach((pl, i) => out.push({
-      item: item(pl.key), qty: pl.qty, group: "walls", auto: true, slot: "wallBoard",
-      note: i === 0
-        ? round2(panelSf) + " sf — " + plan.vSeams + " vertical seam" + (plan.vSeams === 1 ? "" : "s")
-          + (vWalls ? " · " + vWalls + " wall" + (vWalls === 1 ? "" : "s") + " stood vertical" : "")
-        : "panel plan",
-    }));
-    return out;
-  };
 
   // The build column's tail over a kitFor result — panel plan, stepped
   // quantities. The basket drawer runs it too, so a staged entry prices the
@@ -942,7 +925,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   // Phase 1c, whose extras rode the session — each its own line now.
   const applySession = (b, wl, s) => {
     let lines = b.lines.map((l) => ({ item: l.item, qty: l.qty, group: l.group, note: l.note, auto: l.auto, slot: l.slot, added: l.added }));
-    if (s.panelFit) lines = applyPanelFit(lines, wl, b.panelSf);
+    if (s.panelFit) lines = panelFitLines(lines, wl, b.panelSf);
     lines.forEach((l) => {
       const ov = s.qtyOv[l.item.key];
       if (ov != null && !l.added) { l.autoQty = l.qty; l.qty = ov; l.ov = true; }
@@ -1554,7 +1537,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
       const b = kitFor(p.key, { walls: wl, sealantForm: opts.sealantForm, room: { w: lens.back, d: lens.left },
         ...(p.sub === "sdry" ? { wallSys: "membrane" } : {}) });
       if (!b) return;
-      const lines = panelFit ? applyPanelFit(b.lines, wl, b.panelSf) : b.lines;
+      const lines = panelFit ? panelFitLines(b.lines, wl, b.panelSf) : b.lines;
       out[p.key] = round2(lines.reduce((t, l) => t + tierOf(l.item) * l.qty, 0));
     }));
     return out;

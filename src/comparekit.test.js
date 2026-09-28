@@ -2,12 +2,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
 import { catalogOf } from "./schluter.js";
-import { item, kitFor, SKU } from "./wedi.js";
+import { item, kitFor, SKU, panelFitLines } from "./wedi.js";
 import {
   roomFromSchluter, roomFromWedi, wediBuildFor, schluterBuildFor,
   wediCompareRows, schluterCompareRows, compareTotals,
   hostAddedLines, mirrorParts, mirrorCandidates, mirrorPlan, mirrorRow, pruneMirror, compareLayout,
-  wediSdryNoFit, wediOptionOf,
+  wediSdryNoFit, wediOptionOf, benchesFor, wediKeptBuild, schluterKeptBuild, keptDropped, syncKept,
 } from "./comparekit.js";
 import { GROUPS, SLOTS } from "./slots.js";
 import { lineItems as wediLineItems, buildFromMarker as wediFromMarker } from "./wedi.js";
@@ -33,6 +33,7 @@ test("roomFromSchluter reads a schluter cfg as the neutral room", () => {
     walls: [{ side: "back", on: true, len: 60, h: 84 },
       { side: "left", on: true, len: 38, h: 84 },
       { side: "right", on: true, len: 38, h: 84 }],
+    benches: [],
   });
 });
 
@@ -73,6 +74,7 @@ test("roomFromWedi reads curbless off the pan when a kit build has no solve inpu
     walls: [{ side: "back", on: true, len: 48, h: 80 },
       { side: "left", on: true, len: 36, h: 80 },
       { side: "right", on: true, len: 36, h: 80 }],
+    benches: [],
   });
 });
 
@@ -85,7 +87,7 @@ test("a solve input still wins over the pan it picked", () => {
 
 test("roomFromWedi still defaults to a curbed point drain with neither solve nor pan", () => {
   assert.deepEqual(roomFromWedi({ room: { w: 60, d: 38 }, walls: [{ side: "back", len: 60, h: 84 }] }),
-    { w: 60, d: 38, curbed: true, drain: "point", walls: [{ side: "back", on: true, len: 60, h: 84 }] });
+    { w: 60, d: 38, curbed: true, drain: "point", walls: [{ side: "back", on: true, len: 60, h: 84 }], benches: [] });
 });
 
 // --- (b) the wedi side ------------------------------------------------------
@@ -160,7 +162,7 @@ test("schluterBuildFor composes the cfg the reconfigure chip reopens on", () => 
   assert.equal(cfg.w, 60);
   assert.equal(cfg.d, 38);
   assert.equal(cfg.wallSys, "membrane");
-  assert.equal(cfg.bench, null);
+  assert.deepEqual(cfg.benches, []);
   assert.deepEqual(cfg.walls.map((w) => [w.name, w.on, w.len]),
     [["Back", true, 60], ["Left", true, 38], ["Right", true, 38]]);
   assert.equal(build.cand.tray.sku, "KST965/1525");
@@ -467,4 +469,75 @@ test("compareLayout takes any two column names", () => {
   assert.deepEqual(g[0].slots[0].L.map((r) => r.key), ["a"]);
   assert.deepEqual(g[0].slots[0].R, []);
   assert.deepEqual(g[1].slots[0].RPlus.map((e) => e.hostKey), ["h"]);
+});
+
+// --- (h) the Compare set: benches, kept builds, Sync (ticket 158 Phase 4) --
+
+const benchRoom = () => ({ ...room60x38(), benches: [{ kind: "corner", corner: "bl", build: "premade", part: "KBSB410TA" }] });
+
+test("benchesFor: a brand SKU crosses only within its own brand", () => {
+  assert.deepEqual(benchesFor("wedi", benchRoom(), "schluter"), [{ kind: "corner", corner: "bl", build: "premade" }]);
+  assert.equal(benchesFor("schluter", benchRoom(), "schluter")[0].part, "KBSB410TA");
+  assert.deepEqual(benchesFor("wedi", { w: 1 }, "wedi"), []);
+});
+
+test("house kits now carry the room's benches, both brands", () => {
+  const plain = wediBuildFor(room60x38());
+  const withB = wediBuildFor(room60x38(), { benches: benchesFor("wedi", benchRoom(), "schluter") });
+  assert.equal(plain.cfg.benches.length, 0);
+  assert.equal(withB.cfg.benches.length, 1);
+  const s0 = schluterBuildFor(room60x38(), CAT).build;
+  const s1 = schluterBuildFor(benchRoom(), CAT).build;
+  assert.ok(s1.lines.some((l) => l.item.sku === "KBSB410TA"), "the Schluter premade bills");
+  assert.ok(!s0.lines.some((l) => l.item.sku === "KBSB410TA"));
+});
+
+test("wediKeptBuild prices a marker with the default Fit plan — the popup's build column", () => {
+  const house = wediBuildFor(room60x38());
+  const kept = wediKeptBuild({ mode: "custom", cfg: { ...house.cfg, source: "all" } });
+  assert.equal(kept.pan.key, house.pan.key);
+  assert.equal(kept.cfg.source, "all");
+  assert.deepEqual(kept.lines.map((l) => l.item.key), panelFitLines(house.lines, house.cfg.walls, house.panelSf).map((l) => l.item.key));
+  assert.equal(wediKeptBuild({ mode: "kit", cfg: { panKey: "NOPE" } }), null);
+});
+
+test("schluterKeptBuild re-derives the marker and stamps its tray pick", () => {
+  const { cfg } = schluterBuildFor(room60x38(), CAT, { wallSys: "board" });
+  const kept = schluterKeptBuild({ mode: "custom", cfg }, CAT);
+  assert.equal(kept.cfg.pick, "KST965/1525");
+  assert.ok(kept.build.lines.length > 3);
+  assert.equal(schluterKeptBuild({ mode: "custom", cfg: { w: 0, d: 0 } }, CAT), null);
+});
+
+test("keptDropped names a Schluter swap the build doesn't carry", () => {
+  const { build } = schluterBuildFor(room60x38(), CAT);
+  const grate = build.lines.find((l) => l.item.part === "grate").item.sku;
+  assert.deepEqual(keptDropped("schluter", { swaps: { grate } }, build), []);
+  assert.deepEqual(keptDropped("schluter", { swaps: { grate: "NOPE" } }, build), ["grate"]);
+  assert.deepEqual(keptDropped("wedi", { panelKey: "NOPE" }, { lines: [] }), ["panel"]);
+});
+
+test("syncKept (Schluter): the room and anchor lines come over, the column's picks and lines stay", () => {
+  const small = { ...room60x38(), w: 48, d: 36, walls: room60x38().walls.map((w) => ({ ...w, len: w.side === "back" ? 48 : 36 })) };
+  const { cfg } = schluterBuildFor(small, CAT);
+  const grate = schluterBuildFor(small, CAT).build.lines.find((l) => l.item.part === "grate").item.sku;
+  const entry = { snap: { mode: "custom", cfg: { ...cfg, swaps: { grate }, xwalls: [{ edge: "entry", len: 12, h: 84 }], manual: [{ sku: "KBSB410TA", qty: 1 }] } } };
+  const out = syncKept("schluter", entry, { room: room60x38(), hostBuild: null, hostBrand: "wedi", cat: CAT });
+  assert.equal(out.snap.cfg.w, 60);
+  assert.equal(out.snap.cfg.d, 38);
+  assert.deepEqual(out.snap.cfg.swaps, { grate });
+  assert.deepEqual(out.snap.cfg.xwalls, []);
+  assert.deepEqual(out.snap.cfg.manual, [{ sku: "KBSB410TA", qty: 1 }]);
+  assert.equal(out.snap.cfg.pick, "KST965/1525");
+  assert.deepEqual(out.dropped, []);
+});
+
+test("syncKept (wedi): re-solves for the anchor room, keeps the choices", () => {
+  const small = { ...room60x38(), w: 48, d: 36 };
+  const house = wediBuildFor(small);
+  const entry = { snap: { mode: "custom", cfg: { ...house.cfg, sealantForm: "sausage", source: "all" } } };
+  const out = syncKept("wedi", entry, { room: room60x38(), hostBuild: null, hostBrand: "schluter", cat: CAT });
+  assert.deepEqual(out.snap.cfg.room, { w: 60, d: 38 });
+  assert.equal(out.snap.cfg.sealantForm, "sausage");
+  assert.equal(out.snap.cfg.source, "all");
 });
