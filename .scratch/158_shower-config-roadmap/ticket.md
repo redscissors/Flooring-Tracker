@@ -226,7 +226,7 @@ works unchanged.
 - **ADR:** `docs/adr/0034-cross-vendor-compare.md` and
   `docs/adr/0051-wedi-membrane-is-s-dry.md` (both amended)
 - **Proof:** `.scratch/158_shower-config-roadmap/p3/`
-- **PR:** pending
+- **PR:** [redscissors/Flooring-Tracker#449](https://github.com/redscissors/Flooring-Tracker/pull/449)
 
 **Phase 3 is complete.** The ticket's phase list ends here — no Phase 4 is
 scoped yet. See `.scratch/handoffs/shower-config-phase4-2026-09-28.md` for

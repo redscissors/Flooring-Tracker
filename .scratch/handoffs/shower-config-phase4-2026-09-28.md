@@ -17,7 +17,7 @@ owner answers and the carry-forward list. The earlier handoffs
 | **1c** "+" on every group, add another line | merged | [redscissors/Flooring-Tracker#441](https://github.com/redscissors/Flooring-Tracker/pull/441) |
 | **1d** shared group names, Compare alignment, the mirror | merged | [redscissors/Flooring-Tracker#444](https://github.com/redscissors/Flooring-Tracker/pull/444) |
 | **Phase 2** Board vs Membrane, wedi S-DRY | merged | [redscissors/Flooring-Tracker#446](https://github.com/redscissors/Flooring-Tracker/pull/446) (`c5e9342`) |
-| **Phase 3** 4-way compare | built, PR pending | branch `claude/shower-config-phase3-4way` (this branch) |
+| **Phase 3** 4-way compare | merged | [redscissors/Flooring-Tracker#449](https://github.com/redscissors/Flooring-Tracker/pull/449) |
 
 **Check Phase 3's PR has merged before starting anything new on top of
 this branch.** Phase 3 was built on Phase 2's merge commit `c5e9342`, which is on `main`.
