@@ -3828,6 +3828,12 @@ const FIN_SHORT = {
   CHA: "Champagne", WHT: "White", CSL: "Chrome Slotted", SSP: "Stainless Perforated",
   MBP: "Matte Black Perforated", BP: "Brass Perforated", CP: "Chrome Perforated",
 };
+// S-DRY covers by color: the pricelist names them by code ("DCMB"), and the
+// stock export's Oil-Rubbed Bronze row carries the Chrome cover's SKU.
+const SDRY_COVER_NAMES = {
+  US1076002: "Stainless", US1076006: "Chrome", US1076001: "Oil-Rubbed Bronze", US1076003: "Matte Black",
+  US1076005: "Gold", US1076007: "Brass", US1076004: "Tileable", US1076008: "Stainless Commercial (screw-down)",
+};
 
 export const GROUP_LABEL = {
   pan: "Pans", module: "Linear modules", modExt: "Module extensions",
@@ -4318,6 +4324,7 @@ function makeEntry(stockRow, soRow) {
   } else {
     e.sizeText = e.w && e.d ? sizeTextOf(e.w, e.d, e.t) : (contentOf(e.size) || contentOf(e.details));
   }
+  if (SDRY_COVER_NAMES[e.us]) e.name = "S-Dry Drain Cover — " + SDRY_COVER_NAMES[e.us];
   return e;
 }
 

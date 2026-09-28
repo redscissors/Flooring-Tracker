@@ -933,7 +933,9 @@ src/
                     # the foot (4'x5'x1/2\" Building Panel), bases size-first
                     # (36\"x60\" Shower Base, offset drains named), covers with
                     # finish WORDS for the codes (FIN_SHORT; full finish stays
-                    # the second line), niches by their EXTERIOR with "interior
+                    # the second line), S-DRY covers by color (S-Dry Drain
+                    # Cover — Matte Black; SDRY_COVER_NAMES, SKU-keyed — the
+                    # pricelist names them DCMB/DCORB/…), niches by their EXTERIOR with "interior
                     # 12\" x 8\"" as sizeText (vendor-name parse, 4\" flange
                     # fallback) — all derived in makeEntry, so a pricelist
                     # re-transcription keeps every treatment.

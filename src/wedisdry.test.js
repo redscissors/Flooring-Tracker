@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { solve, savedOption, kitFor, buildFromMarker, sdryNoFit, wediSlotOf, item, SKU, markerCurbKey, coverPickApplies } from "./wedi.js";
+import { solve, savedOption, kitFor, buildFromMarker, sdryNoFit, wediSlotOf, item, SKU, markerCurbKey, coverPickApplies, setSoSource, clearSoSource } from "./wedi.js";
 import { SDRY } from "./sdry.js";
 import { wediBuildFor, schluterBuildFor, mirrorPlan, wediCompareRows } from "./comparekit.js";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
@@ -218,4 +218,20 @@ test("Compare: a Membrane wedi build carries one backer note row, a Building Pan
   }
   assert.equal(backers(wediBuildFor(neutral(true), { wallSys: "board" })).length, 0);
   assert.equal(backers(wediBuildFor(neutral(true))).length, 0);
+});
+
+test("S-DRY drain covers read by color, not wedi's finish codes", () => {
+  const want = {
+    US1076002: "S-Dry Drain Cover — Stainless", US1076006: "S-Dry Drain Cover — Chrome",
+    US1076001: "S-Dry Drain Cover — Oil-Rubbed Bronze", US1076003: "S-Dry Drain Cover — Matte Black",
+    US1076005: "S-Dry Drain Cover — Gold", US1076007: "S-Dry Drain Cover — Brass",
+    US1076004: "S-Dry Drain Cover — Tileable", US1076008: "S-Dry Drain Cover — Stainless Commercial (screw-down)",
+  };
+  const names = () => Object.fromEntries(Object.keys(want).map((k) => [k, item(k).name]));
+  assert.deepEqual(names(), want);
+  // the pricelist names them by code ("wedi® S-DRY™ DCMB")
+  setSoSource(Object.keys(want).map((us) => ({ us, name: "wedi® S-DRY™ DC", size: "", details: "", retail: 99, net: 50, section: "S-DRY", erp: "" })));
+  try { assert.deepEqual(names(), want); } finally { clearSoSource(); }
+  setSoSource([{ us: "US1076099", name: "wedi® S-DRY™ DCX", size: "", details: "", retail: 99, net: 50, section: "S-DRY", erp: "" }]);
+  try { assert.equal(item("US1076099").name, "wedi® S-DRY™ DCX", "an unknown SKU keeps the vendor name"); } finally { clearSoSource(); }
 });
