@@ -66,27 +66,28 @@ export const duplicateInto = (area, slot) => {
   return { ...area, id: uid(), option: slot, products };
 };
 
-// The Compare tab (phase 5) prices one shower in both wedi and Schluter, then
-// lands each build as its own quote option. Both areas MUST land through a
-// single updateProject call — the directory's setter closes over stale state,
-// so two calls in one tick clobber each other — so this builds one patch, not
-// two writes. These are fresh sibling areas (not a copy of shared work), so
-// duplicateInto's shared-source retag rule doesn't apply here (recorded in the
-// ADR — task 7).
-export const compareOptionsPatch = (project, hostAreaId, { wediLines, schluterLines, label } = {}) => {
-  if (!(wediLines || []).length || !(schluterLines || []).length) return null;
+// The Compare tab lands each build it prices as its own quote option — two
+// since phase 5, up to four since the 4-way grid (ticket 158 Phase 3):
+// `options` is [{ lines, name }] in letter order, A first; the old
+// { wediLines, schluterLines } shape reads as A = wedi, B = Schluter. Every
+// area MUST land through a single updateProject call — the directory's setter
+// closes over stale state, so two calls in one tick clobber each other — so
+// this builds one patch, not N writes. These are fresh sibling areas (not a
+// copy of shared work), so duplicateInto's shared-source retag rule doesn't
+// apply here (ADR 0034 decision 4).
+export const compareOptionsPatch = (project, hostAreaId, { options, wediLines, schluterLines, label } = {}) => {
+  const opts = options || [{ lines: wediLines, name: "wedi" }, { lines: schluterLines, name: "Schluter" }];
+  if (!opts.length || opts.length > OPTION_SLOTS.length || opts.some((o) => !(o.lines || []).length)) return null;
   const cats = project.categories || [];
   const hostIdx = cats.findIndex((a) => a.id === hostAreaId);
   const host = hostIdx >= 0 ? cats[hostIdx] : null;
   const base = (label && label.trim()) || (host?.name && host.name.trim()) || "Shower";
-  const areaFor = (name, slot, lines) => ({
-    ...newArea(), name, option: slot,
-    products: [...stampKit(lines).map((p) => ({ ...newProduct(), ...p })), newProduct()],
-  });
-  const wediArea = areaFor(`${base} — wedi`, "A", wediLines);
-  const schluterArea = areaFor(`${base} — Schluter`, "B", schluterLines);
+  const areas = opts.map((o, i) => ({
+    ...newArea(), name: `${base} — ${o.name}`, option: OPTION_SLOTS[i],
+    products: [...stampKit(o.lines).map((p) => ({ ...newProduct(), ...p })), newProduct()],
+  }));
   const insertAt = hostIdx >= 0 ? hostIdx + 1 : cats.length;
-  const categories = [...cats.slice(0, insertAt), wediArea, schluterArea, ...cats.slice(insertAt)];
-  const optionNames = { A: "wedi", B: "Schluter", ...normOptionNames(project.optionNames) };
+  const categories = [...cats.slice(0, insertAt), ...areas, ...cats.slice(insertAt)];
+  const optionNames = { ...Object.fromEntries(opts.map((o, i) => [OPTION_SLOTS[i], o.name])), ...normOptionNames(project.optionNames) };
   return { categories, optionNames };
 };

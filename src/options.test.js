@@ -232,3 +232,53 @@ test("returns null when both lines arrays are empty", () => {
   const host = proj.categories[1];
   assert.equal(compareOptionsPatch(proj, host.id, { wediLines: [], schluterLines: [] }), null);
 });
+
+// --- compareOptionsPatch with N options (ticket 158 Phase 3) -----------------
+
+const opt = (name, sku) => ({ name, lines: [{ ...wediLine, sku }] });
+
+test("N options land as sibling areas A, B, C… after the host, in the order given", () => {
+  const proj = hostProject();
+  const [before, host, after] = proj.categories;
+  const patch = compareOptionsPatch(proj, host.id, { options: [
+    opt("wedi · Building Panel", "W1"), opt("Schluter · KERDI-BOARD", "S1"), opt("wedi · S-DRY membrane", "W2"),
+  ] });
+  assert.deepEqual(patch.categories.map((a) => a.id === before.id ? "before" : a.id === host.id ? "host" : a.id === after.id ? "after" : a.option + " " + a.name), [
+    "before", "host",
+    "A Master Bath — wedi · Building Panel", "B Master Bath — Schluter · KERDI-BOARD", "C Master Bath — wedi · S-DRY membrane",
+    "after",
+  ]);
+  assert.deepEqual(patch.categories.slice(2, 5).map((a) => a.products[0].sku), ["W1", "S1", "W2"]);
+  assert.deepEqual(patch.optionNames, { A: "wedi · Building Panel", B: "Schluter · KERDI-BOARD", C: "wedi · S-DRY membrane" });
+});
+
+test("four options fill A–D; each area is its own kit", () => {
+  const proj = hostProject();
+  const patch = compareOptionsPatch(proj, proj.categories[1].id, { options: [opt("a", "1"), opt("b", "2"), opt("c", "3"), opt("d", "4")] });
+  const areas = patch.categories.slice(2, 6);
+  assert.deepEqual(areas.map((a) => a.option), ["A", "B", "C", "D"]);
+  assert.equal(new Set(areas.map((a) => a.products[0].kitId)).size, 4);
+});
+
+test("N options fill only empty name slots", () => {
+  const proj = hostProject({ optionNames: { B: "Mid", E: "Other" } });
+  const patch = compareOptionsPatch(proj, proj.categories[1].id, { options: [opt("a", "1"), opt("b", "2"), opt("c", "3")] });
+  assert.deepEqual(patch.optionNames, { A: "a", B: "Mid", C: "c", E: "Other" });
+});
+
+test("N options: null when the list is empty or any option has no lines", () => {
+  const proj = hostProject();
+  const host = proj.categories[1];
+  assert.equal(compareOptionsPatch(proj, host.id, { options: [] }), null);
+  assert.equal(compareOptionsPatch(proj, host.id, { options: [opt("a", "1"), { name: "b", lines: [] }] }), null);
+});
+
+test("the two-option shape and the old wedi/Schluter shape land the same patch", () => {
+  const proj = hostProject();
+  const host = proj.categories[1];
+  const strip = (p) => p.categories.map((a) => [a.name, a.option, a.products.map((x) => x.sku)]);
+  const old = compareOptionsPatch(proj, host.id, { wediLines: [wediLine], schluterLines: [schluterLine] });
+  const now = compareOptionsPatch(proj, host.id, { options: [{ name: "wedi", lines: [wediLine] }, { name: "Schluter", lines: [schluterLine] }] });
+  assert.deepEqual(strip(now), strip(old));
+  assert.deepEqual(now.optionNames, old.optionNames);
+});
