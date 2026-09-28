@@ -2638,9 +2638,7 @@ src/
                     # column wears the ring — `.cur` inset shadows on every
                     # cell of that column, `top`/`bot` closing it, and a
                     # CURRENT tab (`data-cmp-current`); no absolute overlay.
-                    # Every line / Subtotals (`data-cmp-view-*`, `grid.view`
-                    # + `grid.open` in the session object; a chip jump opens
-                    # its folded group). Props `compareSet` (the area's set,
+                    # Props `compareSet` (the area's set,
                     # or the Apps hub's session-only one; absent → no
                     # Open/Sync/Clear set),
                     # `onCompareSet`, `onOpenCell(key, seed, target)`,
@@ -2652,6 +2650,15 @@ src/
                     # host's own. `grid.selected` is gone; the S-DRY no-fit
                     # ask shows above the columns while wedi Membrane is a
                     # house kit without a fit.
+                    # Compact layout (owner 2026-09-28, ADR 0052 amendment):
+                    # no header row — prices follow the popup's own price
+                    # level (`tier` + `salePct`/`customPct` props, comparegrid
+                    # `levelAmt` over each row's retail/builder/cost), the
+                    # room label and the ? tip sit in the grid's corner cell,
+                    # the Sync/Clear message and Clear set in the footer;
+                    # Every line / Subtotals is gone (always every line); a
+                    # part's gray detail line is hidden and rides the name's
+                    # hover title (mirror "+" rows keep theirs).
   descfit.js        # fitting an order description into a fixed-width ERP field.
                     # A special line has no SKU, so a dropped CATEGORY reads as a
                     # different product — this never truncates to fit, it climbs

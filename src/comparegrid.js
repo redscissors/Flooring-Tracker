@@ -27,6 +27,25 @@ export const hostCellKey = (brand, cfg) => (brand === "wedi"
   ? "wedi:" + (cfg && cfg.wallSys === "membrane" ? "membrane" : "board")
   : "schluter:" + (cfg && cfg.wallSys === "board" ? "board" : "membrane"));
 
+const r2 = (n) => Math.round(n * 100) / 100;
+const pctOf = (v, dflt) => { const n = parseFloat(v); return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : dflt; };
+
+/**
+ * A row's or a column's money ({retail, builder, cost}, extended) at the
+ * popup's price level. Employee is cost × 1.06, Sale/Custom a percent off
+ * retail — the popups' own rules, applied to the extended amount, so a figure
+ * can sit a cent off the popup's per-unit rounding.
+ */
+export function levelAmt(m, level, { salePct, customPct } = {}) {
+  switch (level) {
+    case "builder": return m.builder;
+    case "employee": return r2(m.cost * 1.06);
+    case "sale": return r2(m.retail * (1 - pctOf(salePct, 10) / 100));
+    case "custom": return r2(m.retail * (1 - pctOf(customPct, 0) / 100));
+    default: return m.retail;
+  }
+}
+
 /** Today's other column: the other brand on the host's wall system. */
 export const opposite = (key) => {
   const [brand, sys] = key.split(":");

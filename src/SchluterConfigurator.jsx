@@ -2565,7 +2565,7 @@ export default function SchluterConfigurator({
     <Suspense fallback={null}>
       <CompareTab host="schluter" hostCfg={markCfg} hostBuild={build} cat={cat}
         hostMode={mode}
-        source={source} tier={tierId}
+        source={source} tier={tierId} salePct={salePct} customPct={customPct}
         wediBuilderPct={wediBuilderPct} schluterBuilderPct={bPct}
         books={books} loadBookItems={loadBookItems} bookStockReady={bookStockReady}
         mortars={mortars} mortarDefault={mortarDefault}

@@ -106,3 +106,22 @@ The hub now gets the full Compare set, **for the session only**:
   resume prompt stays off in the hub (a popup only prompts when the host
   passes `onResume`), since the hub has its own Continue / Start new.
 - Adding to a project is unchanged: the hub's destination prompt.
+
+## Amendment — 2026-09-28: compact layout, no Subtotals
+
+The owner wanted the whole shower on screen at once. Compare dropped its own
+header row and the Every line / Subtotals toggle:
+
+- **Prices follow the popup's price level** (the menu at the top of the
+  configurator) instead of Compare's own Retail/Builder switch. All five
+  levels work — Employee is cost × 1.06, Sale and Custom a percent off
+  retail, applied to each extended row (`comparegrid.js` `levelAmt`), so a
+  figure can sit a cent off the popup's per-unit rounding. Quote options
+  still land RETAIL.
+- **Every line only.** The owner doesn't want a subtotals-only view, so the
+  toggle and the folded groups are gone (the old `grid.view`/`grid.open`
+  session keys are simply ignored).
+- The room label and the ? tip moved into the grid's corner cell; the
+  Sync/Clear message and Clear set moved to the footer.
+- Tighter rows and column headers, and a part's gray detail line (part
+  number, cut, plan) shows on hover rather than under every line.

@@ -2968,7 +2968,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   const compareTab = (
     <Suspense fallback={null}>
       <CompareTab host="wedi" hostCfg={build ? build.cfg : null} hostBuild={build}
-        source={source} tier={tierId}
+        source={source} tier={tierId} salePct={salePct} customPct={customPct}
         wediBuilderPct={bPct} schluterBuilderPct={schluterBuilderPct}
         stockRows={stockRows} bookStockReady={bookStockReady}
         books={books} loadBookItems={loadBookItems}
