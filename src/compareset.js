@@ -129,11 +129,6 @@ export function mergeManual(own, incoming, keyOf) {
   return [...(own || []), ...(incoming || []).filter((r) => !seen.has(keyOf(r)))];
 }
 
-export const SYS_NAME = {
-  "wedi:board": "Building Panel", "wedi:membrane": "S-DRY membrane",
-  "schluter:board": "KERDI-BOARD", "schluter:membrane": "KERDI membrane",
-};
-
 export function savedAgo(at, now = Date.now()) {
   const m = Math.max(0, Math.round((now - (+at || 0)) / 60000));
   if (m < 1) return "just now";

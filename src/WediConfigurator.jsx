@@ -15,6 +15,8 @@ import { createPortal } from "react-dom";
 import { X, Plus, Printer, Copy, Eye } from "lucide-react";
 import { useEscClose, SourceSwitch, NumIn, KitBasketPanel, KitOverwriteConfirm, HelpTip, PriceLevelMenu, BasketButton, FLAT_BTN, PopMenu, PointPop } from "./widgets.jsx";
 import { PaneBack, PaneClose } from "./raildrawer.jsx";
+import { entryOf, resumeChoices, isMarkerSeed, neutralRoomWedi } from "./compareset.js";
+import { ResumePrompt } from "./resumeprompt.jsx";
 import { TIER_COLOR } from "./uiconst.js";
 import {
   item, group, pans, kitFor, solve, savedOption, figureConsumables, panelPlan,
@@ -562,6 +564,8 @@ function seedState(seed) {
       s.inp = { ...DEF_INP, ...si, drainX: si.drainX || "", drainY: si.drainY || "" };
     }
     else if (cfg.room) s.inp = { ...s.inp, w: cfg.room.w, d: cfg.room.d };
+    // a Compare hand-off lands on Compare, so the columns are what shows first
+    if (seed.tab === "compare") s.tab = "compare";
     return s;
   }
   if (seed.tab) s.tab = ["custom", "browse", "compare"].includes(seed.tab) ? seed.tab : "kits";
@@ -650,7 +654,8 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   cat, caption = "",
   stockRows, bookStockReady, books, loadBookItems, mortars, mortarDefault,
   onAdd, onAddNew, editing = null, editRows = null, basket, onBasketChange, onMoveEntries, placed, onOpenPlaced, onDeleteKit,
-  onQuoteOptions, onClose, areaName, projectName, onConfigChange, embedded = false, escActive = true }) {
+  onQuoteOptions, onClose, areaName, projectName, onConfigChange, embedded = false, escActive = true,
+  compareSet, onCompareSet, onOpenCell, onResume, savedBy = "", startDetached = false }) {
   const init = useRef(null);
   if (!init.current) init.current = seedState(seed);
   const s0 = init.current;
@@ -1595,8 +1600,32 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   // stages a new entry rather than another update of the same row. Without
   // the detach, a second shower staged from a Reconfigure would land on top
   // of the first (the trap behind the 2026-09-02 report).
-  const [detached, setDetached] = useState(false);
+  const [detached, setDetached] = useState(!!startDetached);
   const edit = detached ? null : editing;
+  // The Compare set (ADR 0052): the build on screen is kept for this shower on
+  // the way out — every close path unmounts the body, so the cleanup is the
+  // one place that sees them all. A Browse-only build has no marker to keep.
+  const keep = useRef(null);
+  keep.current = build && build.pan ? {
+    key: "wedi:" + (build.cfg.wallSys === "membrane" ? "membrane" : "board"),
+    entry: entryOf({ snap: { mode: build.mode, cfg: JSON.parse(JSON.stringify(build.cfg)) }, room: neutralRoomWedi(build.cfg, item), target: edit || undefined, savedBy }),
+  } : null;
+  const setRef = useRef(compareSet);
+  setRef.current = compareSet;
+  const saveRef = useRef(onCompareSet);
+  saveRef.current = onCompareSet;
+  useEffect(() => () => {
+    const k = keep.current;
+    if (!k || !k.entry || !saveRef.current || !setRef.current) return;
+    const sig = (e) => JSON.stringify([e.snap, e.room, e.target || null]);
+    const prev = setRef.current[k.key];
+    if (prev && sig(prev) === sig(k.entry)) return;
+    saveRef.current({ ...setRef.current, [k.key]: k.entry });
+  }, []);
+  const [resume, setResume] = useState(() => {
+    const cs = compareSet && !isMarkerSeed(seed) ? resumeChoices(compareSet, "wedi") : [];
+    return cs.length ? cs : null;
+  });
   const commitLines = detached && onAddNew ? onAddNew : onAdd;
   const stageBuild = ({ open = true } = {}) => {
     if (!build || !onBasketChange) return false;
@@ -2923,7 +2952,8 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
         books={books} loadBookItems={loadBookItems}
         mortars={mortars} mortarDefault={mortarDefault}
         areaName={areaName} onQuoteOptions={onQuoteOptions}
-        mirror={mirror} onMirror={setMirror} />
+        mirror={mirror} onMirror={setMirror}
+        compareSet={compareSet} onCompareSet={onCompareSet} onOpenCell={onOpenCell} savedBy={savedBy} />
     </Suspense>
   );
 
@@ -2977,6 +3007,10 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
             </>)}
           </div>
         </div>
+        {resume && (
+          <ResumePrompt brand="wedi" choices={resume} priceOf={(e) => entryView(e.snap, {}).price}
+            onPick={(e) => { setResume(null); onResume && onResume(e); }} onNew={() => setResume(null)} />
+        )}
         <div className={`absolute inset-0 z-[55] transition-opacity ${basketOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`} style={{ background: "rgba(20,15,10,.4)" }} onClick={() => setBasketOpen(false)} />
         <div className={`absolute top-0 right-0 bottom-0 z-[56] w-[400px] max-w-full bg-white border-l border-slate-300 shadow-2xl transition-transform ${basketOpen ? "translate-x-0" : "translate-x-full"}`}>
           <KitBasketPanel staged={stagedViews} sel={basketSel}
