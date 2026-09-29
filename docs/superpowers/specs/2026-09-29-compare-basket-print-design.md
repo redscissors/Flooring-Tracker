@@ -128,10 +128,18 @@ Compare set), ADR 0031 (quote options), ADR 0026 (lazy chunks)
   `OPTION_SLOTS` not in `optionsUsed(cats)`. If fewer than `n` are free, it
   returns null and the drawer says "Only K option letters left — select
   fewer".
-- `compareOptionsPatch` gains an optional `slots` argument (default: A
-  onward, today's behavior). The basket passes `nextFreeSlots`. The Compare
-  footer's own "Add N as quote options" keeps its current behavior (starting
-  at A).
+- `compareOptionsPatch` itself uses `nextFreeSlots` (owner 2026-09-29:
+  Compare matches the basket). Every option landing — the Compare footer,
+  the basket, the Apps hub — takes the next free letters, so a job that
+  already has A and B gets C and D, never a second A. It returns null when
+  too few letters are free. On a job with no options the letters are A
+  onward, exactly as today, so the existing tests hold.
+- CompareTab gets a `freeSlots` prop (the job's free letters, computed in
+  App.jsx and passed through both popups). The confirm modal and its button
+  show the real letters ("Add options C–D"). With too few free letters the
+  footer button is disabled: "Only K option letters left — uncheck some".
+  The hub, where the destination isn't known until the prompt, shows
+  "options" without letters.
 - Each selected entry becomes one sibling area after the popup's area. It is
   named `<area name> — <optionName>` (two entries with the same system get
   " 2", " 3" suffixes), tagged with its letter, and its rows are the entry's
@@ -175,8 +183,8 @@ Compare set), ADR 0031 (quote options), ADR 0026 (lazy chunks)
   the print and quote options" when quote options exist, else "include in
   the print".
 - The hub passes an `onQuoteOptions` that raises the destination prompt:
-  - **Current project:** `compareOptionsPatch(project, null, payload)` with
-    `nextFreeSlots`. The areas append at the end, since there's no host
+  - **Current project:** `compareOptionsPatch(project, null, payload)`, next
+    free letters. The areas append at the end, since there's no host
     area. The same applies to the basket's Add as options.
   - **New quick price:** a new quick project whose categories are the
     option areas (letters from A).
@@ -219,7 +227,8 @@ Compare set), ADR 0031 (quote options), ADR 0026 (lazy chunks)
     order; drops a brandless `showerBasket` entry; `showerBasket` wins over
     legacy keys; legacy keys are absent after normalizing.
   - `options.test.js`: `nextFreeSlots` (gaps, full, `n` larger than free);
-    `compareOptionsPatch` with `slots`.
+    `compareOptionsPatch` on a job that already has A/B lands C/D, and
+    returns null when too few letters are free.
   - `basketkit.test.js`: a wedi entry and a Schluter entry each produce a
     title, price and lines matching the popup's own `lineItems` for the same
     marker; a staged session's `qtyOv` carries through; `optionName` per
@@ -235,6 +244,5 @@ Compare set), ADR 0031 (quote options), ADR 0026 (lazy chunks)
 
 ## Out of scope
 
-- The Compare footer's quote-option button keeps starting at A.
 - The Sheoga basket stays separate.
 - No change to how placed kits reconfigure within their own brand.
