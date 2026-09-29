@@ -21,7 +21,7 @@ import { TIER_COLOR } from "./uiconst.js";
 import {
   item, group, pans, kitFor, solve, savedOption, figureConsumables, panelPlan,
   expandWallFaces, WALL_THICK, curbWidth, curbInsets, applyCurbInset, openCorners, curbRuns, BROWSE_SECTIONS, sectionHit,
-  tierPrice, lineItems, coverFrames, inch, round2, SKU, coverageOf, MODULE_DEPTH, MODEXT_DEPTH,
+  lineItems, coverFrames, inch, round2, SKU, coverageOf, MODULE_DEPTH, MODEXT_DEPTH,
   FINISHES, GROUP_LABEL, BUILDER_MULT, SO_MIN_NET,
   normBench, benchPremades, benchPanRoom, benchPanPlan, smallerPanFor,
   BENCH_CORNER_LBL, buildFromMarker, sessionFromRows, wediSlotOf, coverStyles, legacyCoverPick, coverPickApplies,
@@ -36,6 +36,7 @@ import { TopDown, Iso, railSplit, RAIL_DESIGN_W, curbHeight } from "./showerdraw
 import { normKitBasketEntry } from "./model.js";
 import { useWediCatalog } from "./usewedicatalog.js";
 import { kitLabel, tightSize } from "./kitlabel.js";
+import { wediTierOf, wediApplySession, wediEntryView } from "./wedikitview.js";
 
 // The Compare tab drags in comparekit → BOTH engines' tables, so it stays its
 // own chunk behind this popup's own lazy boundary (ADR 0026).
@@ -43,7 +44,6 @@ const CompareTab = lazy(() => import("./CompareTab.jsx"));
 
 const fm = (n) => "$" + (+n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fm0 = (n) => "$" + Math.round(+n).toLocaleString("en-US");
-const clampPct = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 0; };
 
 // Three columns — solver, build, drawings — that only work side by side, so the
 // popup is DRAWN at one width and scaled to whatever frame it is given, rather
@@ -812,7 +812,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   const bPct = wediBuilderPct == null ? 18 : wediBuilderPct;
   const bMult = bPct === 18 ? BUILDER_MULT : 1 - bPct / 100;
   const tierColor = TIER_COLOR[tierId]?.main || "var(--ft-text)";
-  const tierOf = (e) => tierPrice(e, tierId, tierId === "builder" ? bPct : tierId === "sale" ? salePct : tierId === "custom" ? clampPct(customPct) : null);
+  const tierOf = wediTierOf({ tier: tierId, customPct, salePct, bPct });
   // "323 sf · $1.53/sf" — coverage beside the unit price at the current tier
   // (ticket 158 P0-3); withN false drops the count
   const perUnit = (e, withN = true) => {
@@ -925,28 +925,6 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     round2(((+len || 0) * (+h || 0) * (faces === "both" ? 2 : 1) + (faces === "in-end" ? WALL_THICK * (+h || 0) : 0)) / 144);
 
 
-  // The build column's tail over a kitFor result — panel plan, stepped
-  // quantities. The basket drawer runs it too, so a staged entry prices the
-  // build that was staged and not just its marker. Added lines ride the cfg
-  // (kitFor bills them); `s.manual` is only a basket entry staged before
-  // Phase 1c, whose extras rode the session — each its own line now.
-  const applySession = (b, wl, s) => {
-    let lines = b.lines.map((l) => ({ item: l.item, qty: l.qty, group: l.group, note: l.note, auto: l.auto, slot: l.slot, added: l.added }));
-    if (s.panelFit) lines = panelFitLines(lines, wl, b.panelSf);
-    lines.forEach((l) => {
-      const ov = s.qtyOv[l.item.key];
-      if (ov != null && !l.added) { l.autoQty = l.qty; l.qty = ov; l.ov = true; }
-    });
-    // the Fit plan re-appends the kit's panels, so added lines move back to
-    // the end — below the kit lines of their bucket
-    lines = [...lines.filter((l) => l.qty > 0 && !l.added), ...lines.filter((l) => l.qty > 0 && l.added)];
-    addedRows({ manual: s.manual }).forEach((r) => {
-      const it = item(r.key);
-      lines.push({ item: it, qty: r.qty, group: r.group, note: "", auto: false, added: true, slot: wediSlotOf({ item: it, group: r.group }) });
-    });
-    return lines;
-  };
-
   const pan = panKey ? item(panKey) : null;
   const room = option ? option.room : null;
   const buildWalls = useMemo(() => wallsArr(pan, room), [panKey, option, walls, extraWalls, wallH, wallFlip]);
@@ -987,7 +965,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
         mode: option ? "custom" : "kit", maxIn: maxIn, tileT: tileIn,
       });
       if (!b) return null;
-      return { ...b, cfg: { ...b.cfg, source }, lines: applySession(b, buildWalls, { qtyOv, panelFit }) };
+      return { ...b, cfg: { ...b.cfg, source }, lines: wediApplySession(b, buildWalls, { qtyOv, panelFit }) };
     }
     if (manual.length) {
       const lines = addedRows({ manual }).map((r) => ({ item: item(r.key), qty: r.qty, group: r.group, note: "", auto: false, added: true, slot: wediSlotOf({ item: item(r.key), group: r.group }) }));
@@ -1013,7 +991,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     rowsSeeded.current = true;
     const b = buildFromMarker(seed);
     if (!b) return;
-    const s = sessionFromRows(applySession(b, b.cfg.walls, { qtyOv: {}, panelFit: true }), editRows);
+    const s = sessionFromRows(wediApplySession(b, b.cfg.walls, { qtyOv: {}, panelFit: true }), editRows);
     if (Object.keys(s.qtyOv).length) setQtyOv(s.qtyOv);
     // a placed row's extra beyond the marker's own added lines tops up that row
     if (s.manual.length) setManual((m) => s.manual.reduce((acc, r) => {
@@ -1569,24 +1547,9 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   // Staged and placed kits both re-derive through buildFromMarker and price
   // through the SAME tier lens as the build column, so a kit reads the same
   // number everywhere. Display-only derivations — nothing here reprices rows.
-  // A STAGED entry carries its own session (owner decision 2026-08-31), so its
-  // price is the build column's; a PLACED kit is a marker-only derivation —
-  // once landed the rows are the truth — and reads the live Fit setting.
-  const entryView = (marker, session) => {
-    const b = buildFromMarker(marker);
-    if (!b) return { title: "wedi build", meta: "the catalog no longer knows this kit", price: null, faint: true, lines: null };
-    const room = b.cfg.room;
-    const s = session || {};
-    const lines = applySession(b, b.cfg.walls, {
-      qtyOv: s.qtyOv || {}, manual: s.manual || [], panelFit: session ? s.panelFit !== false : panelFit,
-    });
-    return {
-      title: b.pan ? b.pan.name : "wedi build",
-      meta: `${lines.length} lines${room ? ` · ${round2(room.w)}×${round2(room.d)}"` : ""}`,
-      price: round2(lines.reduce((t, l) => t + tierOf(l.item) * l.qty, 0)),
-      lines: () => lineItems({ ...b, lines }, { tier: tierId, builderPct: bPct }),
-    };
-  };
+  // A STAGED entry carries its own session (owner decision 2026-08-31); a
+  // PLACED kit is marker-only and reads the live Fit setting (wedikitview.js).
+  const entryView = (marker, session) => wediEntryView(marker, session, { tier: tierId, customPct, salePct, bPct, panelFit });
   // The `|| {}` is the staged fork: a truthy session makes the entry read its
   // OWN Fit flag, where the placed fork (entryView(k.marker)) follows the live
   // toggle. An entry saved without a session must still take the staged path.

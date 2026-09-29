@@ -1253,6 +1253,13 @@ src/
                     # `installSources` (which applies the floor and refuses
                     # the pricelist first), and returns `onBook: {stock, so}`
                     # plus `caption` (`fallbackCaption`).
+  wedikitview.js    # pure wedi basket pricing lifted out of the popup:
+                    # `wediTierOf`, `wediApplySession` (the build column's tail —
+                    # Fit plan, stepped qtys, added rows; the ONE copy the build
+                    # memo, Reconfigure seeding and the views share) and
+                    # `wediEntryView` (session undefined = placed kit, reads
+                    # ctx.panelFit; an object = staged, reads its own Fit flag).
+                    # Imports wedi.js only; WediConfigurator wraps it with its ctx
   wediquery.js      # the wedi search-entry recognizer — the BOOT half of issue
                     # 066: `queryHit`/`parseQuery`/`querySummary`/`seedFromQuery`
                     # over ~30 trade words and a size regex, so the pinned "Vendor
@@ -1926,6 +1933,12 @@ src/
                     # stable catalog to run against without a live Supabase
                     # book (the registry-driven design, ADR 0032, means there
                     # is no other fixture to fall back on)
+  schluterkitview.js  # pure Schluter basket pricing lifted out of the popup:
+                    # `schluterTierOf` (the tier lens), `schluterEntryView` (marker +
+                    # optional staged session + { cat, catReady, tier, … } → { title,
+                    # meta, price, faint?, lines }). Imports schluter.js only, so the
+                    # lazy basket drawer can reuse it beside wedikitview.js;
+                    # SchluterConfigurator wraps it with its own ctx
   schluterquery.js  # the Schluter search-entry recognizer — the BOOT half of
                     # task 6, wediquery.js's sibling: `queryHit`/`parseQuery`/
                     # `querySummary`/`seedFromQuery` over ~20 trade words

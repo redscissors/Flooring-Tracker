@@ -28,6 +28,7 @@ import { GROUPS, groupOf, groupLabel } from "./slots.js";
 import { mortarItemFrom, MORTAR_BED_SF_PER_BAG } from "./schluteradapter.js";
 import { useSchluterCatalog } from "./useschlutercatalog.js";
 import { kitLabel } from "./kitlabel.js";
+import { schluterTierOf, schluterEntryView } from "./schluterkitview.js";
 import { normKitBasketEntry } from "./model.js";
 import { schluterDiag, schluterWalls, schluterWallOn, schluterCurb, schluterOpenCorners, schluterCuts } from "./schluterdraw.js";
 import { TopDown, Iso, railSplit, RAIL_DESIGN_W, round2, WALL_THICK } from "./showerdraw.jsx";
@@ -43,7 +44,6 @@ const NICHE_PICK_TIP = <>Self-contained: band frame + screws in the box.</>;
 const CompareTab = lazy(() => import("./CompareTab.jsx"));
 
 const fm = (n) => "$" + (+n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const clampPct = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 0; };
 
 // The wedi shrink-to-fit rig (issue 084): drawn at one width, zoomed to the
 // frame, floored so type never gets unreadable — below the floor it scrolls.
@@ -585,16 +585,7 @@ export default function SchluterConfigurator({
   const setTier = (patch) => (tierCtl ? onTierChange(patch) : setLocalTier((t) => ({ tier: patch.priceTier ?? t.tier, customPct: patch.customPct ?? t.customPct })));
   const bPct = schluterBuilderPct == null ? 8 : schluterBuilderPct;
   const tierColor = TIER_COLOR[tierId]?.main || "var(--ft-text)";
-  const tierOf = (e) => {
-    const retail = tierPrice(e, "retail", {});
-    switch (tierId) {
-      case "builder": return tierPrice(e, "builder", { builderPct: bPct });
-      case "employee": return round2((+e.cost || 0) * 1.06);
-      case "sale": return round2(retail * (1 - salePct / 100));
-      case "custom": return round2(retail * (1 - clampPct(customPct) / 100));
-      default: return retail;
-    }
-  };
+  const tierOf = schluterTierOf({ tier: tierId, customPct, salePct, bPct });
   // "108 sf · $1.92/sf" — the roll/board/band's coverage beside its unit
   // price at the current tier (ticket 158 P0-3); withN false drops the count
   const perUnit = (e, withN = true) => {
@@ -765,29 +756,10 @@ export default function SchluterConfigurator({
 
   // --- basket (ADR 0035 step 3) ---------------------------------------------
   // The catalog is LIVE registry rows (ADR 0032): until catReady every entry
-  // renders faint instead of pricing — never a crash. Prices re-derive through
-  // buildFromMarker + the popup's own board plan + tier lens, so a kit reads
-  // the same number in the drawer and the build column.
-  // A STAGED entry carries its own session (owner decision 2026-08-31), so its
-  // price is the build column's; a PLACED kit is a marker-only derivation —
-  // once landed the rows are the truth — and reads the live Fit setting.
-  const entryView = (marker, session) => {
-    if (!catReady || !cat.length) return { title: "Schluter kit", meta: "waiting on the price books…", price: null, faint: true, lines: null };
-    const b = buildFromMarker(marker, cat);
-    if (!b) return { title: "Schluter kit", meta: "the catalog no longer knows this kit", price: null, faint: true, lines: null };
-    const c2 = marker.cfg;
-    const s = session || {};
-    const fit = session ? s.panelFit !== false : panelFit;
-    let lines = applyBoardPlan(b.lines, c2, fit && c2.wallSys === "board" ? boardPlan(expandBoardFaces(c2), cat, { source: c2.source === "stock" ? "stock" : "all" }) : null, cat);
-    lines = applyQtyOv(lines, s.qtyOv || {});
-    const bill = lines.filter((l) => !l.noteOnly);
-    return {
-      title: b.pick && b.pick.tray ? b.pick.tray.name : "Mortar-bed build",
-      meta: `${bill.length} lines · ${round2(c2.w)}×${round2(c2.d)}"`,
-      price: round2(bill.reduce((t, l) => t + tierOf(l.item) * l.qty, 0)),
-      lines: () => lineItems({ ...b, lines, mode: marker.mode || "custom", cfg: c2 }, { builderPct: bPct }),
-    };
-  };
+  // renders faint instead of pricing — never a crash (schluterkitview.js).
+  // A STAGED entry carries its own session (owner decision 2026-08-31); a
+  // PLACED kit is marker-only and reads the live Fit setting.
+  const entryView = (marker, session) => schluterEntryView(marker, session, { cat, catReady, tier: tierId, customPct, salePct, bPct, panelFit });
   // The `|| {}` is the staged fork: a truthy session makes the entry read its
   // OWN Fit flag, where the placed fork (entryView(k.marker)) follows the live
   // toggle. An entry saved without a session must still take the staged path.
