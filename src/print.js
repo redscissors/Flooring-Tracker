@@ -56,8 +56,12 @@ export function printProduct(p, s) {
   // price is C.sf × this one, which the layouts show beside it.
   const countUnit = unitCode(p.sellUnit || "EA");
   const priceUnit = p.type !== "misc" && p.qtyType === "sqft" ? "SF" : countUnit;
-  const qtyText = p.type === "misc" ? (PC ? `${PC.pieces} pcs (${PC.cartons} ${PC.unit})` : `${miscQty(p)} ${countUnit}`) : C ? (C.order > 0 ? `${C.order} ${C.unit}` : "") : num(p.qty) > 0 ? `${p.qty} ${priceUnit.toLowerCase()}` : "";
-  const priceText = num(p.priceSqft) > 0 ? `${money(num(p.priceSqft))}/${priceUnit.toLowerCase()}` : "";
+  const qtyText = p.type === "misc" ? (PC ? `${PC.cartons} ${PC.unit} (${PC.pieces} pcs)` : `${miscQty(p)} ${countUnit}`) : C ? (C.order > 0 ? `${C.order} ${C.unit}` : "") : num(p.qty) > 0 ? `${p.qty} ${priceUnit.toLowerCase()}` : "";
+  // A carton-sold count line is quoted per carton (how the vendor sells it);
+  // priceSqft stays the per-piece price the math runs on, and its own unit is
+  // the piece, not the sell unit the book stamped (CT).
+  const cartonPrice = PC && num(p.priceSqft) > 0 ? PC.per * num(p.priceSqft) : 0;
+  const priceText = cartonPrice > 0 ? `${money(cartonPrice)}/${PC.unit}` : num(p.priceSqft) > 0 ? `${money(num(p.priceSqft))}/${priceUnit.toLowerCase()}` : "";
   return { size, C, PC, line, mats, qtyText, priceText, priceUnit, countUnit, orderedSf: p.type === "misc" ? 0 : C ? C.order * C.sf : sf };
 }
 // The honest extended vendor cost of a special-order line: the snapshotted
