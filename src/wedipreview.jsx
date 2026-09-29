@@ -80,6 +80,7 @@ function Sheet({ cats, setCats, vendor, onReconfig }) {
 // as the same every-word ILIKE the server does), to prove a pricelist hit
 // whose stocked twin the typed words missed still lands as stock.
 const SEARCH = new URLSearchParams(location.search).get("search") === "1";
+const HUB = new URLSearchParams(location.search).get("hub") === "1";
 const soFields = ["sku", "description", "product", "brand", "mfg", "color", "size"];
 const searchOrderLocal = async (q) => {
   const words = q.toLowerCase().trim().split(/\s+/).filter(Boolean);
@@ -146,7 +147,7 @@ function Harness() {
       editRows={row?.wedi?.cfg && !row.wedi.part ? kitRows(cats, aid, pid) : null}
       onAddNew={(lines) => setCats((c) => appendKitLines(c, aid, lines))}
       onMoveEntries={(groups, nextBasket) => { setCats((c) => moveKitEntries(c, aid, groups).categories); setBasket(nextBasket); }}
-      onQuoteOptions={(p) => console.log("onQuoteOptions", p)}
+      onQuoteOptions={HUB ? undefined : (p) => console.log("onQuoteOptions", p)}
       onClose={() => console.log("close")} onConfigChange={() => {}}
     />
   </>);

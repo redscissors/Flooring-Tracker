@@ -26,7 +26,13 @@ src/
                     # `addCompareOptions(aid, payload)` is the landing —
                     # ONE `updateProject` with compareOptionsPatch's single
                     # patch, wired as `onQuoteOptions` on both job-context
-                    # vendor mounts (never on the Apps-hub copies).
+                    # vendor mounts. The Apps-hub bags carry their own pair:
+                    # `addOptionsToCurrent` (compareOptionsPatch with no host
+                    # area; a null patch pings "Only K option letters left —
+                    # uncheck some" and returns false) and `addOptionsToNew`
+                    # (a quick project whose areas are the options, via
+                    # `createQuickFrom`, the creation path
+                    # `createQuickWithSheoga` shares).
                     # The Compare set (ADR 0052): both job-context shower
                     # mounts get `compareSet` (the area's), `onCompareSet` →
                     # `writeCompareSet(pid, aid, next)` (merges onto
@@ -1429,7 +1435,8 @@ src/
                     # retail-seeded preview and Add raises the hub's shared
                     # destination prompt (current project / new quick price);
                     # the hub gets the registry bag too (so Compare works
-                    # there) but no `onQuoteOptions` — there is no host area.
+                    # there) and an `onQuoteOptions` that raises the hub's
+                    # destination prompt (no host area to land on).
                     # A basket drawer (ADR 0035 step 3, the Sheoga idiom via
                     # the shared KitBasketPanel): staged entries persist in
                     # the shared project.showerBasket ("Basket" beside Add;
@@ -2361,7 +2368,8 @@ src/
                     # the wedi popup assembles the Schluter catalog itself
                     # (useSchluterCatalog) — without the bag that column is
                     # only ever "Loading the Schluter price books…". Same
-                    # no-op `onQuoteOptions`; not part of the app build.
+                    # no-op `onQuoteOptions` (`?hub=1` omits it, the hub-less
+                    # Compare); not part of the app build.
                     # Stateful cats/basket (ADR 0035 step 3) so the drawer
                     # shots run the real landKitLines/placedKits/
                     # removeKitLines paths; `?mixed=1` seeds a Schluter entry
@@ -2730,7 +2738,7 @@ src/
                     # (`data-cmp-status`: House kit / Your build), total,
                     # delta, up to two chips (`data-cmp-flag`, the room chip
                     # first), Open (`data-cmp-open`), Sync (`data-cmp-sync`,
-                    # Your build only) and the Option checkbox. The host's
+                    # Your build only) and the Include checkbox (always shown; title "include in the print and quote options", or "include in the print" without `onQuoteOptions`). The host's
                     # column wears the ring — `.cur` inset shadows on every
                     # cell of that column, `top`/`bot` closing it, and a
                     # CURRENT tab (`data-cmp-current`); no absolute overlay.
@@ -3193,8 +3201,15 @@ src/
                     # `sheoga`/`wedi`/`schluter` prop bag — both shower bags now
                     # carry the OTHER engine's builder knob (and the wedi bag
                     # the Schluter registry props) so the hub's copies render
-                    # their Compare tab; neither gets `onQuoteOptions`, since
-                    # the hub has no host area to hang option A/B on. Takes a
+                    # their Compare tab. The two shower tabs share ONE
+                    # `showerBasket` (Start new on either clears it; the
+                    # resume text counts it for both), and Compare's
+                    # `onQuoteOptions` plus the drawer's Add as options
+                    # (`label: "Shower"`) go through `requestCommit(…,
+                    # "options")` — the pending item carries `kind` and
+                    # `commitTo` calls the bag's `addOptionsToCurrent/New`
+                    # instead of `addToCurrent/New`; a bag returning false
+                    # (too few letters) leaves the basket standing. Takes a
                     # `visible` prop (App.jsx: the pane is showing an app) and
                     # passes each configurator `escActive={visible &&
                     # shown(k)}` (ADR 0047) so a hidden, still-mounted

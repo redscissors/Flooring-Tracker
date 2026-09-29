@@ -75,7 +75,9 @@ function Harness() {
   const [settings, setSettingsState] = useState(() => normalizeSettings({}));
   const pick = (kind, id) => dispatch({ type: "pick", kind, id, inProgress: kind === "app" ? progress.current(id) : false });
   const cur = PEOPLE.find((p) => p.id === person);
-  const bag = { currentName: cur.name, addToCurrent: (l) => { console.log("current", l); dispatch({ type: "closePane" }); }, addToNew: (l) => { console.log("new", l); dispatch({ type: "closePane" }); } };
+  const bag = { currentName: cur.name, addToCurrent: (l) => { console.log("current", l); dispatch({ type: "closePane" }); }, addToNew: (l) => { console.log("new", l); dispatch({ type: "closePane" }); },
+    addOptionsToCurrent: (p) => { console.log("options-current", p); window.__landed = { where: "current", p }; dispatch({ type: "closePane" }); return true; },
+    addOptionsToNew: (p) => { console.log("options-new", p); window.__landed = { where: "new", p }; dispatch({ type: "closePane" }); return true; } };
   return (
     <div className="ft-vh bg-slate-50 text-slate-800 flex" style={{ fontFamily: "var(--ft-ui)", height: "100vh" }}>
       <aside style={{ width: RAIL_W }} className="ft-rail border-r border-slate-200 flex flex-col shrink-0">

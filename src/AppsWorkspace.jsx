@@ -22,15 +22,14 @@ export function AppsWorkspace({ app, visible = true, onClose, resume = false, on
   // (SheogaConfigurator closes itself after a bundle move) so a pending choice
   // never unmounts the configurator and loses the build.
   const [sheogaBasket, setSheogaBasket] = useState([]);
-  const [wediBasket, setWediBasket] = useState([]);
-  const [schluterBasket, setSchluterBasket] = useState([]);
+  const [showerBasket, setShowerBasket] = useState([]);
   const [pending, setPendingState] = useState(null);
   const pendingRef = useRef(null);
   const setPending = (v) => { pendingRef.current = v; setPendingState(v); };
   // Keyed by a STABLE string, never the `dest` bag — App.jsx rebuilds those
   // literals every render, so an identity test misses after a re-render and a
   // moved entry stays staged.
-  const setBasketFor = { sheoga: setSheogaBasket, wedi: setWediBasket, schluter: setSchluterBasket };
+  const setBasketFor = { sheoga: setSheogaBasket, wedi: setShowerBasket, schluter: setShowerBasket };
   // In progress = staged basket entries, or any option changed since the
   // configurator mounted (spec 2026-09-24). The first report is its opening
   // state; StrictMode's repeat of it compares equal.
@@ -43,7 +42,7 @@ export function AppsWorkspace({ app, visible = true, onClose, resume = false, on
     if (firstCfg.current[k] === undefined) firstCfg.current[k] = j;
     else if (j !== firstCfg.current[k]) setTouched((t) => (t[k] ? t : { ...t, [k]: true }));
   };
-  const basketOf = { sheoga: sheogaBasket, wedi: wediBasket, schluter: schluterBasket };
+  const basketOf = { sheoga: sheogaBasket, wedi: showerBasket, schluter: showerBasket };
   const inProgress = (k) => !!touched[k] || (basketOf[k]?.length || 0) > 0;
   useEffect(() => { if (progressRef) progressRef.current = inProgress; });
   // Configurators stay mounted once opened so a build survives a trip away;
@@ -75,13 +74,17 @@ export function AppsWorkspace({ app, visible = true, onClose, resume = false, on
   };
   const shown = (k) => app === k && !resume;
   const slot = (k) => (shown(k) ? "flex-1 min-h-0 flex flex-col" : "hidden");
-  const requestCommit = (destKey, dest, lines, nextBasket) => {
-    if (!lines || !lines.length) return;
-    if (dest?.currentName) setPending({ destKey, dest, lines, nextBasket });
-    else commitTo("new", { destKey, dest, lines, nextBasket });
+  const requestCommit = (destKey, dest, payload, nextBasket, kind = "lines") => {
+    const count = kind === "options" ? payload?.options?.length : payload?.length;
+    if (!count) return;
+    if (dest?.currentName) setPending({ destKey, dest, payload, nextBasket, kind, count });
+    else commitTo("new", { destKey, dest, payload, nextBasket, kind, count });
   };
   const commitTo = (where, p) => {
-    if (where === "current") p.dest.addToCurrent(p.lines); else p.dest.addToNew(p.lines);
+    const add = p.kind === "options"
+      ? (where === "current" ? p.dest.addOptionsToCurrent : p.dest.addOptionsToNew)
+      : (where === "current" ? p.dest.addToCurrent : p.dest.addToNew);
+    if (add(p.payload) === false) { setPending(null); return; }
     firstCfg.current[p.destKey] = lastCfg.current[p.destKey];
     setTouched((t) => (t[p.destKey] ? { ...t, [p.destKey]: false } : t));
     // Only a MOVE hands over a next basket (`[]` when it emptied it). A plain
@@ -149,10 +152,12 @@ export function AppsWorkspace({ app, visible = true, onClose, resume = false, on
                   stockRows={wedi.stockRows} bookStockReady={wedi.bookStockReady}
                   books={wedi.books} loadBookItems={wedi.loadBookItems}
                   mortars={wedi.mortars} mortarDefault={wedi.mortarDefault}
-                  basket={wediBasket}
-                  onBasketChange={setWediBasket}
+                  basket={showerBasket}
+                  onBasketChange={setShowerBasket}
                   onMoveEntries={(groups, nextBasket) => requestCommit("wedi", wedi, groups.flatMap((g) => stampKit(g.lines)), nextBasket)}
                   onAdd={(lines) => requestCommit("wedi", wedi, lines, null)}
+                  onQuoteOptions={(p) => requestCommit("wedi", wedi, { ...p, label: "Shower" }, undefined, "options")}
+                  onAddOptions={(options, next) => requestCommit("wedi", wedi, { options, label: "Shower" }, next, "options")}
                   seed={seeds.wedi || null}
                   compareSet={hubSet} onCompareSet={setHubSet} onOpenCell={openCell} keepLive
                   onConfigChange={cfgSeen("wedi")}
@@ -174,10 +179,12 @@ export function AppsWorkspace({ app, visible = true, onClose, resume = false, on
                   stockRows={schluter.stockRows} bookStockReady={schluter.bookStockReady}
                   books={schluter.books} loadBookItems={schluter.loadBookItems}
                   mortars={schluter.mortars} mortarDefault={schluter.mortarDefault}
-                  basket={schluterBasket}
-                  onBasketChange={setSchluterBasket}
+                  basket={showerBasket}
+                  onBasketChange={setShowerBasket}
                   onMoveEntries={(groups, nextBasket) => requestCommit("schluter", schluter, groups.flatMap((g) => stampKit(g.lines)), nextBasket)}
                   onAdd={(lines) => requestCommit("schluter", schluter, lines, null)}
+                  onQuoteOptions={(p) => requestCommit("schluter", schluter, { ...p, label: "Shower" }, undefined, "options")}
+                  onAddOptions={(options, next) => requestCommit("schluter", schluter, { options, label: "Shower" }, next, "options")}
                   seed={seeds.schluter || null}
                   compareSet={hubSet} onCompareSet={setHubSet} onOpenCell={openCell} keepLive
                   onConfigChange={cfgSeen("schluter")}
@@ -192,7 +199,9 @@ export function AppsWorkspace({ app, visible = true, onClose, resume = false, on
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4" style={{ background: "rgba(20,15,10,.5)" }} onClick={(e) => { e.stopPropagation(); setPending(null); }}>
           <div className="bg-white rounded-xl border border-slate-200 shadow-xl w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
             <h3 className="ft-serif text-xl mb-1">Add to which project?</h3>
-            <p className="text-sm text-slate-500 mb-4">{pending.lines.length} product line{pending.lines.length > 1 ? "s" : ""} ready to place.</p>
+            <p className="text-sm text-slate-500 mb-4">{pending.kind === "options"
+              ? `${pending.count} quote option${pending.count > 1 ? "s" : ""} ready to place.`
+              : `${pending.count} product line${pending.count > 1 ? "s" : ""} ready to place.`}</p>
             <div className="space-y-2">
               <button onClick={() => commitTo("current", pending)} className="w-full text-left rounded-lg border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/40 px-3.5 py-2.5">
                 <div className="text-sm font-semibold text-slate-800">Current project</div>

@@ -487,12 +487,10 @@ export default function CompareTab({
             <button type="button" className="cbtn" data-cmp-stage={c.key} disabled={!!miss}
               title="stage this build in the basket" onClick={() => stageCell(c)}>+ Basket</button>
           )}
-          {onQuoteOptions && (
-            <label className="opt" title="land as a quote option">
-              <input type="checkbox" data-cmp-check={c.key} checked={checked.includes(c.key) && !miss} disabled={!!miss}
-                onChange={() => toggle(c.key)} />Option
-            </label>
-          )}
+          <label className="opt" title={onQuoteOptions ? "include in the print and quote options" : "include in the print"}>
+            <input type="checkbox" data-cmp-check={c.key} checked={checked.includes(c.key) && !miss} disabled={!!miss}
+              onChange={() => toggle(c.key)} />Include
+          </label>
         </div>
         {!miss && <div className="lnh"><span className="q">Qty</span><span className="n">Size + item</span><span>Price</span></div>}
       </div>

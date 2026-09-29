@@ -967,15 +967,32 @@ export default function App({ user, onSignOut }) {
   // "New quick price" from that prompt: build the unnamed draft with the lines
   // already in it and insert ONCE — applying the lines via updateProject after
   // creation would hit the stale-`data` closure and silently drop them.
-  const createQuickWithSheoga = (lines) => {
+  const createQuickFrom = (fill) => {
     const c = { ...newProject(null, QUICK_DEFAULT_NAME, { quick: true, seedArea: true, waste: settings.waste }), salesperson: { name: profile.name || "", phone: profile.phone || "", email: profile.email || "" }, updatedAt: Date.now(), _full: true };
-    c.categories = applySheogaToFirstArea(c.categories, lines);
+    Object.assign(c, fill(c));
     c.name = quickAutoName(c);
     setData((prev) => ({ ...prev, projects: [c, ...prev.projects] }));
     baselineRef.current = { id: c.id, json: catSig(c.categories) };
     setSelId(c.id); setSelCustId(null); setSidebarOpen(false);
     (async () => { try { const { error } = await supabase.from("projects").insert({ id: c.id, owner_id: user.id, customer_id: null, data: custData(c), created_at: new Date(c.createdAt).toISOString() }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — export a backup"); } })();
     return c;
+  };
+  const createQuickWithSheoga = (lines) => createQuickFrom((c) => ({ categories: applySheogaToFirstArea(c.categories, lines) }));
+  // Hub quote options: false = nothing landed, so the hub keeps its basket.
+  const addHubOptionsToCurrent = (payload) => {
+    if (!sel) return false;
+    const patch = compareOptionsPatch(sel, null, payload);
+    if (!patch) { ping(`Only ${showerFreeSlots().length} option letters left — uncheck some`); return false; }
+    updateProject(sel.id, patch);
+    railDispatch({ type: "closePane" });
+    return true;
+  };
+  const addHubOptionsToNew = (payload) => {
+    const patch = compareOptionsPatch({ categories: [] }, null, payload);
+    if (!patch) return false;
+    createQuickFrom(() => patch);
+    railDispatch({ type: "closePane" });
+    return true;
   };
   const delProduct = (aid, pid) => { const a = sel.categories.find((x) => x.id === aid); updArea(aid, { products: a.products.filter((p) => p.id !== pid) }); };
   const moveProduct = (fromAid, pid, toAid, toIndex) => {
@@ -2843,14 +2860,15 @@ export default function App({ user, onSignOut }) {
                   // hub's destination flow reuses the Sheoga landing helpers whole.
                   builderPct: normPricing(settings.pricing).wediBuilderPct,
                   // The hub's wedi popup shows the Compare tab too, so it needs the
-                  // Schluter side's registry bag and knob (no quote options here —
-                  // there is no host area to hang them on).
+                  // Schluter side's registry bag and knob.
                   schluterBuilderPct: normPricing(settings.pricing).schluterBuilderPct,
                   stockRows: stockItems, bookStockReady, books, loadBookItems,
                   mortars: settings.mortars, mortarDefault: settings.catalog?.defaults?.mortar || "",
                   currentName: sel?._full ? (sel.name || "Untitled project") : null,
                   addToCurrent: (lines) => { if (!lines?.length || !sel) return; updateProject(sel.id, { categories: applySheogaToFirstArea(sel.categories, lines) }); railDispatch({ type: "closePane" }); },
                   addToNew: (lines) => { if (!lines?.length) return; createQuickWithSheoga(lines); railDispatch({ type: "closePane" }); },
+                  addOptionsToCurrent: addHubOptionsToCurrent,
+                  addOptionsToNew: addHubOptionsToNew,
                 }}
                 schluter={{
                   builderPct: normPricing(settings.pricing).schluterBuilderPct,
@@ -2860,6 +2878,8 @@ export default function App({ user, onSignOut }) {
                   currentName: sel?._full ? (sel.name || "Untitled project") : null,
                   addToCurrent: (lines) => { if (!lines?.length || !sel) return; updateProject(sel.id, { categories: applySheogaToFirstArea(sel.categories, lines) }); railDispatch({ type: "closePane" }); },
                   addToNew: (lines) => { if (!lines?.length) return; createQuickWithSheoga(lines); railDispatch({ type: "closePane" }); },
+                  addOptionsToCurrent: addHubOptionsToCurrent,
+                  addOptionsToNew: addHubOptionsToNew,
                 }}
               />
               </Suspense>
