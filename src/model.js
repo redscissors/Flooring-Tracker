@@ -93,7 +93,7 @@ export const quickPrintName = (proj) => {
 // opts.waste seeds the job's waste rates from the shop default (Settings →
 // General). Both families start UNPRESSED: a new quote reads raw measured
 // footage until someone presses the waste they want ordered.
-export const newProject = (customerId = null, name = "New Project", opts = {}) => ({ id: uid(), customerId, name, address: "", phone: "", email: "", notes: "", createdAt: Date.now(), categories: opts.seedArea ? [newArea()] : [], versions: [], attachments: [], salesperson: null, priceTier: "retail", customPct: "", printPricing: "full", quick: !!opts.quick, freight: true, waste: { tile: opts.waste?.tile ?? 10, floor: opts.waste?.floor ?? 5, tileOn: false, floorOn: false }, sheogaBasket: [], wediBasket: [], schluterBasket: [], compareSets: {}, optionNames: {}, distance: null });
+export const newProject = (customerId = null, name = "New Project", opts = {}) => ({ id: uid(), customerId, name, address: "", phone: "", email: "", notes: "", createdAt: Date.now(), categories: opts.seedArea ? [newArea()] : [], versions: [], attachments: [], salesperson: null, priceTier: "retail", customPct: "", printPricing: "full", quick: !!opts.quick, freight: true, waste: { tile: opts.waste?.tile ?? 10, floor: opts.waste?.floor ?? 5, tileOn: false, floorOn: false }, sheogaBasket: [], showerBasket: [], compareSets: {}, optionNames: {}, distance: null });
 // A Customer is the person/account that owns many projects and holds contact
 // info once. A Builder is a canonical name-list a customer links to by id.
 export const newPerson = (name = "") => ({ id: uid(), builderId: null, name, phone: "", email: "", address: "", notes: "", createdAt: Date.now(), distance: null });
@@ -166,18 +166,25 @@ const normKitTarget = (t) => {
   if (!areaId || !rowId) return undefined;
   return { areaId, rowId, kitId: typeof t.kitId === "string" ? t.kitId : "" };
 };
-export const normKitBasketEntry = (e) => {
+const KIT_BRANDS = ["wedi", "schluter"];
+export const normKitBasketEntry = (e, brand) => {
   if (!e || typeof e !== "object" || !e.snap || typeof e.snap !== "object" || !e.snap.cfg || typeof e.snap.cfg !== "object") return null;
-  const out = { id: e.id || uid(), kind: "kit", addedAt: e.addedAt || Date.now(), snap: { mode: typeof e.snap.mode === "string" ? e.snap.mode : "custom", cfg: e.snap.cfg } };
+  const b = KIT_BRANDS.includes(e.brand) ? e.brand : KIT_BRANDS.includes(brand) ? brand : null;
+  if (!b) return null;
+  const out = { id: e.id || uid(), kind: "kit", brand: b, addedAt: e.addedAt || Date.now(), snap: { mode: typeof e.snap.mode === "string" ? e.snap.mode : "custom", cfg: e.snap.cfg } };
   const session = normKitSession(e.session);
   if (session) out.session = session;
   const target = normKitTarget(e.target);
   if (target) out.target = target;
   return out;
 };
-const normKitBasket = (v) => (Array.isArray(v) ? v.map(normKitBasketEntry).filter(Boolean) : []);
+const normKitBasket = (v, brand) => (Array.isArray(v) ? v.map((e) => normKitBasketEntry(e, brand)).filter(Boolean) : []);
+// normC drops the legacy wediBasket/schluterBasket keys, so the next write removes them.
+const normShowerBasket = (shower, wedi, schluter) => Array.isArray(shower)
+  ? normKitBasket(shower)
+  : [...normKitBasket(wedi, "wedi"), ...normKitBasket(schluter, "schluter")].sort((a, b) => a.addedAt - b.addedAt);
 
-export const normC = (c) => ({ ...c, customerId: c.customerId ?? null, createdAt: c.createdAt || Date.now(), quick: !!c.quick, freight: c.freight !== false, categories: (c.categories || []).map(normA), versions: c.versions || [], attachments: c.attachments || [], salesperson: c.salesperson || null, priceTier: normTier(c.priceTier), customPct: c.customPct ?? "", printPricing: normPrintPricing(c.printPricing), waste: normWasteJob(c.waste), sheogaBasket: (c.sheogaBasket || []).map(normBasketEntry).filter(Boolean), wediBasket: normKitBasket(c.wediBasket), schluterBasket: normKitBasket(c.schluterBasket), compareSets: normCompareSets(c.compareSets, (c.categories || []).map((a) => a && a.id)), optionNames: (() => { const out = {}; const v = c.optionNames; if (v && typeof v === "object") for (const s of OPTION_SLOTS) { const n = typeof v[s] === "string" ? v[s].trim() : ""; if (n) out[s] = n; } return out; })(), distance: normDistance(c.distance), erpOrders: normErpOrders(c.erpOrders), erpKeyed: normErpKeyed(c.erpKeyed, normErpOrders(c.erpOrders)), groutMemory: normGroutMemory(c.groutMemory) });
+export const normC = ({ wediBasket, schluterBasket, ...c }) => ({ ...c, customerId: c.customerId ?? null, createdAt: c.createdAt || Date.now(), quick: !!c.quick, freight: c.freight !== false, categories: (c.categories || []).map(normA), versions: c.versions || [], attachments: c.attachments || [], salesperson: c.salesperson || null, priceTier: normTier(c.priceTier), customPct: c.customPct ?? "", printPricing: normPrintPricing(c.printPricing), waste: normWasteJob(c.waste), sheogaBasket: (c.sheogaBasket || []).map(normBasketEntry).filter(Boolean), showerBasket: normShowerBasket(c.showerBasket, wediBasket, schluterBasket), compareSets: normCompareSets(c.compareSets, (c.categories || []).map((a) => a && a.id)), optionNames: (() => { const out = {}; const v = c.optionNames; if (v && typeof v === "object") for (const s of OPTION_SLOTS) { const n = typeof v[s] === "string" ? v[s].trim() : ""; if (n) out[s] = n; } return out; })(), distance: normDistance(c.distance), erpOrders: normErpOrders(c.erpOrders), erpKeyed: normErpKeyed(c.erpKeyed, normErpOrders(c.erpOrders)), groutMemory: normGroutMemory(c.groutMemory) });
 
 // --- configurator kit landing (ADR 0035) ----------------------------------
 // One configurator emission (anchor + companions) is one KIT: every line lands

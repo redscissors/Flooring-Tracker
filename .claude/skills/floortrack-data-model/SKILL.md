@@ -90,7 +90,7 @@ Customer { id, name, address, phone, email, notes, createdAt,
            priceTier: "retail|builder|employee|sale|custom", customPct,
            printPricing: "full|unit|none", freight: bool,
            optionNames: {A?..L?},   // optionNames = quote-option labels (ADR 0031; slots A–L since 2026-08-26)
-           sheogaBasket: [], wediBasket: [], schluterBasket: [],
+           sheogaBasket: [], showerBasket: [],
            compareSets: { [areaId]: { [cellKey]: { snap: { mode, cfg },
              room: { w, d, curbed, drain, walls, benches }, savedAt, savedBy,
              target?: { areaId, rowId, kitId }, dropped?: [slot] } } },
@@ -144,9 +144,15 @@ Customer { id, name, address, phone, email, notes, createdAt,
            // (ADR 0035 steps 2–3) — the only basket state that persists;
            // placed kits always derive from the anchor markers (placedKits).
            // Sheoga entries: sheoga.js normBasketEntry (single | bundle).
-           // wedi/Schluter entries: model.js normKitBasketEntry —
-           // { id, kind: "kit", addedAt, snap: { mode, cfg }, session? },
+           // wedi/Schluter entries share ONE list, `showerBasket` (ADR 0035
+           // amendment 2026-09-29): model.js normKitBasketEntry —
+           // { id, kind: "kit", brand: "wedi"|"schluter", addedAt,
+           //   snap: { mode, cfg }, session?, target? },
            // the snap being exactly the row marker Reconfigure reopens on.
+           // A record saved with the old `wediBasket`/`schluterBasket` merges
+           // them by addedAt on load (normC stamps the brand) and drops the
+           // legacy keys on its next write; an entry with no valid brand is
+           // dropped. No SQL.
            // `session` is the OPTIONAL sibling (owner decision 2026-08-31):
            // { qtyOv?, manual?, panelFit? } — the stepped quantities, the
            // hand-added extras and the wall-panel Fit flag. They ride BESIDE

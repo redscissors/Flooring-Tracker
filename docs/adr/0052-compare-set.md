@@ -125,3 +125,38 @@ header row and the Every line / Subtotals toggle:
   Sync/Clear message and Clear set moved to the footer.
 - Tighter rows and column headers, and a part's gray detail line (part
   number, cut, plan) shows on hover rather than under every line.
+
+## Amendment 2026-09-29 — + Basket, Include, Print, next-free letters
+
+Compare could price four builds side by side but not do much with them: a
+column could only be opened, synced or landed as quote options, the checkbox
+only existed where quote options did, and the comparison could not be handed to
+the customer. Spec `docs/superpowers/specs/2026-09-29-compare-basket-print-design.md`;
+the shared basket it stages into is ADR 0035's amendment of the same date.
+
+- **+ Basket per column.** A quiet button in each column header stages that
+  column's build in the shared `project.showerBasket`: the host's own
+  `stageBuild` for Current, the kept snapshot for Your build, the same seed Open
+  builds for a house kit. No target rides along, so a staged column always lands
+  as new work. The button shows only in a popup that has a basket.
+- **One checkbox, "Include".** The column checkbox now shows everywhere Compare
+  renders, including the Apps hub, and means "in the print and the quote
+  options" (just "in the print" where quote options don't exist). The hub's
+  quote options go through its destination prompt like its other lines, landing
+  on the current project or as a new quick price.
+- **Print.** A Print button in the footer prints the included columns that have
+  a price, as a customer sheet at the popup's price level: the screen's group
+  bands and slot rows, Qty · Size + item · Price per line, no part numbers,
+  flags, cost or "vs current". The sheet is a hidden layout portalled into the
+  body while printing, the same idiom as the wedi layout print. The on-screen
+  grid is untouched.
+- **Next-free letters.** `compareOptionsPatch` no longer letters options from A:
+  it takes the job's next free letters (gaps first), the same rule as the
+  basket's Add as options, so a job that already has A and B gets C and D and
+  never a second A. It returns null when too few are free. The confirm shows the
+  real letters, the footer button disables with "Only K option letters left —
+  uncheck some", and the hub, where the destination isn't known until the
+  prompt, says "options" without letters. On a job with no options nothing
+  changes: the letters are A onward.
+
+The stored Compare set is unchanged, so there is no migration and no SQL.

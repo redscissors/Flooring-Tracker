@@ -935,7 +935,12 @@ export function KitOverwriteConfirm({ vendor, kitName, kitWord = "stock kit", co
 // carry checkboxes + Move (delete-on-move rides the caller's patch); placed
 // rows carry Reconfigure + the armed two-click Remove (the Sheoga idiom).
 const fmt$ = (n) => (n == null ? "—" : "$" + Math.round(n).toLocaleString());
-export function KitBasketPanel({ title = "Basket", staged = [], sel = {}, onToggle, onSelectAll, onRemove, onMove, onMoveAll, placed = [], onEditPlaced, onDeletePlaced, areaName, onClose, tierColor, emptyText = 'Basket is empty. Build a kit and click "Basket".' }) {
+const KIT_BADGE = { wedi: ["wedi", "var(--ft-brand)"], schluter: ["Schluter", "var(--s-rust,#B4552D)"] };
+const KitBadge = ({ brand }) => KIT_BADGE[brand] ? (
+  <span className="mr-1.5 rounded px-1.5 py-px text-[9.5px] font-extrabold uppercase tracking-[.08em] align-[1px]"
+    style={{ background: KIT_BADGE[brand][1], color: "#F6F3EC" }} data-kit-brand={brand}>{KIT_BADGE[brand][0]}</span>
+) : null;
+export function KitBasketPanel({ title = "Basket", staged = [], sel = {}, onToggle, onSelectAll, onRemove, onMove, onMoveAll, onAddOptions, placed = [], onEditPlaced, onDeletePlaced, areaName, onClose, tierColor, emptyText = 'Basket is empty. Build a shower kit and click "Basket".' }) {
   const n = staged.length, selCount = staged.filter((b) => sel[b.id]).length;
   const [armDel, setArmDel] = useState(null);
   return (
@@ -948,10 +953,10 @@ export function KitBasketPanel({ title = "Basket", staged = [], sel = {}, onTogg
       <div className="flex-1 overflow-auto p-3">
         {n === 0 && !placed.length ? <div className="text-center text-xs font-semibold text-slate-400 py-10">{emptyText}</div> :
           staged.map((v) => { const on = !!sel[v.id]; return (
-            <div key={v.id} className={`flex gap-2.5 items-start rounded-lg border p-2.5 mb-2 ${on ? "border-[color:var(--ft-brand)]" : "border-slate-200"} ${v.faint ? "opacity-60" : ""}`}>
+            <div key={v.id} className={`flex gap-2.5 items-start rounded-lg border p-2.5 mb-2 ${on ? "border-[color:var(--ft-brand)]" : "border-slate-200"} ${v.faint ? "opacity-60" : ""}`} data-kit-staged={v.id}>
               <button onClick={() => onToggle(v.id)} className={`w-[18px] h-[18px] mt-0.5 rounded-[5px] border flex items-center justify-center text-[11px] font-black text-white shrink-0 ${on ? "bg-[color:var(--ft-brand)] border-[color:var(--ft-brand)]" : "border-slate-300"}`}>{on ? "✓" : ""}</button>
               <div className="flex-1 min-w-0">
-                <div className="text-[13px] font-bold leading-tight">{v.title}</div>
+                <div className="text-[13px] font-bold leading-tight"><KitBadge brand={v.brand} />{v.title}</div>
                 <div className="text-[11px] text-slate-500 font-semibold">
                   {/* A targeted entry REPLACES a kit already on the job — it has
                       to read differently from one that adds a second shower. */}
@@ -969,10 +974,10 @@ export function KitBasketPanel({ title = "Basket", staged = [], sel = {}, onTogg
             <span className="text-[10px] text-slate-400 font-semibold">reconfigure to change — the lines follow</span>
           </div>
           {placed.map((k) => { const arm = armDel === k.rowId; return (
-            <div key={k.rowId} className={`rounded-lg border border-slate-200 p-2.5 mb-2 ${k.faint ? "opacity-60" : ""}`}>
+            <div key={k.rowId} className={`rounded-lg border border-slate-200 p-2.5 mb-2 ${k.faint ? "opacity-60" : ""}`} data-kit-placed={k.rowId}>
               <div className="flex gap-2.5 items-start">
                 <div className="flex-1 min-w-0">
-                  <div className="text-[13px] font-bold leading-tight">{k.title}</div>
+                  <div className="text-[13px] font-bold leading-tight"><KitBadge brand={k.brand} />{k.title}</div>
                   <div className="text-[11px] text-slate-500 font-semibold">{k.meta}{k.areaName ? <> · in <b>{k.areaName}</b></> : null}</div>
                 </div>
                 <span className="font-extrabold tabular-nums text-[13px]" style={tierColor ? { color: tierColor } : undefined}>{fmt$(k.price)}</span>
@@ -988,10 +993,15 @@ export function KitBasketPanel({ title = "Basket", staged = [], sel = {}, onTogg
             </div>); })}
         </>}
       </div>
-      {onMove && <div className="flex items-center gap-2 px-3 py-3 border-t border-slate-200">
+      {(onMove || onAddOptions) && <div className="flex flex-wrap items-center gap-2 px-3 py-3 border-t border-slate-200">
         <span className="text-[11px] text-slate-500 font-semibold">{selCount} selected → <b>{areaName}</b></span>
-        <button disabled={!n} onClick={onMoveAll} className="ml-auto rounded-md border border-slate-300 px-3 py-1.5 text-xs font-bold disabled:opacity-40">Move all</button>
-        <button disabled={!selCount} onClick={onMove} className="rounded-md bg-indigo-600 text-white px-3.5 py-1.5 text-xs font-bold disabled:opacity-40">Move {selCount} → {areaName}</button>
+        <div className="ml-auto flex flex-wrap justify-end items-center gap-2">
+          {onAddOptions && <button disabled={!selCount} onClick={onAddOptions} className="whitespace-nowrap rounded-md border border-slate-300 px-3 py-1.5 text-xs font-bold disabled:opacity-40" data-kit-add-options>Add {selCount} as options</button>}
+          {onMove && <>
+            <button disabled={!n} onClick={onMoveAll} className="whitespace-nowrap rounded-md border border-slate-300 px-3 py-1.5 text-xs font-bold disabled:opacity-40">Move all</button>
+            <button disabled={!selCount} onClick={onMove} className="whitespace-nowrap rounded-md bg-indigo-600 text-white px-3.5 py-1.5 text-xs font-bold disabled:opacity-40">Move {selCount} → {areaName}</button>
+          </>}
+        </div>
       </div>}
     </div>
   );

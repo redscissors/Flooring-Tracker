@@ -26,7 +26,13 @@ src/
                     # `addCompareOptions(aid, payload)` is the landing —
                     # ONE `updateProject` with compareOptionsPatch's single
                     # patch, wired as `onQuoteOptions` on both job-context
-                    # vendor mounts (never on the Apps-hub copies).
+                    # vendor mounts. The Apps-hub bags carry their own pair:
+                    # `addOptionsToCurrent` (compareOptionsPatch with no host
+                    # area; a null patch pings "Only K option letters left —
+                    # uncheck some" and returns false) and `addOptionsToNew`
+                    # (a quick project whose areas are the options, via
+                    # `createQuickFrom`, the creation path
+                    # `createQuickWithSheoga` shares).
                     # The Compare set (ADR 0052): both job-context shower
                     # mounts get `compareSet` (the area's), `onCompareSet` →
                     # `writeCompareSet(pid, aid, next)` (merges onto
@@ -122,10 +128,14 @@ src/
                     # staged (row gone, or now another kit's), which append
                     # instead, because clobbering whatever took the row's place
                     # is worse than a duplicate the salesperson can see
-                    # ; normKitBasketEntry — the wedi/Schluter staged basket
-                    # entry (ADR 0035 step 3, engine-free on purpose: model.js
-                    # must never import wedi.js/schluter.js), snap = the
-                    # reconfigure marker, plus the optional `target`
+                    # ; normKitBasketEntry(e, brand?) — the wedi/Schluter staged
+                    # basket entry (ADR 0035 step 3), engine-free on purpose:
+                    # model.js must never import wedi.js/schluter.js. It is
+                    # brand-tagged and kept in the one project.showerBasket
+                    # (ADR 0035 amendment 2026-09-29): a valid e.brand wins,
+                    # else the argument, else null. normC merges legacy
+                    # wediBasket/schluterBasket by addedAt and drops those
+                    # keys. snap = the reconfigure marker, plus the optional `target`
                     # {areaId, rowId, kitId} an entry staged from a reconfigure
                     # carries (normKitTarget — both ids or nothing; kitId is
                     # the move-time staleness check)
@@ -146,11 +156,13 @@ src/
                     # never a copy of the job. `compareOptionsPatch` (phase 5,
                     # ADR 0034; N options since ticket 158 Phase 3) is the
                     # Compare tab's ONE-PATCH landing: `(project, hostAreaId,
-                    # {options: [{lines, name}], label})` — 2 to
-                    # `OPTION_SLOTS.length` fresh sibling areas
-                    # (`{...newArea(), …}`, never duplicateInto's
-                    # shared-source retag — these aren't copies of shared
-                    # work) tagged A, B, C, D… in the given order (the grid's
+                    # {options: [{lines, name}], label})` — fresh sibling
+                    # areas, up to the free letters (`{...newArea(), …}`,
+                    # never duplicateInto's shared-source retag — these
+                    # aren't copies of shared work) tagged with the job's
+                    # next free letters (`nextFreeSlots(cats, n)` — gaps
+                    # first; null when fewer than n are left, so the patch
+                    # is null too) in the given order (the grid's
                     # reading order, checked cells only, packed — comparegrid.js
                     # decides that order, this file just letters what it's
                     # handed), inserted right after the host area (append if
@@ -158,8 +170,8 @@ src/
                     # ...p}))` plus a trailing blank adder row; `optionNames`
                     # fills empty slots only from each option's own `name`
                     # ("wedi · S-DRY membrane"), never over a custom name;
-                    # null when `options` is empty, longer than the slot list,
-                    # or ANY option's lines array is empty. The old
+                    # null when `options` is empty, longer than the free
+                    # letters left, or ANY option's lines array is empty. The old
                     # `{wediLines, schluterLines}` shape still works, read as
                     # the N=2 case `[{lines: wediLines, name: "wedi"},
                     # {lines: schluterLines, name: "Schluter"}]` — that
@@ -169,7 +181,10 @@ src/
                     # used to land "Shower — wedi". Returns the patch object for the
                     # caller's single `updateProject` call — usedirectory's
                     # setter is built off a stale closure, so two calls in one
-                    # tick would clobber each other (options.test.js)
+                    # tick would clobber each other (options.test.js).
+                    # `lettersLeft(k, fix)` is the one "Only K option
+                    # letter(s) left — <fix>" string (basket: "select fewer",
+                    # Compare: "uncheck some")
   jobtotals.js      # the job's money math, extracted from App.jsx so it runs per
                     # option scope: one filtered project in, every aggregate out
                     # (totals, gList/mList/…, matAll, pMats, freight, margin).
@@ -235,7 +250,10 @@ src/
                     # and a half-typed "4" of "48" is not a room, and
                     # KitBasketPanel — the shared wedi/Schluter basket drawer
                     # shell (ADR 0035 step 3, presentation-only view rows: the
-                    # two popups can't drift on the drawer either)
+                    # two popups can't drift on the drawer either); a row's
+                    # `brand` draws the wedi/Schluter badge, `onAddOptions`
+                    # adds the footer's "Add N as options" (ShowerBasket.jsx
+                    # feeds it)
   dropdown.js       # MorphSelect's pure half (ADR 0048): `flatten` (grouped
                     # rows → one walkable list + heading positions),
                     # `moveIndex`/`edgeIndex` (skip disabled, wrap),
@@ -1247,6 +1265,13 @@ src/
                     # `installSources` (which applies the floor and refuses
                     # the pricelist first), and returns `onBook: {stock, so}`
                     # plus `caption` (`fallbackCaption`).
+  wedikitview.js    # pure wedi basket pricing lifted out of the popup:
+                    # `wediTierOf`, `wediApplySession` (the build column's tail —
+                    # Fit plan, stepped qtys, added rows; the ONE copy the build
+                    # memo, Reconfigure seeding and the views share) and
+                    # `wediEntryView` (session undefined = placed kit, reads
+                    # ctx.panelFit; an object = staged, reads its own Fit flag).
+                    # Imports wedi.js only; WediConfigurator wraps it with its ctx
   wediquery.js      # the wedi search-entry recognizer — the BOOT half of issue
                     # 066: `queryHit`/`parseQuery`/`querySummary`/`seedFromQuery`
                     # over ~30 trade words and a size regex, so the pinned "Vendor
@@ -1413,10 +1438,17 @@ src/
                     # retail-seeded preview and Add raises the hub's shared
                     # destination prompt (current project / new quick price);
                     # the hub gets the registry bag too (so Compare works
-                    # there) but no `onQuoteOptions` — there is no host area.
+                    # there) and an `onQuoteOptions` that raises the hub's
+                    # destination prompt (no host area to land on).
                     # A basket drawer (ADR 0035 step 3, the Sheoga idiom via
                     # the shared KitBasketPanel): staged entries persist in
-                    # project.wediBasket ("Basket" beside Add), the derived
+                    # the shared project.showerBasket ("Basket" beside Add;
+                    # `stageBuild` stamps brand "wedi", `stageEntry` stages a
+                    # given entry for Compare) and the drawer is the lazy
+                    # ShowerBasket.jsx chunk, mounted the first time it opens
+                    # (spec 2026-09-29) — it lists and prices BOTH brands and
+                    # takes `onAddOptions`/`freeSlots`; the resume prompt keeps
+                    # pricing through wediEntryView. The derived
                     # In-this-project section reconfigures/removes placed
                     # kits (App remounts on a pid+nonce key so reconfiguring
                     # the CURRENT kit re-seeds too), delete-on-move stands,
@@ -1920,6 +1952,12 @@ src/
                     # stable catalog to run against without a live Supabase
                     # book (the registry-driven design, ADR 0032, means there
                     # is no other fixture to fall back on)
+  schluterkitview.js  # pure Schluter basket pricing lifted out of the popup:
+                    # `schluterTierOf` (the tier lens), `schluterEntryView` (marker +
+                    # optional staged session + { cat, catReady, tier, … } → { title,
+                    # meta, price, faint?, lines }). Imports schluter.js only, so the
+                    # lazy basket drawer can reuse it beside wedikitview.js;
+                    # SchluterConfigurator wraps it with its own ctx
   schluterquery.js  # the Schluter search-entry recognizer — the BOOT half of
                     # task 6, wediquery.js's sibling: `queryHit`/`parseQuery`/
                     # `querySummary`/`seedFromQuery` over ~20 trade words
@@ -2239,7 +2277,10 @@ src/
                     # point pan) and flips mode to custom like any other swap;
                     # Esc/outside click discards it. Esc ladder rungs: payload →
                     # confirmKit → swap → picker → bench → wall → placing.
-                    # Same basket drawer (project.schluterBasket) — entries
+                    # Same basket drawer (the shared project.showerBasket and
+                    # the lazy ShowerBasket.jsx chunk, handed this popup's
+                    # assembled cat/catReady; `stageBuild` stamps brand
+                    # "schluter") — entries
                     # wait FAINT on catReady before pricing (ADR 0032); a
                     # staged snap is markCfg, so manual extras and the quoted
                     # tray survive staging, and the entry's `session` sibling
@@ -2317,7 +2358,10 @@ src/
                     # its quote-options footer — a footer that only exists when
                     # the prop is given. Stateful cats/basket (ADR 0035 step 3)
                     # so the drawer shots run the real landKitLines/
-                    # placedKits/removeKitLines paths.
+                    # placedKits/removeKitLines paths. The bag also carries
+                    # wedipreview.jsx's two wedi books so the shared drawer
+                    # prices wedi entries; `?mixed=1` seeds a wedi entry, and
+                    # Add as options lands through compareOptionsPatch.
   wedipreview.jsx   # dev-only harness (wedi-preview.html): the REAL
                     # WediConfigurator over the real engine, no Supabase and no
                     # App shell — the wedi half of the change-control preview
@@ -2327,10 +2371,13 @@ src/
                     # the wedi popup assembles the Schluter catalog itself
                     # (useSchluterCatalog) — without the bag that column is
                     # only ever "Loading the Schluter price books…". Same
-                    # no-op `onQuoteOptions`; not part of the app build.
+                    # no-op `onQuoteOptions` (`?hub=1` omits it, the hub-less
+                    # Compare); not part of the app build.
                     # Stateful cats/basket (ADR 0035 step 3) so the drawer
                     # shots run the real landKitLines/placedKits/
-                    # removeKitLines paths.
+                    # removeKitLines paths; `?mixed=1` seeds a Schluter entry
+                    # into the shared basket, and Add as options lands through
+                    # compareOptionsPatch.
   sheogapreview.jsx # dev-only harness (sheoga-preview.html): the REAL
                     # SheogaConfigurator over local mock state, no Supabase —
                     # preview proof for the ADR 0035 step 2 drawer; landing/
@@ -2457,7 +2504,7 @@ src/
                     # (ticket 158 Phase 3, ADR 0034's Phase 3 amendment):
                     # CompareTab.jsx draws the grid, this module decides what
                     # each of the FOUR cells (wedi/Schluter × Board/Membrane —
-                    # `CELLS`, in reading order A–D) prices to and what didn't
+                    # `CELLS`, in reading order) prices to and what didn't
                     # map cleanly. Imports `comparekit.js` ONLY, never an
                     # engine directly — decision 1's rule extends here — so
                     # it is LAZY-CHUNK-ONLY, same as comparekit.js/
@@ -2494,7 +2541,7 @@ src/
                     # itself sits with the other goldens, `comparegridgolden.js`)
                     # Phase 4 (ADR 0052): `CELLS` is the FIXED column order
                     # (wedi Board, wedi Membrane, Schluter Board, Schluter
-                    # Membrane — option letters follow). `cellBuild(key, ctx,
+                    # Membrane). `cellBuild(key, ctx,
                     # {mirror, sdryPick, kept})` prices a kept entry as the
                     # column (`status: "yours"`, no mirror, `kept` returned),
                     # leading its flags with `room` ("Built for 60×36 — room
@@ -2503,6 +2550,44 @@ src/
                     # falls back to the house kit with a `lost` chip; a kept
                     # entry on the live cell is ignored. The golden test reads
                     # the Phase 3 golden in its own pinned order (GOLDEN_ORDER).
+                    # `cellSeed(c, source)` (Open's seed) and
+                    # `stageEntryFor(c, source)` (+ Basket's entry — see
+                    # CompareTab.jsx) live here so node --test reaches them
+                    # (comparestage.test.js).
+  basketkit.js      # the shared shower basket's two-engine side (spec 2026-09-29):
+                    # `entryView(entry, ctx)` / `placedView(kit, ctx)` dispatch on
+                    # `brand` to wediEntryView / schluterEntryView with
+                    # `ctx = { wedi, schluter }` — a staged entry passes
+                    # `entry.session || {}` (its own Fit flag), a placed kit NO
+                    # session (the live one). A Schluter title runs through
+                    # kitlabel `cleanKitName` — the drawer's badge already
+                    # says Schluter (the popup's own resume prompt keeps the
+                    # raw title). `optionName` is "wedi Building
+                    # Panel" / "Schluter KERDI membrane" off `hostCellKey`;
+                    # `optionsFromEntries(views, entries, cats)` names the ready
+                    # views' options (repeats " 2", " 3") or returns `{ short }`,
+                    # the free letters left, when `nextFreeSlots` is null;
+                    # `moveable` splits ready from faint. LAZY-CHUNK-ONLY
+                    # (ADR 0026): imports both view modules; model.js never does
+  ShowerBasket.jsx  # the shared wedi+Schluter basket drawer (spec 2026-09-29
+                    # §1), default export, mounted via React.lazy by BOTH
+                    # popups inside their slide-in panel once it first opens.
+                    # Runs both catalog hooks the CompareTab way (the host's
+                    # own engine fed nulls / `enabled:false`; the Schluter host
+                    # passes its cat through), prices every entry through
+                    # basketkit.js — the host's live Fit only for its own
+                    # brand's placed kits, the other brand Fit on — and draws
+                    # KitBasketPanel. An entry whose catalog is still loading
+                    # reads faint "Loading the <brand> price book…"; Move and
+                    # Add as options land only priced entries, the rest stay
+                    # staged and selected ("N still loading — they stay in the
+                    # basket"). Add as options runs optionsFromEntries against
+                    # `freeSlots` (absent = the hub: the destination decides)
+                    # and says "Only K option letters left — select fewer" when
+                    # short. The popup's `onAddOptions` returns false when
+                    # nothing landed (App: no patch) and the selection stays;
+                    # undefined (the hub, whose destination prompt is still
+                    # pending) counts as landed. LAZY-CHUNK-ONLY (ADR 0026)
   compareset.js     # the Compare set (ticket 158 Phase 4, ADR 0052) — PURE
                     # and ENGINE-FREE, because model.js imports it (boot
                     # path): `CELL_KEYS` (the fixed column order),
@@ -2593,8 +2678,8 @@ src/
                     # (`data-cmp-sys`) name each side's system; the help tip's walls caveat is
                     # gone.
                     # Phase 3 (ticket 158, ADR 0034/0051 Phase 3 amendments):
-                    # a 2×2 grid (`comparegrid.js`'s `CELLS`, reading order
-                    # A–D) sits above the same two-column detail, driving
+                    # a 2×2 grid (`comparegrid.js`'s `CELLS`, reading
+                    # order) sits above the same two-column detail, driving
                     # which cell the detail shows instead of a fixed host-vs-
                     # opposite pairing. Clicking a non-live tile selects it
                     # (`data-cmp-tile`); the detail is always the LIVE cell
@@ -2630,8 +2715,12 @@ src/
                     # (ADR 0051's Phase 3 amendment). The confirm modal's
                     # send button reads "Check two or more cells for quote
                     # options" (disabled) below two checked cells, else "Add
-                    # N as quote options"; the confirm reads "Add options
-                    # A–X" (`lastLetter`); `data-compare-confirm` is kept.
+                    # N as quote options"; `data-compare-confirm` is kept.
+                    # Since 2026-09-29 the confirm reads the job's real
+                    # next-free letters (`freeSlots`, "Add options C–D"),
+                    # short of letters the footer button reads "Only K option
+                    # letters left — uncheck some", and the hub (no
+                    # `freeSlots`) says "Add N options" with no letters.
                     # An unbuildable cell is unchecked and disabled
                     # (`sendable` only counts checked, buildable cells —
                     # build ruling 9). Sending composes each checked cell's
@@ -2665,7 +2754,10 @@ src/
                     # (`data-cmp-status`: House kit / Your build), total,
                     # delta, up to two chips (`data-cmp-flag`, the room chip
                     # first), Open (`data-cmp-open`), Sync (`data-cmp-sync`,
-                    # Your build only) and the Option checkbox. The host's
+                    # Your build only) and the Include checkbox (always
+                    # shown; title "include in the print and quote options",
+                    # or "include in the print" without `onQuoteOptions`).
+                    # The host's
                     # column wears the ring — `.cur` inset shadows on every
                     # cell of that column, `top`/`bot` closing it, and a
                     # CURRENT tab (`data-cmp-current`); no absolute overlay.
@@ -2690,6 +2782,53 @@ src/
                     # Every line / Subtotals is gone (always every line); a
                     # part's gray detail line is hidden and rides the name's
                     # hover title (mirror "+" rows keep theirs).
+                    # Spec 2026-09-29 §2: a quiet "+ Basket" per column
+                    # (`data-cmp-stage`, shown when the popup passes
+                    # `onStage` + `onStageLive`) stages that column's build in
+                    # the shared shower basket — Current through the popup's
+                    # own `stageBuild`, the rest as comparegrid.js
+                    # `stageEntryFor(c, source)` — `{brand, snap: cellSeed(c,
+                    # source)}` (`cellSeed` is `openCell`'s seed, shared), plus
+                    # `session: {panelFit: false}` on a wedi HOUSE kit, which
+                    # bills its recipe panels with no Fit plan (a sessionless
+                    # staged entry reads Fit ON and priced dearer than the
+                    # column; comparestage.test.js pins column = staged price
+                    # at Retail for every house column). `freeSlots` (the job's free option letters,
+                    # undefined in the Apps hub) drives the quote-options
+                    # letters: the confirm rows/button/note read them, the
+                    # footer button disables with "Only K option letters left
+                    # — uncheck some", and with none given (hub) the modal
+                    # says "options" without letters.
+                    # Spec 2026-09-29 §4: the footer ALWAYS renders and carries
+                    # Print (`data-cmp-print`, Printer icon; disabled with title
+                    # "Check the columns to print" when `printColumns` is empty).
+                    # `printing` state mirrors WediConfigurator's layout print:
+                    # the sheet is portalled into body, `window.print()`,
+                    # unmounted on afterprint with a 2.5s timer fallback. New
+                    # `projectName` prop (both popups pass it) heads the sheet;
+                    # `hubPrintLabel` (the Apps hub passes "Shower", through
+                    # either popup) replaces it: the hub's areaName is a
+                    # destination placeholder, so its sheet names no project;
+                    # the sheet's layout is `compareLayout` over the printed
+                    # columns only, keyed by cell key.
+  compareprintcols.js  # pure half of Compare's print (spec 2026-09-29 §4):
+                    # `printColumns(cells, checked, missOf)` — the checked
+                    # cells with a price, in `CELL_KEYS` order — `tierLabel`
+                    # ("" at retail, else "<TIER_LONG> pricing") and the shared
+                    # `fm` money formatter. No JSX so node --test can import it
+                    # (compareprint.test.js)
+  compareprint.jsx  # `ComparePrintSheet` — the customer print of the checked
+                    # Compare columns: a `.cmp-printsheet` table (column heads
+                    # in a repeating `<thead>`, a band row per group, a row per
+                    # slot, a totals row) with black-on-white brand badges.
+                    # Mounted only while a print is in flight; `PRINT_CSS`
+                    # hides every other body child (the wedi PRINT_CSS idiom)
+                    # and a separate `@page{size:landscape}` <style> is emitted
+                    # only for 3+ columns. Prints Qty · Size + item · Price per
+                    # line; note-only lines in italics with no price, placeholder
+                    # and "+" rows as "—"; leaves off part numbers, tags, pills,
+                    # flags, "vs current" and cost. Imported only by
+                    # CompareTab.jsx (same lazy chunk, ADR 0026)
   descfit.js        # fitting an order description into a fixed-width ERP field.
                     # A special line has no SKU, so a dropped CATEGORY reads as a
                     # different product — this never truncates to fit, it climbs
@@ -3116,8 +3255,15 @@ src/
                     # `sheoga`/`wedi`/`schluter` prop bag — both shower bags now
                     # carry the OTHER engine's builder knob (and the wedi bag
                     # the Schluter registry props) so the hub's copies render
-                    # their Compare tab; neither gets `onQuoteOptions`, since
-                    # the hub has no host area to hang option A/B on. Takes a
+                    # their Compare tab. The two shower tabs share ONE
+                    # `showerBasket` (Start new on either clears it; the
+                    # resume text counts it for both), and Compare's
+                    # `onQuoteOptions` plus the drawer's Add as options
+                    # (`label: "Shower"`) go through `requestCommit(…,
+                    # "options")` — the pending item carries `kind` and
+                    # `commitTo` calls the bag's `addOptionsToCurrent/New`
+                    # instead of `addToCurrent/New`; a bag returning false
+                    # (too few letters) leaves the basket standing. Takes a
                     # `visible` prop (App.jsx: the pane is showing an app) and
                     # passes each configurator `escActive={visible &&
                     # shown(k)}` (ADR 0047) so a hidden, still-mounted

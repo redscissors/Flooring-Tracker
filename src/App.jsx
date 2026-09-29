@@ -29,7 +29,7 @@ import { STOCK_LOADING_MSG, TYPES, TLBL, underlayLabel, TYPE_ACCENT, ROW_WASH, T
 import { uid, money, sf1, miscQty, blobToDataURL, dataURLToBlob, wasteNote, newProduct, newArea, areaLabel, rowBlank, catSig, newProject, newPerson, newBuilder, normC, personData, quickAutoName, isRealProjectName, QUICK_DEFAULT_NAME, stampKit, landKitLines, appendKitLines, moveKitEntries, placedKits, removeKitLines, kitRows } from "./model.js";
 import { lineTotal, printProduct, printAreaFloor, KSHORT, u1, orderEntryRow, matOrderRow } from "./print.js";
 import { jobTotals } from "./jobtotals.js";
-import { OPTION_SLOTS, OPTION_COLOR, optionsUsed, bucketCats, scopedCats, optionTitle, optionShort, duplicateInto, compareOptionsPatch } from "./options.js";
+import { OPTION_SLOTS, OPTION_COLOR, optionsUsed, bucketCats, scopedCats, optionTitle, optionShort, duplicateInto, compareOptionsPatch, lettersLeft } from "./options.js";
 import { LazyBoundary, FitSelect, GroutColorOptions, BuilderCombo, MetaChip, SalespersonPop, SegBar, WasteBar, DARK_MODE, MarginLine, Modal, useEscClose, HelpTip, AddressField, PopMenu } from "./widgets.jsx";
 import { escPush } from "./escstack.js";
 import { TypeSelect, GRID_COLS, GridPriceCell, GridSizeInput, GridProductBox, GridOmniSearch, UnitPick } from "./grid.jsx";
@@ -941,6 +941,17 @@ export default function App({ user, onSignOut }) {
     if (key.startsWith("wedi:")) { setSchluterPop(null); setWediPop(next); }
     else { setWediPop(null); setSchluterPop(next); }
   };
+  const showerPlaced = () => [
+    ...placedKits(sel.categories, "wedi").map((k) => ({ ...k, brand: "wedi" })),
+    ...placedKits(sel.categories, "schluter").map((k) => ({ ...k, brand: "schluter" })),
+  ];
+  const showerFreeSlots = () => { const used = optionsUsed(sel.categories); return OPTION_SLOTS.filter((s) => !used.includes(s)); };
+  const addShowerOptions = (aid, options, nextBasket) => {
+    const patch = compareOptionsPatch(sel, aid, { options, label: sel.categories.find((x) => x.id === aid)?.name });
+    if (!patch) { ping(lettersLeft(showerFreeSlots().length, "select fewer")); return false; }
+    updateProject(sel.id, { ...patch, showerBasket: nextBasket });
+    return true;
+  };
   // Sheoga opened from the Apps hub has no row/project context. Its lines drop
   // into the first area of whichever project the salesperson picks in the
   // Apps-hub destination prompt (filling a blank adder row if there is one, else
@@ -958,15 +969,32 @@ export default function App({ user, onSignOut }) {
   // "New quick price" from that prompt: build the unnamed draft with the lines
   // already in it and insert ONCE — applying the lines via updateProject after
   // creation would hit the stale-`data` closure and silently drop them.
-  const createQuickWithSheoga = (lines) => {
+  const createQuickFrom = (fill) => {
     const c = { ...newProject(null, QUICK_DEFAULT_NAME, { quick: true, seedArea: true, waste: settings.waste }), salesperson: { name: profile.name || "", phone: profile.phone || "", email: profile.email || "" }, updatedAt: Date.now(), _full: true };
-    c.categories = applySheogaToFirstArea(c.categories, lines);
+    Object.assign(c, fill(c));
     c.name = quickAutoName(c);
     setData((prev) => ({ ...prev, projects: [c, ...prev.projects] }));
     baselineRef.current = { id: c.id, json: catSig(c.categories) };
     setSelId(c.id); setSelCustId(null); setSidebarOpen(false);
     (async () => { try { const { error } = await supabase.from("projects").insert({ id: c.id, owner_id: user.id, customer_id: null, data: custData(c), created_at: new Date(c.createdAt).toISOString() }); if (error) throw error; flashSaved(); } catch (e) { ping("Save failed — export a backup"); } })();
     return c;
+  };
+  const createQuickWithSheoga = (lines) => createQuickFrom((c) => ({ categories: applySheogaToFirstArea(c.categories, lines) }));
+  // Hub quote options: false = nothing landed, so the hub keeps its basket.
+  const addHubOptionsToCurrent = (payload) => {
+    if (!sel) return false;
+    const patch = compareOptionsPatch(sel, null, payload);
+    if (!patch) { ping(lettersLeft(showerFreeSlots().length, payload.from === "basket" ? "select fewer" : "uncheck some")); return false; }
+    updateProject(sel.id, patch);
+    railDispatch({ type: "closePane" });
+    return true;
+  };
+  const addHubOptionsToNew = (payload) => {
+    const patch = compareOptionsPatch({ categories: [] }, null, payload);
+    if (!patch) return false;
+    createQuickFrom(() => patch);
+    railDispatch({ type: "closePane" });
+    return true;
   };
   const delProduct = (aid, pid) => { const a = sel.categories.find((x) => x.id === aid); updArea(aid, { products: a.products.filter((p) => p.id !== pid) }); };
   const moveProduct = (fromAid, pid, toAid, toIndex) => {
@@ -2834,14 +2862,15 @@ export default function App({ user, onSignOut }) {
                   // hub's destination flow reuses the Sheoga landing helpers whole.
                   builderPct: normPricing(settings.pricing).wediBuilderPct,
                   // The hub's wedi popup shows the Compare tab too, so it needs the
-                  // Schluter side's registry bag and knob (no quote options here —
-                  // there is no host area to hang them on).
+                  // Schluter side's registry bag and knob.
                   schluterBuilderPct: normPricing(settings.pricing).schluterBuilderPct,
                   stockRows: stockItems, bookStockReady, books, loadBookItems,
                   mortars: settings.mortars, mortarDefault: settings.catalog?.defaults?.mortar || "",
                   currentName: sel?._full ? (sel.name || "Untitled project") : null,
                   addToCurrent: (lines) => { if (!lines?.length || !sel) return; updateProject(sel.id, { categories: applySheogaToFirstArea(sel.categories, lines) }); railDispatch({ type: "closePane" }); },
                   addToNew: (lines) => { if (!lines?.length) return; createQuickWithSheoga(lines); railDispatch({ type: "closePane" }); },
+                  addOptionsToCurrent: addHubOptionsToCurrent,
+                  addOptionsToNew: addHubOptionsToNew,
                 }}
                 schluter={{
                   builderPct: normPricing(settings.pricing).schluterBuilderPct,
@@ -2851,6 +2880,8 @@ export default function App({ user, onSignOut }) {
                   currentName: sel?._full ? (sel.name || "Untitled project") : null,
                   addToCurrent: (lines) => { if (!lines?.length || !sel) return; updateProject(sel.id, { categories: applySheogaToFirstArea(sel.categories, lines) }); railDispatch({ type: "closePane" }); },
                   addToNew: (lines) => { if (!lines?.length) return; createQuickWithSheoga(lines); railDispatch({ type: "closePane" }); },
+                  addOptionsToCurrent: addHubOptionsToCurrent,
+                  addOptionsToNew: addHubOptionsToNew,
                 }}
               />
               </Suspense>
@@ -3056,16 +3087,21 @@ export default function App({ user, onSignOut }) {
             stockRows={stockItems} bookStockReady={bookStockReady}
             books={books} loadBookItems={loadBookItems}
             mortars={settings.mortars} mortarDefault={settings.catalog?.defaults?.mortar || ""}
-            basket={sel.wediBasket || []}
-            onBasketChange={(next) => updateProject(sel.id, { wediBasket: next })}
+            basket={sel.showerBasket || []}
+            onBasketChange={(next) => updateProject(sel.id, { showerBasket: next })}
             onMoveEntries={(groups, nextBasket) => {
               const moved = moveKitEntries(sel.categories, wediPop.aid, groups);
-              updateProject(sel.id, { categories: moved.categories, wediBasket: nextBasket });
+              updateProject(sel.id, { categories: moved.categories, showerBasket: nextBasket });
               if (moved.stranded) ping(moved.stranded === 1 ? "That kit is no longer in the project — its lines were added instead"
                 : moved.stranded + " kits are no longer in the project — their lines were added instead");
             }}
-            placed={placedKits(sel.categories, "wedi")}
-            onOpenPlaced={(k) => setWediPop({ aid: k.areaId, pid: k.rowId, seed: k.marker, n: (wediPop.n || 0) + 1 })}
+            onAddOptions={(options, next) => addShowerOptions(wediPop.aid, options, next)}
+            freeSlots={showerFreeSlots()}
+            placed={showerPlaced()}
+            onOpenPlaced={(k) => {
+              if (k.brand === "wedi") setWediPop({ aid: k.areaId, pid: k.rowId, seed: k.marker, n: (wediPop.n || 0) + 1 });
+              else { setWediPop(null); setSchluterPop({ aid: k.areaId, pid: k.rowId, seed: k.marker, n: 1 }); }
+            }}
             onDeleteKit={(k) => { const next = removeKitLines(sel.categories, k.areaId, k.rowId); if (next) { updateProject(sel.id, { categories: next }); if (k.rowId === wediPop.pid) setWediPop(null); } }}
             onQuoteOptions={(p) => addCompareOptions(wediPop.aid, p)}
             compareSet={(sel.compareSets || {})[wediPop.aid] || {}}
@@ -3105,16 +3141,21 @@ export default function App({ user, onSignOut }) {
             stockRows={stockItems} bookStockReady={bookStockReady}
             books={books} loadBookItems={loadBookItems}
             mortars={settings.mortars} mortarDefault={settings.catalog?.defaults?.mortar || ""}
-            basket={sel.schluterBasket || []}
-            onBasketChange={(next) => updateProject(sel.id, { schluterBasket: next })}
+            basket={sel.showerBasket || []}
+            onBasketChange={(next) => updateProject(sel.id, { showerBasket: next })}
             onMoveEntries={(groups, nextBasket) => {
               const moved = moveKitEntries(sel.categories, schluterPop.aid, groups);
-              updateProject(sel.id, { categories: moved.categories, schluterBasket: nextBasket });
+              updateProject(sel.id, { categories: moved.categories, showerBasket: nextBasket });
               if (moved.stranded) ping(moved.stranded === 1 ? "That kit is no longer in the project — its lines were added instead"
                 : moved.stranded + " kits are no longer in the project — their lines were added instead");
             }}
-            placed={placedKits(sel.categories, "schluter")}
-            onOpenPlaced={(k) => setSchluterPop({ aid: k.areaId, pid: k.rowId, seed: k.marker, n: (schluterPop.n || 0) + 1 })}
+            onAddOptions={(options, next) => addShowerOptions(schluterPop.aid, options, next)}
+            freeSlots={showerFreeSlots()}
+            placed={showerPlaced()}
+            onOpenPlaced={(k) => {
+              if (k.brand === "schluter") setSchluterPop({ aid: k.areaId, pid: k.rowId, seed: k.marker, n: (schluterPop.n || 0) + 1 });
+              else { setSchluterPop(null); setWediPop({ aid: k.areaId, pid: k.rowId, seed: k.marker, n: 1 }); }
+            }}
             onDeleteKit={(k) => { const next = removeKitLines(sel.categories, k.areaId, k.rowId); if (next) { updateProject(sel.id, { categories: next }); if (k.rowId === schluterPop.pid) setSchluterPop(null); } }}
             onQuoteOptions={(p) => addCompareOptions(schluterPop.aid, p)}
             compareSet={(sel.compareSets || {})[schluterPop.aid] || {}}

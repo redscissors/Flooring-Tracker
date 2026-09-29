@@ -186,3 +186,23 @@ export function cellBuild(key, ctx, { mirror, sdryPick, kept } = {}) {
     label, name: BRAND[brand] + " · " + label,
   };
 }
+
+/**
+ * A column's build as a seed for its own configurator (Open) — a kept build
+ * as kept, a house kit as shown (its mirrored lines ride cfg.manual).
+ */
+export function cellSeed(c, source) {
+  if (c.kept) return { ...c.kept.snap };
+  if (c.brand === "wedi") return { mode: c.build.mode || "custom", cfg: { ...c.build.cfg, source } };
+  return { mode: "custom", cfg: { ...c.cfg, source, pick: c.build.cand && c.build.cand.tray ? c.build.cand.tray.sku : null } };
+}
+
+/**
+ * A non-live column as a shower-basket entry, priced as the column shows it.
+ * A wedi house kit bills its recipe panels with no Fit plan, and a staged
+ * entry with no session reads Fit ON — so it carries `panelFit: false`.
+ */
+export const stageEntryFor = (c, source) => ({
+  brand: c.brand, snap: cellSeed(c, source),
+  ...(c.brand === "wedi" && !c.live && !c.kept ? { session: { panelFit: false } } : {}),
+});
