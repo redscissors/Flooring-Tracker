@@ -7,7 +7,7 @@ import {
 } from "./labels.js";
 import { searchStock, groutColorOptions } from "./stock.js";
 import { skuKeys } from "./orderbook.js";
-import { HelpTip, FitSelect, GroutColorOptions, SearchPop, useAnchoredPanel, PopMenu, DotMenu } from "./widgets.jsx";
+import { HelpTip, FitSelect, GroutColorOptions, SearchPop, useAnchoredPanel, growBox, PopMenu, DotMenu } from "./widgets.jsx";
 import { PaneTitleBar, APP_ITEMS } from "./raildrawer.jsx";
 import keimLogo from "./assets/keim-logo-ink.png";
 
@@ -162,16 +162,20 @@ function SkuLookup({ stock, onPick, onTwo, onAddMany, single = false, placeholde
       <input value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
         className={inp + " pl-8 ft-search"} placeholder={placeholder} />
       {open && pos && (results.length > 0 || picked.length > 0) && (
-        <SearchPop pos={pos} fieldRef={wrapRef} panelRef={panelRef} className="flex flex-col" style={{ maxHeight: Math.min(340, pos.maxH) }}>
+        <SearchPop pos={pos} box={growBox(pos, Math.min(520, window.innerWidth - 16))} fieldRef={wrapRef} panelRef={panelRef} className="flex flex-col" style={{ maxHeight: Math.min(340, pos.maxH) }}>
           <div className="overflow-y-auto min-h-0" onMouseDown={(e) => e.preventDefault()}>
             {results.map((it) => {
               const on = picked.some((x) => x.sku === it.sku);
+              const size = stockToLabelFields(it).size;
               return (
                 <div key={it.sku} className={`flex items-center gap-2 px-2.5 py-1.5 border-b border-slate-100 last:border-0 ${on ? "bg-[var(--ft-tint)]" : "hover:bg-slate-50"}`}>
                   {!single && <input type="checkbox" checked={on} onChange={() => toggle(it)} className="shrink-0 w-3.5 h-3.5" style={{ accentColor: "var(--ft-brand)" }} aria-label={`Pick ${it.sku}`} />}
                   <button onClick={(e) => { if (!single && e.shiftKey) { toggle(it); return; } onPick(it); done(); }} className="flex-1 min-w-0 flex items-baseline gap-2 text-left">
-                    <span className="ft-mono text-[11px] text-slate-400 shrink-0">{it.sku}</span>
-                    <span className="text-xs font-medium truncate flex-1">{it.description || it.product}</span>
+                    <span className={`ft-mono text-[11px] font-semibold text-slate-700 rounded px-1 shrink-0 min-w-14 text-center whitespace-nowrap ${size ? "bg-slate-100" : ""}`}>{size}</span>
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-xs font-medium leading-snug break-words">{it.description || it.product}</span>
+                      <span className="block ft-mono text-[10.5px] text-slate-400">{it.sku}</span>
+                    </span>
                     {badge(it)
                       ? <span className="shrink-0 text-[10px] font-extrabold text-white rounded-full px-1.5" style={{ background: "var(--ft-brand)" }}>{badge(it)}</span>
                       : <span className="ft-mono text-[11px] text-slate-400 shrink-0">{it.priceSqft != null ? `$${it.priceSqft.toFixed(2)}/sf` : it.price != null ? `$${it.price.toFixed(2)}` : ""}</span>}
