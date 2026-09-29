@@ -73,8 +73,9 @@ export const duplicateInto = (area, slot) => {
 
 // The Compare tab lands each build it prices as its own quote option — two
 // since phase 5, up to four since the 4-way grid (ticket 158 Phase 3):
-// `options` is [{ lines, name }] in letter order, A first; the old
-// { wediLines, schluterLines } shape reads as A = wedi, B = Schluter. Every
+// `options` is [{ lines, name }] taking the job's next free letters in order
+// (A onward on a job with none); the old { wediLines, schluterLines } shape
+// reads as wedi first, Schluter second. Every
 // area MUST land through a single updateProject call — the directory's setter
 // closes over stale state, so two calls in one tick clobber each other — so
 // this builds one patch, not N writes. These are fresh sibling areas (not a

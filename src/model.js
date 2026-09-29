@@ -179,9 +179,7 @@ export const normKitBasketEntry = (e, brand) => {
   return out;
 };
 const normKitBasket = (v, brand) => (Array.isArray(v) ? v.map((e) => normKitBasketEntry(e, brand)).filter(Boolean) : []);
-// Jobs saved before the two popups shared one basket carry wediBasket /
-// schluterBasket; they merge into showerBasket on load and the legacy keys are
-// dropped by normC, so the next write removes them.
+// normC drops the legacy wediBasket/schluterBasket keys, so the next write removes them.
 const normShowerBasket = (shower, wedi, schluter) => Array.isArray(shower)
   ? normKitBasket(shower)
   : [...normKitBasket(wedi, "wedi"), ...normKitBasket(schluter, "schluter")].sort((a, b) => a.addedAt - b.addedAt);

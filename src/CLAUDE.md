@@ -129,13 +129,13 @@ src/
                     # instead, because clobbering whatever took the row's place
                     # is worse than a duplicate the salesperson can see
                     # ; normKitBasketEntry(e, brand?) — the wedi/Schluter staged
-                    # basket entry, brand-tagged and kept in the one
-                    # project.showerBasket (ADR 0035 amendment 2026-09-29; a
-                    # valid e.brand wins, else the argument, else null —
-                    # normC merges legacy wediBasket/schluterBasket by addedAt
-                    # and drops those keys) (ADR 0035 step 3, engine-free on
-                    # purpose: model.js must never import wedi.js/schluter.js),
-                    # snap = the reconfigure marker, plus the optional `target`
+                    # basket entry (ADR 0035 step 3), engine-free on purpose:
+                    # model.js must never import wedi.js/schluter.js. It is
+                    # brand-tagged and kept in the one project.showerBasket
+                    # (ADR 0035 amendment 2026-09-29): a valid e.brand wins,
+                    # else the argument, else null. normC merges legacy
+                    # wediBasket/schluterBasket by addedAt and drops those
+                    # keys. snap = the reconfigure marker, plus the optional `target`
                     # {areaId, rowId, kitId} an entry staged from a reconfigure
                     # carries (normKitTarget — both ids or nothing; kitId is
                     # the move-time staleness check)
@@ -156,13 +156,13 @@ src/
                     # never a copy of the job. `compareOptionsPatch` (phase 5,
                     # ADR 0034; N options since ticket 158 Phase 3) is the
                     # Compare tab's ONE-PATCH landing: `(project, hostAreaId,
-                    # {options: [{lines, name}], label})` — 2 to
-                    # `OPTION_SLOTS.length` fresh sibling areas
-                    # (`{...newArea(), …}`, never duplicateInto's
-                    # shared-source retag — these aren't copies of shared
-                    # work) tagged with the job's next free letters (`nextFreeSlots(cats, n)` —
-                    # gaps first; null when fewer than n are left, so the
-                    # patch is null too) in the given order (the grid's
+                    # {options: [{lines, name}], label})` — fresh sibling
+                    # areas, up to the free letters (`{...newArea(), …}`,
+                    # never duplicateInto's shared-source retag — these
+                    # aren't copies of shared work) tagged with the job's
+                    # next free letters (`nextFreeSlots(cats, n)` — gaps
+                    # first; null when fewer than n are left, so the patch
+                    # is null too) in the given order (the grid's
                     # reading order, checked cells only, packed — comparegrid.js
                     # decides that order, this file just letters what it's
                     # handed), inserted right after the host area (append if
@@ -2501,7 +2501,7 @@ src/
                     # (ticket 158 Phase 3, ADR 0034's Phase 3 amendment):
                     # CompareTab.jsx draws the grid, this module decides what
                     # each of the FOUR cells (wedi/Schluter × Board/Membrane —
-                    # `CELLS`, in reading order A–D) prices to and what didn't
+                    # `CELLS`, in reading order) prices to and what didn't
                     # map cleanly. Imports `comparekit.js` ONLY, never an
                     # engine directly — decision 1's rule extends here — so
                     # it is LAZY-CHUNK-ONLY, same as comparekit.js/
@@ -2538,7 +2538,7 @@ src/
                     # itself sits with the other goldens, `comparegridgolden.js`)
                     # Phase 4 (ADR 0052): `CELLS` is the FIXED column order
                     # (wedi Board, wedi Membrane, Schluter Board, Schluter
-                    # Membrane — option letters follow). `cellBuild(key, ctx,
+                    # Membrane). `cellBuild(key, ctx,
                     # {mirror, sdryPick, kept})` prices a kept entry as the
                     # column (`status: "yours"`, no mirror, `kept` returned),
                     # leading its flags with `room` ("Built for 60×36 — room
@@ -2559,7 +2559,6 @@ src/
                     # the free letters left, when `nextFreeSlots` is null;
                     # `moveable` splits ready from faint. LAZY-CHUNK-ONLY
                     # (ADR 0026): imports both view modules; model.js never does
-                    # (basketkit.test.js)
   ShowerBasket.jsx  # the shared wedi+Schluter basket drawer (spec 2026-09-29
                     # §1), default export, mounted via React.lazy by BOTH
                     # popups inside their slide-in panel once it first opens.
@@ -2666,8 +2665,8 @@ src/
                     # (`data-cmp-sys`) name each side's system; the help tip's walls caveat is
                     # gone.
                     # Phase 3 (ticket 158, ADR 0034/0051 Phase 3 amendments):
-                    # a 2×2 grid (`comparegrid.js`'s `CELLS`, reading order
-                    # A–D) sits above the same two-column detail, driving
+                    # a 2×2 grid (`comparegrid.js`'s `CELLS`, reading
+                    # order) sits above the same two-column detail, driving
                     # which cell the detail shows instead of a fixed host-vs-
                     # opposite pairing. Clicking a non-live tile selects it
                     # (`data-cmp-tile`); the detail is always the LIVE cell
@@ -2703,8 +2702,12 @@ src/
                     # (ADR 0051's Phase 3 amendment). The confirm modal's
                     # send button reads "Check two or more cells for quote
                     # options" (disabled) below two checked cells, else "Add
-                    # N as quote options"; the confirm reads "Add options
-                    # A–X" (`lastLetter`); `data-compare-confirm` is kept.
+                    # N as quote options"; `data-compare-confirm` is kept.
+                    # Since 2026-09-29 the confirm reads the job's real
+                    # next-free letters (`freeSlots`, "Add options C–D"),
+                    # short of letters the footer button reads "Only K option
+                    # letters left — uncheck some", and the hub (no
+                    # `freeSlots`) says "Add N options" with no letters.
                     # An unbuildable cell is unchecked and disabled
                     # (`sendable` only counts checked, buildable cells —
                     # build ruling 9). Sending composes each checked cell's
@@ -2738,7 +2741,10 @@ src/
                     # (`data-cmp-status`: House kit / Your build), total,
                     # delta, up to two chips (`data-cmp-flag`, the room chip
                     # first), Open (`data-cmp-open`), Sync (`data-cmp-sync`,
-                    # Your build only) and the Include checkbox (always shown; title "include in the print and quote options", or "include in the print" without `onQuoteOptions`). The host's
+                    # Your build only) and the Include checkbox (always
+                    # shown; title "include in the print and quote options",
+                    # or "include in the print" without `onQuoteOptions`).
+                    # The host's
                     # column wears the ring — `.cur` inset shadows on every
                     # cell of that column, `top`/`bot` closing it, and a
                     # CURRENT tab (`data-cmp-current`); no absolute overlay.
