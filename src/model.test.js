@@ -373,60 +373,90 @@ test("isRealProjectName: only a hand-typed name counts (spec 2026-08-14 claim ru
     assert.equal(isRealProjectName(good), true, good);
 });
 
+const kitOf = (e) => normKitBasketEntry(e, "wedi");
+
 test("normKitBasketEntry: fills defaults, rejects junk (ADR 0035 step 3)", () => {
-  const e = normKitBasketEntry({ snap: { mode: "custom", cfg: { panKey: "X" } } });
+  const e = kitOf({ snap: { mode: "custom", cfg: { panKey: "X" } } });
   assert.ok(e.id);
   assert.ok(e.addedAt > 0);
   assert.equal(e.kind, "kit");
   assert.deepEqual(e.snap, { mode: "custom", cfg: { panKey: "X" } });
-  const kept = normKitBasketEntry({ id: "bk1", addedAt: 5, snap: { mode: "kit", cfg: {} } });
+  const kept = kitOf({ id: "bk1", addedAt: 5, snap: { mode: "kit", cfg: {} } });
   assert.equal(kept.id, "bk1");
   assert.equal(kept.addedAt, 5);
   for (const junk of [null, 7, "x", {}, { snap: null }, { snap: {} }, { snap: { cfg: "nope" } }])
-    assert.equal(normKitBasketEntry(junk), null, JSON.stringify(junk));
+    assert.equal(kitOf(junk), null, JSON.stringify(junk));
 });
 
 test("normKitBasketEntry: carries session overrides, drops junk (owner decision 2026-08-31)", () => {
-  const e = normKitBasketEntry({ snap: { mode: "custom", cfg: { panKey: "X" } },
+  const e = kitOf({ snap: { mode: "custom", cfg: { panKey: "X" } },
     session: { qtyOv: { a: 3, b: 0, bad: NaN, neg: -2 }, manual: [{ key: "K", qty: 2 }, { key: "", qty: 1 }, { key: "Z", qty: 0 }], panelFit: false } });
   assert.deepEqual(e.session.qtyOv, { a: 3, b: 0 }, "finite >= 0 kept, NaN and negatives dropped");
   assert.deepEqual(e.session.manual, [{ key: "K", qty: 2 }], "blank ids and qty<=0 dropped");
   assert.equal(e.session.panelFit, false);
   // a Schluter extra is keyed by sku
-  assert.deepEqual(normKitBasketEntry({ snap: { mode: "custom", cfg: {} }, session: { manual: [{ sku: "S1", qty: 1 }] } }).session.manual, [{ sku: "S1", qty: 1 }]);
+  assert.deepEqual(kitOf({ snap: { mode: "custom", cfg: {} }, session: { manual: [{ sku: "S1", qty: 1 }] } }).session.manual, [{ sku: "S1", qty: 1 }]);
 });
 
 test("normKitBasketEntry: an entry with nothing overridden carries no session key", () => {
-  const plain = normKitBasketEntry({ snap: { mode: "kit", cfg: { panKey: "X" } } });
+  const plain = kitOf({ snap: { mode: "kit", cfg: { panKey: "X" } } });
   assert.ok(!("session" in plain), "no session field when there is nothing to carry");
   for (const junk of [null, 7, "x", { qtyOv: "no" }, { manual: {} }, { qtyOv: {}, manual: [] }])
-    assert.ok(!("session" in normKitBasketEntry({ snap: { mode: "kit", cfg: {} }, session: junk })), JSON.stringify(junk));
-  assert.equal(normKitBasketEntry({ snap: { mode: "kit", cfg: {} }, session: { panelFit: true } }).session, undefined,
+    assert.ok(!("session" in kitOf({ snap: { mode: "kit", cfg: {} }, session: junk })), JSON.stringify(junk));
+  assert.equal(kitOf({ snap: { mode: "kit", cfg: {} }, session: { panelFit: true } }).session, undefined,
     "panelFit true is the default — nothing to store");
 });
 
-test("normC: wediBasket/schluterBasket normalize, drop junk, default empty (ADR 0035 step 3)", () => {
-  const c = normC({ id: "c1", name: "X", wediBasket: [{ snap: { mode: "kit", cfg: { panKey: "P" } } }, { bad: true }], schluterBasket: "junk" });
-  assert.equal(c.wediBasket.length, 1);
-  assert.equal(c.wediBasket[0].snap.cfg.panKey, "P");
-  assert.deepEqual(c.schluterBasket, []);
-  assert.deepEqual(normC({ id: "c2", name: "Y" }).wediBasket, []);
+const kitE = (addedAt, extra = {}) => ({ addedAt, snap: { mode: "kit", cfg: { panKey: "P" } }, ...extra });
+
+test("normKitBasketEntry: keeps a valid brand, else takes the argument, else null", () => {
+  assert.equal(normKitBasketEntry(kitE(1, { brand: "schluter" }), "wedi").brand, "schluter");
+  assert.equal(normKitBasketEntry(kitE(1), "wedi").brand, "wedi");
+  assert.equal(normKitBasketEntry(kitE(1, { brand: "nope" }), "schluter").brand, "schluter");
+  assert.equal(normKitBasketEntry(kitE(1)), null);
+  assert.equal(normKitBasketEntry(kitE(1, { brand: "nope" })), null);
+});
+
+test("normC merges legacy baskets by addedAt with brands", () => {
+  const c = normC({ id: "c1", name: "X", wediBasket: [kitE(30)], schluterBasket: [kitE(10), kitE(20)] });
+  assert.deepEqual(c.showerBasket.map((b) => [b.brand, b.addedAt]), [["schluter", 10], ["schluter", 20], ["wedi", 30]]);
+});
+
+test("normC showerBasket wins over legacy", () => {
+  const c = normC({ id: "c1", name: "X", showerBasket: [kitE(5, { brand: "wedi" })], schluterBasket: [kitE(1)] });
+  assert.equal(c.showerBasket.length, 1);
+  assert.equal(c.showerBasket[0].brand, "wedi");
+});
+
+test("normC drops a brandless showerBasket entry", () => {
+  const c = normC({ id: "c1", name: "X", showerBasket: [kitE(5), kitE(6, { brand: "wedi" }), { bad: true }] });
+  assert.deepEqual(c.showerBasket.map((b) => b.addedAt), [6]);
+});
+
+test("normC output has no legacy basket keys", () => {
+  const out = normC({ id: "c1", name: "X", wediBasket: [kitE(1)], schluterBasket: [kitE(2)] });
+  assert.ok(!("wediBasket" in out) && !("schluterBasket" in out));
+  assert.deepEqual(normC({ id: "c2", name: "Y" }).showerBasket, []);
+  assert.deepEqual(normC({ id: "c3", name: "Z", wediBasket: "junk", schluterBasket: [{ bad: true }] }).showerBasket, []);
+});
+
+test("newProject seeds showerBasket", () => {
   const p = newProject();
-  assert.deepEqual(p.wediBasket, []);
-  assert.deepEqual(p.schluterBasket, []);
+  assert.deepEqual(p.showerBasket, []);
+  assert.ok(!("wediBasket" in p) && !("schluterBasket" in p));
 });
 
 test("normKitBasketEntry: an entry staged from a reconfigure carries its target", () => {
-  const e = normKitBasketEntry({ snap: { mode: "kit", cfg: { panKey: "X" } },
+  const e = kitOf({ snap: { mode: "kit", cfg: { panKey: "X" } },
     target: { areaId: "a1", rowId: "r1", kitId: "K" } });
   assert.deepEqual(e.target, { areaId: "a1", rowId: "r1", kitId: "K" });
   // kitId is optional — a legacy anchor has none
-  assert.deepEqual(normKitBasketEntry({ snap: { mode: "kit", cfg: {} }, target: { areaId: "a1", rowId: "r1" } }).target,
+  assert.deepEqual(kitOf({ snap: { mode: "kit", cfg: {} }, target: { areaId: "a1", rowId: "r1" } }).target,
     { areaId: "a1", rowId: "r1", kitId: "" });
   // junk targets are dropped, never half-stored: without both ids there is
   // nothing to land on
   for (const junk of [null, 7, "x", {}, { areaId: "a1" }, { rowId: "r1" }, { areaId: "", rowId: "r1" }])
-    assert.ok(!("target" in normKitBasketEntry({ snap: { mode: "kit", cfg: {} }, target: junk })), JSON.stringify(junk));
+    assert.ok(!("target" in kitOf({ snap: { mode: "kit", cfg: {} }, target: junk })), JSON.stringify(junk));
 });
 
 test("moveKitEntries: a targeted entry replaces its kit, an untargeted one appends", () => {

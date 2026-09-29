@@ -182,3 +182,35 @@ Add would not replace.
 The override is a starting point, not a lock: the popup shows it as a hand-set
 quantity with the recipe's figure on hover, and Reset / re-picking a kit clears
 it as before.
+
+## Amendment 2026-09-29 — one shower basket
+
+The two popups each kept their own staged basket (`wediBasket`,
+`schluterBasket`), so a wedi build could not be staged beside a Schluter one and
+Compare had nowhere to send a column's build. The staged entries now live in ONE
+list, `project.showerBasket`, and each entry names its vendor:
+`{ id, kind: "kit", brand: "wedi" | "schluter", addedAt, snap, session?, target? }`.
+Everything else about an entry (the marker-shaped `snap`, the `session` sibling,
+the `target`) is unchanged, and Sheoga's `sheogaBasket` is untouched.
+
+- **Merge on load.** `normC` builds `showerBasket`. A record that already has the
+  array normalizes it, dropping any entry with no valid brand; an older record's
+  `wediBasket` (brand wedi) and `schluterBasket` (brand schluter) are merged and
+  ordered by `addedAt`. The legacy keys are destructured out of the normalized
+  object, so the next `updateProject` write drops them. No SQL — the field rides
+  `customers.data`. `newProject` seeds `showerBasket: []` only.
+- **Brand.** `normKitBasketEntry(e, brand?)` keeps a valid `e.brand`, else takes
+  the argument (the legacy merge passes it), else returns null: an entry that
+  cannot say which engine prices it cannot be shown, so it is dropped rather than
+  guessed.
+- **Rollback.** If this change is reverted after a job has been saved, the old
+  code reads empty `wediBasket`/`schluterBasket` for that job; its staged
+  entries are then invisible, not lost (`showerBasket` stays in the record).
+- **Why the drawer is a lazy two-engine chunk.** Pricing stays live (an entry is
+  re-derived from its marker through its own engine every render, never frozen
+  at staging), so a drawer that lists both brands needs `wedi.js` and
+  `schluter.js` together. That pair must stay off the boot path (ADR 0026) and
+  out of each configurator's own bundle (a configurator never imports the other
+  vendor's engine), so the drawer and its engine side (`ShowerBasket.jsx`,
+  `basketkit.js`) load as one `React.lazy` chunk mounted when either popup first
+  opens it. `model.js` stays engine-free and only normalizes the record.

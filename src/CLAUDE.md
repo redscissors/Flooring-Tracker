@@ -122,10 +122,14 @@ src/
                     # staged (row gone, or now another kit's), which append
                     # instead, because clobbering whatever took the row's place
                     # is worse than a duplicate the salesperson can see
-                    # ; normKitBasketEntry — the wedi/Schluter staged basket
-                    # entry (ADR 0035 step 3, engine-free on purpose: model.js
-                    # must never import wedi.js/schluter.js), snap = the
-                    # reconfigure marker, plus the optional `target`
+                    # ; normKitBasketEntry(e, brand?) — the wedi/Schluter staged
+                    # basket entry, brand-tagged and kept in the one
+                    # project.showerBasket (ADR 0035 amendment 2026-09-29; a
+                    # valid e.brand wins, else the argument, else null —
+                    # normC merges legacy wediBasket/schluterBasket by addedAt
+                    # and drops those keys) (ADR 0035 step 3, engine-free on
+                    # purpose: model.js must never import wedi.js/schluter.js),
+                    # snap = the reconfigure marker, plus the optional `target`
                     # {areaId, rowId, kitId} an entry staged from a reconfigure
                     # carries (normKitTarget — both ids or nothing; kitId is
                     # the move-time staleness check)
