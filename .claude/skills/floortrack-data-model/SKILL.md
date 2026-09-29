@@ -108,6 +108,11 @@ Customer { id, name, address, phone, email, notes, createdAt,
            // by compareset.js `normCompareSets` (junk, unknown cells and
            // areas no longer on the project dropped; absent = {}). No SQL.
            // Not versioned (versions snapshot categories only).
+           groutMemory: { product, bases: { [groutName]: baseKey } },
+           // groutMemory (ADR 0006 amendment 2026-09-29) = the grout type last
+           // picked on this project and, per type, the base last picked; a
+           // newly ticked Grout starts there (color is never remembered).
+           // Written with the row edit in one updateProject; absent = empty.
            erpOrders: [{ no, addedBy, addedAt }],          // ERP 1 orders the job was keyed
            erpKeyed: { [lineId]: { no, at, by } } }        // under + one stamp per order-entry
            // line (ADR 0044, spec 2026-09-19). Normalized by src/erporders.js
@@ -171,7 +176,11 @@ Product  { id, type:"tile|hardwood|vinyl|laminate|carpet|underlayment|misc",
            // the job's family rate (every row saved before it), "0" is a
            // deliberate none. A set rate wins even with the job's family off;
            // never on underlayment/misc (lineWastePct in catalog.js).
-           grout:{checked,product,color,sku,joint,manual,caulk,caulkSku,caulkPrice,caulkCost,bookId}, mortar:{checked,product,manual},
+           grout:{checked,product,color,sku,joint,manual,caulk,caulkSku,caulkPrice,caulkCost,bookId,base}, mortar:{checked,product,manual},
+           // grout.base (ADR 0006 amendment 2026-09-29) = which of the catalog
+           // grout's base units this row orders: "" = the ★ `base`, else an
+           // `altBases` entry's key (sku || name); an unknown key falls back
+           // to the ★. Never a quantity — Extras sums kits per base.
            // grout.sku = the picked color's own price-book SKU, snapshotted at
            // color-pick time when the grout is linked to a book family
            // (ADR 0007); display-only, outranks the catalog product SKU on
@@ -346,7 +355,9 @@ attribute only (jobs still link materials by name, and nothing reads the stock
 table at calc time). It shows on every material line in the order summary and
 print, and lets the import refresh that product's price (and, since ADR 0018's
 2026-09-10 amendment, its cost) by exact SKU. A grout
-product can also carry a `base` companion `{ sku, name, unit, price, cost, per }` —
+product can also carry a `base` companion `{ sku, name, unit, price, cost, per }`
+(the ★ default) plus `altBases` — alternates a row can pick instead (amendment
+2026-09-29: SpectraLock Commercial per 4, PermaColor Unsanded) —
 the two-part grout's base unit — ordered from the **consolidated** kit counts
 (`ceil(total kits / per)`, Commercial unit = per 4) via `groutBaseList`, and
 shown with the grout family in the order summary, estimate breakdown, and

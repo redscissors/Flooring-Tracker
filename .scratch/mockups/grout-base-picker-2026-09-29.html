@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grout Base Picker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ft-cream:#F6F3EC; --ft-card:#FFFFFF; --ft-border:rgba(28,26,23,.10); --ft-border-strong:rgba(28,26,23,.25);
+  --ft-text:#1C1A17; --ft-muted:#57534C; --ft-faint:#8A8378; --ft-brand:#57703A; --ft-brand-deep:#40542A;
+  --ft-sand:#EDE9DD; --ft-band:#E7E3D6; --ft-row-line:#ECE8DC; --tile:#2E3B22;
+  --ft-tint:color-mix(in oklab, var(--ft-brand) 6%, #fff); --ft-brand-soft:color-mix(in oklab, var(--ft-brand) 13%, transparent);
+  --row-tint:#F3F1EA; --rust:#B4552D;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ft-cream);color:var(--ft-text);font-family:Manrope,system-ui,sans-serif;font-size:13px}
+h1{font-size:22px;margin:0 0 4px} h2{font-size:17px;margin:0 0 6px} h3{font-size:14px;margin:0 0 6px}
+.wrap{max-width:1180px;margin:0 auto;padding:20px 16px 60px}
+.eyebrow{font-size:9.5px;font-weight:800;letter-spacing:.2em;text-transform:uppercase;color:var(--ft-brand-deep)}
+.muted{color:var(--ft-muted)} .faint{color:var(--ft-faint)} .mono{font-variant-numeric:tabular-nums}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0 18px}
+.tab{border:1px solid var(--ft-border-strong);background:#fff;border-radius:999px;padding:6px 14px;font:inherit;font-weight:700;cursor:pointer}
+.tab.on{background:var(--ft-text);color:var(--ft-cream);border-color:var(--ft-text)}
+.seg{display:inline-flex;border:1px solid var(--ft-border-strong);border-radius:8px;overflow:hidden;background:#fff}
+.seg button{border:0;background:none;padding:6px 12px;font:inherit;font-weight:700;cursor:pointer;color:var(--ft-muted)}
+.seg button.on{background:var(--ft-brand-soft);color:var(--ft-text)}
+.note{background:#fff;border:1px solid var(--ft-border);border-left:3px solid var(--ft-brand);border-radius:8px;padding:10px 12px;margin:12px 0;line-height:1.5}
+.panel{display:none} .panel.on{display:block}
+.btn{border:1px solid var(--ft-border-strong);background:#fff;border-radius:7px;padding:5px 11px;font:inherit;font-weight:700;cursor:pointer}
+.q{display:inline-grid;place-items:center;width:16px;height:16px;border-radius:50%;border:1px solid var(--ft-border-strong);font-size:10px;color:var(--ft-faint);font-weight:800}
+label.l{display:block;font-size:11px;font-weight:700;color:var(--ft-muted);margin-bottom:4px}
+.inp{border:1px solid var(--ft-border-strong);border-radius:7px;padding:6px 9px;font:inherit;background:#fff;width:100%}
+
+/* settings */
+.shell{background:#fff;border:1px solid var(--ft-border);border-radius:12px;overflow:hidden;margin-top:10px}
+.titlebar{display:flex;align-items:center;gap:8px;padding:12px 18px;border-bottom:1px solid var(--ft-border);font-weight:800;font-size:15px}
+.cols3{display:grid;grid-template-columns:160px 240px 1fr;min-height:430px}
+.col{border-right:1px solid var(--ft-border);padding:10px 8px}
+.navi{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:7px;font-weight:600;color:var(--ft-muted);margin-bottom:2px}
+.navi.on{background:var(--ft-text);color:var(--ft-cream)}
+.co{font-weight:800;font-size:12px;padding:6px 8px 2px}
+.prod{padding:6px 8px 6px 22px;border-left:2px solid transparent;cursor:pointer}
+.prod.on{border-left-color:var(--ft-brand);background:var(--ft-tint)}
+.prod small{display:block;font-size:10px;color:var(--ft-faint)}
+.sect{padding-top:16px;margin-top:16px;border-top:1px solid var(--ft-row-line)}
+.basegrid{display:grid;grid-template-columns:22px 1fr 110px 80px 120px 24px;gap:8px;align-items:center;padding:7px 8px;border-bottom:1px solid var(--ft-row-line)}
+.basegrid.h{font-size:9.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--ft-faint);border-bottom:1px solid var(--ft-border)}
+.star{cursor:pointer;color:#cfc9bb;font-size:15px;background:none;border:0;padding:0}
+.star.on{color:var(--ft-brand)}
+.stepper{display:inline-flex;align-items:center;border:1px solid var(--ft-border-strong);border-radius:7px;background:#fff}
+.stepper button{border:0;background:none;font-weight:800;padding:3px 8px;cursor:pointer}
+.stepper input{width:30px;border:0;text-align:center;font:inherit;font-weight:800}
+.x{color:#c9c2b4;border:0;background:none;font-size:15px}
+.addbase{margin-top:8px;border:1px dashed var(--ft-border-strong);border-radius:8px;padding:7px 10px;color:var(--ft-muted);font-weight:700;display:inline-block}
+
+/* project sheet */
+.projhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px}
+.memory{font-size:11.5px;background:#fff;border:1px dashed var(--ft-border-strong);border-radius:8px;padding:5px 10px}
+.memory b{color:var(--ft-brand-deep)}
+.area{background:#fff;border:1px solid var(--ft-border);border-radius:10px;margin-top:12px}
+.areahead{background:var(--ft-band);padding:8px 14px;border-radius:10px 10px 0 0;font-weight:800;font-size:15px}
+.prow{border-top:1px solid var(--ft-row-line);position:relative}
+.prow:first-of-type{border-top:0}
+.pmain{display:grid;grid-template-columns:30px 1.6fr 90px 90px 110px;gap:10px;align-items:center;padding:8px 12px}
+.tchip{width:22px;height:22px;border-radius:5px;background:var(--tile);color:#fff;display:grid;place-items:center;font-weight:800;font-size:11px}
+.pname b{display:block} .pname small{color:var(--ft-faint)}
+.sfin{width:70px;border:1px solid var(--ft-border-strong);border-radius:6px;padding:3px 6px;font:inherit;text-align:right}
+.pillwrap{padding:0 12px 8px 42px}
+.pill{width:100%;display:flex;flex-wrap:wrap;gap:3px 12px;align-items:center;text-align:left;font:inherit;font-size:10px;color:var(--ft-muted);background:var(--row-tint);border:1px solid var(--ft-border);padding:4px 7px;cursor:pointer}
+.pill.empty{border-style:dashed;background:none}
+.pill b{color:var(--tile)}
+.drawer{margin:0 12px 10px 42px;border:1px solid var(--ft-border-strong);background:var(--row-tint);box-shadow:0 10px 24px rgba(20,15,10,.14)}
+.mat{padding:7px 10px;border-bottom:1px solid var(--ft-row-line);display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center}
+.mat:last-child{border-bottom:0}
+.tog{width:20px;height:20px;border-radius:4px;border:1px solid #b8b1a3;background:#fff;display:grid;place-items:center;cursor:pointer;color:#fff;font-weight:800;font-size:12px;flex:none}
+.tog.on{background:var(--tile);border-color:var(--tile)}
+.matname{font-weight:600;font-size:13px;width:52px}
+.fsel{border:1px solid var(--ft-border-strong);border-radius:6px;padding:3px 22px 3px 7px;font:inherit;font-size:12px;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238A8378'/%3E%3C/svg%3E") no-repeat right 7px center;appearance:none;cursor:pointer}
+.fsel.base{border-color:var(--ft-brand);background-color:var(--ft-tint);font-weight:700}
+.sku{font-size:10px;color:var(--ft-faint)}
+.joints{display:inline-flex;border:1px solid var(--ft-border-strong);border-radius:6px;overflow:hidden;font-size:11px}
+.joints span{padding:3px 6px;background:#fff;color:var(--ft-muted);cursor:pointer}
+.joints span.on{background:var(--tile);color:#fff}
+.qty{margin-left:auto;display:flex;align-items:center;gap:5px;color:var(--tile);font-weight:700}
+.qty input{width:44px;text-align:right;border:1px solid var(--ft-border-strong);border-radius:5px;font:inherit;padding:1px 4px}
+.qty small{color:var(--ft-faint);font-weight:500}
+.subline{flex-basis:100%;padding-left:28px;display:flex;gap:8px;align-items:center;font-size:11.5px;color:var(--ft-muted)}
+.basehint{font-size:10.5px;color:var(--ft-brand-deep);font-weight:600}
+.lab{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ft-faint)}
+.flash{animation:fl 1.2s ease}
+@keyframes fl{0%{box-shadow:0 0 0 3px var(--ft-brand)}100%{box-shadow:0 0 0 0 transparent}}
+
+/* extras */
+.job{background:#fff;border:1px solid var(--ft-border);border-radius:10px;margin-top:16px}
+.band{border-radius:10px 10px 0 0;background:var(--ft-band);padding:10px 16px;display:flex;justify-content:space-between;align-items:center}
+.band b{font-size:19px}
+.exgrid{padding:16px;display:grid;grid-template-columns:minmax(0,1fr) 15rem;gap:24px}
+.excols{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:20px 24px;align-content:start}
+.colh{font-size:8.5px;font-weight:800;letter-spacing:.2em;text-transform:uppercase;color:var(--ft-brand-deep);border-bottom:1px solid var(--ft-row-line);padding-bottom:4px;margin-bottom:6px}
+.line{display:flex;justify-content:space-between;gap:10px;padding:4px 0;font-size:12px}
+.line .nm{font-weight:600;min-width:0}
+.line .nm small{display:block;font-weight:500;font-size:9.5px;color:var(--ft-faint)}
+.line .q2{text-align:right;white-space:nowrap;color:var(--ft-muted);font-size:11px}
+.line .q2 small{display:block;font-size:10px;color:var(--ft-faint)}
+.summ{background:var(--ft-tint);border:1px solid var(--ft-border);border-radius:8px;padding:12px 14px;align-self:start}
+.summ .r{display:flex;justify-content:space-between;font-size:12px;padding:2px 0}
+.summ .t{border-top:2px solid var(--ft-text);margin-top:6px;padding-top:8px;font-weight:800;font-size:13px}
+.summ .t span:last-child{font-size:22px}
+@media (max-width:760px){.cols3{grid-template-columns:1fr}.col{border-right:0;border-bottom:1px solid var(--ft-border)}.exgrid{grid-template-columns:1fr}.pmain{grid-template-columns:30px 1fr 80px}.pmain .hide-sm{display:none}.drawer,.pillwrap{margin-left:12px;padding-left:0}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">the ned · prototype v2 · 2026-09-29</div>
+  <h1>Grout base picker</h1>
+  <div class="muted">Pick the base right in the row's grout pop-up. The project remembers your grout and base for the next row. Extras adds it all up at the end. Clickable, not wired to anything; prices are sample numbers.</div>
+
+  <div class="tabs">
+    <button class="tab on" data-tab="p1">1 · Project sheet</button>
+    <button class="tab" data-tab="p2">2 · Settings → Grout bases</button>
+  </div>
+
+  <!-- ───────────── 1. PROJECT SHEET ───────────── -->
+  <section class="panel on" id="p1">
+    <div class="note"><b>Try it:</b> open a row's extras, tick <b>Grout</b>, pick <b>SpectraLock Pro</b>, then change the <b>Base</b> dropdown next to the joint width. Then tick Grout on another row: it starts on the same grout and base. Color is never carried over. Change the sq ft and watch the base count in Extras follow. <b>New project</b> goes back to the standard defaults.</div>
+    <div class="projhead">
+      <span class="seg" id="placeSeg"><button class="on" data-p="inline">Base chip after joint width</button><button data-p="line">Base on its own line</button></span>
+      <button class="btn" id="newProj">↺ New project</button>
+      <span class="memory" id="memory"></span>
+    </div>
+    <div id="areas"></div>
+
+    <div class="job">
+      <div class="band"><b>Extras</b><span class="mono" id="exTotal" style="font-size:10.5px"></span></div>
+      <div class="exgrid">
+        <div class="excols">
+          <div><div class="colh">Grout</div><div id="groutCol"></div></div>
+          <div><div class="colh">Mortar</div><div class="faint">—</div></div>
+        </div>
+        <div class="summ">
+          <div class="eyebrow" style="margin-bottom:8px">Order summary</div>
+          <div class="r"><span class="muted">Flooring</span><span class="mono" id="sumFloor"></span></div>
+          <div class="r"><span class="muted">Grout &amp; caulk</span><span class="mono" id="sumGrout"></span></div>
+          <div class="r t"><span>Total</span><span class="mono" id="sumTotal"></span></div>
+          <div class="faint" style="font-size:10.5px;margin-top:8px">Figures include 10% waste. Verify before ordering.</div>
+        </div>
+      </div>
+    </div>
+    <div class="note" style="margin-top:14px"><b>How the base adds up:</b> each row only says <i>which</i> base it uses. Extras totals the kits per base across the whole job, then divides by what one unit covers. So 5 kits of Bright White and 3 of Natural Gray on Commercial = 8 kits ÷ 4 = <b>2 Commercial units</b>, whatever the colors. Change a tile's sq ft later and it re-figures on its own; nothing needs re-swapping.</div>
+  </section>
+
+  <!-- ───────────── 2. SETTINGS ───────────── -->
+  <section class="panel" id="p2">
+    <div class="note"><b>Settings:</b> a grout can hold several bases. The ★ one is the standard default a new project starts on. The rest show up in the row's Base dropdown. Each base says how many color kits one unit covers (Full = 1, Commercial = 4, Sanded/Unsanded = 1). A grout with only one base shows no dropdown at all.</div>
+    <div class="shell">
+      <div class="titlebar">Materials &amp; add-ons <span class="q">?</span></div>
+      <div class="cols3">
+        <div class="col">
+          <div class="eyebrow" style="padding:0 6px 6px">Materials</div>
+          <div class="navi on">🖌 Grout</div><div class="navi">▦ Mortar</div><div class="navi">≡ Underlayment</div>
+        </div>
+        <div class="col">
+          <div class="co">Laticrete</div>
+          <div class="prod on" data-g="SpectraLock Pro">SpectraLock Pro<small>2 bases</small></div>
+          <div class="prod" data-g="PermaColor Select">PermaColor Select<small>2 bases</small></div>
+          <div class="prod" data-g="Permacolor">Permacolor<small>no base</small></div>
+          <div class="co">Custom Building Products</div>
+          <div class="prod" data-g="Prism">Prism<small>no base</small></div>
+        </div>
+        <div class="col" style="border-right:0;padding:18px 20px" id="groutDetail"></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const money = (n) => "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+$$(".tab").forEach((t) => t.onclick = () => { $$(".tab").forEach((x) => x.classList.toggle("on", x === t)); $$(".panel").forEach((p) => p.classList.toggle("on", p.id === t.dataset.tab)); });
+
+const CATALOG_DEFAULT = "Permacolor";
+const GROUTS = {
+  "SpectraLock Pro": { cov: 60, price: 38.9, unit: "kits", sku: "LAT-SLP-C", colors: ["Bright White", "Natural Gray", "Silver Shadow", "Midnight Black"], bases: [
+    { id: "full", name: "SpectraLock Pro Full Unit (Part A+B)", short: "Full unit", sku: "LAT-SLP-FULL", price: 62, per: 1, def: true },
+    { id: "comm", name: "SpectraLock Pro Commercial Unit", short: "Commercial unit", sku: "LAT-SLP-COMM", price: 218, per: 4 }] },
+  "PermaColor Select": { cov: 90, price: 21.4, unit: "kits", sku: "LAT-PCS-CK", colors: ["Sterling Silver", "Bright White", "Hemp"], bases: [
+    { id: "snd", name: "PermaColor Select Sanded Base", short: "Sanded", sku: "LAT-PCS-SND", price: 24.5, per: 1, def: true },
+    { id: "uns", name: "PermaColor Select Unsanded Base", short: "Unsanded", sku: "LAT-PCS-UNS", price: 26, per: 1 }] },
+  "Permacolor": { cov: 75, price: 24.95, unit: "bags", sku: "LAT-PC25", colors: ["Bright White", "Natural Gray"], bases: [] },
+  "Prism": { cov: 70, price: 31.5, unit: "bags", sku: "CBP-PR17", colors: ["Delorean Gray", "Snow White"], bases: [] },
+};
+const defBase = (g) => (GROUTS[g].bases.find((b) => b.def) || {}).id || "";
+
+// project memory: last grout type + the base last used for each grout type
+let memory, areas, open, place = "inline";
+function newProject() {
+  memory = { product: "", bases: {} };
+  areas = [
+    { name: "Master bath", rows: [
+      { id: 1, name: "Daltile Volume 1.0 — Ash", size: "12×24", sqft: 120, price: 5.49, grout: { checked: false, product: "", color: "", joint: 0.125, base: "" } },
+      { id: 2, name: "Daltile Keystones — Arctic White", size: "2×2 mosaic", sqft: 45, price: 11.2, grout: { checked: false, product: "", color: "", joint: 0.0625, base: "" } }] },
+    { name: "Kitchen backsplash", rows: [
+      { id: 3, name: "Emser Craft — Chalk", size: "3×12", sqft: 38, price: 8.75, grout: { checked: false, product: "", color: "", joint: 0.0625, base: "" } }] },
+  ];
+  open = null;
+}
+newProject();
+
+const kitsFor = (r) => { const g = GROUTS[r.grout.product]; if (!g || !r.grout.checked) return 0; const vol = r.grout.joint / 0.125; return Math.ceil(r.sqft * 1.1 * vol / g.cov); };
+const baseOf = (r) => { const g = GROUTS[r.grout.product]; if (!g || !g.bases.length) return null; return g.bases.find((b) => b.id === r.grout.base) || g.bases.find((b) => b.def); };
+
+function tickGrout(r) {
+  if (r.grout.checked) { r.grout.checked = false; render(); return; }
+  const product = memory.product || CATALOG_DEFAULT;
+  r.grout = { ...r.grout, checked: true, product, color: "", base: memory.bases[product] || defBase(product) };
+  r._flash = true; render();
+}
+function pickProduct(r, product) {
+  r.grout.product = product; r.grout.color = "";
+  r.grout.base = memory.bases[product] || defBase(product);
+  memory.product = product; render();
+}
+function pickBase(r, id) { r.grout.base = id; memory.bases[r.grout.product] = id; render(); }
+
+function renderMemory() {
+  const bits = memory.product ? [`grout <b>${memory.product}</b>`] : [`grout <b>${CATALOG_DEFAULT}</b> <span class="faint">(team default)</span>`];
+  Object.entries(memory.bases).forEach(([g, id]) => { const b = GROUTS[g].bases.find((x) => x.id === id); if (b) bits.push(`${g} base <b>${b.short}</b>`); });
+  $("#memory").innerHTML = `<span class="faint">This project remembers →</span> ${bits.join(" · ")}`;
+}
+
+function drawerHTML(r) {
+  const G = r.grout, g = GROUTS[G.product], kits = kitsFor(r), base = baseOf(r);
+  if (!G.checked) return `
+    <div class="mat"><span class="tog" data-tog="${r.id}"></span><span class="matname muted" style="font-weight:500">Grout</span><span class="faint" style="font-size:11.5px">${memory.product || CATALOG_DEFAULT}</span></div>
+    <div class="mat"><span class="tog"></span><span class="matname muted" style="font-weight:500">Mortar</span><span class="faint" style="font-size:11.5px">ProLite</span></div>`;
+  const baseSel = g.bases.length > 1 ? `<select class="fsel base" data-base="${r.id}" title="Which base unit this grout orders — the job's Extras totals the kits per base">${g.bases.map((b) => `<option value="${b.id}" ${b.id === base.id ? "selected" : ""}>${place === "inline" ? "Base: " : ""}${b.short}${b.per > 1 ? ` (1 per ${b.per} kits)` : ""}${b.def ? " ★" : ""}</option>`).join("")}</select>` : "";
+  return `
+    <div class="mat" style="background:var(--row-tint)">
+      <span class="tog on" data-tog="${r.id}">✓</span><span class="matname">Grout</span>
+      <select class="fsel" data-prod="${r.id}">${Object.keys(GROUTS).map((n) => `<option ${n === G.product ? "selected" : ""}>${n}</option>`).join("")}</select>
+      <select class="fsel" data-color="${r.id}"><option value="">Color…</option>${g.colors.map((c) => `<option ${c === G.color ? "selected" : ""}>${c}</option>`).join("")}</select>
+      <span class="sku">${g.sku}</span>
+      <span class="joints">${[[0.0625, '1/16"'], [0.125, '1/8"'], [0.1875, '3/16"']].map(([v, l]) => `<span class="${G.joint === v ? "on" : ""}" data-joint="${r.id}:${v}">${l}</span>`).join("")}</span>
+      ${place === "inline" ? baseSel : ""}
+      <span class="qty"><small>${(kits * .93).toFixed(2)} →</small><input value="${kits}"> ${g.unit}</span>
+      ${place === "line" && baseSel ? `<div class="subline"><span class="faint">Base</span>${baseSel}<span class="basehint">${base.per > 1 ? "one unit covers 4 kits — Extras figures the whole job" : "one per kit"}</span></div>` : ""}
+      <div class="subline"><span class="faint">Matching caulk</span>${G.color ? `<span>${G.color} match</span>` : ""}<span style="margin-left:auto;display:flex;gap:4px;align-items:center"><input style="width:36px;border:1px solid var(--ft-border-strong);border-radius:5px;text-align:right" placeholder="—"> tubes</span></div>
+    </div>
+    <div class="mat"><span class="tog"></span><span class="matname muted" style="font-weight:500">Mortar</span><span class="faint" style="font-size:11.5px">ProLite</span></div>`;
+}
+
+function pillHTML(r) {
+  const G = r.grout;
+  if (!G.checked) return `<button class="pill empty" data-open="${r.id}">＋ Extras</button>`;
+  const kits = kitsFor(r);
+  return `<button class="pill" data-open="${r.id}"><span><b>Grout</b> ${kits} · ${G.product}${G.color ? ` — ${G.color}` : ""}</span><span style="flex:1"></span><span class="mono">+ ${money(kits * GROUTS[G.product].price)}</span></button>`;
+}
+
+function renderAreas() {
+  $("#areas").innerHTML = areas.map((a) => `
+    <div class="area"><div class="areahead">${a.name}</div>
+      ${a.rows.map((r) => `
+        <div class="prow">
+          <div class="pmain"><span class="tchip">T</span><span class="pname"><b>${r.name}</b><small>${r.size}</small></span>
+            <span><input class="sfin mono" data-sf="${r.id}" value="${r.sqft}"> <span class="faint">sf</span></span>
+            <span class="mono hide-sm">$${r.price.toFixed(2)}/sf</span><span class="mono hide-sm" style="text-align:right;font-weight:700">${money(r.sqft * 1.1 * r.price)}</span></div>
+          ${open === r.id ? `<div class="drawer ${r._flash ? "flash" : ""}">${drawerHTML(r)}</div>` : `<div class="pillwrap">${pillHTML(r)}</div>`}
+        </div>`).join("")}
+    </div>`).join("");
+  areas.forEach((a) => a.rows.forEach((r) => r._flash = false));
+  const find = (id) => areas.flatMap((a) => a.rows).find((r) => r.id === +id);
+  $$("[data-open]").forEach((b) => b.onclick = () => { open = +b.dataset.open; render(); });
+  $$("[data-tog]").forEach((b) => b.onclick = () => tickGrout(find(b.dataset.tog)));
+  $$("[data-prod]").forEach((s) => s.onchange = () => pickProduct(find(s.dataset.prod), s.value));
+  $$("[data-color]").forEach((s) => s.onchange = () => { find(s.dataset.color).grout.color = s.value; render(); });
+  $$("[data-base]").forEach((s) => s.onchange = () => pickBase(find(s.dataset.base), s.value));
+  $$("[data-joint]").forEach((s) => s.onclick = () => { const [id, v] = s.dataset.joint.split(":"); find(id).grout.joint = +v; render(); });
+  $$("[data-sf]").forEach((s) => s.onchange = () => { find(s.dataset.sf).sqft = +s.value || 0; render(); });
+}
+
+function renderExtras() {
+  const rows = areas.flatMap((a) => a.rows).filter((r) => r.grout.checked);
+  const colors = new Map(), bases = new Map();
+  rows.forEach((r) => {
+    const k = r.grout.product + "|" + (r.grout.color || "—"), kits = kitsFor(r);
+    const c = colors.get(k) || { product: r.grout.product, color: r.grout.color, kits: 0 }; c.kits += kits; colors.set(k, c);
+    const b = baseOf(r); if (b) { const e = bases.get(b.sku) || { b, kits: 0, colors: new Set() }; e.kits += kits; e.colors.add(r.grout.color || "no color yet"); bases.set(b.sku, e); }
+  });
+  let total = 0, html = "";
+  colors.forEach((c) => { const g = GROUTS[c.product], cost = c.kits * g.price; total += cost; html += `<div class="line"><span class="nm">${c.product}${c.color ? ` · <span class="muted" style="font-weight:500">${c.color}</span>` : ""}<small>${g.sku}</small></span><span class="q2 mono">${c.kits} ${g.unit}<small>${money(cost)}</small></span></div>`; });
+  bases.forEach(({ b, kits }) => { const units = Math.ceil(kits / b.per), cost = units * b.price; total += cost; html += `<div class="line"><span class="nm">${b.name}<small>${b.sku} · ${kits} kit${kits === 1 ? "" : "s"}${b.per > 1 ? ` ÷ ${b.per} per unit` : ""}</small></span><span class="q2 mono">${units} unit${units === 1 ? "" : "s"}<small>${money(cost)}</small></span></div>`; });
+  $("#groutCol").innerHTML = html || `<div class="faint">—</div>`;
+  const floor = areas.flatMap((a) => a.rows).reduce((t, r) => t + r.sqft * 1.1 * r.price, 0);
+  $("#sumFloor").textContent = money(floor); $("#sumGrout").textContent = money(total); $("#sumTotal").textContent = money(floor + total);
+  $("#exTotal").textContent = money(total) + " extras";
+}
+function render() { renderMemory(); renderAreas(); renderExtras(); }
+$("#newProj").onclick = () => { newProject(); render(); };
+$$("#placeSeg button").forEach((b) => b.onclick = () => { place = b.dataset.p; $$("#placeSeg button").forEach((x) => x.classList.toggle("on", x === b)); render(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") { open = null; render(); } });
+render();
+
+/* settings tab */
+let gSel = "SpectraLock Pro";
+function renderGrout() {
+  const g = GROUTS[gSel];
+  $$(".prod[data-g]").forEach((p) => p.classList.toggle("on", p.dataset.g === gSel));
+  $("#groutDetail").innerHTML = `
+    <div class="eyebrow">${gSel === "Prism" ? "Custom Building Products" : "Laticrete"}</div>
+    <h2 style="font-size:24px">${gSel}</h2>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;max-width:520px;margin-top:10px">
+      <div><label class="l">Cov. sq ft/unit</label><input class="inp" value="${g.cov}"></div>
+      <div><label class="l">Unit</label><input class="inp" value="${g.unit}"></div>
+      <div><label class="l">$/unit</label><input class="inp" value="${g.price.toFixed(2)}"></div>
+      <div><label class="l">SKU</label><input class="inp" value="${g.sku}"></div>
+    </div>
+    <div class="sect">
+      <h3 style="display:flex;align-items:center;gap:6px">Base units <span class="q" title="Two-part grouts: the color kit is only pigment. Every kit needs a base. ★ = what a new project starts on; the others show in the row's Base dropdown.">?</span></h3>
+      ${g.bases.length ? `
+      <div class="basegrid h"><span></span><span>Base</span><span>SKU</span><span>$/unit</span><span>1 unit covers</span><span></span></div>
+      ${g.bases.map((b, i) => `
+        <div class="basegrid">
+          <button class="star ${b.def ? "on" : ""}" data-i="${i}" title="Standard default for new projects">${b.def ? "★" : "☆"}</button>
+          <span style="font-weight:600">${b.name}</span>
+          <span class="mono faint" style="font-size:11px">${b.sku}</span>
+          <span class="mono">${money(b.price)}</span>
+          <span><span class="stepper"><button>−</button><input value="${b.per}"><button>+</button></span> <span class="faint">kit${b.per > 1 ? "s" : ""}</span></span>
+          <button class="x" title="Remove">×</button>
+        </div>`).join("")}` : `<div class="faint" style="font-size:12px">No base — this grout is one part.</div>`}
+      <div class="addbase">＋ Add a base from the price book…</div>
+      <div class="faint" style="font-size:11px;margin-top:8px">Prices refresh from the price book on re-import, same as today's single base.</div>
+    </div>`;
+  $$("#groutDetail .star").forEach((s) => s.onclick = () => { g.bases.forEach((b, i) => b.def = i === +s.dataset.i); renderGrout(); render(); });
+}
+$$(".prod[data-g]").forEach((p) => p.onclick = () => { gSel = p.dataset.g; renderGrout(); });
+renderGrout();
+</script>
+</body>
+</html>

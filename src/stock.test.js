@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { searchStock, hitRank, relaxSearchWords, findStock, parseTileSize, parseThickness, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant, stockBaseCompanion, groutFamilies, groutColorItem, groutCaulkItem, groutSnapshotPatch, deriveSquareDim, groutColorOptions, groutFamilyFor, switchToSqftPatch, switchChipText } from "./stock.js";
+import { searchStock, hitRank, relaxSearchWords, findStock, parseTileSize, parseThickness, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant, stockBaseCompanion, stockAltBases, basePer, groutFamilies, groutColorItem, groutCaulkItem, groutSnapshotPatch, deriveSquareDim, groutColorOptions, groutFamilyFor, switchToSqftPatch, switchChipText } from "./stock.js";
 import { normOrderItem } from "./orderbook.js";
 import { groutExact, mortarExact, mergeSettings, ceilQty } from "./catalog.js";
 
@@ -671,4 +671,24 @@ test("switchToSqftPatch: blank count stays blank; a row that is already sq ft or
   // typed but with no coverage to convert the count with: no offer at all
   assert.equal(switchToSqftPatch({ type: "misc", qtyType: "count", qty: "3" }, { type: "underlayment", qtyType: "sqft", cartonUnit: "CT" }), null);
   assert.equal(switchToSqftPatch({ type: "misc", qtyType: "count", qty: "3" }, { type: "underlayment", qtyType: "sqft", cartonSf: "0" }), null);
+});
+
+test("stockAltBases offers the pigment's other base as an alternate, per 4 for a Commercial unit", () => {
+  const stock = baseStock();
+  const sl = stockAltBases(pigment("Spectralock Part C"), stock);
+  assert.equal(sl.length, 1);
+  assert.equal(sl[0].sku, "1518984");
+  assert.equal(sl[0].per, 4);
+  assert.equal(sl[0].price, 374.99);
+  const pc = stockAltBases(pigment("Permacolor Color Kit"), stock);
+  assert.equal(pc[0].sku, "1519066");
+  assert.equal(pc[0].per, 1);
+  assert.deepEqual(stockAltBases(pigment("Latasil Caulk"), stock), []);
+});
+
+test("basePer reads a Commercial unit as covering 4 kits", () => {
+  assert.equal(basePer("SpectraLock Comm. Unit"), 4);
+  assert.equal(basePer("3.2 GAL SPECTRALOCK PRO EPOXY GROUT COMMERCIAL UNIT"), 4);
+  assert.equal(basePer("SpectraLock Full Unit"), 1);
+  assert.equal(basePer("PermaColor Sanded Base"), 1);
 });

@@ -670,6 +670,15 @@ src/
                     # groutSnapshotPatch stamps caulkCost beside caulkPrice.
                     # `switchToSqftPatch`/`switchChipText` — the count-line →
                     # sq ft chip (ADR 0043)
+  groutbase.js      # grout base options (ADR 0006 amendment 2026-09-29): a
+                    # catalog grout's ★ `base` + `altBases`, a row's pick in
+                    # `grout.base` ("" = the ★; an unknown key falls back to
+                    # it), `resolveGroutBase`, the chip labels, the project's
+                    # `groutMemory` (last grout type + last base per type) and
+                    # the tick / pick-product / pick-base choices App.jsx and
+                    # mobile.jsx share, plus the Settings base-list edits
+                    # (groutbase.test.js). catalog.js `groutBaseEntries` sums
+                    # kits per (grout, color, base) for groutBaseList
   booklink.js       # catalog ↔ ERP stock-book links (ADR 0027): link/family rule shapes,
                     # series-rule + color-token parsing, family resolution + projection into
                     # stock-shaped items, import-time sync (price + cost, the

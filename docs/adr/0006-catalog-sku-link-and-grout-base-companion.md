@@ -109,3 +109,23 @@ materials totals no matter how the grout is chosen.
 - **Keep the standalone-line auto-add as the only mechanism** (branch behavior).
   Rejected as the primary path: a flat count line doesn't scale with the job or
   consolidate, which is the point of Option B.
+
+## Amendment (2026-09-29): several bases per grout, picked on the row
+
+Spec: `docs/superpowers/specs/2026-09-29-grout-base-options-design.md`.
+
+- A catalog grout keeps `base` as its **★ standard default** and gains
+  `altBases: Base[]` — the alternates (SpectraLock Commercial, per 4;
+  PermaColor Unsanded, per 1). A base's identity is `sku || name`.
+- A product row records **which** base it uses in `grout.base` (`""` = the ★,
+  resolved live by name like everything else; an unknown key falls back to
+  the ★). It never stores a quantity — decision 3 above (the base rides the
+  consolidated kit count) is unchanged, now per base: kits are summed per
+  `(grout, color, base)`, and each base orders `ceil(kits / per)` across the
+  whole job.
+- The project remembers the last grout type and, per grout type, the last
+  base picked (`project.groutMemory`), so a newly ticked Grout starts there.
+  The app never switches a base on its own.
+- Rejected: a job-level swap/split of the consolidated base line in Extras.
+  It fought with later quantity edits (a typed split goes stale the moment a
+  tile's footage moves) and is usually set before any quantity exists.

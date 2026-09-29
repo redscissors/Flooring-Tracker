@@ -311,3 +311,18 @@ test("an underlayment row prints whole sheets at $/sf with its coverage tag (spe
   const row = orderEntryRow(p, s, "Bath", 0, new Set());   // same call shape as the test at line 115
   assert.match(JSON.stringify(row), /8\.4 SF\/SH/);
 });
+
+test("printMatList orders each row's picked base, colors sharing a Commercial unit (ADR 0006 amendment 2026-09-29)", () => {
+  const s2 = normalizeSettings({
+    catalog: { companies: [{ name: "Laticrete", enabled: true, mortars: [], underlayments: [], grouts: [
+      { name: "SpectraLock Pro", coverage: 100, unit: "kits", price: 38.9,
+        base: { sku: "SLP-FULL", name: "Full Unit", unit: "units", price: 62, per: 1 },
+        altBases: [{ sku: "SLP-COMM", name: "Commercial Unit", unit: "units", price: 218, per: 4 }] },
+    ] }] },
+  });
+  const row = (color, base) => ({ ...newProduct(), type: "tile", qty: "100", L: "12", W: "12", grout: { ...newProduct().grout, checked: true, product: "SpectraLock Pro", color, base } });
+  // 100 sf -> 2 kits per row.
+  const rows = printMatList({ categories: [{ id: "a", name: "Bath", products: [row("White", "SLP-COMM"), row("Gray", "SLP-COMM"), row("Black", "")] }] }, s2);
+  const bases = rows.filter((r) => r.kind === "Grout base");
+  assert.deepEqual(bases.map((b) => [b.sku, b.order]).sort(), [["SLP-COMM", 1], ["SLP-FULL", 2]]);
+});

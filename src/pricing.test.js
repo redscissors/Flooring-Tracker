@@ -262,3 +262,13 @@ test("discount tiers ignore cost: builder scales the retail price of a costed ex
   assert.equal(tv.settings.grouts["PermaColor Select"].price, 18.4);
   assert.equal(tv.settings.grouts["PermaColor Select"].cost, 12.5);
 });
+
+test("tier views price a grout's alternate bases like its ★ base (ADR 0006 amendment 2026-09-29)", () => {
+  const alt = { sku: "B4", name: "Comm", unit: "kits", price: 200, cost: 100, per: 4 };
+  const withAlt = (s) => ({ ...s, grouts: { ...s.grouts, "PermaColor Select": { ...s.grouts["PermaColor Select"], altBases: [alt] } } });
+  assert.equal(tierView(proj({ priceTier: "builder" }), withAlt(SETTINGS)).settings.grouts["PermaColor Select"].altBases[0].price, 184);
+  assert.equal(tierView(proj({ priceTier: "employee" }), withAlt(COSTED)).settings.grouts["PermaColor Select"].altBases[0].price, 106);
+  // Only an alternate carries a cost: Employee still switches on.
+  const onlyAlt = { ...SETTINGS, grouts: { "PermaColor Select": { ...SETTINGS.grouts["PermaColor Select"], altBases: [alt] } } };
+  assert.equal(tierView(proj({ priceTier: "employee" }), onlyAlt).settings.grouts["PermaColor Select"].altBases[0].price, 106);
+});

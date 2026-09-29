@@ -89,7 +89,7 @@ const employeePrice = (cost, price) => (num(cost) > 0 && num(price) > 0 ? round2
 const employeeEntry = (e) => { const up = employeePrice(e?.cost, e?.price); return up == null ? e : { ...e, price: up }; };
 const hasCost = (e) => num(e?.cost) > 0 && num(e?.price) > 0;
 const anyMaterialCost = (s) =>
-  Object.values(s?.grouts || {}).some((g) => hasCost(g) || hasCost(g?.base)) ||
+  Object.values(s?.grouts || {}).some((g) => hasCost(g) || hasCost(g?.base) || (g?.altBases || []).some(hasCost)) ||
   Object.values(s?.mortars || {}).some(hasCost) ||
   Object.values(s?.underlayments || {}).some((u) => hasCost(u) || (u?.install || []).some(hasCost)) ||
   Object.values(s?.attached || {}).some((m) => Object.values(m || {}).some(hasCost));
@@ -97,7 +97,7 @@ const anyMaterialCost = (s) =>
 // predates costs pays nothing and reads exactly as before.
 const employeeSettings = (s) => !anyMaterialCost(s) ? s : {
   ...s,
-  grouts: mapVals(s.grouts, (g) => ({ ...employeeEntry(g), ...(g.base ? { base: employeeEntry(g.base) } : {}) })),
+  grouts: mapVals(s.grouts, (g) => ({ ...employeeEntry(g), ...(g.base ? { base: employeeEntry(g.base) } : {}), ...(g.altBases ? { altBases: g.altBases.map(employeeEntry) } : {}) })),
   mortars: mapVals(s.mortars, employeeEntry),
   underlayments: mapVals(s.underlayments, (u) => ({ ...employeeEntry(u), install: (u.install || []).map((d) => (d.kind === "mortar" ? d : employeeEntry(d))) })),
   attached: mapVals(s.attached, (m) => mapVals(m, employeeEntry)),
@@ -146,7 +146,7 @@ export function tierView(proj, settings) {
   });
   const s = pct > 0 ? {
     ...settings,
-    grouts: mapVals(settings.grouts, (g) => ({ ...g, price: scaleN(g.price, f), ...(g.base ? { base: { ...g.base, price: scaleN(g.base.price, f) } } : {}) })),
+    grouts: mapVals(settings.grouts, (g) => ({ ...g, price: scaleN(g.price, f), ...(g.base ? { base: { ...g.base, price: scaleN(g.base.price, f) } } : {}), ...(g.altBases ? { altBases: g.altBases.map((b) => ({ ...b, price: scaleN(b.price, f) })) } : {}) })),
     mortars: mapVals(settings.mortars, (m) => ({ ...m, price: scaleN(m.price, f) })),
     underlayments: mapVals(settings.underlayments, (u) => ({ ...u, price: scaleN(u.price, f), install: (u.install || []).map((d) => ({ ...d, price: scaleN(d.price, f) })) })),
     attached: mapVals(settings.attached, (m) => mapVals(m, (a) => ({ ...a, price: scaleN(a.price, f) }))),

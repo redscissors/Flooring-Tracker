@@ -904,3 +904,16 @@ test("projectFamilies marks special-order color items with their source book", (
   });
   assert.equal(groutSnapshotPatch(projected, "SpectraLock Pro", "Natural Grey").bookId, "sheet1");
 });
+
+test("syncLinkedCatalog refreshes a grout's alternate bases too (ADR 0006 amendment 2026-09-29)", () => {
+  const cat = makeSyncCatalog();
+  const g0 = cat.companies[0].grouts.find((p) => p.id === "g-base");
+  g0.altBases = [{ sku: "BASE-SKU", name: "Commercial Unit", unit: "EA", price: "180.00", cost: 0, per: 4 }, { sku: "NOT-IN-BOOK", name: "Other", unit: "EA", price: "9.00", per: 1 }];
+  const { catalog, changes } = syncLinkedCatalog(cat, "b1", B1_ITEMS);
+  const g = catalog.companies[0].grouts.find((p) => p.id === "g-base");
+  assert.equal(g.altBases[0].price, 215);
+  assert.equal(g.altBases[0].cost, 120);
+  assert.equal(g.altBases[0].per, 4);
+  assert.equal(g.altBases[1].price, "9.00");
+  assert.ok(changes.some((c) => c.name === "Base Grout — Commercial Unit" && c.to === 215));
+});

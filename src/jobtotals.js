@@ -1,4 +1,4 @@
-import { num, ceilQty, getCarton, getGrout, getMortar, getUnderlay, getUnderlayInstall, getPieceCarton, groutBaseList, attachedList } from "./catalog.js";
+import { num, ceilQty, getCarton, getGrout, getMortar, getUnderlay, getUnderlayInstall, getPieceCarton, groutBaseList, groutBaseEntries, attachedList } from "./catalog.js";
 import { miscQty } from "./model.js";
 import { freightList, freightTotal, freightPrintRows } from "./freight.js";
 import { printMatList, lineTotal, orderLineCost } from "./print.js";
@@ -19,9 +19,9 @@ export function jobTotals(proj, rawProj, tSet, wSet, settings, books) {
   const mList = Object.values(mAgg).map((m) => { const order = ceilQty(m.exact); return { ...m, sku: settings.mortars[m.product]?.sku || "", order, cost: order * num(m.price) }; });
   const uList = Object.values(uAgg).map((u) => { const order = ceilQty(u.exact); return { ...u, sku: u.itemSku || settings.underlayments?.[u.product]?.sku || "", order, cost: order * num(u.price) }; });
   const cList = Object.values(cAgg).map((c) => { const order = ceilQty(c.exact); return { ...c, order, cost: order * num(c.price) }; });
-  // Base units ride the CONSOLIDATED kit counts (ADR 0006), so they're derived
-  // from gList — not per line — and their cost joins the grout family's.
-  const bList = groutBaseList(gList, tSet);
+  // Base units ride the CONSOLIDATED kit counts (ADR 0006), grouped by the base
+  // each row picked (amendment 2026-09-29), and their cost joins the grout family's.
+  const bList = groutBaseList(groutBaseEntries(proj?.categories, tSet), tSet);
   const baseCost = bList.reduce((t, b) => t + b.cost, 0);
   // Add-on categories (ADR 0016), aggregated once and shared by the order
   // summary, order sheet, and grand total. Grouped by category for the summary.

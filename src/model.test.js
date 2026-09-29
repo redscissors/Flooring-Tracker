@@ -555,3 +555,12 @@ test("normC: compareSets normalized, pruned to live areas (ADR 0052)", () => {
   assert.deepEqual(normC({ id: "c", categories: [] }).compareSets, {});
   assert.deepEqual(newProject().compareSets, {});
 });
+
+test("normC carries the project's grout memory and normP the row's base pick (ADR 0006 amendment 2026-09-29)", () => {
+  assert.deepEqual(normC({ id: "c1" }).groutMemory, { product: "", bases: {} });
+  const c = normC({ id: "c1", groutMemory: { product: "SpectraLock Pro", bases: { "SpectraLock Pro": "SLP-COMM" } } });
+  assert.deepEqual(c.groutMemory, { product: "SpectraLock Pro", bases: { "SpectraLock Pro": "SLP-COMM" } });
+  assert.equal(newProduct().grout.base, "");
+  assert.equal(normP({}).grout.base, "");
+  assert.equal(normP({ grout: { base: "SLP-COMM" } }).grout.base, "SLP-COMM");
+});

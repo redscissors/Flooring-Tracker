@@ -10,6 +10,7 @@ import { isSpecialOrder, isSpecialMat, nameBudget, orderQty } from "./orderentry
 import { SamplesPanel } from "./samples.jsx";
 import { requestFrom, sampleCounts, projectSampleTally, sampleContactFor, sampleBookFor, SAMPLE_LABEL, SAMPLE_COLOR } from "./samples.js";
 import { sheogaMarkups } from "./vendorbook.js";
+import { baseKey, groutBases, resolveGroutBase, baseLabel, baseOptionLabel, tickGroutChoice, pickGroutProductChoice, pickGroutBaseChoice } from "./groutbase.js";
 import { useSamples } from "./usesamples.js";
 import { tierView, tierUnitPrice, employeeNoCost, normPricing } from "./pricing.js";
 import { freightPrintRows, freightOrderRow, freightSummary, freightBookFor, rowFreightOn } from "./freight.js";
@@ -809,6 +810,9 @@ export default function App({ user, onSignOut }) {
   const delArea = (aid) => updateProject(sel.id, { categories: sel.categories.filter((a) => a.id !== aid) });
   const addProduct = (aid) => { const a = sel.categories.find((x) => x.id === aid); const np = newProduct(); updArea(aid, { products: [...a.products, np] }); setFocusProd(np.id); };
   const updProduct = (aid, pid, patch) => { const a = sel.categories.find((x) => x.id === aid); updArea(aid, { products: a.products.map((p) => p.id === pid ? { ...p, ...patch } : p) }); };
+  // A row edit that also moves a project-level field (the grout memory) — one
+  // write, so the two can't clobber each other.
+  const updProductProj = (aid, pid, patch, projPatch) => updateProject(sel.id, { ...projPatch, categories: sel.categories.map((x) => x.id === aid ? { ...x, products: x.products.map((p) => p.id === pid ? { ...p, ...patch } : p) } : x) });
   // Mobile add bar (mobile shell 2026-07-16): + Product targets the area in
   // view — tracked on scroll with the anchor 30% down the viewport (v2 mockup
   // spec); tapping inside an area also claims it (onClickCapture on the card,
@@ -1948,7 +1952,12 @@ export default function App({ user, onSignOut }) {
                           return false;
                         };
                         const pickGroutColor = (color) => { if (stockBusy(gBook)) return; updProduct(a.id, p.id, { grout: { ...p.grout, color, ...groutSnapshotPatch(groutStock, gBook, color) } }); };
-                        const pickGroutProduct = (product) => { const book = settings.grouts[product]?.book || ""; if (stockBusy(book)) return; updProduct(a.id, p.id, { grout: { ...p.grout, product, ...groutSnapshotPatch(groutStock, book, p.grout.color) } }); };
+                        // The project remembers the grout type and, per type, the base
+                        // last picked (ADR 0006 amendment 2026-09-29).
+                        const pickGroutProduct = (product) => { const book = settings.grouts[product]?.book || ""; if (stockBusy(book)) return; const c = pickGroutProductChoice(product, sel.groutMemory, settings.grouts); updProductProj(a.id, p.id, { grout: { ...p.grout, product, base: c.base, ...groutSnapshotPatch(groutStock, book, p.grout.color) } }, { groutMemory: c.memory }); };
+                        const pickGroutBase = (key) => { const c = pickGroutBaseChoice(p.grout.product, key, sel.groutMemory, settings.grouts); updProductProj(a.id, p.id, { grout: { ...p.grout, base: c.base } }, { groutMemory: c.memory }); };
+                        const gBases = groutBases(settings.grouts[p.grout.product]);
+                        const gBase = resolveGroutBase(settings.grouts[p.grout.product], p.grout.base);
                         // Turning a material on: keep the row's pick when the catalog
                         // still offers it, else the team's catalog default, else the
                         // first offered — so "click to choose" never activates a
@@ -1956,8 +1965,9 @@ export default function App({ user, onSignOut }) {
                         // explicit pick is untouched; it only injects back as a select
                         // option, as before.
                         const mortarDefault = resolveMaterialDefault(mortarNames, p.mortar.product, settings.catalog.defaults?.mortar);
-                        const groutDefault = resolveMaterialDefault(groutNames, p.grout.product, settings.catalog.defaults?.grout);
-                        const addGrout = () => { if (groutDefault === p.grout.product) { updProduct(a.id, p.id, { grout: { ...p.grout, checked: true } }); return; } const book = settings.grouts[groutDefault]?.book || ""; if (stockBusy(book)) return; updProduct(a.id, p.id, { grout: { ...p.grout, checked: true, product: groutDefault, ...groutSnapshotPatch(groutStock, book, p.grout.color) } }); };
+                        const groutTick = tickGroutChoice(p.grout, groutNames, sel.groutMemory, settings.catalog.defaults?.grout, settings.grouts);
+                        const groutDefault = groutTick.product;
+                        const addGrout = () => { if (groutDefault === p.grout.product) { updProduct(a.id, p.id, { grout: { ...p.grout, checked: true, base: groutTick.base } }); return; } const book = settings.grouts[groutDefault]?.book || ""; if (stockBusy(book)) return; updProduct(a.id, p.id, { grout: { ...p.grout, checked: true, product: groutDefault, base: groutTick.base, ...groutSnapshotPatch(groutStock, book, p.grout.color) } }); };
                         const mortarOpts = mortarNames.includes(p.mortar.product) ? mortarNames : [p.mortar.product, ...mortarNames];
                         // Underlayment applies to every flooring type but its options are
                         // filtered to the ones tagged for this type; a stored pick that is
@@ -2125,7 +2135,7 @@ export default function App({ user, onSignOut }) {
                         const rowEditor = !isWide && rowSheet?.pid === p.id ? (
                           <MobileRowSheet p={p} stockBookIds={stockBookIds} areaName={areaLabel(a, ai)} canDelete={a.products.length > 1 && !(rowBlank(p) && isAdder)} initialSearch={!!rowSheet.search}
                             settings={wSet} stock={stockItems} groutStock={groutStock} stockReady={bookStockReady} bookStockReady={bookStockReady} isBookFam={isBookFam} gFamilies={gFamilies} searchOrder={searchOrder} bookName={bookName} tv={tv} notify={ping} strictness={searchStrictness} fallback={searchFallback} markups={quickMarkups} showers={showers}
-                            onPatch={(patch) => updProduct(a.id, p.id, patch)}
+                            onPatch={(patch, projPatch) => (projPatch ? updProductProj(a.id, p.id, patch, projPatch) : updProduct(a.id, p.id, patch))} groutMemory={sel.groutMemory}
                             sample={sampleByProduct.get(p.id) || null}
                             onSample={() => toggleSample(a, ai, p)}
                             onPickStock={(items) => { addStockProducts(a.id, p.id, items); setFocusQty(p.id); }}
@@ -2372,6 +2382,7 @@ export default function App({ user, onSignOut }) {
                                         {(p.grout.sku || settings.grouts[p.grout.product]?.sku) && <span className="ft-mono text-[10px] text-slate-400 shrink-0" title="This color's price book SKU — prints on the order summary">{p.grout.sku || settings.grouts[p.grout.product]?.sku}</span>}
                                         {groutSpecial && <span className="text-[10px] text-indigo-600 shrink-0" title="This color isn't stocked — it's ordered from the vendor's price list">special order</span>}
                                         <div className="flex rounded-md border border-slate-200 overflow-hidden text-[11px] shrink-0">{JOINTS.map((j) => <button tabIndex={-1} key={j.v} onClick={() => updProduct(a.id, p.id, { grout: { ...p.grout, joint: j.v } })} className={`px-1.5 py-1 ${num(p.grout.joint) === j.v ? "" : "ft-field text-slate-500 hover:bg-slate-50"}`} style={num(p.grout.joint) === j.v ? { background: accent, color: "var(--ft-type-ink)" } : undefined}>{j.label}</button>)}</div>
+                                        {gBases.length > 1 && <FitSelect sm bg={rowTint} value={baseKey(gBase)} display={`Base: ${baseLabel(gBase)}`} title={`${gBase.name} — the job's Extras orders one per ${gBase.per > 1 ? `${gBase.per} kits` : "kit"} across every row on this base`} onChange={(e) => pickGroutBase(e.target.value)}>{gBases.map((b, i) => <option key={baseKey(b)} value={baseKey(b)}>{baseOptionLabel(b, i === 0)}</option>)}</FitSelect>}
                                       </div>
                                       <span className="ml-auto flex items-center gap-1 text-sm shrink-0" style={{ color: accent }}>{gEx != null && <span className="text-slate-400 text-xs whitespace-nowrap">{gEx.toFixed(2)} →</span>}<input tabIndex={-1} type="number" value={G ? String(G.order) : ""} onChange={(e) => updProduct(a.id, p.id, { grout: { ...p.grout, manual: e.target.value } })} placeholder="—" title="Total — type to override the calculated amount" className="!w-12 text-right font-semibold rounded border border-slate-200 hover:border-slate-300 focus:border-indigo-500 focus:outline-none px-1 py-0.5 ft-field" /><span className="font-semibold">{gUnit}</span></span>
                                       {!G && <div className="order-last basis-full text-xs text-amber-500">Enter Sq Ft + tile L/W/thickness to calculate, or type a total above.</div>}

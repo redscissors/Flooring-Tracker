@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settings Cleanup Prototypes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ft-cream:#F6F3EC; --ft-card:#FFFFFF; --ft-border:rgba(28,26,23,.10); --ft-border-strong:rgba(28,26,23,.25);
+  --ft-text:#1C1A17; --ft-muted:#57534C; --ft-faint:#8A8378; --ft-brand:#57703A; --ft-brand-deep:#40542A;
+  --ft-sand:#EDE9DD; --ft-band:#E7E3D6; --ft-row-line:#ECE8DC;
+  --ft-tint:color-mix(in oklab, var(--ft-brand) 6%, #fff); --ft-brand-soft:color-mix(in oklab, var(--ft-brand) 13%, transparent);
+  --rust:#B4552D; --gone:#B4552D;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ft-cream);color:var(--ft-text);font-family:Manrope,system-ui,sans-serif;font-size:13px}
+h1{font-size:22px;margin:0 0 4px} h2{font-size:17px;margin:0 0 6px} h3{font-size:14px;margin:0 0 6px}
+.wrap{max-width:1180px;margin:0 auto;padding:20px 16px 60px}
+.eyebrow{font-size:9.5px;font-weight:800;letter-spacing:.2em;text-transform:uppercase;color:var(--ft-brand-deep)}
+.muted{color:var(--ft-muted)} .faint{color:var(--ft-faint)}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0 18px}
+.tab{border:1px solid var(--ft-border-strong);background:#fff;border-radius:999px;padding:6px 14px;font:inherit;font-weight:700;cursor:pointer}
+.tab.on{background:var(--ft-text);color:var(--ft-cream);border-color:var(--ft-text)}
+.seg{display:inline-flex;border:1px solid var(--ft-border-strong);border-radius:8px;overflow:hidden;background:#fff}
+.seg button{border:0;background:none;padding:6px 12px;font:inherit;font-weight:700;cursor:pointer;color:var(--ft-muted)}
+.seg button.on{background:var(--ft-brand-soft);color:var(--ft-text)}
+.note{background:#fff;border:1px solid var(--ft-border);border-left:3px solid var(--ft-brand);border-radius:8px;padding:10px 12px;margin:12px 0;line-height:1.5}
+.note b{font-weight:800}
+.panel{display:none} .panel.on{display:block}
+
+/* settings shell */
+.shell{display:flex;background:#fff;border:1px solid var(--ft-border);border-radius:12px;overflow:hidden;min-height:470px;margin-top:10px}
+.drawer{width:190px;flex:none;border-right:1px solid var(--ft-border);padding:12px 8px;background:#FBFAF6}
+.navi{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:7px;font-weight:600;color:var(--ft-muted);cursor:pointer;margin-bottom:2px}
+.navi.on{background:var(--ft-text);color:var(--ft-cream)}
+.navi .ic{width:16px;text-align:center;opacity:.7}
+.navi .sub{display:block;font-size:10px;font-weight:500;opacity:.75}
+.navi.gone{color:var(--gone);text-decoration:line-through;opacity:.7}
+.pane{flex:1;min-width:0;display:flex;flex-direction:column}
+.titlebar{display:flex;align-items:center;gap:8px;padding:12px 18px;border-bottom:1px solid var(--ft-border);font-weight:800;font-size:15px}
+.q{display:inline-grid;place-items:center;width:16px;height:16px;border-radius:50%;border:1px solid var(--ft-border-strong);font-size:10px;color:var(--ft-faint);font-weight:800}
+.body{padding:18px;overflow:auto}
+label.l{display:block;font-size:11px;font-weight:700;color:var(--ft-muted);margin-bottom:4px}
+.inp{border:1px solid var(--ft-border-strong);border-radius:7px;padding:6px 9px;font:inherit;background:#fff;width:100%}
+.sect{padding-top:16px;margin-top:16px;border-top:1px solid var(--ft-row-line)}
+.segsm{display:inline-flex;border:1px solid var(--ft-border-strong);border-radius:7px;overflow:hidden}
+.segsm span{padding:5px 11px;font-weight:700;color:var(--ft-muted)} .segsm span.on{background:var(--ft-text);color:var(--ft-cream)}
+.cards{display:flex;gap:10px;flex-wrap:wrap;align-items:stretch}
+.card{border:1px solid var(--ft-border);border-radius:11px;padding:7px 9px;background:#fff;display:flex;flex-direction:column;gap:5px;min-width:130px}
+.card.gone{border:1px dashed var(--gone);background:#FCF4F0;opacity:.8;position:relative}
+.card.gone::after{content:"remove";position:absolute;top:-8px;right:8px;background:var(--gone);color:#fff;font-size:9px;font-weight:800;padding:1px 6px;border-radius:99px;text-transform:uppercase;letter-spacing:.1em}
+.card.new{border:1px solid var(--ft-brand);background:var(--ft-tint);position:relative}
+.card.new::after{content:"moved in";position:absolute;top:-8px;right:8px;background:var(--ft-brand);color:#fff;font-size:9px;font-weight:800;padding:1px 6px;border-radius:99px;text-transform:uppercase;letter-spacing:.1em}
+.pct{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--ft-muted)}
+.pct i{font-style:normal;display:inline-grid;place-items:center;width:16px;height:16px;border-radius:4px;background:var(--ft-sand);font-weight:800}
+.pct input{width:40px;text-align:center;border:1px solid var(--ft-border-strong);border-radius:6px;font:inherit;padding:1px 2px}
+.rule{border-top:2px solid #cfc9bb;margin:12px 0}
+.bookrow{display:flex;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--ft-border);border-radius:9px;margin-bottom:6px;background:#fff}
+.chip{display:inline-block;border-radius:99px;padding:1px 8px;font-size:10.5px;font-weight:700;background:var(--ft-sand);color:var(--ft-muted)}
+.link{color:var(--ft-brand);font-weight:700;cursor:pointer}
+.btn{border:1px solid var(--ft-border-strong);background:#fff;border-radius:7px;padding:5px 11px;font:inherit;font-weight:700;cursor:pointer}
+.btn.ink{background:var(--ft-text);color:var(--ft-cream);border-color:var(--ft-text)}
+.btn.moss{background:var(--ft-brand);color:#fff;border-color:var(--ft-brand)}
+.cols3{display:grid;grid-template-columns:160px 250px 1fr;min-height:470px}
+.col{border-right:1px solid var(--ft-border);padding:10px 8px;overflow:auto}
+.prod{padding:6px 8px 6px 22px;border-left:2px solid transparent;cursor:pointer}
+.prod.on{border-left-color:var(--ft-brand);background:var(--ft-tint)}
+.prod small{display:block;font-size:10px;color:var(--ft-faint)}
+.co{font-weight:800;font-size:12px;padding:6px 8px 2px}
+.basegrid{display:grid;grid-template-columns:22px 1fr 110px 80px 120px 24px;gap:8px;align-items:center;padding:7px 8px;border-bottom:1px solid var(--ft-row-line)}
+.basegrid.h{font-size:9.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--ft-faint);border-bottom:1px solid var(--ft-border)}
+.star{cursor:pointer;color:#cfc9bb;font-size:15px;background:none;border:0;padding:0}
+.star.on{color:var(--ft-brand)}
+.mono{font-variant-numeric:tabular-nums}
+.x{color:#c9c2b4;cursor:pointer;border:0;background:none;font-size:15px}
+.addbase{margin-top:8px;border:1px dashed var(--ft-border-strong);border-radius:8px;padding:7px 10px;color:var(--ft-muted);font-weight:700;cursor:pointer;display:inline-block}
+
+/* job extras */
+.job{background:#fff;border:1px solid var(--ft-border);border-radius:10px;margin-top:10px}
+.band{border-radius:10px 10px 0 0;background:var(--ft-band);padding:10px 16px;display:flex;justify-content:space-between;align-items:center}
+.band b{font-size:19px}
+.exgrid{padding:16px;display:grid;grid-template-columns:minmax(0,1fr) 15rem;gap:24px}
+.excols{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:20px 24px;align-content:start}
+.colh{font-size:8.5px;font-weight:800;letter-spacing:.2em;text-transform:uppercase;color:var(--ft-brand-deep);border-bottom:1px solid var(--ft-row-line);padding-bottom:4px;margin-bottom:6px}
+.line{display:flex;justify-content:space-between;gap:10px;padding:4px 0;font-size:12px}
+.line .nm{font-weight:600;min-width:0}
+.line .nm small{display:block;font-weight:500;font-size:9.5px;color:var(--ft-faint)}
+.line .q2{text-align:right;white-space:nowrap;color:var(--ft-muted);font-size:11px}
+.line .q2 small{display:block;font-size:10px;color:var(--ft-faint)}
+.swapbtn{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:6px;border:1px solid var(--ft-border-strong);background:#fff;cursor:pointer;font-size:12px;margin-left:6px;vertical-align:middle;color:var(--ft-brand-deep)}
+.swapbtn:hover{background:var(--ft-tint);border-color:var(--ft-brand)}
+.mixtag{font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--ft-brand);margin-left:4px}
+.summ{background:var(--ft-tint);border:1px solid var(--ft-border);border-radius:8px;padding:12px 14px;align-self:start}
+.summ .r{display:flex;justify-content:space-between;font-size:12px;padding:2px 0}
+.summ .t{border-top:2px solid var(--ft-text);margin-top:6px;padding-top:8px;font-weight:800;font-size:13px}
+.summ .t span:last-child{font-size:22px}
+
+.pop{position:absolute;z-index:20;width:470px;background:#fff;border:1px solid var(--ft-border-strong);border-radius:12px;box-shadow:0 14px 40px rgba(28,26,23,.18);padding:12px 14px}
+.pop h4{margin:0 0 2px;font-size:13.5px;font-weight:800}
+.poprow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0 8px}
+.poprow .lab{width:64px;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ft-muted)}
+.pchip{border-radius:99px;padding:3px 11px;font:inherit;font-weight:700;border:1px solid #9d978b;background:#fff;cursor:pointer}
+.pchip.on{background:var(--ft-brand);border-color:var(--ft-brand);color:#fff}
+.splitbox{border:1px solid var(--ft-border);border-radius:9px;overflow:hidden;margin-top:4px}
+.splitrow{display:grid;grid-template-columns:1fr 130px 70px;gap:8px;align-items:center;padding:8px 10px;border-bottom:1px solid var(--ft-row-line)}
+.splitrow:last-child{border-bottom:0}
+.splitrow .nm{font-weight:700} .splitrow .nm small{display:block;font-weight:500;color:var(--ft-faint);font-size:10px}
+.stepper{display:inline-flex;align-items:center;border:1px solid var(--ft-border-strong);border-radius:7px;background:#fff}
+.stepper button{border:0;background:none;font-weight:800;padding:3px 8px;cursor:pointer;font-size:13px}
+.stepper input{width:34px;border:0;text-align:center;font:inherit;font-weight:800}
+.autotag{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--ft-brand);display:block}
+.covers{font-size:11px;color:var(--ft-muted);text-align:right}
+.pstrip{margin-top:10px;border:1px solid var(--ft-border);background:var(--ft-tint);border-radius:9px;padding:8px 10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.pstrip .w{flex:1;min-width:200px} .pstrip .w small{display:block;color:var(--ft-muted);font-weight:600;font-size:11px}
+.warn{color:var(--rust)}
+.flow{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px}
+.flow div{background:#fff;border:1px solid var(--ft-border);border-radius:9px;padding:9px 11px;line-height:1.45}
+@media (max-width:760px){.cols3{grid-template-columns:1fr}.col{border-right:0;border-bottom:1px solid var(--ft-border)}.exgrid{grid-template-columns:1fr}.shell{flex-direction:column}.drawer{width:auto}.pop{width:calc(100vw - 32px);left:16px!important}.flow{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">the ned · prototypes · 2026-09-29</div>
+  <h1>Settings cleanup + grout base options</h1>
+  <div class="muted">Clickable mockups — not wired to anything. Prices are sample numbers.</div>
+
+  <div class="tabs">
+    <button class="tab on" data-tab="p1">1 · Settings layout</button>
+    <button class="tab" data-tab="p2">2 · Base options in Materials</button>
+    <button class="tab" data-tab="p3">3 · Swap bases in Extras</button>
+  </div>
+
+  <!-- ───────────── 1. SETTINGS LAYOUT ───────────── -->
+  <section class="panel on" id="p1">
+    <div class="seg" id="layoutSeg">
+      <button data-l="now">Today</button>
+      <button class="on" data-l="a">Proposal A — all into Price books</button>
+      <button data-l="b">Proposal B — waste into Materials</button>
+    </div>
+    <div class="seg" id="nameSeg" style="margin-left:8px">
+      <button class="on" data-n="mat">“Materials &amp; add-ons”</button>
+      <button data-n="ext">“Extras”</button>
+    </div>
+    <div class="note" id="layoutNote"></div>
+
+    <div class="shell">
+      <div class="drawer" id="drawer"></div>
+      <div class="pane">
+        <div class="titlebar"><span id="paneTitle"></span><span class="q">?</span></div>
+        <div class="body" id="paneBody"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────── 2. BASE OPTIONS ───────────── -->
+  <section class="panel" id="p2">
+    <div class="note"><b>What changes:</b> today a grout carries <b>one</b> base unit (ADR 0006). This lets it carry <b>several</b> — one is the default (★) that every job starts with, and the rest are what the job's swap pop-up offers. Each base says how many color kits one unit covers (Full = 1, Commercial = 4). Sanded/Unsanded are both 1.</div>
+    <div class="shell" style="display:block">
+      <div class="titlebar">Materials &amp; add-ons <span class="q">?</span></div>
+      <div class="cols3">
+        <div class="col">
+          <div class="eyebrow" style="padding:0 6px 6px">Materials</div>
+          <div class="navi on"><span class="ic">🖌</span>Grout</div>
+          <div class="navi"><span class="ic">▦</span>Mortar</div>
+          <div class="navi"><span class="ic">≡</span>Underlayment</div>
+          <div class="eyebrow" style="padding:12px 6px 6px">Add-ons</div>
+          <div class="navi"><span class="ic">#</span>Sealer</div>
+        </div>
+        <div class="col">
+          <div class="co">Laticrete</div>
+          <div class="prod on" data-g="sl">SpectraLock Pro<small>80 sq ft/kit · 2 bases</small></div>
+          <div class="prod" data-g="pc">PermaColor Select<small>100 sq ft/kit · 2 bases</small></div>
+          <div class="prod">Permacolor<small>25 lb · no base</small></div>
+          <div class="co">Custom Building Products</div>
+          <div class="prod">Prism<small>17 lb · no base</small></div>
+        </div>
+        <div class="col" style="border-right:0;padding:18px 20px" id="groutDetail"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────── 3. SWAP IN EXTRAS ───────────── -->
+  <section class="panel" id="p3">
+    <div class="note"><b>Try it:</b> press <b>⇄</b> next to a base line. Pick <b>All …</b> to switch every kit, or type how many of the other base you want — the default soaks up the rest automatically. Type in both boxes to set each one yourself. The choice is saved on this project only.</div>
+    <div class="job" style="position:relative" id="jobBox">
+      <div class="band"><b>Extras</b><span class="mono" id="exTotal" style="font-size:10.5px"></span></div>
+      <div class="exgrid">
+        <div class="excols">
+          <div><div class="colh">Grout</div><div id="groutCol"></div></div>
+          <div><div class="colh">Mortar</div>
+            <div class="line"><span class="nm">ProLite<small>LAT-0T7735</small></span><span class="q2 mono">14 bags<small>$419.30</small></span></div>
+          </div>
+        </div>
+        <div class="summ">
+          <div class="eyebrow" style="margin-bottom:8px">Order summary</div>
+          <div class="r"><span class="muted">Flooring</span><span class="mono">$6,480.00</span></div>
+          <div class="r"><span class="muted">Grout &amp; caulk</span><span class="mono" id="sumGrout"></span></div>
+          <div class="r"><span class="muted">Mortar</span><span class="mono">$419.30</span></div>
+          <div class="r t"><span>Total</span><span class="mono" id="sumTotal"></span></div>
+          <div class="faint" style="font-size:10.5px;margin-top:8px">Figures include 10% waste. Verify before ordering.</div>
+        </div>
+      </div>
+      <div class="pop" id="pop" style="display:none"></div>
+    </div>
+    <div class="flow">
+      <div><b>Kits change later?</b><br>The project saves “2 Commercial” — not “2 Commercial + 2 Full”. If the job grows to 14 kits, Full re-figures to 6 on its own. Same idea as the shower swaps (ADR 0049: save the choice, not the part).</div>
+      <div><b>Typed both?</b><br>Then both numbers stick. If they cover fewer kits than the job needs, the line shows a short warning (like the qty-drift chip) instead of quietly under-ordering.</div>
+      <div><b>Print</b><br>The estimate's Extras block lists each base on its own line with its SKU, exactly like today — just two lines instead of one when it's split.</div>
+    </div>
+  </section>
+</div>
+
+<script>
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const money = (n) => "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+$$(".tab").forEach((t) => t.onclick = () => { $$(".tab").forEach((x) => x.classList.toggle("on", x === t)); $$(".panel").forEach((p) => p.classList.toggle("on", p.id === t.dataset.tab)); closePop(); });
+
+/* ───────── 1. layout ───────── */
+let L = "a", N = "mat", sect = "book";
+const matName = () => N === "ext" ? "Extras" : "Materials & add-ons";
+const matSub = () => N === "ext" ? "Grout, mortar, underlayment & add-ons" : "";
+function navFor() {
+  if (L === "now") return [
+    { id: "profile", ic: "👤", label: "Your details" },
+    { id: "general", ic: "%", label: "General" },
+    { id: "book", ic: "📖", label: "Price books" },
+    { id: "materials", ic: "◫", label: matName() },
+    { id: "backup", ic: "⛁", label: "Backup & restore" }];
+  return [
+    { id: "profile", ic: "👤", label: "You", sub: "Details · look · header" },
+    { id: "general", ic: "%", label: "General", gone: true },
+    { id: "book", ic: "📖", label: "Price books" },
+    { id: "materials", ic: "◫", label: matName(), sub: matSub() },
+    { id: "backup", ic: "⛁", label: "Backup & restore" }];
+}
+const NOTES = {
+  now: "<b>Today.</b> General mixes team-wide numbers (waste, shop address) with things that only affect <i>you</i> (appearance on this device, project header style). The Price books header still has a Sheoga markup card that only points you to the Sheoga book.",
+  a: "<b>Proposal A (your idea).</b> General goes away. <b>Waste</b> and <b>Shop address</b> become cards in the Price books header strip, next to Price tiers — all team-wide knobs in one row. <b>Appearance</b> and <b>Project header</b> move into “You”, because they're personal. The <b>Sheoga markup</b> card is removed (it lives on the Sheoga book now).",
+  b: "<b>Proposal B.</b> Same as A, except <b>Waste</b> goes to the top of Materials &amp; add-ons, because waste % is part of every quantity formula there (sq ft × (1 + waste%) ÷ coverage). The Price books header stays about prices plus the shop address.",
+};
+function renderLayout() {
+  $$("#layoutSeg button").forEach((b) => b.classList.toggle("on", b.dataset.l === L));
+  $$("#nameSeg button").forEach((b) => b.classList.toggle("on", b.dataset.n === N));
+  $("#layoutNote").innerHTML = NOTES[L];
+  if (L !== "now" && sect === "general") sect = "profile";
+  $("#drawer").innerHTML = `<div class="eyebrow" style="padding:0 8px 8px">Settings</div>` + navFor().map((n) =>
+    `<div class="navi ${n.id === sect && !n.gone ? "on" : ""} ${n.gone ? "gone" : ""}" data-s="${n.id}"><span class="ic">${n.ic}</span><span>${n.label}${n.sub ? `<span class="sub">${n.sub}</span>` : ""}</span></div>`).join("");
+  $$("#drawer .navi").forEach((el) => el.onclick = () => { if (el.classList.contains("gone")) return; sect = el.dataset.s; renderLayout(); });
+  const titles = { profile: L === "now" ? "Your details" : "You", general: "General", book: "Price books", materials: matName(), backup: "Backup & restore" };
+  $("#paneTitle").textContent = titles[sect];
+  $("#paneBody").innerHTML = PANES[sect]();
+}
+$$("#layoutSeg button").forEach((b) => b.onclick = () => { L = b.dataset.l; renderLayout(); });
+$$("#nameSeg button").forEach((b) => b.onclick = () => { N = b.dataset.n; renderLayout(); });
+
+const wasteFields = (compact) => compact
+  ? `<label class="pct"><i>%</i><input value="10"> Tile</label><label class="pct"><i>%</i><input value="7"> Flooring</label>`
+  : `<div style="display:flex;gap:22px"><div><label class="l">Tile waste (%)</label><input class="inp" style="width:110px" value="10"></div><div><label class="l">Flooring waste (%)</label><input class="inp" style="width:110px" value="7"><div class="faint" style="font-size:11px;margin-top:3px">Hardwood, vinyl, laminate, carpet</div></div></div>`;
+const shopField = `<div style="max-width:520px"><input class="inp" value="1450 Industrial Pkwy, Wooster OH"></div><div style="margin-top:6px"><button class="btn" style="font-size:11.5px">Test address lookup</button></div>`;
+const lookSection = `
+  <div class="sect"><label class="l">Appearance <span class="q">?</span></label><div class="segsm"><span class="on">System</span><span>Light</span><span>Dark</span></div></div>
+  <div class="sect"><label class="l">Project header <span class="q">?</span></label><div class="segsm"><span>One-bar</span><span>Classic</span><span class="on">Clean</span><span>Clean compact</span></div></div>`;
+
+const PANES = {
+  profile: () => `
+    <div style="max-width:380px;display:grid;gap:10px">
+      <div><label class="l">Name</label><input class="inp" value="Jordan"></div>
+      <div><label class="l">Phone</label><input class="inp" value="(330) 555-0142"></div>
+      <div><label class="l">Email</label><input class="inp" value="jordan@example.com"></div>
+    </div>
+    <div class="faint" style="font-size:11.5px;margin-top:10px">Signed in as jordan@example.com.</div>
+    ${L === "now" ? "" : `<div class="eyebrow" style="margin-top:22px">On this device &amp; for you</div>` + lookSection}`,
+  general: () => `
+    ${wasteFields(false)}
+    <div class="sect"><label class="l">Shop address <span class="q">?</span></label>${shopField}</div>
+    ${lookSection}`,
+  book: () => {
+    const now = L === "now";
+    return `
+    <div class="cards">
+      <div class="card" style="width:140px"><span class="eyebrow">Import</span><div style="flex:1;border:1px dashed var(--ft-border-strong);border-radius:8px;display:grid;place-items:center;font-size:10.5px;color:var(--ft-faint);padding:6px">⤒ Drop sheets or <span class="link">browse…</span></div></div>
+      <div class="card"><span class="eyebrow">Price tiers</span>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 10px">
+          <label class="pct"><i>−</i><input value="10"> Builder</label><label class="pct"><i>−</i><input value="18"> wedi Bldr</label>
+          <label class="pct"><i>−</i><input value="5"> Sale</label><label class="pct"><i>+</i><b style="width:40px;text-align:center">6%</b> Employee</label></div></div>
+      ${L === "a" ? `<div class="card new"><span class="eyebrow">Waste</span>${wasteFields(true)}</div>` : ""}
+      ${now ? `<div class="card"><span class="eyebrow">Sheoga markup</span><span class="link" style="font-size:11px">Now on the Sheoga book → flooring 40% · vents 50%</span></div>`
+            : `<div class="card gone"><span class="eyebrow">Sheoga markup</span><span style="font-size:11px" class="faint">Now on the Sheoga book → flooring 40% · vents 50%</span></div>`}
+      <div class="card"><span class="eyebrow">Quick markups</span><div style="display:flex;gap:4px"><span class="chip">30%</span><span class="chip">50%</span><span class="chip">100%</span></div></div>
+      <div class="card"><span class="eyebrow">Order entry</span><label class="pct"><i>¶</i><input value="40"> Desc. field</label></div>
+      <div class="card"><span class="eyebrow">Item search</span><label class="pct"><i>≈</i><input value="3"> Fuzzy</label></div>
+      ${now ? "" : `<div class="card new" style="flex:1;min-width:240px"><span class="eyebrow">Shop address</span><input class="inp" style="padding:3px 7px;font-size:11.5px" value="1450 Industrial Pkwy, Wooster OH"><span class="link" style="font-size:10.5px">Test address lookup</span></div>`}
+    </div>
+    <div class="rule"></div>
+    <div class="bookrow"><b>Daltile stock</b><span class="chip">stock</span><span class="faint" style="margin-left:auto">imported Sep 22</span></div>
+    <div class="bookrow"><b>Laticrete</b><span class="chip">stock</span><span class="faint" style="margin-left:auto">imported Sep 18</span></div>
+    <div class="bookrow"><b>Sheoga Hardwood</b><span class="chip">vendor</span><span class="faint" style="margin-left:auto">markup 40% · vents 50% (on the book)</span></div>`;
+  },
+  materials: () => `
+    ${L === "b" ? `<div class="card new" style="display:inline-flex;margin-bottom:14px;padding:10px 12px"><span class="eyebrow">Default waste — new projects start here</span>${wasteFields(false)}</div>` : ""}
+    <div class="muted">Grout · Mortar · Underlayment · your add-on categories — unchanged (see tab 2 for the new base options on a grout).</div>`,
+  backup: () => `<div class="faint" style="font-size:11.5px">Last backup downloaded 9/20/2026 by Jordan</div><div style="margin-top:10px;display:flex;gap:8px"><button class="btn">⤓ Download backup</button><button class="btn">⤒ Restore backup</button></div>`,
+};
+renderLayout();
+
+/* ───────── 2. base options ───────── */
+const GROUTS = {
+  sl: { name: "SpectraLock Pro", cov: 80, unit: "kits", sku: "LAT-SLP-C", bases: [
+    { name: "SpectraLock Pro Full Unit (Part A+B)", sku: "LAT-SLP-FULL", price: 62, per: 1, def: true },
+    { name: "SpectraLock Pro Commercial Unit", sku: "LAT-SLP-COMM", price: 218, per: 4 }] },
+  pc: { name: "PermaColor Select", cov: 100, unit: "kits", sku: "LAT-PCS-CK", bases: [
+    { name: "PermaColor Select Sanded Base", sku: "LAT-PCS-SND", price: 24.5, per: 1, def: true },
+    { name: "PermaColor Select Unsanded Base", sku: "LAT-PCS-UNS", price: 26, per: 1 }] },
+};
+let gSel = "sl";
+function renderGrout() {
+  const g = GROUTS[gSel];
+  $$(".prod[data-g]").forEach((p) => p.classList.toggle("on", p.dataset.g === gSel));
+  $("#groutDetail").innerHTML = `
+    <div class="eyebrow">Laticrete</div>
+    <h2 style="font-size:24px">${g.name}</h2>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;max-width:520px;margin-top:10px">
+      <div><label class="l">Cov. sq ft/unit</label><input class="inp" value="${g.cov}"></div>
+      <div><label class="l">Unit</label><input class="inp" value="${g.unit}"></div>
+      <div><label class="l">$/unit</label><input class="inp" value="38.90"></div>
+      <div><label class="l">SKU</label><input class="inp" value="${g.sku}"></div>
+    </div>
+    <div class="sect">
+      <h3 style="display:flex;align-items:center;gap:6px">Base units <span class="q">?</span><span class="faint" style="font-weight:500;font-size:11.5px;margin-left:6px">★ = what a new job orders · the others show up in the job's swap</span></h3>
+      <div class="basegrid h"><span></span><span>Base</span><span>SKU</span><span>$/unit</span><span>1 unit covers</span><span></span></div>
+      ${g.bases.map((b, i) => `
+        <div class="basegrid">
+          <button class="star ${b.def ? "on" : ""}" data-i="${i}" title="Make default">${b.def ? "★" : "☆"}</button>
+          <span style="font-weight:600">${b.name}</span>
+          <span class="mono faint" style="font-size:11px">${b.sku}</span>
+          <span class="mono">${money(b.price)}</span>
+          <span><span class="stepper"><button>−</button><input value="${b.per}"><button>+</button></span> <span class="faint">kit${b.per > 1 ? "s" : ""}</span></span>
+          <button class="x" title="Remove">×</button>
+        </div>`).join("")}
+      <div class="addbase">＋ Add a base from the price book…</div>
+      <div class="faint" style="font-size:11px;margin-top:8px">Prices refresh from the Laticrete book on re-import, same as today's single base.</div>
+    </div>`;
+  $$("#groutDetail .star").forEach((s) => s.onclick = () => { g.bases.forEach((b, i) => b.def = i === +s.dataset.i); renderGrout(); renderJob(); });
+}
+$$(".prod[data-g]").forEach((p) => p.onclick = () => { gSel = p.dataset.g; renderGrout(); });
+renderGrout();
+
+/* ───────── 3. job extras + swap ───────── */
+const JOB = { sl: { kits: 10, colors: [["Bright White", 6], ["Natural Gray", 4]], kitPrice: 38.9 }, pc: { kits: 6, colors: [["Sterling Silver", 6]], kitPrice: 21.4 } };
+const mix = { sl: {}, pc: {} }; // saved choice: { baseIdx: units } for bases the user typed
+const defIdx = (g) => GROUTS[g].bases.findIndex((b) => b.def);
+function resolve(g, m) {
+  const G = GROUTS[g], K = JOB[g].kits, d = defIdx(g);
+  const typed = Object.keys(m).map(Number);
+  let covered = 0; const out = G.bases.map(() => 0);
+  typed.forEach((i) => { out[i] = m[i]; covered += m[i] * G.bases[i].per; });
+  let auto = false;
+  if (!typed.includes(d)) { out[d] = Math.max(0, Math.ceil((K - covered) / G.bases[d].per)); covered += out[d] * G.bases[d].per; auto = true; }
+  return { units: out, covered, short: Math.max(0, K - covered), extra: Math.max(0, covered - K), autoIdx: auto ? d : -1 };
+}
+const baseCost = (g, r) => r.units.reduce((t, u, i) => t + u * GROUTS[g].bases[i].price, 0);
+function renderJob() {
+  let groutTotal = 0, html = "";
+  for (const g of ["sl", "pc"]) {
+    const G = GROUTS[g], J = JOB[g];
+    J.colors.forEach(([c, n]) => { const cost = n * J.kitPrice; groutTotal += cost; html += `<div class="line"><span class="nm">${G.name} · <span class="muted" style="font-weight:500">${c}</span><small>${G.sku}</small></span><span class="q2 mono">${n} kits<small>${money(cost)}</small></span></div>`; });
+    const r = resolve(g, mix[g]); const mixed = r.units.filter((u) => u > 0).length > 1;
+    G.bases.forEach((b, i) => {
+      if (!r.units[i] && !(i === defIdx(g) && !mixed)) return;
+      const cost = r.units[i] * b.price; groutTotal += cost;
+      html += `<div class="line"><span class="nm">${b.name}${mixed ? `<span class="mixtag">split</span>` : ""}<small>${b.sku}</small></span><span class="q2 mono">${r.units[i]} unit${r.units[i] === 1 ? "" : "s"}<button class="swapbtn" data-g="${g}" title="Swap or split the base">⇄</button><small>${money(cost)}</small></span></div>`;
+    });
+    if (r.short) html += `<div class="line warn" style="font-size:11px;font-weight:700">⚠ ${G.name} bases cover ${r.covered} of ${J.kits} kits <span class="link" data-fix="${g}">Fill the rest</span></div>`;
+  }
+  $("#groutCol").innerHTML = html;
+  $("#sumGrout").textContent = money(groutTotal);
+  $("#sumTotal").textContent = money(6480 + 419.3 + groutTotal);
+  $("#exTotal").textContent = money(groutTotal + 419.3) + " extras";
+  $$(".swapbtn").forEach((b) => b.onclick = (e) => { e.stopPropagation(); openPop(b.dataset.g, b); });
+  $$("[data-fix]").forEach((b) => b.onclick = () => { const g = b.dataset.fix; delete mix[g][defIdx(g)]; renderJob(); });
+}
+let draft = null;
+function openPop(g, anchor) {
+  draft = { g, m: { ...mix[g] } };
+  const box = $("#jobBox").getBoundingClientRect(), a = anchor.getBoundingClientRect();
+  const pop = $("#pop"); pop.style.display = "block";
+  pop.style.top = (a.bottom - box.top + 6) + "px";
+  pop.style.left = Math.max(8, Math.min(a.right - box.left - 470, box.width - 478)) + "px";
+  renderPop();
+}
+function closePop() { $("#pop").style.display = "none"; draft = null; }
+document.addEventListener("click", (e) => { if (draft && !$("#pop").contains(e.target)) closePop(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closePop(); });
+function renderPop() {
+  const { g, m } = draft, G = GROUTS[g], J = JOB[g], d = defIdx(g);
+  const r = resolve(g, m), before = baseCost(g, resolve(g, mix[g])), now = baseCost(g, r);
+  const allOn = (i) => r.units.every((u, j) => (j === i ? u > 0 : u === 0));
+  const delta = now - before;
+  $("#pop").innerHTML = `
+    <h4>Base for ${G.name}</h4>
+    <div class="faint" style="font-size:11px">${J.kits} color kits on this job · ${J.colors.map((c) => c[0] + " " + c[1]).join(" · ")}</div>
+    <div class="poprow"><span class="lab">Use</span>
+      ${G.bases.map((b, i) => `<button class="pchip ${allOn(i) ? "on" : ""}" data-all="${i}">All ${short(b.name, G.name)}</button>`).join("")}
+      <button class="pchip ${!G.bases.some((b, i) => allOn(i)) ? "on" : ""}" data-split>Split</button>
+    </div>
+    <div class="splitbox">
+      ${G.bases.map((b, i) => `
+        <div class="splitrow">
+          <span class="nm">${short(b.name, G.name)}${b.def ? ' <span class="faint" style="font-weight:600">★</span>' : ""}<small>${b.sku} · ${money(b.price)} · covers ${b.per} kit${b.per > 1 ? "s" : ""}</small></span>
+          <span><span class="stepper"><button data-dn="${i}">−</button><input data-in="${i}" value="${r.units[i]}"><button data-up="${i}">+</button></span>${r.autoIdx === i ? `<span class="autotag">auto · the rest</span>` : ""}</span>
+          <span class="covers">${r.units[i] * b.per} kit${r.units[i] * b.per === 1 ? "" : "s"}</span>
+        </div>`).join("")}
+    </div>
+    <div class="pstrip">
+      <div class="w"><b>${G.bases.map((b, i) => r.units[i] ? `${r.units[i]} ${short(b.name, G.name)}` : "").filter(Boolean).join(" + ") || "No base"}</b>
+        <small class="${r.short ? "warn" : ""}">${r.short ? `⚠ covers ${r.covered} of ${J.kits} kits — ${r.short} short` : r.extra ? `covers ${r.covered} kits — ${r.extra} to spare` : `covers all ${J.kits} kits`}</small></div>
+      <b class="mono ${delta > 0 ? "warn" : ""}">${delta > 0 ? "+" : delta < 0 ? "−" : "±"}${delta ? money(Math.abs(delta)) : "0"} · ${money(now)}</b>
+      <button class="btn moss" data-use>Use this</button>
+    </div>`;
+  const P = $("#pop");
+  $$("[data-all]", P).forEach((b) => b.onclick = () => { const i = +b.dataset.all; draft.m = i === d ? {} : { [i]: Math.ceil(J.kits / G.bases[i].per) }; if (i !== d) draft.m[d] = 0; renderPop(); });
+  $("[data-split]", P).onclick = () => { const alt = G.bases.findIndex((b, i) => i !== d); draft.m = { [alt]: 1 }; renderPop(); };
+  const set = (i, v) => { v = Math.max(0, v | 0); draft.m[i] = v; if (i === d) { /* typed the default: both stick */ } renderPop(); const el = $(`[data-in="${i}"]`, $("#pop")); el.focus({ preventScroll: true }); el.select(); };
+  $$("[data-up]", P).forEach((b) => b.onclick = () => set(+b.dataset.up, r.units[+b.dataset.up] + 1));
+  $$("[data-dn]", P).forEach((b) => b.onclick = () => set(+b.dataset.dn, r.units[+b.dataset.dn] - 1));
+  $$("[data-in]", P).forEach((el) => el.onchange = () => set(+el.dataset.in, +el.value));
+  $("[data-use]", P).onclick = () => { mix[g] = { ...draft.m }; if (Object.keys(mix[g]).length && Object.entries(mix[g]).every(([i, u]) => +i === d)) mix[g] = {}; closePop(); renderJob(); };
+}
+const short = (n, g) => n.replace(g, "").replace(/\(.*\)/, "").replace(/\bBase\b/, "").trim() || n;
+renderJob();
+</script>
+</body>
+</html>
