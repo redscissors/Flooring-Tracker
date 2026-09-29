@@ -941,6 +941,15 @@ export default function App({ user, onSignOut }) {
     if (key.startsWith("wedi:")) { setSchluterPop(null); setWediPop(next); }
     else { setWediPop(null); setSchluterPop(next); }
   };
+  const showerPlaced = () => [
+    ...placedKits(sel.categories, "wedi").map((k) => ({ ...k, brand: "wedi" })),
+    ...placedKits(sel.categories, "schluter").map((k) => ({ ...k, brand: "schluter" })),
+  ];
+  const showerFreeSlots = () => { const used = optionsUsed(sel.categories); return OPTION_SLOTS.filter((s) => !used.includes(s)); };
+  const addShowerOptions = (aid, options, nextBasket) => {
+    const patch = compareOptionsPatch(sel, aid, { options, label: sel.categories.find((x) => x.id === aid)?.name });
+    if (patch) updateProject(sel.id, { ...patch, showerBasket: nextBasket });
+  };
   // Sheoga opened from the Apps hub has no row/project context. Its lines drop
   // into the first area of whichever project the salesperson picks in the
   // Apps-hub destination prompt (filling a blank adder row if there is one, else
@@ -3056,16 +3065,21 @@ export default function App({ user, onSignOut }) {
             stockRows={stockItems} bookStockReady={bookStockReady}
             books={books} loadBookItems={loadBookItems}
             mortars={settings.mortars} mortarDefault={settings.catalog?.defaults?.mortar || ""}
-            basket={sel.wediBasket || []}
-            onBasketChange={(next) => updateProject(sel.id, { wediBasket: next })}
+            basket={sel.showerBasket || []}
+            onBasketChange={(next) => updateProject(sel.id, { showerBasket: next })}
             onMoveEntries={(groups, nextBasket) => {
               const moved = moveKitEntries(sel.categories, wediPop.aid, groups);
-              updateProject(sel.id, { categories: moved.categories, wediBasket: nextBasket });
+              updateProject(sel.id, { categories: moved.categories, showerBasket: nextBasket });
               if (moved.stranded) ping(moved.stranded === 1 ? "That kit is no longer in the project — its lines were added instead"
                 : moved.stranded + " kits are no longer in the project — their lines were added instead");
             }}
-            placed={placedKits(sel.categories, "wedi")}
-            onOpenPlaced={(k) => setWediPop({ aid: k.areaId, pid: k.rowId, seed: k.marker, n: (wediPop.n || 0) + 1 })}
+            onAddOptions={(options, next) => addShowerOptions(wediPop.aid, options, next)}
+            freeSlots={showerFreeSlots()}
+            placed={showerPlaced()}
+            onOpenPlaced={(k) => {
+              if (k.brand === "wedi") setWediPop({ aid: k.areaId, pid: k.rowId, seed: k.marker, n: (wediPop.n || 0) + 1 });
+              else { setWediPop(null); setSchluterPop({ aid: k.areaId, pid: k.rowId, seed: k.marker, n: 1 }); }
+            }}
             onDeleteKit={(k) => { const next = removeKitLines(sel.categories, k.areaId, k.rowId); if (next) { updateProject(sel.id, { categories: next }); if (k.rowId === wediPop.pid) setWediPop(null); } }}
             onQuoteOptions={(p) => addCompareOptions(wediPop.aid, p)}
             compareSet={(sel.compareSets || {})[wediPop.aid] || {}}
@@ -3105,16 +3119,21 @@ export default function App({ user, onSignOut }) {
             stockRows={stockItems} bookStockReady={bookStockReady}
             books={books} loadBookItems={loadBookItems}
             mortars={settings.mortars} mortarDefault={settings.catalog?.defaults?.mortar || ""}
-            basket={sel.schluterBasket || []}
-            onBasketChange={(next) => updateProject(sel.id, { schluterBasket: next })}
+            basket={sel.showerBasket || []}
+            onBasketChange={(next) => updateProject(sel.id, { showerBasket: next })}
             onMoveEntries={(groups, nextBasket) => {
               const moved = moveKitEntries(sel.categories, schluterPop.aid, groups);
-              updateProject(sel.id, { categories: moved.categories, schluterBasket: nextBasket });
+              updateProject(sel.id, { categories: moved.categories, showerBasket: nextBasket });
               if (moved.stranded) ping(moved.stranded === 1 ? "That kit is no longer in the project — its lines were added instead"
                 : moved.stranded + " kits are no longer in the project — their lines were added instead");
             }}
-            placed={placedKits(sel.categories, "schluter")}
-            onOpenPlaced={(k) => setSchluterPop({ aid: k.areaId, pid: k.rowId, seed: k.marker, n: (schluterPop.n || 0) + 1 })}
+            onAddOptions={(options, next) => addShowerOptions(schluterPop.aid, options, next)}
+            freeSlots={showerFreeSlots()}
+            placed={showerPlaced()}
+            onOpenPlaced={(k) => {
+              if (k.brand === "schluter") setSchluterPop({ aid: k.areaId, pid: k.rowId, seed: k.marker, n: (schluterPop.n || 0) + 1 });
+              else { setSchluterPop(null); setWediPop({ aid: k.areaId, pid: k.rowId, seed: k.marker, n: 1 }); }
+            }}
             onDeleteKit={(k) => { const next = removeKitLines(sel.categories, k.areaId, k.rowId); if (next) { updateProject(sel.id, { categories: next }); if (k.rowId === schluterPop.pid) setSchluterPop(null); } }}
             onQuoteOptions={(p) => addCompareOptions(schluterPop.aid, p)}
             compareSet={(sel.compareSets || {})[schluterPop.aid] || {}}

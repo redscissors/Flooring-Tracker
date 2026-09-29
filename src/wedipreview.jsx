@@ -138,7 +138,7 @@ function Harness() {
       basket={basket} onBasketChange={setBasket}
       placed={tagged(cats)}
       freeSlots={OPTION_SLOTS.filter((s) => !optionsUsed(cats).includes(s))}
-      onAddOptions={(options, nextBasket) => { setCats((c) => compareOptionsPatch({ categories: c }, aid, { options, label: "Master bath" })?.categories || c); setBasket(nextBasket); }}
+      onAddOptions={(options, nextBasket) => { const patch = compareOptionsPatch({ categories: cats }, aid, { options, label: "Master bath" }); if (patch) { setCats(patch.categories); setBasket(nextBasket); } }}
       onOpenPlaced={(k) => setPop((p) => ({ aid: k.areaId, pid: k.rowId, seed: k.marker, n: p.n + 1 }))}
       onDeleteKit={(k) => setCats((c) => removeKitLines(c, k.areaId, k.rowId) || c)}
       onAdd={(lines) => setCats((c) => { const withRow = c.map((a) => (a.id === aid && !a.products.some((x) => x.id === pid) ? { ...a, products: [...a.products, { ...newProduct(), id: pid }] } : a)); return landKitLines(withRow, aid, pid, lines) || withRow; })}
