@@ -317,15 +317,20 @@ export function syncLinkedCatalog(catalog, bookId, items) {
       }
       if (costDrifts(p.cost, it.cost)) next = { ...next, cost: it.cost };
     }
-    // A grout base companion linked into this book rides the same refresh.
-    if (next.base && str(next.base.sku) && all.has(str(next.base.sku))) {
-      const b = live.get(str(next.base.sku));
-      if (b && Math.abs((parseFloat(next.base.price) || 0) - numOr(b.price, 0)) > 0.005) {
-        changes.push({ name: `${next.name} — base`, from: parseFloat(next.base.price) || 0, to: numOr(b.price, 0), sku: b.sku });
-        next = { ...next, base: { ...next.base, price: numOr(b.price, 0) } };
+    // A grout's base companions linked into this book ride the same refresh.
+    const syncBase = (base) => {
+      if (!base || !str(base.sku) || !all.has(str(base.sku))) return base;
+      const b = live.get(str(base.sku));
+      let out = base;
+      if (b && Math.abs((parseFloat(base.price) || 0) - numOr(b.price, 0)) > 0.005) {
+        changes.push({ name: `${next.name} — ${base === next.base ? "base" : base.name || "base"}`, from: parseFloat(base.price) || 0, to: numOr(b.price, 0), sku: b.sku });
+        out = { ...out, price: numOr(b.price, 0) };
       }
-      if (b && costDrifts(next.base.cost, b.cost)) next = { ...next, base: { ...next.base, cost: b.cost } };
-    }
+      if (b && costDrifts(base.cost, b.cost)) out = { ...out, cost: b.cost };
+      return out;
+    };
+    if (next.base) { const nb = syncBase(next.base); if (nb !== next.base) next = { ...next, base: nb }; }
+    if (next.altBases?.length) { const alts = next.altBases.map(syncBase); if (alts.some((b, i) => b !== next.altBases[i])) next = { ...next, altBases: alts }; }
     if (next !== p) dirty = true;
     return next;
   });

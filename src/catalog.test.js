@@ -1576,3 +1576,85 @@ test("underlaymentForSku finds the catalog entry carrying the picked SKU", () =>
   assert.equal(underlaymentForSku(s.catalog, "99999"), "");
   assert.equal(underlaymentForSku(s.catalog, ""), "");
 });
+
+// --- Grout base options (ADR 0006 amendment 2026-09-29) -------------------------
+
+import { groutBaseEntries } from "./catalog.js";
+
+const SLP_FULL = { sku: "SLP-FULL", name: "SpectraLock Pro Full Unit", unit: "units", price: 62, per: 1 };
+const SLP_COMM = { sku: "SLP-COMM", name: "SpectraLock Pro Commercial Unit", unit: "units", price: 218, per: 4 };
+const slpSettings = () => catWithGrout({ name: "SpectraLock Pro", coverage: 100, unit: "kits", price: 38.9, base: SLP_FULL, altBases: [SLP_COMM] });
+
+test("altBases normalize: empty and ★-duplicate entries drop, per defaults to 1", () => {
+  const s = catWithGrout({ name: "SpectraLock Pro", coverage: 100, base: SLP_FULL,
+    altBases: [{ unit: "units" }, { ...SLP_FULL }, { sku: "SLP-COMM", name: "Comm" }] });
+  const g = resolveCatalog(s.catalog).grouts["SpectraLock Pro"];
+  assert.equal(g.altBases.length, 1);
+  assert.equal(g.altBases[0].sku, "SLP-COMM");
+  assert.equal(g.altBases[0].per, 1);
+  // Old records carry none.
+  assert.deepEqual(resolveCatalog(normalizeSettings(undefined).catalog).grouts["PermaColor Select"].altBases, []);
+});
+
+test("a grout with alternates but no ★ promotes the first alternate", () => {
+  const s = catWithGrout({ name: "SpectraLock Pro", coverage: 100, base: null, altBases: [SLP_COMM, SLP_FULL] });
+  const g = resolveCatalog(s.catalog).grouts["SpectraLock Pro"];
+  assert.equal(g.base.sku, "SLP-COMM");
+  assert.deepEqual(g.altBases.map((b) => b.sku), ["SLP-FULL"]);
+});
+
+test("getGroutBase follows the row's base pick", () => {
+  const s = slpSettings();
+  const row = (base) => tile({ grout: { checked: true, product: "SpectraLock Pro", color: "", joint: 0.125, manual: "", base } });
+  // 200 sf * 1.1 / 100 = 2.2 -> 3 kits.
+  assert.equal(getGroutBase(row(""), s).sku, "SLP-FULL");
+  assert.equal(getGroutBase(row(""), s).order, 3);
+  assert.equal(getGroutBase(row("SLP-COMM"), s).sku, "SLP-COMM");
+  assert.equal(getGroutBase(row("SLP-COMM"), s).order, 1);
+  assert.equal(getGroutBase(row("GONE"), s).sku, "SLP-FULL");
+});
+
+const slpRow = (qty, color, base) => tile({ qty: String(qty), grout: { checked: true, product: "SpectraLock Pro", color, joint: 0.125, manual: "", base } });
+
+test("groutBaseEntries + groutBaseList: colors share one Commercial unit across the job", () => {
+  const s = slpSettings();
+  // 100 sf -> 1.1 -> 2 kits each; two colors on Commercial = 4 kits = 1 unit.
+  const cats = [{ products: [slpRow(100, "Bright White", "SLP-COMM")] }, { products: [slpRow(100, "Natural Gray", "SLP-COMM")] }];
+  const list = groutBaseList(groutBaseEntries(cats, s), s);
+  assert.equal(list.length, 1);
+  assert.equal(list[0].sku, "SLP-COMM");
+  assert.equal(list[0].kits, 4);
+  assert.equal(list[0].order, 1);
+  assert.equal(list[0].cost, 218);
+});
+
+test("groutBaseEntries splits one color across two bases into two base lines", () => {
+  const s = slpSettings();
+  const cats = [{ products: [slpRow(100, "Bright White", ""), slpRow(100, "Bright White", "SLP-COMM"), slpRow(100, "Bright White", "SLP-FULL")] }];
+  const list = groutBaseList(groutBaseEntries(cats, s), s);
+  const full = list.find((b) => b.sku === "SLP-FULL"), comm = list.find((b) => b.sku === "SLP-COMM");
+  // "" and the ★ key are the same base: 1.1 + 1.1 = 2.2 -> 3 kits.
+  assert.equal(full.kits, 3);
+  assert.equal(full.order, 3);
+  assert.equal(comm.kits, 2);
+  assert.equal(comm.order, 1);
+});
+
+test("groutBaseEntries: with no alternates picked the numbers match the per-color totals", () => {
+  const s = slpSettings();
+  const cats = [{ products: [slpRow(100, "Bright White", ""), slpRow(150, "Bright White", ""), slpRow(60, "Natural Gray", "")] }];
+  const list = groutBaseList(groutBaseEntries(cats, s), s);
+  // Bright White 1.1 + 1.65 = 2.75 -> 3; Natural Gray 0.66 -> 1; 4 Full units.
+  assert.equal(list.length, 1);
+  assert.equal(list[0].order, 4);
+});
+
+test("groutBaseEntries: a row that can't compute yet keeps its base pending", () => {
+  const s = slpSettings();
+  const cats = [{ products: [slpRow("", "Bright White", "SLP-COMM")] }];
+  const list = groutBaseList(groutBaseEntries(cats, s), s);
+  assert.equal(list.length, 1);
+  assert.equal(list[0].sku, "SLP-COMM");
+  assert.equal(list[0].pending, true);
+  assert.equal(list[0].order, 0);
+});

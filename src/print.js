@@ -1,4 +1,4 @@
-import { num, ceilQty, getGrout, getMortar, groutBaseList, getCarton, getPieceCarton, getUnderlay, getUnderlayInstall, getAttached } from "./catalog.js";
+import { num, ceilQty, getGrout, getMortar, groutBaseList, groutBaseEntries, getCarton, getPieceCarton, getUnderlay, getUnderlayInstall, getAttached } from "./catalog.js";
 import { JOINTS, THICK, underlayLabel } from "./uiconst.js";
 import { money, miscQty } from "./model.js";
 import { isSpecialOrder, orderCopyText, orderDescription, orderQty, sheetNominal, tightSize, ORDER_MIN_QTY } from "./orderentry.js";
@@ -121,7 +121,7 @@ export function printMatList(cust, s) {
   // A selection-snapshotted SKU (the grout color's own SKU, ADR 0007) outranks
   // the catalog product's SKU; the catalog SKU is the fallback.
   const rows = [...agg.values()].map((m) => ({ ...m, sku: m.sku || matSku(m.kind, m.name, s), order: ceilQty(m.exact) }));
-  const bases = groutBaseList(rows.filter((m) => m.kind === "Grout").map((m) => ({ product: m.name, order: m.order })), s)
+  const bases = groutBaseList(groutBaseEntries(cust.categories, s), s)
     .map((b) => ({ kind: "Grout base", name: b.name, spec: "", sku: b.sku, unit: b.unit, price: b.price, exact: b.exact, order: b.order, cost: b.cost }));
   // Built-in kinds sort by PRINT_KINDS; add-on categories (unknown kinds) sort
   // after them, grouped so each category gets one breakdown heading.

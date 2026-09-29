@@ -10,6 +10,7 @@ import { normLink, normBookFamily } from "./booklink.js";
 import { normQuickMarkups } from "./costentry.js";
 import { DEFAULT_DESC_LIMIT } from "./descfit.js";
 import { bundleUnit } from "./units.js";
+import { baseKey, resolveGroutBase } from "./groutbase.js";
 
 export const GROUTS = ["PermaColor Select", "SpectraLOCK 1", "SpectraLOCK PRO", "CEG-Lite", "Tec Power Grout"];
 export const MORTARS = ["ProLite", "AcrylPro", "Schluter All Set"];
@@ -176,7 +177,7 @@ export function getGrout(p, s) {
 // `name`/`sku` are the identity the totals summary consolidates on.
 export function getGroutBase(p, s) {
   const G = getGrout(p, s); if (!G) return null;
-  const b = (s.grouts[p.grout.product] || {}).base; if (!b) return null;
+  const b = resolveGroutBase(s.grouts[p.grout.product], p.grout.base); if (!b) return null;
   const per = num(b.per) > 0 ? num(b.per) : 1;
   const exact = G.order / per;
   return { sku: b.sku || "", name: b.name || "", unit: b.unit, price: num(b.price), per, exact, order: ceilQty(exact) };
@@ -198,7 +199,7 @@ export function groutBaseList(groutEntries, s) {
   const agg = new Map();
   for (const g of groutEntries || []) {
     if (!g) continue;
-    const b = s.grouts[g.product]?.base; if (!b) continue;
+    const b = resolveGroutBase(s.grouts[g.product], g.base); if (!b) continue;
     const key = b.sku || b.name;
     const e = agg.get(key) || { sku: b.sku || "", name: b.name || b.sku, unit: b.unit, price: num(b.price), per: num(b.per) > 0 ? num(b.per) : 1, kits: 0, pending: true };
     if (g.order > 0) { e.kits += g.order; e.pending = false; }
@@ -209,6 +210,22 @@ export function groutBaseList(groutEntries, s) {
     const order = ceilQty(exact);
     return { ...b, exact, order, cost: order * b.price };
   });
+}
+
+// The job's grout kits per (grout, color, base) — each row names its base
+// (ADR 0006 amendment 2026-09-29) — rounded the way the per-color totals round,
+// ready for groutBaseList. Rows whose grout has no base are skipped.
+export function groutBaseEntries(categories, s) {
+  const agg = new Map();
+  (categories || []).forEach((a) => (a.products || []).forEach((p) => {
+    if (p.type !== "tile" || !p.grout?.checked) return;
+    const b = resolveGroutBase(s.grouts[p.grout.product], p.grout.base); if (!b) return;
+    const key = [p.grout.product, p.grout.color || "", baseKey(b)].join("||");
+    const e = agg.get(key) || { product: p.grout.product, base: baseKey(b), exact: 0 };
+    const G = getGrout(p, s); if (G) e.exact += G.exact;
+    agg.set(key, e);
+  }));
+  return [...agg.values()].map((e) => ({ product: e.product, base: e.base, order: ceilQty(e.exact) }));
 }
 
 // Flooring sold by the carton/sheet: p.cartonSf is the sq ft one carton covers
@@ -408,7 +425,15 @@ const baseCompanion = (b) => {
 const skuField = (p) => String(p?.sku ?? "").trim();
 // `book` (ADR 0007): the price-book grout family this product offers its
 // colors from — the stock items' `product` name. Empty = standard color list.
-const groutFields = (g) => ({ coverage: g?.coverage ?? 0, unit: g?.unit ?? "units", price: g?.price ?? 0, cost: g?.cost ?? 0, sku: skuField(g), book: String(g?.book ?? "").trim(), base: baseCompanion(g?.base), link: normLink(g?.link) });
+const groutFields = (g) => ({ coverage: g?.coverage ?? 0, unit: g?.unit ?? "units", price: g?.price ?? 0, cost: g?.cost ?? 0, sku: skuField(g), book: String(g?.book ?? "").trim(), ...groutBaseFields(g), link: normLink(g?.link) });
+// `base` is the ★ default, `altBases` the alternates a row can pick instead
+// (ADR 0006 amendment 2026-09-29). Alternates without the ★ promote the first.
+const groutBaseFields = (g) => {
+  const all = [g?.base, ...(Array.isArray(g?.altBases) ? g.altBases : [])].map(baseCompanion).filter(Boolean);
+  const seen = new Set();
+  const uniq = all.filter((b) => { const k = baseKey(b); if (seen.has(k)) return false; seen.add(k); return true; });
+  return { base: uniq[0] || null, altBases: uniq.slice(1) };
+};
 const mortarFields = (m) => ({ tier1: m?.tier1 ?? 0, tier2: m?.tier2 ?? 0, tier3: m?.tier3 ?? 0, unit: m?.unit ?? "units", price: m?.price ?? 0, cost: m?.cost ?? 0, sku: skuField(m), link: normLink(m?.link) });
 // Items stored before the mortar link existed have no `kind` — they normalize
 // to "custom" with their fields intact.

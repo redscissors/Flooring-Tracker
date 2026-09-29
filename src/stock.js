@@ -480,6 +480,19 @@ export function stockBaseCompanion(item, stock) {
   return { sku: base.sku, name: base.description || base.product, unit: base.unit || "units", price: base.price ?? 0, cost: base.cost ?? 0, per: 1 };
 }
 
+// A Commercial unit covers 4 kits ("4 Fulls at a lower price", ADR 0006).
+export const basePer = (description) => (/\bcomm(\.|ercial\b)/i.test(description || "") ? 4 : 1);
+
+// The pigment's other base variant as a catalog alternate (ADR 0006 amendment
+// 2026-09-29) — the Commercial unit or the Unsanded base. [] when none.
+export function stockAltBases(item, stock) {
+  const base = stockCompanionBase(item, stock);
+  const alt = base && stockBaseVariant(base, stock);
+  if (!alt) return [];
+  const name = alt.description || alt.product;
+  return [{ sku: alt.sku, name, unit: alt.unit || "units", price: alt.price ?? 0, cost: alt.cost ?? 0, per: basePer(name) }];
+}
+
 // --- Grout color families (ADR 0007) ----------------------------------------------
 
 // The Grout & Caulk sheet parses to one item per family × color, each with its

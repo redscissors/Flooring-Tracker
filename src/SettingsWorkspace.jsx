@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { Plus, Trash2, Download, Upload, X, Check, ChevronRight, Pencil, Package, Paintbrush, Layers, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, Lock, Star, Tag } from "lucide-react";
 import { offeredGrouts, offeredMortars, isOffered, setCatalogDefault, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct, addCategory, updateCategory, removeCategory, isDuplicateCategoryName, isDuplicateAttachedName, offeredAttached } from "./catalog.js";
-import { stockBaseCompanion } from "./stock.js";
+import { stockBaseCompanion, stockAltBases, basePer } from "./stock.js";
+import { groutBases, editBaseAt, starBaseAt, removeBaseAt, addBaseTo } from "./groutbase.js";
 import { deriveSeriesRule, matchRule, parseColorToken, normBookFamily, resolveFamily, familyWarnings, linkedItemState, proposeLinks, applyProposals, looksLikeBase } from "./booklink.js";
 import { uid } from "./model.js";
 import { DotMenu, Modal, HelpTip, AddressField, lookupErrText, DARK_MODE, FitSelect } from "./widgets.jsx";
@@ -304,7 +305,7 @@ export default function SettingsWorkspace({ settings, setSettings, gFamilies, ex
   // An attached product's chip default lives on ITS category (only reachable
   // while that category is the open one, so customCat is the right scope).
   const isCategoryDefault = (p) => !!customCat && String(customCat.default || "").trim().toLowerCase() === String(p?.name || "").trim().toLowerCase() && customCat.default !== "";
-  const startAdd = (companyId, kind) => { setAdding({ companyId, kind }); setSel(null); setConfirmDel(null); setRename(null); setDraft(kind === "attached" ? { name: "", coverage: "", unit: "units", price: "", cost: "", sku: "", categoryId: cat } : kind === "grouts" ? { name: "", coverage: "", unit: "units", price: "", cost: "", sku: "", book: "", base: null } : kind === "mortars" ? { name: "", tier1: "", tier2: "", tier3: "", unit: "units", price: "", cost: "", sku: "" } : { name: "", coverage: "", unit: "rolls", price: "", cost: "", sku: "", types: [] }); setError(""); };
+  const startAdd = (companyId, kind) => { setAdding({ companyId, kind }); setSel(null); setConfirmDel(null); setRename(null); setDraft(kind === "attached" ? { name: "", coverage: "", unit: "units", price: "", cost: "", sku: "", categoryId: cat } : kind === "grouts" ? { name: "", coverage: "", unit: "units", price: "", cost: "", sku: "", book: "", base: null, altBases: [] } : kind === "mortars" ? { name: "", tier1: "", tier2: "", tier3: "", unit: "units", price: "", cost: "", sku: "" } : { name: "", coverage: "", unit: "rolls", price: "", cost: "", sku: "", types: [] }); setError(""); };
   const cancelAdd = () => { setAdding(null); setError(""); };
   const pickProduct = (companyId, kind, productId) => { setSel({ companyId, kind, productId }); setAdding(null); setConfirmDel(null); setRename(null); };
   const submitAdd = () => {
@@ -341,7 +342,7 @@ export default function SettingsWorkspace({ settings, setSettings, gFamilies, ex
     ...(it.price != null ? { price: String(it.price) } : it.priceSqft != null ? { price: String(it.priceSqft) } : {}),
     ...(it.cost != null ? { cost: String(it.cost) } : {}),
     ...(adding.kind !== "mortars" && it.coverage != null ? { coverage: String(it.coverage) } : {}),
-    ...(adding.kind === "grouts" ? { base: stockBaseCompanion(it, bookItems) } : {}),
+    ...(adding.kind === "grouts" ? { base: stockBaseCompanion(it, bookItems), altBases: stockAltBases(it, bookItems) } : {}),
     // A pick from the Grout & Caulk color matrix also suggests the color
     // family link (ADR 0007) — the grout offers that family's colors.
     ...(adding.kind === "grouts" && it.sheet === "Grout & Caulk" && it.product && it.color ? { book: it.product } : {}),
@@ -659,23 +660,27 @@ export default function SettingsWorkspace({ settings, setSettings, gFamilies, ex
           {g.book && <button onClick={() => setProduct(co.id, "grouts", g.id, { book: "" })} className="text-xs text-slate-400 hover:text-red-500 shrink-0">Unlink colors</button>}
         </div>
         <div className="mt-6 max-w-2xl">
-          <label className={lbl}>Base unit <HelpTip className="align-middle" w={280} tip={<>A two-part grout's base - ordered with the kits and shown in the order summary; "per" = kits one base covers.</>} /></label>
-          {g.base ? (
-            <div className="grid gap-1.5 items-end grid-cols-[1.6fr_.9fr_.6fr_.7fr_.7fr_.7fr_auto]">
-              {txtField("Name", g.base.name, (v) => setProduct(co.id, "grouts", g.id, { base: { ...g.base, name: v } }))}
-              {txtField("SKU", g.base.sku, (v) => setProduct(co.id, "grouts", g.id, { base: { ...g.base, sku: v } }))}
-              {numField("Per", g.base.per, (v) => setProduct(co.id, "grouts", g.id, { base: { ...g.base, per: v } }))}
-              {txtField("Unit", g.base.unit, (v) => setProduct(co.id, "grouts", g.id, { base: { ...g.base, unit: v } }))}
-              {numField("$/unit", g.base.price, (v) => setProduct(co.id, "grouts", g.id, { base: { ...g.base, price: v } }))}
-              {numField("Cost", g.base.cost, (v) => setProduct(co.id, "grouts", g.id, { base: { ...g.base, cost: v } }))}
-              <button onClick={() => setProduct(co.id, "grouts", g.id, { base: null })} title="Remove base unit" className="text-slate-300 hover:text-red-500 pb-2"><X size={14} /></button>
-            </div>
-          ) : (
-            <div>
-              {bookItems.length > 0 && <StockSearch stock={bookItems} inp={inp} placeholder="Search the stock books for the base unit…" onPick={(it) => setProduct(co.id, "grouts", g.id, { base: { sku: it.sku, name: it.description || it.product, unit: it.unit || "units", price: it.price ?? 0, cost: it.cost ?? 0, per: 1 } })} />}
-              <button onClick={() => setProduct(co.id, "grouts", g.id, { base: { sku: "", name: "", unit: "units", price: "", cost: "", per: 1 } })} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"><Plus size={12} /> Base unit</button>
+          <label className={lbl}>Base units <HelpTip className="align-middle" w={300} tip={<>A two-part grout's base - ordered with the kits and shown in the order summary. The ★ base is what a new project starts on; the others show as a Base choice in the job's grout pop-up. "Per" = kits one base covers (a Commercial unit covers 4).</>} /></label>
+          {groutBases(g).length > 0 && (
+            <div className="space-y-1.5 mb-2">
+              {groutBases(g).map((b, i) => (
+                <div key={i} className="grid gap-1.5 items-end grid-cols-[auto_1.6fr_.9fr_.6fr_.7fr_.7fr_.7fr_auto]">
+                  <button onClick={() => i > 0 && setProduct(co.id, "grouts", g.id, starBaseAt(g, i))} title={i === 0 ? "Standard default — new projects start on this base" : "Make this the standard default"} className={`pb-2 ${i === 0 ? "text-indigo-600 cursor-default" : "text-slate-300 hover:text-indigo-600"}`}><Star size={14} className={i === 0 ? "fill-current" : ""} /></button>
+                  {txtField("Name", b.name, (v) => setProduct(co.id, "grouts", g.id, editBaseAt(g, i, { name: v })))}
+                  {txtField("SKU", b.sku, (v) => setProduct(co.id, "grouts", g.id, editBaseAt(g, i, { sku: v })))}
+                  {numField("Per", b.per, (v) => setProduct(co.id, "grouts", g.id, editBaseAt(g, i, { per: v })))}
+                  {txtField("Unit", b.unit, (v) => setProduct(co.id, "grouts", g.id, editBaseAt(g, i, { unit: v })))}
+                  {numField("$/unit", b.price, (v) => setProduct(co.id, "grouts", g.id, editBaseAt(g, i, { price: v })))}
+                  {numField("Cost", b.cost, (v) => setProduct(co.id, "grouts", g.id, editBaseAt(g, i, { cost: v })))}
+                  <button onClick={() => setProduct(co.id, "grouts", g.id, removeBaseAt(g, i))} title="Remove base unit" className="text-slate-300 hover:text-red-500 pb-2"><X size={14} /></button>
+                </div>
+              ))}
             </div>
           )}
+          <div>
+            {bookItems.length > 0 && <StockSearch stock={bookItems} inp={inp} placeholder={groutBases(g).length ? "Add another base from the stock books…" : "Search the stock books for the base unit…"} onPick={(it) => { const name = it.description || it.product; setProduct(co.id, "grouts", g.id, addBaseTo(g, { sku: it.sku, name, unit: it.unit || "units", price: it.price ?? 0, cost: it.cost ?? 0, per: basePer(name) })); }} />}
+            <button onClick={() => setProduct(co.id, "grouts", g.id, addBaseTo(g, { sku: "", name: "", unit: "units", price: "", cost: "", per: 1 }))} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"><Plus size={12} /> Base unit</button>
+          </div>
         </div>
       </div>
     );
@@ -803,8 +808,8 @@ export default function SettingsWorkspace({ settings, setSettings, gFamilies, ex
             )}
             {draft.base && (
               <div className="flex items-center gap-2 text-xs text-slate-500 rounded-md border border-indigo-100 bg-indigo-50/40 px-2.5 py-1.5">
-                <span className="flex-1">Also orders <b>{draft.base.name}</b>{draft.base.sku ? <span className="ft-mono text-slate-400"> · {draft.base.sku}</span> : ""} — 1 per kit (editable after adding)</span>
-                <button onClick={() => setDraft({ ...draft, base: null })} title="Don't attach a base unit" className="text-slate-300 hover:text-red-500 shrink-0"><X size={13} /></button>
+                <span className="flex-1">Also orders <b>{draft.base.name}</b>{draft.base.sku ? <span className="ft-mono text-slate-400"> · {draft.base.sku}</span> : ""} — 1 per kit{draft.altBases?.length ? <> · also offers <b>{draft.altBases.map((x) => x.name).join(", ")}</b></> : ""} (editable after adding)</span>
+                <button onClick={() => setDraft({ ...draft, base: null, altBases: [] })} title="Don't attach a base unit" className="text-slate-300 hover:text-red-500 shrink-0"><X size={13} /></button>
               </div>
             )}
           </>
@@ -1027,9 +1032,14 @@ export default function SettingsWorkspace({ settings, setSettings, gFamilies, ex
               // its auto-pick, so stockBaseCompanion can hardcode per:1 — but
               // FamilyConfirm's radios let a user mark the COMMERCIAL row as
               // default, and a Commercial unit covers 4 kits (catalog.js:138).
-              const base = baseRow ? { sku: baseRow.sku, name: baseRow.description || baseRow.product, unit: baseRow.unit || "units", price: baseRow.price ?? 0, cost: baseRow.cost ?? 0, per: /commercial/i.test(baseRow.description || "") ? 4 : 1 } : null;
-              if (famSeed.forProduct) onChange({ ...next, companies: next.companies.map((co) => co.id === famSeed.forProduct.coId ? { ...co, grouts: co.grouts.map((g) => g.id === famSeed.forProduct.gId ? { ...g, book: fam.name, ...(base ? { base } : {}) } : g) } : co) });
-              else { onChange(next); setDraft((d) => ({ ...d, book: fam.name, ...(base ? { base } : {}) })); }
+              const asBase = (row) => ({ sku: row.sku, name: row.description || row.product, unit: row.unit || "units", price: row.price ?? 0, cost: row.cost ?? 0, per: basePer(row.description) });
+              const base = baseRow ? asBase(baseRow) : null;
+              // The family's variant base rides along as the alternate (ADR 0006
+              // amendment 2026-09-29).
+              const altRow = base && fam.baseSkus.variant ? (bookStock[fam.bookId] || []).find((it) => it.sku === fam.baseSkus.variant) : null;
+              const bases = base ? { base, altBases: altRow ? [asBase(altRow)] : [] } : {};
+              if (famSeed.forProduct) onChange({ ...next, companies: next.companies.map((co) => co.id === famSeed.forProduct.coId ? { ...co, grouts: co.grouts.map((g) => g.id === famSeed.forProduct.gId ? { ...g, book: fam.name, ...bases } : g) } : co) });
+              else { onChange(next); setDraft((d) => ({ ...d, book: fam.name, ...bases })); }
               setFamSeed(null);
             }} />
         )}

@@ -102,3 +102,20 @@ test("gList carries the grout color's source book and the catalog unit cost for 
   assert.equal(raven.unitCost, 9.5);
   assert.equal(t.matAll.find((m) => m.kind === "Grout" && /Raven/.test(m.product)).bookId, "lat");
 });
+
+test("grout bases follow each row's pick and consolidate per base (ADR 0006 amendment 2026-09-29)", () => {
+  const s = normalizeSettings({ grouts: { "SpectraLOCK PRO": { unit: "kits", price: 38.9, coverage: 100,
+    base: { sku: "SLP-FULL", name: "Full Unit", unit: "units", price: 62, per: 1 },
+    altBases: [{ sku: "SLP-COMM", name: "Commercial Unit", unit: "units", price: 218, per: 4 }] } } });
+  const g = (color, base) => ({ checked: true, product: "SpectraLOCK PRO", color, joint: 0.125, base });
+  const p = normC({ id: "j2", name: "J", waste: { tile: 10, floor: 5, tileOn: true, floorOn: false }, categories: [
+    { name: "Bath", option: "", products: [tile(100, { grout: g("White", "SLP-COMM") }), tile(100, { grout: g("Gray", "SLP-COMM") })] },
+  ] });
+  const w = withProjWaste(s, p);
+  const t = jobTotals(p, p, w, w, s, []);
+  assert.equal(t.bList.length, 1);
+  assert.equal(t.bList[0].sku, "SLP-COMM");
+  assert.equal(t.bList[0].order, 1); // 2 + 2 kits / 4
+  assert.equal(t.baseCost, 218);
+  assert.ok(t.matAll.some((m) => m.kind === "Grout base" && m.product === "Commercial Unit"));
+});

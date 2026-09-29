@@ -4,6 +4,7 @@ import { Search, Plus, X, Check, ChevronRight, ChevronDown, Trash2, StickyNote, 
 import { SAMPLE_LABEL, SAMPLE_CHIP } from "./samples.js";
 import { num, wasteFor, groutExact, mortarExact, getGrout, getMortar, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, offeredAttached, offeredCategories, getAttached } from "./catalog.js";
 import { groutSnapshotPatch, groutColorOptions } from "./stock.js";
+import { baseKey, groutBases, resolveGroutBase, baseLabel, baseOptionLabel, tickGroutChoice, pickGroutProductChoice, pickGroutBaseChoice } from "./groutbase.js";
 import { tierUnitPrice, employeeNoCost, normPricing } from "./pricing.js";
 import { queryHit as sheogaQueryHit, parseQuery as sheogaParseQuery, querySummary as sheogaQuerySummary } from "./sheoga.js";
 // wediquery.js, never wedi.js — the boot chunk pays for the recognizer only
@@ -255,7 +256,7 @@ export function MobileProductRow({ p, settings, tv, onOpen, onPointerDown }) {
 // editors can't drift on write paths. The SKU field opens MobileSearchSheet
 // (full-screen, per the keyboard plan); picks flow through onPickStock, the
 // caller's addStockProducts, exactly like a grid SKU pick.
-export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutStock, stockReady, bookStockReady, isBookFam, gFamilies, stockBookIds, searchOrder, bookName, tv, markups = MARKUP_PRESETS, showers, onPatch, onPickStock, onOpenVendor, onDelete, sample, onSample, onFlag, onClose, qtyRef, notify, strictness, fallback, initialSearch = false }) {
+export function MobileRowSheet({ p, groutMemory, areaName, canDelete, settings, stock, groutStock, stockReady, bookStockReady, isBookFam, gFamilies, stockBookIds, searchOrder, bookName, tv, markups = MARKUP_PRESETS, showers, onPatch, onPickStock, onOpenVendor, onDelete, sample, onSample, onFlag, onClose, qtyRef, notify, strictness, fallback, initialSearch = false }) {
   const [searching, setSearching] = useState(initialSearch);
   const [confirmDel, setConfirmDel] = useState(false);
   const [insExpanded, setInsExpanded] = useState(false);
@@ -290,10 +291,14 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutS
     return false;
   };
   const pickGroutColor = (color) => { if (stockBusy(gBook)) return; onPatch({ grout: { ...p.grout, color, ...groutSnapshotPatch(groutStock, gBook, color) } }); };
-  const pickGroutProduct = (product) => { const book = settings.grouts[product]?.book || ""; if (stockBusy(book)) return; onPatch({ grout: { ...p.grout, product, ...groutSnapshotPatch(groutStock, book, p.grout.color) } }); };
+  const pickGroutProduct = (product) => { const book = settings.grouts[product]?.book || ""; if (stockBusy(book)) return; const c = pickGroutProductChoice(product, groutMemory, settings.grouts); onPatch({ grout: { ...p.grout, product, base: c.base, ...groutSnapshotPatch(groutStock, book, p.grout.color) } }, { groutMemory: c.memory }); };
+  const pickGroutBase = (key) => { const c = pickGroutBaseChoice(p.grout.product, key, groutMemory, settings.grouts); onPatch({ grout: { ...p.grout, base: c.base } }, { groutMemory: c.memory }); };
+  const gBases = groutBases(settings.grouts[p.grout.product]);
+  const gBase = resolveGroutBase(settings.grouts[p.grout.product], p.grout.base);
   const mortarDefault = resolveMaterialDefault(mortarNames, p.mortar.product, settings.catalog.defaults?.mortar);
-  const groutDefault = resolveMaterialDefault(groutNames, p.grout.product, settings.catalog.defaults?.grout);
-  const addGrout = () => { if (groutDefault === p.grout.product) { onPatch({ grout: { ...p.grout, checked: true } }); return; } const book = settings.grouts[groutDefault]?.book || ""; if (stockBusy(book)) return; onPatch({ grout: { ...p.grout, checked: true, product: groutDefault, ...groutSnapshotPatch(groutStock, book, p.grout.color) } }); };
+  const groutTick = tickGroutChoice(p.grout, groutNames, groutMemory, settings.catalog.defaults?.grout, settings.grouts);
+  const groutDefault = groutTick.product;
+  const addGrout = () => { if (groutDefault === p.grout.product) { onPatch({ grout: { ...p.grout, checked: true, base: groutTick.base } }); return; } const book = settings.grouts[groutDefault]?.book || ""; if (stockBusy(book)) return; onPatch({ grout: { ...p.grout, checked: true, product: groutDefault, base: groutTick.base, ...groutSnapshotPatch(groutStock, book, p.grout.color) } }); };
   const mortarOpts = mortarNames.includes(p.mortar.product) ? mortarNames : [p.mortar.product, ...mortarNames];
   const U = getUnderlay(p, settings), uEx = underlayExact(p, settings);
   const installDefs = settings.underlayments[p.underlay.product]?.install || [];
@@ -525,6 +530,7 @@ export function MobileRowSheet({ p, areaName, canDelete, settings, stock, groutS
                       <div className="flex rounded-md border border-slate-200 overflow-hidden text-[11px] shrink-0">{JOINTS.map((j) => <button key={j.v} onClick={() => onPatch({ grout: { ...p.grout, joint: j.v } })} className={`px-2 py-1.5 ${num(p.grout.joint) === j.v ? "" : "ft-field text-slate-500"}`} style={num(p.grout.joint) === j.v ? { background: accent, color: "var(--ft-type-ink)" } : undefined}>{j.label}</button>)}</div>
                       {qtyOverride(gEx, G ? String(G.order) : "", gUnit, (v) => onPatch({ grout: { ...p.grout, manual: v } }))}
                     </div>
+                    {gBases.length > 1 && <div><FitSelect sm value={baseKey(gBase)} display={`Base: ${baseLabel(gBase)}`} title={gBase.name} onChange={(e) => pickGroutBase(e.target.value)}>{gBases.map((b, i) => <option key={baseKey(b)} value={baseKey(b)}>{baseOptionLabel(b, i === 0)}</option>)}</FitSelect></div>}
                     {!G && warnNote("Enter Sq Ft + tile L×W×thickness to calculate, or type a total above.")}
                     <div className="flex items-center gap-2 text-xs text-slate-500">
                       <span className="text-slate-400 shrink-0">Matching caulk</span>
