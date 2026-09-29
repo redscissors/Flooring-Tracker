@@ -14,7 +14,8 @@
 // LAZY-CHUNK-ONLY (ADR 0026): imports comparekit.js → both engines. Nothing on
 // the boot path may import this file — the popups mount it via React.lazy.
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { X } from "lucide-react";
+import { createPortal } from "react-dom";
+import { Printer, X } from "lucide-react";
 import {
   roomFromSchluter, roomFromWedi, wediSdryNoFit, syncKept,
   mirrorParts, mirrorCandidates, pruneMirror, hostAddedLines, compareLayout,
@@ -31,8 +32,9 @@ import { useWediCatalog } from "./usewedicatalog.js";
 import { mortarItemFrom } from "./schluteradapter.js";
 import { lineItems as wediLineItems } from "./wedi.js";
 import { lineItems as schluterLineItems } from "./schluter.js";
+import { ComparePrintSheet } from "./compareprint.jsx";
+import { printColumns, tierLabel, fm } from "./compareprintcols.js";
 
-const fm = (n) => "$" + (+n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const DRAIN_LBL = { point: "point drain", offset: "offset drain", linear: "linear drain" };
 const signed = (n) => (Math.abs(n) < 0.005 ? "same" : (n > 0 ? "+" : "−") + fm(Math.abs(n)));
 
@@ -99,6 +101,7 @@ const CSS = `
 .cmp-tab .qfoot .linkbtn{margin-left:auto}
 .cmp-tab .cbtn{border:1px solid var(--ft-border-strong);background:var(--ft-card);color:var(--ft-text);border-radius:7px;font-size:11px;font-weight:800;padding:3px 9px;cursor:pointer;font-family:inherit}
 .cmp-tab .cbtn:hover:not(:disabled){border-color:var(--ft-text)}
+.cmp-tab .cbtn.print{display:inline-flex;align-items:center;gap:5px}
 .cmp-tab .cbtn.primary{background:var(--ft-brand);border-color:var(--ft-brand);color:#fff;padding:7px 14px}
 .cmp-tab .cbtn.primary:hover:not(:disabled){background:var(--ft-brand-deep)}
 .cmp-tab .cbtn:disabled{opacity:.45;cursor:not-allowed}
@@ -185,7 +188,7 @@ export default function CompareTab({
   host, hostCfg, hostBuild, cat, source, tier, salePct, customPct, hostMode = "custom",
   wediBuilderPct, schluterBuilderPct,
   stockRows, bookStockReady, books, loadBookItems,
-  mortars, mortarDefault, areaName, onQuoteOptions,
+  mortars, mortarDefault, areaName, projectName, onQuoteOptions,
   mirror, onMirror,
   compareSet = null, onCompareSet, onOpenCell, savedBy = "",
   onStage, onStageLive, freeSlots,
@@ -199,6 +202,7 @@ export default function CompareTab({
   const [confirm, setConfirm] = useState(null);
   const [pick, setPick] = useState(null);
   const [msg, setMsg] = useState("");
+  const [printing, setPrinting] = useState(false);
   // Session state — the cells checked for quote options, the wedi Membrane
   // house kit's no-fit answer — rides the popup's Compare session under the reserved key `grid`
   // (cell keys all contain ':'), stamped with the host cell it was made for:
@@ -225,6 +229,18 @@ export default function CompareTab({
   // and the next closes the popup. Without it Esc threw away the live build.
   useEscClose(!!confirm, () => setConfirm(null));
   useEscClose(!!pick, () => setPick(null));
+  // The sheet unmounts on afterprint, not right after window.print() returns:
+  // Safari (and Chrome sometimes) return with the dialog still up, and an
+  // unmounted sheet prints blank. The timer covers anything that never fires
+  // the event.
+  useEffect(() => {
+    if (!printing) return;
+    const done = () => setPrinting(false);
+    window.addEventListener("afterprint", done);
+    window.print();
+    const t = setTimeout(done, 2500);
+    return () => { clearTimeout(t); window.removeEventListener("afterprint", done); };
+  }, [printing]);
   useEffect(() => {
     if (!msg) return;
     const t = setTimeout(() => setMsg(""), 3200);
@@ -406,6 +422,7 @@ export default function CompareTab({
     ? wediLineItems(c.build, { tier, builderPct: wPct })
     : schluterLineItems({ ...c.build, mode: c.live ? hostMode : "custom", cfg: c.cfg || {} }, { builderPct: sPct }));
   const openQuote = () => setConfirm(sendable.map((c) => ({ key: c.key, name: c.name, total: c.totals.retail, flags: c.flags, lines: linesOf(c) })));
+  const printCols = printColumns(CELLS.map((c) => cells[c.key]), checked, missOf);
   const short = !!freeSlots && freeSlots.length < sendable.length;
   const letterOf = (i) => (freeSlots ? freeSlots[i] : undefined);
   const letterSpan = (n) => {
@@ -554,19 +571,21 @@ export default function CompareTab({
         {rowsOut.map((r, i) => r.render(i === rowsOut.length - 1))}
       </div>
 
-      {(onQuoteOptions || msg || showClear) && (
-        <div className="qfoot">
-          {onQuoteOptions && (
-            <button className="cbtn primary" data-cmp-send disabled={sendable.length < 2 || short} onClick={openQuote}>
-              {sendable.length < 2 ? "Check two or more columns for quote options"
-                : short ? `Only ${freeSlots.length} option letters left — uncheck some`
-                  : `Add ${sendable.length} as quote options`}
-            </button>
-          )}
-          {msg && <div className="msg" data-cmp-msg>{msg}</div>}
-          {showClear && <button type="button" className="linkbtn" data-cmp-clear onClick={clearAll}>Clear set</button>}
-        </div>
-      )}
+      <div className="qfoot">
+        {onQuoteOptions && (
+          <button className="cbtn primary" data-cmp-send disabled={sendable.length < 2 || short} onClick={openQuote}>
+            {sendable.length < 2 ? "Check two or more columns for quote options"
+              : short ? `Only ${freeSlots.length} option letters left — uncheck some`
+                : `Add ${sendable.length} as quote options`}
+          </button>
+        )}
+        <button type="button" className="cbtn print" data-cmp-print disabled={!printCols.length}
+          title={printCols.length ? "print the checked columns" : "Check the columns to print"} onClick={() => setPrinting(true)}>
+          <Printer size={13} />Print
+        </button>
+        {msg && <div className="msg" data-cmp-msg>{msg}</div>}
+        {showClear && <button type="button" className="linkbtn" data-cmp-clear onClick={clearAll}>Clear set</button>}
+      </div>
 
       {pick && (() => {
         const c = cells[pick.cell];
@@ -612,6 +631,14 @@ export default function CompareTab({
           </SwapPop>
         );
       })()}
+
+      {printing && printCols.length > 0 && createPortal(
+        <ComparePrintSheet cols={printCols} projectName={projectName} areaName={areaName} roomText={roomText}
+          tierLabel={tierLabel(tier)} amtOf={amtOf}
+          layout={compareLayout(
+            Object.fromEntries(printCols.map((c) => [c.key, c.rows])),
+            Object.fromEntries(printCols.map((c) => [c.key, plusOf(c)])))} />,
+        document.body)}
 
       {confirm && (
         <div className="cmodal" onClick={() => setConfirm(null)}>

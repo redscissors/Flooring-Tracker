@@ -2775,6 +2775,33 @@ src/
                     # footer button disables with "Only K option letters left
                     # — uncheck some", and with none given (hub) the modal
                     # says "options" without letters.
+                    # Spec 2026-09-29 §4: the footer ALWAYS renders and carries
+                    # Print (`data-cmp-print`, Printer icon; disabled with title
+                    # "Check the columns to print" when `printColumns` is empty).
+                    # `printing` state mirrors WediConfigurator's layout print:
+                    # the sheet is portalled into body, `window.print()`,
+                    # unmounted on afterprint with a 2.5s timer fallback. New
+                    # `projectName` prop (both popups pass it) heads the sheet;
+                    # the sheet's layout is `compareLayout` over the printed
+                    # columns only, keyed by cell key.
+  compareprintcols.js  # pure half of Compare's print (spec 2026-09-29 §4):
+                    # `printColumns(cells, checked, missOf)` — the checked
+                    # cells with a price, in `CELL_KEYS` order — `tierLabel`
+                    # ("" at retail, else "<TIER_LONG> pricing") and the shared
+                    # `fm` money formatter. No JSX so node --test can import it
+                    # (compareprint.test.js)
+  compareprint.jsx  # `ComparePrintSheet` — the customer print of the checked
+                    # Compare columns: a `.cmp-printsheet` table (column heads
+                    # in a repeating `<thead>`, a band row per group, a row per
+                    # slot, a totals row) with black-on-white brand badges.
+                    # Mounted only while a print is in flight; `PRINT_CSS`
+                    # hides every other body child (the wedi PRINT_CSS idiom)
+                    # and a separate `@page{size:landscape}` <style> is emitted
+                    # only for 3+ columns. Prints Qty · Size + item · Price per
+                    # line; note-only lines in italics with no price, placeholder
+                    # and "+" rows as "—"; leaves off part numbers, tags, pills,
+                    # flags, "vs current" and cost. Imported only by
+                    # CompareTab.jsx (same lazy chunk, ADR 0026)
   descfit.js        # fitting an order description into a fixed-width ERP field.
                     # A special line has no SKU, so a dropped CATEGORY reads as a
                     # different product — this never truncates to fit, it climbs

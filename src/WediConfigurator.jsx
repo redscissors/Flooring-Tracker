@@ -2923,7 +2923,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
         stockRows={stockRows} bookStockReady={bookStockReady}
         books={books} loadBookItems={loadBookItems}
         mortars={mortars} mortarDefault={mortarDefault}
-        areaName={areaName} onQuoteOptions={onQuoteOptions}
+        areaName={areaName} projectName={projectName} onQuoteOptions={onQuoteOptions}
         mirror={mirror} onMirror={setMirror}
         compareSet={compareSet} onCompareSet={onCompareSet} onOpenCell={onOpenCell} savedBy={savedBy}
         onStage={onBasketChange ? stageEntry : undefined}
