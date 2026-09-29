@@ -22,6 +22,21 @@ test("printProduct: a misc count line bills qty × each-price", () => {
   assert.equal(c.orderedSf, 0);
 });
 
+test("printProduct: a carton-sold trim quotes per carton, not the per-piece price under a CT label", () => {
+  const p = { ...newProduct(), type: "misc", qtyType: "count", qty: "1", priceSqft: "9.74", cartonPc: "20", cartonUnit: "CT", sellUnit: "CT" };
+  const one = printProduct(p, s);
+  assert.equal(one.line, 194.8);
+  assert.equal(one.qtyText, "1 ct (20 pcs)");
+  assert.equal(one.priceText, "$194.80/ct");
+  const three = printProduct({ ...p, qty: "60" }, s);
+  assert.equal(three.line, 584.4);
+  assert.equal(three.qtyText, "3 ct (60 pcs)");
+  assert.equal(three.priceText, "$194.80/ct");
+  const rounded = printProduct({ ...p, qty: "25" }, s);
+  assert.equal(rounded.qtyText, "2 ct (40 pcs)");
+  assert.equal(rounded.line, 389.6);
+});
+
 test("printProduct: a plain sqft line is sqft × price with no materials", () => {
   const p = { ...newProduct(), type: "vinyl", qty: "100", priceSqft: "2.5" };
   const c = printProduct(p, s);

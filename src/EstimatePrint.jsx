@@ -205,10 +205,10 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
       const inline = c.mats.filter((m) => m.inline);
       const isEach = p.type === "misc" || p.qtyType === "count";
       const typeLbl = TLBL[p.type] || "";
-      const specParts = [c.size, c.C ? `${sf1(c.C.sf)} SF/${c.C.unit}` : "", p.sku ? `SKU ${p.sku}` : ""].filter(Boolean).join(" · ");
+      const specParts = [c.size, c.C ? `${sf1(c.C.sf)} SF/${c.C.unit}` : "", c.PC ? `${c.PC.per} PC/${c.PC.unit.toUpperCase()}` : "", p.sku ? `SKU ${p.sku}` : ""].filter(Boolean).join(" · ");
       const cartonPrice = c.C ? c.C.sf * num(p.priceSqft) : 0;
       const qtyLine = c.C ? `${sf1(c.orderedSf)} SF ordered · ${c.C.order} ${unitLong(c.C.unit, c.C.order)}` : (num(p.qty) > 0 ? `${sf1(num(p.qty))} SF` : "");
-      const eachQty = p.type === "misc" ? (c.PC ? `${c.PC.pieces} pcs` : `${miscQty(p)} ${unitNoun(miscQty(p), c.countUnit)}`) : (num(p.qty) > 0 ? `${p.qty} ${unitNoun(num(p.qty), c.countUnit)}` : "");
+      const eachQty = p.type === "misc" ? (c.PC ? `${c.PC.cartons} ${unitNoun(c.PC.cartons, c.PC.unit)} (${c.PC.pieces} pcs)` : `${miscQty(p)} ${unitNoun(miscQty(p), c.countUnit)}`) : (num(p.qty) > 0 ? `${p.qty} ${unitNoun(num(p.qty), c.countUnit)}` : "");
       // breakInside keeps a card whole across a page turn; the AREA no longer
       // refuses to split (issue 090 — whole-area avoidance orphaned big areas
       // onto fresh pages and left page tails blank).
@@ -231,7 +231,7 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
           <div className="ft-mono" style={{ textAlign: "right", whiteSpace: "nowrap", flexShrink: 0 }}>
             {isEach ? (
               <>
-                {showUnit && <div style={{ fontSize: 10, lineHeight: 1.3, color: "var(--ft-text)", marginTop: 1 }}>{showTotals && eachQty ? <span style={{ color: "var(--ft-muted)" }}>{eachQty}{num(p.priceSqft) > 0 ? " · " : ""}</span> : null}{num(p.priceSqft) > 0 ? `${money(num(p.priceSqft))}/${c.priceUnit.toLowerCase()}` : null}</div>}
+                {showUnit && <div style={{ fontSize: 10, lineHeight: 1.3, color: "var(--ft-text)", marginTop: 1 }}>{showTotals && eachQty ? <span style={{ color: "var(--ft-muted)" }}>{eachQty}{num(p.priceSqft) > 0 ? " · " : ""}</span> : null}{c.priceText || null}</div>}
                 {showTotals && c.line > 0 && <div style={{ fontSize: 12.5, lineHeight: 1.3, fontWeight: 800, marginTop: 1 }}>{money(c.line)}</div>}
               </>
             ) : (
