@@ -149,6 +149,7 @@ export function AppsWorkspace({ app, visible = true, onClose, resume = false, on
                   schluterBuilderPct={wedi.schluterBuilderPct}
                   areaName={wedi.currentName || "a new quick price"}
                   projectName={wedi.currentName || ""}
+                  hubPrintLabel="Shower"
                   stockRows={wedi.stockRows} bookStockReady={wedi.bookStockReady}
                   books={wedi.books} loadBookItems={wedi.loadBookItems}
                   mortars={wedi.mortars} mortarDefault={wedi.mortarDefault}
@@ -157,7 +158,7 @@ export function AppsWorkspace({ app, visible = true, onClose, resume = false, on
                   onMoveEntries={(groups, nextBasket) => requestCommit("wedi", wedi, groups.flatMap((g) => stampKit(g.lines)), nextBasket)}
                   onAdd={(lines) => requestCommit("wedi", wedi, lines, null)}
                   onQuoteOptions={(p) => requestCommit("wedi", wedi, { ...p, label: "Shower" }, undefined, "options")}
-                  onAddOptions={(options, next) => requestCommit("wedi", wedi, { options, label: "Shower" }, next, "options")}
+                  onAddOptions={(options, next) => requestCommit("wedi", wedi, { options, label: "Shower", from: "basket" }, next, "options")}
                   seed={seeds.wedi || null}
                   compareSet={hubSet} onCompareSet={setHubSet} onOpenCell={openCell} keepLive
                   onConfigChange={cfgSeen("wedi")}
@@ -176,6 +177,7 @@ export function AppsWorkspace({ app, visible = true, onClose, resume = false, on
                   wediBuilderPct={schluter.wediBuilderPct}
                   areaName={schluter.currentName || "a new quick price"}
                   projectName={schluter.currentName || ""}
+                  hubPrintLabel="Shower"
                   stockRows={schluter.stockRows} bookStockReady={schluter.bookStockReady}
                   books={schluter.books} loadBookItems={schluter.loadBookItems}
                   mortars={schluter.mortars} mortarDefault={schluter.mortarDefault}
@@ -184,7 +186,7 @@ export function AppsWorkspace({ app, visible = true, onClose, resume = false, on
                   onMoveEntries={(groups, nextBasket) => requestCommit("schluter", schluter, groups.flatMap((g) => stampKit(g.lines)), nextBasket)}
                   onAdd={(lines) => requestCommit("schluter", schluter, lines, null)}
                   onQuoteOptions={(p) => requestCommit("schluter", schluter, { ...p, label: "Shower" }, undefined, "options")}
-                  onAddOptions={(options, next) => requestCommit("schluter", schluter, { options, label: "Shower" }, next, "options")}
+                  onAddOptions={(options, next) => requestCommit("schluter", schluter, { options, label: "Shower", from: "basket" }, next, "options")}
                   seed={seeds.schluter || null}
                   compareSet={hubSet} onCompareSet={setHubSet} onOpenCell={openCell} keepLive
                   onConfigChange={cfgSeen("schluter")}

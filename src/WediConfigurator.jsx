@@ -657,7 +657,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   cat, caption = "",
   stockRows, bookStockReady, books, loadBookItems, mortars, mortarDefault,
   onAdd, onAddNew, editing = null, editRows = null, basket, onBasketChange, onMoveEntries, onAddOptions, placed, onOpenPlaced, onDeleteKit,
-  freeSlots, onQuoteOptions, onClose, areaName, projectName, onConfigChange, embedded = false, escActive = true,
+  freeSlots, onQuoteOptions, onClose, areaName, projectName, hubPrintLabel, onConfigChange, embedded = false, escActive = true,
   compareSet, onCompareSet, onOpenCell, onResume, savedBy = "", startDetached = false, keepLive = false }) {
   const init = useRef(null);
   if (!init.current) init.current = seedState(seed);
@@ -1624,7 +1624,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     return true;
   };
   const stageEntry = (entry) => {
-    const e = normKitBasketEntry({ ...entry, addedAt: Date.now() });
+    const e = normKitBasketEntry({ ...entry, snap: JSON.parse(JSON.stringify(entry.snap)), addedAt: Date.now() });
     if (!e || !onBasketChange) return false;
     onBasketChange([...(basket || []), e]);
     return true;
@@ -2923,7 +2923,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
         stockRows={stockRows} bookStockReady={bookStockReady}
         books={books} loadBookItems={loadBookItems}
         mortars={mortars} mortarDefault={mortarDefault}
-        areaName={areaName} projectName={projectName} onQuoteOptions={onQuoteOptions}
+        areaName={areaName} projectName={projectName} hubPrintLabel={hubPrintLabel} onQuoteOptions={onQuoteOptions}
         mirror={mirror} onMirror={setMirror}
         compareSet={compareSet} onCompareSet={onCompareSet} onOpenCell={onOpenCell} savedBy={savedBy}
         onStage={onBasketChange ? stageEntry : undefined}

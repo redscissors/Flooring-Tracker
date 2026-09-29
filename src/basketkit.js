@@ -7,6 +7,7 @@ import { schluterEntryView } from "./schluterkitview.js";
 import { BRAND, hostCellKey } from "./comparegrid.js";
 import { nextFreeSlots, optionsUsed } from "./options.js";
 import { OPTION_SLOTS } from "./model.js";
+import { cleanKitName } from "./kitlabel.js";
 
 const SYSTEM = {
   "wedi:board": "Building Panel",
@@ -18,18 +19,20 @@ const SYSTEM = {
 const viewOf = (brand, marker, session, ctx) =>
   (brand === "wedi" ? wediEntryView : schluterEntryView)(marker, session, ctx[brand]);
 
-const shape = ({ title, meta, price, faint, lines }) => ({ title, meta, price, faint: !!faint, lines });
+// The drawer's brand badge already names Schluter; its tray names lead with it.
+const shape = (brand, { title, meta, price, faint, lines }) =>
+  ({ title: brand === "schluter" ? cleanKitName(title) : title, meta, price, faint: !!faint, lines });
 
 export const entryView = (entry, ctx) => ({
   id: entry.id,
   brand: entry.brand,
   target: entry.target,
-  ...shape(viewOf(entry.brand, entry.snap, entry.session || {}, ctx)),
+  ...shape(entry.brand, viewOf(entry.brand, entry.snap, entry.session || {}, ctx)),
 });
 
 export const placedView = (kit, ctx) => ({
   ...kit,
-  ...shape(viewOf(kit.brand, kit.marker, undefined, ctx)),
+  ...shape(kit.brand, viewOf(kit.brand, kit.marker, undefined, ctx)),
 });
 
 export const optionName = (entry) =>

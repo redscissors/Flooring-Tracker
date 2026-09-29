@@ -181,7 +181,10 @@ src/
                     # used to land "Shower — wedi". Returns the patch object for the
                     # caller's single `updateProject` call — usedirectory's
                     # setter is built off a stale closure, so two calls in one
-                    # tick would clobber each other (options.test.js)
+                    # tick would clobber each other (options.test.js).
+                    # `lettersLeft(k, fix)` is the one "Only K option
+                    # letter(s) left — <fix>" string (basket: "select fewer",
+                    # Compare: "uncheck some")
   jobtotals.js      # the job's money math, extracted from App.jsx so it runs per
                     # option scope: one filtered project in, every aggregate out
                     # (totals, gList/mList/…, matAll, pMats, freight, margin).
@@ -2547,12 +2550,19 @@ src/
                     # falls back to the house kit with a `lost` chip; a kept
                     # entry on the live cell is ignored. The golden test reads
                     # the Phase 3 golden in its own pinned order (GOLDEN_ORDER).
+                    # `cellSeed(c, source)` (Open's seed) and
+                    # `stageEntryFor(c, source)` (+ Basket's entry — see
+                    # CompareTab.jsx) live here so node --test reaches them
+                    # (comparestage.test.js).
   basketkit.js      # the shared shower basket's two-engine side (spec 2026-09-29):
                     # `entryView(entry, ctx)` / `placedView(kit, ctx)` dispatch on
                     # `brand` to wediEntryView / schluterEntryView with
                     # `ctx = { wedi, schluter }` — a staged entry passes
                     # `entry.session || {}` (its own Fit flag), a placed kit NO
-                    # session (the live one). `optionName` is "wedi Building
+                    # session (the live one). A Schluter title runs through
+                    # kitlabel `cleanKitName` — the drawer's badge already
+                    # says Schluter (the popup's own resume prompt keeps the
+                    # raw title). `optionName` is "wedi Building
                     # Panel" / "Schluter KERDI membrane" off `hostCellKey`;
                     # `optionsFromEntries(views, entries, cats)` names the ready
                     # views' options (repeats " 2", " 3") or returns `{ short }`,
@@ -2574,7 +2584,10 @@ src/
                     # basket"). Add as options runs optionsFromEntries against
                     # `freeSlots` (absent = the hub: the destination decides)
                     # and says "Only K option letters left — select fewer" when
-                    # short. LAZY-CHUNK-ONLY (ADR 0026)
+                    # short. The popup's `onAddOptions` returns false when
+                    # nothing landed (App: no patch) and the selection stays;
+                    # undefined (the hub, whose destination prompt is still
+                    # pending) counts as landed. LAZY-CHUNK-ONLY (ADR 0026)
   compareset.js     # the Compare set (ticket 158 Phase 4, ADR 0052) — PURE
                     # and ENGINE-FREE, because model.js imports it (boot
                     # path): `CELL_KEYS` (the fixed column order),
@@ -2773,9 +2786,14 @@ src/
                     # (`data-cmp-stage`, shown when the popup passes
                     # `onStage` + `onStageLive`) stages that column's build in
                     # the shared shower basket — Current through the popup's
-                    # own `stageBuild`, the rest as `{brand, snap:
-                    # cellSeed(c, source)}` (`cellSeed` is `openCell`'s seed,
-                    # shared). `freeSlots` (the job's free option letters,
+                    # own `stageBuild`, the rest as comparegrid.js
+                    # `stageEntryFor(c, source)` — `{brand, snap: cellSeed(c,
+                    # source)}` (`cellSeed` is `openCell`'s seed, shared), plus
+                    # `session: {panelFit: false}` on a wedi HOUSE kit, which
+                    # bills its recipe panels with no Fit plan (a sessionless
+                    # staged entry reads Fit ON and priced dearer than the
+                    # column; comparestage.test.js pins column = staged price
+                    # at Retail for every house column). `freeSlots` (the job's free option letters,
                     # undefined in the Apps hub) drives the quote-options
                     # letters: the confirm rows/button/note read them, the
                     # footer button disables with "Only K option letters left
@@ -2788,6 +2806,9 @@ src/
                     # the sheet is portalled into body, `window.print()`,
                     # unmounted on afterprint with a 2.5s timer fallback. New
                     # `projectName` prop (both popups pass it) heads the sheet;
+                    # `hubPrintLabel` (the Apps hub passes "Shower", through
+                    # either popup) replaces it: the hub's areaName is a
+                    # destination placeholder, so its sheet names no project;
                     # the sheet's layout is `compareLayout` over the printed
                     # columns only, keyed by cell key.
   compareprintcols.js  # pure half of Compare's print (spec 2026-09-29 §4):

@@ -462,7 +462,7 @@ function seedState(seed) {
 export default function SchluterConfigurator({
   seed, tier, onTierChange, schluterBuilderPct, wediBuilderPct, onAdd, onAddNew, editing = null, editRows = null,
   basket, onBasketChange, onMoveEntries, onAddOptions, placed, onOpenPlaced, onDeleteKit, freeSlots,
-  onClose, areaName, projectName,
+  onClose, areaName, projectName, hubPrintLabel,
   onConfigChange, onQuoteOptions, embedded = false, escActive = true,
   stockRows, bookStockReady, books, loadBookItems, mortars, mortarDefault,
   compareSet, onCompareSet, onOpenCell, onResume, savedBy = "", startDetached = false, keepLive = false,
@@ -833,7 +833,7 @@ export default function SchluterConfigurator({
     return true;
   };
   const stageEntry = (entry) => {
-    const e = normKitBasketEntry({ ...entry, addedAt: Date.now() });
+    const e = normKitBasketEntry({ ...entry, snap: JSON.parse(JSON.stringify(entry.snap)), addedAt: Date.now() });
     if (!e || !onBasketChange) return false;
     onBasketChange([...(basket || []), e]);
     return true;
@@ -2525,7 +2525,7 @@ export default function SchluterConfigurator({
         wediBuilderPct={wediBuilderPct} schluterBuilderPct={bPct}
         books={books} loadBookItems={loadBookItems} bookStockReady={bookStockReady}
         mortars={mortars} mortarDefault={mortarDefault}
-        areaName={areaName} projectName={projectName} onQuoteOptions={onQuoteOptions}
+        areaName={areaName} projectName={projectName} hubPrintLabel={hubPrintLabel} onQuoteOptions={onQuoteOptions}
         mirror={mirror} onMirror={setMirror}
         compareSet={compareSet} onCompareSet={onCompareSet} onOpenCell={onOpenCell} savedBy={savedBy}
         onStage={onBasketChange ? stageEntry : undefined}

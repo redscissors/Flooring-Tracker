@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { newArea, newProduct, removeKitLines } from "./model.js";
-import { OPTION_SLOTS, OPTION_COLOR, optionsUsed, hasOptions, bucketCats, scopedCats, optionTitle, optionShort, normOptionNames, duplicateInto, compareOptionsPatch, nextFreeSlots } from "./options.js";
+import { OPTION_SLOTS, OPTION_COLOR, optionsUsed, hasOptions, bucketCats, scopedCats, optionTitle, optionShort, normOptionNames, duplicateInto, compareOptionsPatch, nextFreeSlots, lettersLeft } from "./options.js";
 
 const area = (option, id = "x") => ({ id, name: "n" + id, option, products: [{ id: "p" + id, sku: "S" + id }] });
 
@@ -312,4 +312,10 @@ test("compareOptionsPatch null when too few letters", () => {
   const proj = hostProject();
   proj.categories.push(...OPTION_SLOTS.slice(0, 11).map((s) => ({ ...newArea(), option: s })));
   assert.equal(compareOptionsPatch(proj, proj.categories[1].id, { options: [opt("x", "1"), opt("y", "2")] }), null);
+});
+
+test("lettersLeft pluralizes", () => {
+  assert.equal(lettersLeft(1, "select fewer"), "Only 1 option letter left — select fewer");
+  assert.equal(lettersLeft(0, "uncheck some"), "Only 0 option letters left — uncheck some");
+  assert.equal(lettersLeft(2, "uncheck some"), "Only 2 option letters left — uncheck some");
 });

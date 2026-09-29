@@ -7,6 +7,7 @@ import { wediEntryView } from "./wedikitview.js";
 import { schluterEntryView } from "./schluterkitview.js";
 import { OPTION_SLOTS } from "./model.js";
 import { entryView, placedView, optionName, optionsFromEntries, moveable } from "./basketkit.js";
+import { cleanKitName } from "./kitlabel.js";
 
 const CAT = catalogOf(FIXTURE_ITEMS);
 const scfg = (o) => ({ w: 60, d: 38, curbed: true, drain: "point",
@@ -36,7 +37,7 @@ test("entryView dispatches by brand", () => {
   assert.equal(w.id, "w1");
   assert.deepEqual(w.target, { areaId: "a", rowId: "r", kitId: "k" });
   const s = entryView(schluter(null, { snap: sMarker }), ctx);
-  assert.equal(s.title, schluterEntryView(sMarker, {}, ctx.schluter).title);
+  assert.equal(s.title, cleanKitName(schluterEntryView(sMarker, {}, ctx.schluter).title));
   assert.equal(s.brand, "schluter");
   assert.equal(typeof s.lines, "function");
 });
@@ -46,6 +47,15 @@ test("entryView reads the entry's own session (staged fork)", () => {
   const bare = entryView(wedi(null, { snap: wMarker }), ctx);
   assert.equal(staged.lines().length, wediEntryView(wMarker, { panelFit: false }, ctx.wedi).lines().length);
   assert.equal(bare.price, wediEntryView(wMarker, {}, ctx.wedi).price);
+});
+
+test("a Schluter title drops the brand its badge already shows", () => {
+  const cat = CAT.map((e) => (e.sku === tray.tray.sku ? { ...e, name: "Schluter " + e.name } : e));
+  const sctx = { ...ctx, schluter: { ...ctx.schluter, cat } };
+  assert.match(schluterEntryView(sMarker, {}, sctx.schluter).title, /^Schluter /);
+  const staged = entryView(schluter(null, { snap: sMarker }), sctx);
+  const placed = placedView({ rowId: "r", marker: sMarker, brand: "schluter" }, sctx);
+  for (const v of [staged, placed]) assert.doesNotMatch(v.title, /Schluter|KERDI/);
 });
 
 test("placedView passes no session and keeps the kit's fields", () => {

@@ -197,8 +197,9 @@ the `target`) is unchanged, and Sheoga's `sheogaBasket` is untouched.
   array normalizes it, dropping any entry with no valid brand; an older record's
   `wediBasket` (brand wedi) and `schluterBasket` (brand schluter) are merged and
   ordered by `addedAt`. The legacy keys are destructured out of the normalized
-  object, so the next `updateProject` write drops them. No SQL — the field rides
-  `customers.data`. `newProject` seeds `showerBasket: []` only.
+  object, so the next `updateProject` write drops them. Once a record has
+  `showerBasket`, old-format arrays written later by a stale tab are ignored.
+  No SQL — the field rides `customers.data`. `newProject` seeds `showerBasket: []` only.
 - **Brand.** `normKitBasketEntry(e, brand?)` keeps a valid `e.brand`, else takes
   the argument (the legacy merge passes it), else returns null: an entry that
   cannot say which engine prices it cannot be shown, so it is dropped rather than

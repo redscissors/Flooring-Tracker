@@ -38,6 +38,7 @@ const PRINT_CSS = `
   .cmp-printsheet .ln .p{flex:none;font-weight:700;font-variant-numeric:tabular-nums}
   .cmp-printsheet .ln.note .n{color:#555;font-style:italic}
   .cmp-printsheet .ln.dash .n{color:#777}
+  .cmp-printsheet tr.tot{break-before:avoid;page-break-before:avoid}
   .cmp-printsheet tr.tot td{border-top:2px solid #111;border-bottom:0;padding-top:5px;font-size:15px;font-weight:800;font-variant-numeric:tabular-nums}
   .cmp-printsheet tr.tot td.lab{font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:#111}
 }

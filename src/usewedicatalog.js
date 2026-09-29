@@ -10,9 +10,9 @@
 // by every wedi.js consumer — including comparekit.js, which the SCHLUTER
 // popup's Compare tab reaches. Any new lazy entry point that reads wedi's
 // catalog must call this hook first, or it will read whichever source the
-// last popup happened to install. There are exactly two callers today:
-// WediConfigurator's wrapper, and CompareTab (which runs it for the Schluter
-// host, where nothing upstream installs anything).
+// last popup happened to install. There are exactly three callers today:
+// WediConfigurator's wrapper, and CompareTab and ShowerBasket (which run it
+// for the Schluter host, where nothing upstream installs anything).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { adaptBookRows, adaptSoRows } from "./wediadapter.js";
 import {

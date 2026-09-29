@@ -34,6 +34,7 @@ export const nextFreeSlots = (cats, n) => {
   const free = OPTION_SLOTS.filter((s) => !used.has(s));
   return free.length >= n ? free.slice(0, n) : null;
 };
+export const lettersLeft = (k, fix) => `Only ${k} option letter${k === 1 ? "" : "s"} left — ${fix}`;
 
 export const bucketCats = (cats, scope) => (cats || []).filter((a) => (scope === "shared" ? !a.option : a.option === scope));
 export const scopedCats = (cats, scope) => {

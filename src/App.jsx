@@ -29,7 +29,7 @@ import { STOCK_LOADING_MSG, TYPES, TLBL, underlayLabel, TYPE_ACCENT, ROW_WASH, T
 import { uid, money, sf1, miscQty, blobToDataURL, dataURLToBlob, wasteNote, newProduct, newArea, areaLabel, rowBlank, catSig, newProject, newPerson, newBuilder, normC, personData, quickAutoName, isRealProjectName, QUICK_DEFAULT_NAME, stampKit, landKitLines, appendKitLines, moveKitEntries, placedKits, removeKitLines, kitRows } from "./model.js";
 import { lineTotal, printProduct, printAreaFloor, KSHORT, u1, orderEntryRow, matOrderRow } from "./print.js";
 import { jobTotals } from "./jobtotals.js";
-import { OPTION_SLOTS, OPTION_COLOR, optionsUsed, bucketCats, scopedCats, optionTitle, optionShort, duplicateInto, compareOptionsPatch } from "./options.js";
+import { OPTION_SLOTS, OPTION_COLOR, optionsUsed, bucketCats, scopedCats, optionTitle, optionShort, duplicateInto, compareOptionsPatch, lettersLeft } from "./options.js";
 import { LazyBoundary, FitSelect, GroutColorOptions, BuilderCombo, MetaChip, SalespersonPop, SegBar, WasteBar, DARK_MODE, MarginLine, Modal, useEscClose, HelpTip, AddressField, PopMenu } from "./widgets.jsx";
 import { escPush } from "./escstack.js";
 import { TypeSelect, GRID_COLS, GridPriceCell, GridSizeInput, GridProductBox, GridOmniSearch, UnitPick } from "./grid.jsx";
@@ -948,7 +948,9 @@ export default function App({ user, onSignOut }) {
   const showerFreeSlots = () => { const used = optionsUsed(sel.categories); return OPTION_SLOTS.filter((s) => !used.includes(s)); };
   const addShowerOptions = (aid, options, nextBasket) => {
     const patch = compareOptionsPatch(sel, aid, { options, label: sel.categories.find((x) => x.id === aid)?.name });
-    if (patch) updateProject(sel.id, { ...patch, showerBasket: nextBasket });
+    if (!patch) { ping(lettersLeft(showerFreeSlots().length, "select fewer")); return false; }
+    updateProject(sel.id, { ...patch, showerBasket: nextBasket });
+    return true;
   };
   // Sheoga opened from the Apps hub has no row/project context. Its lines drop
   // into the first area of whichever project the salesperson picks in the
@@ -982,7 +984,7 @@ export default function App({ user, onSignOut }) {
   const addHubOptionsToCurrent = (payload) => {
     if (!sel) return false;
     const patch = compareOptionsPatch(sel, null, payload);
-    if (!patch) { ping(`Only ${showerFreeSlots().length} option letters left — uncheck some`); return false; }
+    if (!patch) { ping(lettersLeft(showerFreeSlots().length, payload.from === "basket" ? "select fewer" : "uncheck some")); return false; }
     updateProject(sel.id, patch);
     railDispatch({ type: "closePane" });
     return true;

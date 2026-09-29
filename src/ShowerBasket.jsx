@@ -9,6 +9,7 @@ import { useWediCatalog } from "./usewedicatalog.js";
 import { entryView, placedView, moveable, optionsFromEntries } from "./basketkit.js";
 import { BRAND } from "./comparegrid.js";
 import { OPTION_SLOTS } from "./model.js";
+import { lettersLeft } from "./options.js";
 
 const loadingView = (brand) => ({
   title: `${BRAND[brand]} kit`, meta: `Loading the ${BRAND[brand]} price book…`,
@@ -85,9 +86,9 @@ export default function ShowerBasket({
     if (!t) return;
     const byId = new Map(list.map((b) => [b.id, b]));
     const r = optionsFromEntries(t.go, t.go.map((v) => byId.get(v.id)), usedCats);
-    if (r.short != null) { say(`Only ${r.short} option letters left — select fewer`); return; }
-    onAddOptions(r.options, t.rest);
-    done(t);
+    if (r.short != null) { say(lettersLeft(r.short, "select fewer")); return; }
+    // the Apps hub can't know yet (its destination prompt is pending): undefined counts as landed
+    if (onAddOptions(r.options, t.rest) !== false) done(t);
   };
 
   return (
