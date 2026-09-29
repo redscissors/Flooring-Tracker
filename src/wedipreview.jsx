@@ -9,14 +9,17 @@
 // off the same adapter path production runs.
 //
 // Stateful cats/basket so the ADR 0035 step 3 drawer exercises the real
-// landKitLines/placedKits/removeKitLines paths.
+// landKitLines/placedKits/removeKitLines paths. The basket is the shared
+// wedi+Schluter one: `?mixed=1` seeds it with a Schluter entry so the drawer
+// shows both brands, and Add as options lands option areas on the harness cats.
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import WediConfigurator from "./WediConfigurator.jsx";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
 import { normOrderItem, bookItemData, normBookItem } from "./orderbook.js";
-import { newProduct, newArea, landKitLines, appendKitLines, moveKitEntries, placedKits, removeKitLines, kitRows } from "./model.js";
+import { newProduct, newArea, landKitLines, appendKitLines, moveKitEntries, placedKits, removeKitLines, kitRows, OPTION_SLOTS } from "./model.js";
+import { compareOptionsPatch, optionsUsed } from "./options.js";
 import { FIXTURE_ROWS as WEDI_STOCK_ROWS } from "./wedifixture.js";
 import { PRICELIST_SHEETS } from "./wedipricelistfixture.js";
 import { parseWediPricelist } from "./wedibook.js";
@@ -102,9 +105,20 @@ function SearchStrip() {
 // so the drive can reopen a marker shape the UI no longer writes.
 const URL_SEED = (() => { try { return JSON.parse(new URLSearchParams(location.search).get("seed")); } catch { return null; } })();
 
+const MIXED = new URLSearchParams(location.search).get("mixed") === "1";
+const SCHLUTER_ENTRY = {
+  id: "seed-schluter", kind: "kit", brand: "schluter", addedAt: 1,
+  snap: { mode: "custom", cfg: { w: 60, d: 32, curbed: true, drain: "point", wallSys: "membrane", manual: [], source: "all",
+    walls: [{ on: true, len: 60, h: 84 }, { on: true, len: 32, h: 84 }, { on: true, len: 32, h: 84 }] } },
+};
+const tagged = (cats) => [
+  ...placedKits(cats, "wedi").map((k) => ({ ...k, brand: "wedi" })),
+  ...placedKits(cats, "schluter").map((k) => ({ ...k, brand: "schluter" })),
+];
+
 function Harness() {
   const [cats, setCats] = useState([{ ...newArea(), name: "Master bath", products: [newProduct()] }]);
-  const [basket, setBasket] = useState([]);
+  const [basket, setBasket] = useState(MIXED ? [SCHLUTER_ENTRY] : []);
   const [pop, setPop] = useState({ aid: null, pid: null, seed: URL_SEED, n: 0 });
   const aid = pop.aid || cats[0].id, pid = pop.pid || cats[0].products.at(-1).id;
   const row = cats.find((a) => a.id === aid)?.products.find((p2) => p2.id === pid);
@@ -122,7 +136,9 @@ function Harness() {
       mortars={{ "Schluter All Set": { tier1: 95, tier2: 70, tier3: 45, unit: "bags", price: 39.21 }, "ProLite": { tier1: 90, tier2: 63, tier3: 45, unit: "bags", price: 32.5 } }}
       mortarDefault="Schluter All Set"
       basket={basket} onBasketChange={setBasket}
-      placed={placedKits(cats, "wedi")}
+      placed={tagged(cats)}
+      freeSlots={OPTION_SLOTS.filter((s) => !optionsUsed(cats).includes(s))}
+      onAddOptions={(options, nextBasket) => { setCats((c) => compareOptionsPatch({ categories: c }, aid, { options, label: "Master bath" })?.categories || c); setBasket(nextBasket); }}
       onOpenPlaced={(k) => setPop((p) => ({ aid: k.areaId, pid: k.rowId, seed: k.marker, n: p.n + 1 }))}
       onDeleteKit={(k) => setCats((c) => removeKitLines(c, k.areaId, k.rowId) || c)}
       onAdd={(lines) => setCats((c) => { const withRow = c.map((a) => (a.id === aid && !a.products.some((x) => x.id === pid) ? { ...a, products: [...a.products, { ...newProduct(), id: pid }] } : a)); return landKitLines(withRow, aid, pid, lines) || withRow; })}

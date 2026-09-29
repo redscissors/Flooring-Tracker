@@ -10,14 +10,22 @@
 // exercises the adapter path end to end, exactly what production runs.
 //
 // Stateful cats/basket so the ADR 0035 step 3 drawer exercises the real
-// landKitLines/placedKits/removeKitLines paths.
+// landKitLines/placedKits/removeKitLines paths. The basket is the shared
+// wedi+Schluter one, so the bag also carries wedipreview.jsx's two wedi books
+// (the drawer prices wedi entries off them); `?mixed=1` seeds a wedi entry.
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import SchluterConfigurator from "./SchluterConfigurator.jsx";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
-import { normOrderItem } from "./orderbook.js";
-import { newProduct, newArea, landKitLines, appendKitLines, moveKitEntries, placedKits, removeKitLines, kitRows } from "./model.js";
+import { normOrderItem, normBookItem, bookItemData } from "./orderbook.js";
+import { newProduct, newArea, landKitLines, appendKitLines, moveKitEntries, placedKits, removeKitLines, kitRows, OPTION_SLOTS } from "./model.js";
+import { compareOptionsPatch, optionsUsed } from "./options.js";
+import { FIXTURE_ROWS as WEDI_STOCK_ROWS } from "./wedifixture.js";
+import { PRICELIST_SHEETS } from "./wedipricelistfixture.js";
+import { parseWediPricelist } from "./wedibook.js";
+import { parseMapped } from "./pricebook.js";
+import { kitFor } from "./wedi.js";
 
 // Live rows lead with "Schluter" since ADR 0041 (the EFT import stamps it; the
 // ERP export already spells it), so the harness names carry the lead too —
@@ -124,6 +132,32 @@ stockRows.push(normOrderItem({
   size: "16'5\" roll", description: lead('KERDI-BAND 10" seam band'), leadTime: "READY SHIP",
 }));
 
+const wediStockRows = WEDI_STOCK_ROWS.map((r) => normBookItem(r, "bk_wedi"));
+const wediSoRows = (() => {
+  const p = parseWediPricelist(PRICELIST_SHEETS);
+  const { items } = parseMapped(p.rows, p.mapping);
+  return items.map((it) => normBookItem({ sku: it.sku, active: true, data: bookItemData(it) }, "bk_wedi_so"));
+})();
+const BOOKS = [
+  { id: "bk_eft", kind: "order", active: true, name: "Schluter EFT" },
+  { id: "bk_wedi", kind: "stock", active: true, name: "wedi" },
+  { id: "bk_wedi_so", kind: "order", active: true, name: "wedi" },
+];
+// ?slow=1 holds the wedi books back 5s, so the drawer's still-loading path shows.
+const SLOW = new URLSearchParams(location.search).get("slow") === "1";
+const loadBookItems = async (id) => {
+  if (SLOW && id.startsWith("bk_wedi")) await new Promise((r) => setTimeout(r, 5000));
+  return id === "bk_wedi" ? wediStockRows : id === "bk_wedi_so" ? wediSoRows : eftRows;
+};
+
+const MIXED = new URLSearchParams(location.search).get("mixed") === "1";
+const wediKit = kitFor("US9100001", {});
+const WEDI_ENTRY = { id: "seed-wedi", kind: "kit", brand: "wedi", addedAt: 1, snap: { mode: wediKit.mode, cfg: wediKit.cfg } };
+const tagged = (cats) => [
+  ...placedKits(cats, "wedi").map((k) => ({ ...k, brand: "wedi" })),
+  ...placedKits(cats, "schluter").map((k) => ({ ...k, brand: "schluter" })),
+];
+
 // The harness "sheet" — the placed rows as the job sheet holds them, with a
 // qty box per row and Reconfigure on each anchor, so the drive can prove a
 // sheet-edited quantity reopens as the popup's override (owner 2026-09-02).
@@ -148,7 +182,7 @@ function Sheet({ cats, setCats, vendor, onReconfig }) {
 
 function Harness() {
   const [cats, setCats] = useState([{ ...newArea(), name: "Master bath", products: [newProduct()] }]);
-  const [basket, setBasket] = useState([]);
+  const [basket, setBasket] = useState(MIXED ? [WEDI_ENTRY] : []);
   const [pop, setPop] = useState({ aid: null, pid: null, seed: null, n: 0 });
   const aid = pop.aid || cats[0].id, pid = pop.pid || cats[0].products.at(-1).id;
   const row = cats.find((a) => a.id === aid)?.products.find((p2) => p2.id === pid);
@@ -161,12 +195,14 @@ function Harness() {
       projectName="Harper — 214 Ridgeway"
       stockRows={stockRows}
       bookStockReady
-      books={[{ id: "bk_eft", kind: "order", active: true, name: "Schluter EFT" }]}
-      loadBookItems={async () => eftRows}
+      books={BOOKS}
+      loadBookItems={loadBookItems}
       mortars={{ "Schluter All Set": { tier1: 95, tier2: 70, tier3: 45, unit: "bags", price: 39.21 }, "ProLite": { tier1: 90, tier2: 63, tier3: 45, unit: "bags", price: 32.5 } }}
       mortarDefault="Schluter All Set"
       basket={basket} onBasketChange={setBasket}
-      placed={placedKits(cats, "schluter")}
+      placed={tagged(cats)}
+      freeSlots={OPTION_SLOTS.filter((s) => !optionsUsed(cats).includes(s))}
+      onAddOptions={(options, nextBasket) => { setCats((c) => compareOptionsPatch({ categories: c }, aid, { options, label: "Master bath" })?.categories || c); setBasket(nextBasket); }}
       onOpenPlaced={(k) => setPop((p) => ({ aid: k.areaId, pid: k.rowId, seed: k.marker, n: p.n + 1 }))}
       onDeleteKit={(k) => setCats((c) => removeKitLines(c, k.areaId, k.rowId) || c)}
       onAdd={(lines) => setCats((c) => { const withRow = c.map((a) => (a.id === aid && !a.products.some((x) => x.id === pid) ? { ...a, products: [...a.products, { ...newProduct(), id: pid }] } : a)); return landKitLines(withRow, aid, pid, lines) || withRow; })}

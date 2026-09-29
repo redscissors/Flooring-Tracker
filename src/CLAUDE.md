@@ -241,7 +241,10 @@ src/
                     # and a half-typed "4" of "48" is not a room, and
                     # KitBasketPanel — the shared wedi/Schluter basket drawer
                     # shell (ADR 0035 step 3, presentation-only view rows: the
-                    # two popups can't drift on the drawer either)
+                    # two popups can't drift on the drawer either); a row's
+                    # `brand` draws the wedi/Schluter badge, `onAddOptions`
+                    # adds the footer's "Add N as options" (ShowerBasket.jsx
+                    # feeds it)
   dropdown.js       # MorphSelect's pure half (ADR 0048): `flatten` (grouped
                     # rows → one walkable list + heading positions),
                     # `moveIndex`/`edgeIndex` (skip disabled, wrap),
@@ -1429,7 +1432,13 @@ src/
                     # there) but no `onQuoteOptions` — there is no host area.
                     # A basket drawer (ADR 0035 step 3, the Sheoga idiom via
                     # the shared KitBasketPanel): staged entries persist in
-                    # project.wediBasket ("Basket" beside Add), the derived
+                    # the shared project.showerBasket ("Basket" beside Add;
+                    # `stageBuild` stamps brand "wedi", `stageEntry` stages a
+                    # given entry for Compare) and the drawer is the lazy
+                    # ShowerBasket.jsx chunk, mounted the first time it opens
+                    # (spec 2026-09-29) — it lists and prices BOTH brands and
+                    # takes `onAddOptions`/`freeSlots`; the resume prompt keeps
+                    # pricing through wediEntryView. The derived
                     # In-this-project section reconfigures/removes placed
                     # kits (App remounts on a pid+nonce key so reconfiguring
                     # the CURRENT kit re-seeds too), delete-on-move stands,
@@ -2258,7 +2267,10 @@ src/
                     # point pan) and flips mode to custom like any other swap;
                     # Esc/outside click discards it. Esc ladder rungs: payload →
                     # confirmKit → swap → picker → bench → wall → placing.
-                    # Same basket drawer (project.schluterBasket) — entries
+                    # Same basket drawer (the shared project.showerBasket and
+                    # the lazy ShowerBasket.jsx chunk, handed this popup's
+                    # assembled cat/catReady; `stageBuild` stamps brand
+                    # "schluter") — entries
                     # wait FAINT on catReady before pricing (ADR 0032); a
                     # staged snap is markCfg, so manual extras and the quoted
                     # tray survive staging, and the entry's `session` sibling
@@ -2336,7 +2348,10 @@ src/
                     # its quote-options footer — a footer that only exists when
                     # the prop is given. Stateful cats/basket (ADR 0035 step 3)
                     # so the drawer shots run the real landKitLines/
-                    # placedKits/removeKitLines paths.
+                    # placedKits/removeKitLines paths. The bag also carries
+                    # wedipreview.jsx's two wedi books so the shared drawer
+                    # prices wedi entries; `?mixed=1` seeds a wedi entry, and
+                    # Add as options lands through compareOptionsPatch.
   wedipreview.jsx   # dev-only harness (wedi-preview.html): the REAL
                     # WediConfigurator over the real engine, no Supabase and no
                     # App shell — the wedi half of the change-control preview
@@ -2349,7 +2364,9 @@ src/
                     # no-op `onQuoteOptions`; not part of the app build.
                     # Stateful cats/basket (ADR 0035 step 3) so the drawer
                     # shots run the real landKitLines/placedKits/
-                    # removeKitLines paths.
+                    # removeKitLines paths; `?mixed=1` seeds a Schluter entry
+                    # into the shared basket, and Add as options lands through
+                    # compareOptionsPatch.
   sheogapreview.jsx # dev-only harness (sheoga-preview.html): the REAL
                     # SheogaConfigurator over local mock state, no Supabase —
                     # preview proof for the ADR 0035 step 2 drawer; landing/
@@ -2535,6 +2552,22 @@ src/
                     # `moveable` splits ready from faint. LAZY-CHUNK-ONLY
                     # (ADR 0026): imports both view modules; model.js never does
                     # (basketkit.test.js)
+  ShowerBasket.jsx  # the shared wedi+Schluter basket drawer (spec 2026-09-29
+                    # §1), default export, mounted via React.lazy by BOTH
+                    # popups inside their slide-in panel once it first opens.
+                    # Runs both catalog hooks the CompareTab way (the host's
+                    # own engine fed nulls / `enabled:false`; the Schluter host
+                    # passes its cat through), prices every entry through
+                    # basketkit.js — the host's live Fit only for its own
+                    # brand's placed kits, the other brand Fit on — and draws
+                    # KitBasketPanel. An entry whose catalog is still loading
+                    # reads faint "Loading the <brand> price book…"; Move and
+                    # Add as options land only priced entries, the rest stay
+                    # staged and selected ("N still loading — they stay in the
+                    # basket"). Add as options runs optionsFromEntries against
+                    # `freeSlots` (absent = the hub: the destination decides)
+                    # and says "Only K option letters left — select fewer" when
+                    # short. LAZY-CHUNK-ONLY (ADR 0026)
   compareset.js     # the Compare set (ticket 158 Phase 4, ADR 0052) — PURE
                     # and ENGINE-FREE, because model.js imports it (boot
                     # path): `CELL_KEYS` (the fixed column order),
