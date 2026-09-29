@@ -2522,6 +2522,19 @@ src/
                     # falls back to the house kit with a `lost` chip; a kept
                     # entry on the live cell is ignored. The golden test reads
                     # the Phase 3 golden in its own pinned order (GOLDEN_ORDER).
+  basketkit.js      # the shared shower basket's two-engine side (spec 2026-09-29):
+                    # `entryView(entry, ctx)` / `placedView(kit, ctx)` dispatch on
+                    # `brand` to wediEntryView / schluterEntryView with
+                    # `ctx = { wedi, schluter }` — a staged entry passes
+                    # `entry.session || {}` (its own Fit flag), a placed kit NO
+                    # session (the live one). `optionName` is "wedi Building
+                    # Panel" / "Schluter KERDI membrane" off `hostCellKey`;
+                    # `optionsFromEntries(views, entries, cats)` names the ready
+                    # views' options (repeats " 2", " 3") or returns `{ short }`,
+                    # the free letters left, when `nextFreeSlots` is null;
+                    # `moveable` splits ready from faint. LAZY-CHUNK-ONLY
+                    # (ADR 0026): imports both view modules; model.js never does
+                    # (basketkit.test.js)
   compareset.js     # the Compare set (ticket 158 Phase 4, ADR 0052) — PURE
                     # and ENGINE-FREE, because model.js imports it (boot
                     # path): `CELL_KEYS` (the fixed column order),
