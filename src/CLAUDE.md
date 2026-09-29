@@ -2755,6 +2755,18 @@ src/
                     # Every line / Subtotals is gone (always every line); a
                     # part's gray detail line is hidden and rides the name's
                     # hover title (mirror "+" rows keep theirs).
+                    # Spec 2026-09-29 §2: a quiet "+ Basket" per column
+                    # (`data-cmp-stage`, shown when the popup passes
+                    # `onStage` + `onStageLive`) stages that column's build in
+                    # the shared shower basket — Current through the popup's
+                    # own `stageBuild`, the rest as `{brand, snap:
+                    # cellSeed(c, source)}` (`cellSeed` is `openCell`'s seed,
+                    # shared). `freeSlots` (the job's free option letters,
+                    # undefined in the Apps hub) drives the quote-options
+                    # letters: the confirm rows/button/note read them, the
+                    # footer button disables with "Only K option letters left
+                    # — uncheck some", and with none given (hub) the modal
+                    # says "options" without letters.
   descfit.js        # fitting an order description into a fixed-width ERP field.
                     # A special line has no SKU, so a dropped CATEGORY reads as a
                     # different product — this never truncates to fit, it climbs

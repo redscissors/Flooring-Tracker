@@ -2528,7 +2528,8 @@ export default function SchluterConfigurator({
         areaName={areaName} onQuoteOptions={onQuoteOptions}
         mirror={mirror} onMirror={setMirror}
         compareSet={compareSet} onCompareSet={onCompareSet} onOpenCell={onOpenCell} savedBy={savedBy}
-        onStage={onBasketChange ? stageEntry : undefined} />
+        onStage={onBasketChange ? stageEntry : undefined}
+        onStageLive={onBasketChange ? () => stageBuild({ open: false }) : undefined} freeSlots={freeSlots} />
     </Suspense>
   );
 

@@ -34,7 +34,6 @@ import { lineItems as schluterLineItems } from "./schluter.js";
 
 const fm = (n) => "$" + (+n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const DRAIN_LBL = { point: "point drain", offset: "offset drain", linear: "linear drain" };
-const LETTERS = ["A", "B", "C", "D"];
 const signed = (n) => (Math.abs(n) < 0.005 ? "same" : (n > 0 ? "+" : "−") + fm(Math.abs(n)));
 
 const CSS = `
@@ -189,6 +188,7 @@ export default function CompareTab({
   mortars, mortarDefault, areaName, onQuoteOptions,
   mirror, onMirror,
   compareSet = null, onCompareSet, onOpenCell, savedBy = "",
+  onStage, onStageLive, freeSlots,
 }) {
   const wediHost = host === "wedi";
   const hostBrand = wediHost ? "wedi" : "schluter";
@@ -372,13 +372,18 @@ export default function CompareTab({
   // Open: the column's build as a seed for its own configurator — a kept build
   // as it was kept, a house kit as shown (its mirrored lines already ride its
   // cfg.manual). The popup keeps the build you're leaving on its way out.
+  const cellSeed = (c, src) => {
+    if (c.kept) return { ...c.kept.snap };
+    if (c.brand === "wedi") return { mode: c.build.mode || "custom", cfg: { ...c.build.cfg, source: src } };
+    return { mode: "custom", cfg: { ...c.cfg, source: src, pick: c.build.cand && c.build.cand.tray ? c.build.cand.tray.sku : null } };
+  };
   const openCell = (c) => {
     if (!onOpenCell || c.live || missOf(c)) return;
-    let seed;
-    if (c.kept) seed = { ...c.kept.snap };
-    else if (c.brand === "wedi") seed = { mode: c.build.mode || "custom", cfg: { ...c.build.cfg, source } };
-    else seed = { mode: "custom", cfg: { ...c.cfg, source, pick: c.build.cand && c.build.cand.tray ? c.build.cand.tray.sku : null } };
-    onOpenCell(c.key, { ...seed, tab: "compare" }, c.kept ? c.kept.target : undefined);
+    onOpenCell(c.key, { ...cellSeed(c, source), tab: "compare" }, c.kept ? c.kept.target : undefined);
+  };
+  const stageCell = (c) => {
+    const ok = c.live ? onStageLive() : onStage({ brand: c.brand, snap: cellSeed(c, source) });
+    setMsg(ok ? `Staged in the basket — ${c.name}` : "Nothing to stage in this column");
   };
   const syncCell = (c) => {
     if (!setOn || !c.kept) return;
@@ -401,7 +406,13 @@ export default function CompareTab({
     ? wediLineItems(c.build, { tier, builderPct: wPct })
     : schluterLineItems({ ...c.build, mode: c.live ? hostMode : "custom", cfg: c.cfg || {} }, { builderPct: sPct }));
   const openQuote = () => setConfirm(sendable.map((c) => ({ key: c.key, name: c.name, total: c.totals.retail, flags: c.flags, lines: linesOf(c) })));
-  const lastLetter = (n) => LETTERS[Math.max(0, n - 1)];
+  const short = !!freeSlots && freeSlots.length < sendable.length;
+  const letterOf = (i) => (freeSlots ? freeSlots[i] : undefined);
+  const letterSpan = (n) => {
+    const ls = freeSlots.slice(0, n);
+    const run = ls.every((l, i) => !i || l.charCodeAt(0) === ls[i - 1].charCodeAt(0) + 1);
+    return ls.length < 2 ? ls.join("") : run ? `${ls[0]}–${ls[ls.length - 1]}` : ls.join(", ");
+  };
 
   const tip = (
     <div className="space-y-1.5">
@@ -420,7 +431,7 @@ export default function CompareTab({
         Price book - <b>wedi builder %</b> ({wPct}% ≡ ×{((100 - wPct) / 100).toFixed(2)}) and <b>Schluter builder %</b>{" "}
         (−{sPct}%) - neither one moves the other.</p>
       {onQuoteOptions && (
-        <p><b>Quote options</b> - Check two to four columns and land them on this area as options A–D, in column
+        <p><b>Quote options</b> - Check two to four columns and land them on this area as options, in column
           order - the estimate prints them side by side.</p>
       )}
     </div>
@@ -471,6 +482,10 @@ export default function CompareTab({
             <button type="button" className="cbtn" data-cmp-sync={c.key}
               title="bring this build up to the current room and added lines — your picks stay"
               onClick={() => syncCell(c)}>Sync</button>
+          )}
+          {onStage && onStageLive && (
+            <button type="button" className="cbtn" data-cmp-stage={c.key} disabled={!!miss}
+              title="stage this build in the basket" onClick={() => stageCell(c)}>+ Basket</button>
           )}
           {onQuoteOptions && (
             <label className="opt" title="land as a quote option">
@@ -544,8 +559,10 @@ export default function CompareTab({
       {(onQuoteOptions || msg || showClear) && (
         <div className="qfoot">
           {onQuoteOptions && (
-            <button className="cbtn primary" data-cmp-send disabled={sendable.length < 2} onClick={openQuote}>
-              {sendable.length < 2 ? "Check two or more columns for quote options" : `Add ${sendable.length} as quote options`}
+            <button className="cbtn primary" data-cmp-send disabled={sendable.length < 2 || short} onClick={openQuote}>
+              {sendable.length < 2 ? "Check two or more columns for quote options"
+                : short ? `Only ${freeSlots.length} option letters left — uncheck some`
+                  : `Add ${sendable.length} as quote options`}
             </button>
           )}
           {msg && <div className="msg" data-cmp-msg>{msg}</div>}
@@ -610,15 +627,15 @@ export default function CompareTab({
                   payload rows — they agree because compareTotals and each engine's
                   lineItems both drop the noteOnly lines and both land RETAIL (ADR 0018). */}
               {confirm.map((o, i) => (
-                <div className="orow" key={o.key} data-cmp-option={LETTERS[i]}>
-                  <span className="c">{LETTERS[i]}</span>
+                <div className="orow" key={o.key} data-cmp-option={letterOf(i) || i + 1}>
+                  {freeSlots && <span className="c">{letterOf(i)}</span>}
                   <span>{o.name} — {o.lines.length} line{o.lines.length === 1 ? "" : "s"}</span>
                   {o.flags.map((f) => <span key={f.id} className="fl">{f.label}</span>)}
                   <span className="v">{fm(o.total)}</span>
                 </div>
               ))}
               <div className="bn">
-                {confirm.length} new sibling areas land beside this one, tagged options A–{lastLetter(confirm.length)}. Rows
+                {confirm.length} new sibling areas land beside this one, tagged {freeSlots ? `options ${letterSpan(confirm.length)}` : "as options"}. Rows
                 land <b>RETAIL</b> — the job sheet's own tier lens reprices them (ADR 0018) — and each anchor row keeps its
                 configurator marker, so "reconfigure" reopens the build it came from.
               </div>
@@ -631,7 +648,7 @@ export default function CompareTab({
                   setConfirm(null);
                   onQuoteOptions({ options: opts.map((o) => ({ lines: o.lines, name: o.name })), label: areaName });
                 }}>
-                Add options A–{lastLetter(confirm.length)}
+                {freeSlots ? `Add options ${letterSpan(confirm.length)}` : `Add ${confirm.length} options`}
               </button>
             </div>
           </div>
