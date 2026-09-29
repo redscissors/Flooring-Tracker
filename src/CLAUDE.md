@@ -150,7 +150,9 @@ src/
                     # `OPTION_SLOTS.length` fresh sibling areas
                     # (`{...newArea(), …}`, never duplicateInto's
                     # shared-source retag — these aren't copies of shared
-                    # work) tagged A, B, C, D… in the given order (the grid's
+                    # work) tagged with the job's next free letters (`nextFreeSlots(cats, n)` —
+                    # gaps first; null when fewer than n are left, so the
+                    # patch is null too) in the given order (the grid's
                     # reading order, checked cells only, packed — comparegrid.js
                     # decides that order, this file just letters what it's
                     # handed), inserted right after the host area (append if
@@ -158,8 +160,8 @@ src/
                     # ...p}))` plus a trailing blank adder row; `optionNames`
                     # fills empty slots only from each option's own `name`
                     # ("wedi · S-DRY membrane"), never over a custom name;
-                    # null when `options` is empty, longer than the slot list,
-                    # or ANY option's lines array is empty. The old
+                    # null when `options` is empty, longer than the free
+                    # letters left, or ANY option's lines array is empty. The old
                     # `{wediLines, schluterLines}` shape still works, read as
                     # the N=2 case `[{lines: wediLines, name: "wedi"},
                     # {lines: schluterLines, name: "Schluter"}]` — that

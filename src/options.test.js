@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { newArea, newProduct, removeKitLines } from "./model.js";
-import { OPTION_SLOTS, OPTION_COLOR, optionsUsed, hasOptions, bucketCats, scopedCats, optionTitle, optionShort, normOptionNames, duplicateInto, compareOptionsPatch } from "./options.js";
+import { OPTION_SLOTS, OPTION_COLOR, optionsUsed, hasOptions, bucketCats, scopedCats, optionTitle, optionShort, normOptionNames, duplicateInto, compareOptionsPatch, nextFreeSlots } from "./options.js";
 
 const area = (option, id = "x") => ({ id, name: "n" + id, option, products: [{ id: "p" + id, sku: "S" + id }] });
 
@@ -281,4 +281,35 @@ test("the two-option shape and the old wedi/Schluter shape land the same patch",
   const now = compareOptionsPatch(proj, host.id, { options: [{ name: "wedi", lines: [wediLine] }, { name: "Schluter", lines: [schluterLine] }] });
   assert.deepEqual(strip(now), strip(old));
   assert.deepEqual(now.optionNames, old.optionNames);
+});
+
+// --- next free option letters (owner 2026-09-29) -------------------------------
+
+test("nextFreeSlots skips used letters", () => {
+  assert.deepEqual(nextFreeSlots([area("A", "1"), area("", "2"), area("B", "3")], 2), ["C", "D"]);
+});
+
+test("nextFreeSlots fills gaps first", () => {
+  assert.deepEqual(nextFreeSlots([area("A", "1"), area("C", "2")], 2), ["B", "D"]);
+});
+
+test("nextFreeSlots null when short", () => {
+  const cats = OPTION_SLOTS.slice(0, 11).map((s, i) => area(s, "u" + i));
+  assert.deepEqual(nextFreeSlots(cats, 1), ["L"]);
+  assert.equal(nextFreeSlots(cats, 2), null);
+});
+
+test("compareOptionsPatch lands C and D beside existing A and B", () => {
+  const proj = hostProject({ optionNames: { A: "Kept" } });
+  proj.categories.push({ ...newArea(), option: "A" }, { ...newArea(), option: "B" });
+  const patch = compareOptionsPatch(proj, proj.categories[1].id, { options: [opt("x", "1"), opt("y", "2")] });
+  const landed = patch.categories.filter((a) => a.name.startsWith("Master Bath — "));
+  assert.deepEqual(landed.map((a) => a.option), ["C", "D"]);
+  assert.deepEqual(patch.optionNames, { A: "Kept", C: "x", D: "y" });
+});
+
+test("compareOptionsPatch null when too few letters", () => {
+  const proj = hostProject();
+  proj.categories.push(...OPTION_SLOTS.slice(0, 11).map((s) => ({ ...newArea(), option: s })));
+  assert.equal(compareOptionsPatch(proj, proj.categories[1].id, { options: [opt("x", "1"), opt("y", "2")] }), null);
 });

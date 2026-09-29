@@ -29,6 +29,11 @@ export const OPTION_COLOR = Object.fromEntries(OPTION_SLOTS.map((s) => [s, { ...
 
 export const optionsUsed = (cats) => OPTION_SLOTS.filter((s) => (cats || []).some((a) => a.option === s));
 export const hasOptions = (cats) => optionsUsed(cats).length > 0;
+export const nextFreeSlots = (cats, n) => {
+  const used = new Set(optionsUsed(cats));
+  const free = OPTION_SLOTS.filter((s) => !used.has(s));
+  return free.length >= n ? free.slice(0, n) : null;
+};
 
 export const bucketCats = (cats, scope) => (cats || []).filter((a) => (scope === "shared" ? !a.option : a.option === scope));
 export const scopedCats = (cats, scope) => {
@@ -74,20 +79,22 @@ export const duplicateInto = (area, slot) => {
 // closes over stale state, so two calls in one tick clobber each other — so
 // this builds one patch, not N writes. These are fresh sibling areas (not a
 // copy of shared work), so duplicateInto's shared-source retag rule doesn't
-// apply here (ADR 0034 decision 4).
+// apply here (ADR 0034 decision 4). Letters are the next free ones (owner 2026-09-29).
 export const compareOptionsPatch = (project, hostAreaId, { options, wediLines, schluterLines, label } = {}) => {
   const opts = options || [{ lines: wediLines, name: "wedi" }, { lines: schluterLines, name: "Schluter" }];
-  if (!opts.length || opts.length > OPTION_SLOTS.length || opts.some((o) => !(o.lines || []).length)) return null;
+  if (!opts.length || opts.some((o) => !(o.lines || []).length)) return null;
   const cats = project.categories || [];
+  const slots = nextFreeSlots(cats, opts.length);
+  if (!slots) return null;
   const hostIdx = cats.findIndex((a) => a.id === hostAreaId);
   const host = hostIdx >= 0 ? cats[hostIdx] : null;
   const base = (label && label.trim()) || (host?.name && host.name.trim()) || "Shower";
   const areas = opts.map((o, i) => ({
-    ...newArea(), name: `${base} — ${o.name}`, option: OPTION_SLOTS[i],
+    ...newArea(), name: `${base} — ${o.name}`, option: slots[i],
     products: [...stampKit(o.lines).map((p) => ({ ...newProduct(), ...p })), newProduct()],
   }));
   const insertAt = hostIdx >= 0 ? hostIdx + 1 : cats.length;
   const categories = [...cats.slice(0, insertAt), ...areas, ...cats.slice(insertAt)];
-  const optionNames = { ...Object.fromEntries(opts.map((o, i) => [OPTION_SLOTS[i], o.name])), ...normOptionNames(project.optionNames) };
+  const optionNames = { ...Object.fromEntries(opts.map((o, i) => [slots[i], o.name])), ...normOptionNames(project.optionNames) };
   return { categories, optionNames };
 };
