@@ -52,7 +52,7 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
       </div>
     );
   };
-  const cellStyle = (i) => ({ alignSelf: "stretch", background: CELL, padding: "2px 4px", fontSize: 7.6, lineHeight: 1.22, borderLeft: i === 0 ? `1px solid ${RULE}` : "none" });
+  const cellStyle = { alignSelf: "stretch", background: CELL, borderLeft: `1px solid ${HAIR}`, padding: "2px 4px", fontSize: 7.6, lineHeight: 1.22 };
   const moneyCells = (q, pr, c, oneLine) => {
     const cell = { paddingTop: 2, fontSize: 8.8, lineHeight: 1.3, textAlign: "right", whiteSpace: "nowrap" };
     return (
@@ -86,9 +86,7 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
             </div>
           )}
           {moneyCells(q, pr, c, oneLine)}
-          {cols.length > 0 && (cols.every((col) => cells[col.key].length === 0)
-            ? <div style={{ ...cellStyle(0), gridColumn: `span ${cols.length}` }} />
-            : cols.map((col, i) => <div key={col.key} style={cellStyle(i)}>{cells[col.key].map(matItem)}</div>))}
+          {cols.map((col) => <div key={col.key} style={cellStyle}>{cells[col.key].map(matItem)}</div>)}
         </>, pi === 0)}
       </Fragment>
     );
@@ -98,7 +96,7 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
     if (!rows.length) return null;
     return (
       <div key={a.id}>
-        <div className="ft-pband flex justify-between items-center" style={{ gap: 12, background: BAND, borderRadius: 3, padding: "1px 10px", marginTop: 5, breakAfter: "avoid" }}>
+        <div className="ft-pband flex justify-between items-center" style={{ gap: 12, background: BAND, borderRadius: 3, padding: "1px 10px 1px 16px", marginTop: 5, breakAfter: "avoid" }}>
           <div className="uppercase" style={{ fontSize: 9, fontWeight: 800, letterSpacing: ".22em", color: DEEP }}>{areaPrintLabel(a, ai)}</div>
           {full && <div className="ft-mono" style={{ fontSize: 9, color: MUTED, whiteSpace: "nowrap" }}>flooring {money(printAreaFloor(a, tSet))}</div>}
         </div>
@@ -110,10 +108,10 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
     <div style={{ display: "grid", gridTemplateColumns: g.template, columnGap: 6, borderBottom: "1px solid var(--ft-text)", padding: "8px 0 3px", breakAfter: "avoid" }}>
       <div />
       <div style={eyebrow}>Product</div>
-      {g.money.qty && <div style={{ ...eyebrow, textAlign: "right" }}>Qty</div>}
-      {g.money.price && <div style={{ ...eyebrow, textAlign: "right" }}>Price</div>}
-      {g.money.total && <div style={{ ...eyebrow, textAlign: "right" }}>Total</div>}
-      {cols.map((col, i) => <div key={col.key} style={{ ...eyebrow, letterSpacing: ".05em", paddingLeft: 4, borderLeft: i === 0 ? `1px solid ${RULE}` : "none" }}>{col.label}</div>)}
+      {g.money.qty && <div style={{ ...eyebrow, textAlign: "right", marginRight: "-.14em" }}>Qty</div>}
+      {g.money.price && <div style={{ ...eyebrow, textAlign: "right", marginRight: "-.14em" }}>Price</div>}
+      {g.money.total && <div style={{ ...eyebrow, textAlign: "right", marginRight: "-.14em" }}>Total</div>}
+      {cols.map((col) => <div key={col.key} style={{ ...eyebrow, letterSpacing: ".05em", paddingLeft: 4, borderLeft: `1px solid ${HAIR}` }}>{col.label}</div>)}
     </div>
   );
   const listCols = full ? "72px minmax(0,1fr) 54px 54px 52px 62px" : pMode === "unit" ? "72px minmax(0,1fr) 72px" : "72px minmax(0,1fr)";
