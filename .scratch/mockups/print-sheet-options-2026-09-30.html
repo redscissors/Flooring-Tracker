@@ -191,6 +191,23 @@ h1{font-size:22px;margin:0 0 4px}
 .jl-h{font-size:7px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--paper-faint);border-bottom:1px solid #000}
 .jl-g{font-size:7.5px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--ft-brand-deep);padding:4px 0 1px}
 
+.tot{display:grid;grid-template-columns:auto auto;justify-content:end;gap:2px 26px;font-size:10.5px}
+.tot span:nth-child(even){text-align:right}
+.tot .b{font-weight:800;border-top:1.5px solid #000;padding-top:3px;margin-top:2px}
+.band.thin{padding:1px 10px;margin-top:5px}
+.g3-row.two{grid-template-columns:10px minmax(0,1fr) 92px repeat(3,112px)}
+.g3-row.ledger{grid-template-columns:50px minmax(0,1fr) 38px 56px repeat(3,110px);column-gap:6px;border-top:1px solid var(--paper-hair)}
+.g3-row.ledger.area-first{border-top:1px solid var(--paper-rule)}
+.g3-row.ledger.g-hrow{border-top:0}
+.g3-row.two > .g-c,.g3-row.ledger > .g-c{font-size:8.2px;line-height:1.25;padding:2px 6px}
+.g3-row .cl1{display:flex;justify-content:space-between;gap:4px;align-items:baseline}
+.g3-row .cl1 b{display:inline!important;font-size:8.3px!important;font-weight:800}
+.g3-row .g-c b.nm{display:block;font-size:8.3px;font-weight:800}
+.g3-row .cl1 .q{display:inline!important;white-space:nowrap;font-weight:700;color:#000}
+.g3-row.two .g-c .c2,.g3-row.ledger .g-c .c2{color:var(--paper-muted);display:inline!important}
+.lg-area{font-size:7.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--ft-brand-deep);padding-top:3px;line-height:1.25}
+.lg-area span{display:block;font-weight:600;letter-spacing:.04em;color:var(--paper-muted);text-transform:none;font-size:8px}
+
 @page{size:letter portrait;margin:0}
 @page land{size:letter landscape;margin:0}
 @media print{
@@ -490,21 +507,41 @@ function layoutH() {
 const EX_BY = { "Daltile Volume 1.0": [["A", 1.62, '1/8"'], ["F", 2.7], ["H", 0.8]], "Emser Craft": [["B", 0.62, '1/16"'], ["G", 1.8], ["I", 0.9], ["J", 1]], "Daltile Keystones": [["C", 0.45, '1/16"'], ["F", 0.6]] };
 const AREAS3 = AREAS.map((a) => ({ ...a, items: a.items.map((p) => ({ ...p, ex: EX_BY[p.brand] || [] })) }));
 const exU = (n, u) => `${n.toFixed(1)} ${u}${Math.abs(n - 1) < 1e-9 ? "" : "s"}`;
-function layoutG2(portrait) {
-  const COLS = [["grout", "Grout"], ["mortar", "Mortar"], ["mem", "Membrane"], ["caulk", "Caulk"]];
-  const cell = (p, col, i) => { const hits = p.ex.filter(([k]) => M2[k].col === col); const cls = `g-c${i ? "" : " first"}`;
-    return hits.length ? `<div class="${cls}">${hits.map(([k, q, n]) => { const m = M2[k]; return `<b>${m.special ? "◆ " : ""}${m.name}</b>${m.color ? `<span class="c2">${m.color}${n ? ` · ${n}` : ""}</span>` : ""}<span class="q num">${exU(q, m.unit)}</span>`; }).join("")}</div>` : `<div class="${cls} g-none">—</div>`; };
-  const rowCls = portrait ? "g3-row" : "g2-row";
-  const head = `<div class="${rowCls} g-hrow"><div class="g-head"></div><div class="g-head">Products</div><div class="g-head"></div>${COLS.map(([, l], i) => `<div class="g-head" style="padding-left:6px;${i ? "" : "border-left:1px solid var(--paper-rule)"}">${l} <span style="font-weight:600;letter-spacing:.04em;text-transform:none">needed</span></div>`).join("")}</div>`;
+// mode: "base" (G2/G3) | "two" (two-line rows) | "ledger" (area column) | "lean" (ledger, trimmed spec)
+function layoutG2(portrait, mode = "base") {
+  const merged = mode !== "base";
+  const COLS = merged ? [["grout", "Grout & caulk"], ["mortar", "Mortar"], ["mem", "Membrane"]] : [["grout", "Grout"], ["mortar", "Mortar"], ["mem", "Membrane"], ["caulk", "Caulk"]];
+  const colOf = (k) => (merged && M2[k].col === "caulk" ? "grout" : M2[k].col);
+  const ledger = mode === "ledger" || mode === "lean";
+  const shortU = (o) => o.replace("cartons", "ct").replace("sheets", "sh").replace("pieces", "pc");
+  const cellItem = (k, q, n) => { const m = M2[k]; const nm = `${m.special ? "◆ " : ""}${m.name}`;
+    if (mode === "base") return `<b>${nm}</b>${m.color ? `<span class="c2">${m.color}${n ? ` · ${n}` : ""}</span>` : ""}<span class="q num">${exU(q, m.unit)}</span>`;
+    if (m.col === "caulk") return `<div class="cl1" style="margin-top:1px"><span class="c2">+ caulk</span><span class="q num">${exU(q, m.unit)}</span></div>`;
+    return m.color ? `<b class="nm">${nm}</b><div class="cl1"><span class="c2">${m.color}</span><span class="q num">${exU(q, m.unit)}</span></div>` : `<div class="cl1"><b>${nm}</b><span class="q num">${exU(q, m.unit)}</span></div>`; };
+  const joint = (p) => { const g = p.ex.find(([k]) => M2[k].col === "grout"); return g && g[2] ? `${g[2]} joint` : ""; };
+  const cell = (p, col, i) => { const hits = p.ex.filter(([k]) => colOf(k) === col); const cls = `g-c${i ? "" : " first"}`;
+    return hits.length ? `<div class="${cls}">${hits.map(([k, q, n]) => cellItem(k, q, n)).join("")}</div>` : `<div class="${cls} g-none">—</div>`; };
+  const rowCls = !portrait ? "g2-row" : mode === "base" ? "g3-row" : mode === "two" ? "g3-row two" : "g3-row ledger";
+  const lead = ledger ? `<div class="g-head">Area</div><div class="g-head">Product</div><div class="g-head r">Order</div><div class="g-head r">Total</div>` : `<div class="g-head"></div><div class="g-head">Products</div><div class="g-head"></div>`;
+  const head = `<div class="${rowCls} g-hrow">${lead}${COLS.map(([, l], i) => `<div class="g-head" style="padding-left:6px;${i ? "" : "border-left:1px solid var(--paper-rule)"}">${l}</div>`).join("")}</div>`;
+  const prodCells = (p) => {
+    if (mode === "base") return `<span class="d-mk" style="padding-top:3px">${p.special ? "◆" : ""}</span>
+        <div style="min-width:0;padding:3px 0"><div class="pname" style="font-size:${portrait ? 9.8 : 10.5}px">${p.brand} — ${p.color}</div><div class="spec" style="font-size:${portrait ? 8.3 : 8.8}px">${p.type} · ${specLine(p)}</div></div>
+        <div class="num r" style="padding-top:3px;white-space:nowrap"><div class="mut" style="font-size:${portrait ? 8.2 : 8.8}px">${p.order}${portrait ? "<br>" : " · "}${p.unit}</div><div class="money" style="font-size:${portrait ? 10.5 : 11}px">${$(p.line)}</div></div>`;
+    if (mode === "two") return `<span class="d-mk" style="padding-top:2px">${p.special ? "◆" : ""}</span>
+        <div style="min-width:0;padding:2px 0"><div class="pname" style="font-size:10.2px">${p.brand} — ${p.color}</div><div class="spec" style="font-size:8.4px">${[p.type, p.size, joint(p), p.cov, p.sku].filter(Boolean).join(" · ")}</div></div>
+        <div class="num r" style="padding-top:2px;white-space:nowrap"><div class="mut" style="font-size:8.4px">${shortU(p.order)} · ${p.unit}</div><div class="money" style="font-size:10.5px">${$(p.line)}</div></div>`;
+    const spec = mode === "lean" ? [p.size, joint(p), p.sku].filter(Boolean).join(" · ") : [p.type, p.size, joint(p), p.cov, p.sku].filter(Boolean).join(" · ");
+    return `<div style="min-width:0;padding:2px 0"><div class="pname" style="font-size:10.2px">${p.special ? "◆ " : ""}${p.brand} — ${p.color}</div><div class="spec" style="font-size:8.3px">${spec}</div></div>
+        <div class="num r" style="padding-top:2px;font-size:8.8px;white-space:nowrap">${shortU(p.order)}${mode === "lean" ? `<div class="mut" style="font-size:8.2px">${p.unit}</div>` : ""}</div>
+        <div class="num r" style="padding-top:2px;font-weight:800;font-size:10.2px">${$(p.line)}</div>`;
+  };
   const areas = AREAS3.map((a) => {
     const floor = a.items.reduce((t, p) => t + p.line, 0);
-    return `<div class="band"><span class="n">${a.name}</span><span class="s num">${a.sf} SF · flooring ${$(floor)}</span></div>
-      ${a.items.map((p, pi) => `<div class="${rowCls}"${pi ? ' style="border-top:1px solid var(--paper-hair)"' : ""}><span class="d-mk" style="padding-top:3px">${p.special ? "◆" : ""}</span>
-        <div style="min-width:0;padding:3px 0"><div class="pname" style="font-size:${portrait ? 9.8 : 10.5}px">${p.brand} — ${p.color}</div><div class="spec" style="font-size:${portrait ? 8.3 : 8.8}px">${p.type} · ${specLine(p)}</div></div>
-        <div class="num r" style="padding-top:3px;white-space:nowrap"><div class="mut" style="font-size:${portrait ? 8.2 : 8.8}px">${p.order}<br>${p.unit}</div><div class="money" style="font-size:${portrait ? 10.5 : 11}px">${$(p.line)}</div></div>
-        ${COLS.map(([c], i) => cell(p, c, i)).join("")}</div>`).join("")}`;
+    if (ledger) return a.items.map((p, pi) => `<div class="${rowCls}${pi ? "" : " area-first"}"><div class="lg-area">${pi ? "" : `${a.name}<span>${a.sf} SF</span>`}</div>${prodCells(p)}${COLS.map(([c], i) => cell(p, c, i)).join("")}</div>`).join("");
+    return `<div class="band${mode === "two" ? " thin" : ""}"><span class="n">${a.name}</span><span class="s num">${a.sf} SF · flooring ${$(floor)}</span></div>
+      ${a.items.map((p, pi) => `<div class="${rowCls}"${pi ? ' style="border-top:1px solid var(--paper-hair)"' : ""}>${prodCells(p)}${COLS.map(([c], i) => cell(p, c, i)).join("")}</div>`).join("")}`;
   }).join("");
-  // consolidated list: sum exact per material, round up once for the job
   const need = {}; AREAS3.forEach((a) => a.items.forEach((p) => p.ex.forEach(([k, q]) => (need[k] = (need[k] || 0) + q))));
   const groups = [["Grout color", ["A", "B", "C"]], ["Grout base", ["D", "E"]], ["Mortar", ["F", "G"]], ["Membrane", ["H", "I"]], ["Caulk", ["J"]]];
   const list = groups.map(([g, ks]) => ks.map((k, ki) => { const m = M2[k];
@@ -514,26 +551,37 @@ function layoutG2(portrait) {
   const jobList = `<div><div class="ey" style="font-size:9px;margin-bottom:2px">Install materials — job order</div>
     <div class="jl-r jl-h"><span></span><span>Item</span><span class="r">Needed</span><span class="r">Order</span><span class="r">Each</span><span class="r">Total</span></div>${list}
     <div class="jl-r" style="border-top:1px solid #000;border-bottom:0;font-weight:800"><span></span><span>Install materials subtotal</span><span></span><span></span><span></span><span class="num r">${$(MATS2)}</span></div>
-    <div class="fnt" style="font-size:8px;margin-top:2px">Needed = the exact amounts in the columns above, added up. Order rounds up once for the whole job. Every grout color kit mixes into its brand's base.</div></div>`;
-  const right = `<div>${totals2()}<div class="fine r">Includes 10% waste on tile, 8% on plank.</div>
-    <div class="sofoot" style="display:block"><div><b>◆ Special order</b> — ordered from the manufacturer for your job. <b>Special-order items can't be returned.</b> Please confirm color, size and quantity before we order.</div><div class="initials" style="margin-top:8px;justify-content:flex-end">Initials <span></span></div></div></div>`;
-  const soBox = `<div class="sofoot" style="display:block;margin-top:0"><div><b>◆ Special order</b> — ordered from the manufacturer for your job. <b>Special-order items can't be returned.</b> Please confirm color, size and quantity before we order.</div><div class="initials" style="margin-top:8px;justify-content:flex-end">Initials <span></span></div></div>`;
+    <div class="fnt" style="font-size:8px;margin-top:2px">Needed = the exact amounts above, added up. Order rounds up once for the whole job. Every grout color kit mixes into its brand's base.</div></div>`;
+  const tot = `<div class="tot num"><span>Flooring &amp; trim</span><span>${$(FLOOR)}</span><span>Install materials</span><span>${$(MATS2)}</span><span class="b">Estimated total</span><span class="b">${$(GRAND2)}</span></div>
+    <div class="fnt r" style="font-size:8.5px;margin-top:3px">Includes 10% waste on tile, 8% on plank.</div>`;
+  const so = `<div style="font-size:9.5px;margin-top:6px"><b>◆ Special order</b> — special-order items can't be returned.</div>`;
   const bottom = portrait
-    ? `<div style="border-top:2px solid #000;margin-top:10px;padding-top:8px">${jobList}
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:10px;align-items:start">${soBox}<div>${totals2()}<div class="fine r">Includes 10% waste on tile, 8% on plank.</div></div></div></div>`
-    : `<div style="display:grid;grid-template-columns:1.25fr 1fr;gap:26px;border-top:2px solid #000;margin-top:10px;padding-top:8px;align-items:start">${jobList}${right}</div>`;
+    ? `<div style="border-top:2px solid #000;margin-top:8px;padding-top:7px">${jobList}<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin-top:8px">${so}<div>${tot}</div></div></div>`
+    : `<div style="display:grid;grid-template-columns:1.25fr 1fr;gap:26px;border-top:2px solid #000;margin-top:10px;padding-top:8px;align-items:start">${jobList}<div style="display:flex;flex-direction:column;align-items:flex-end">${tot}${so}</div></div>`;
   return `<div class="sheet${portrait ? "" : " land"}">${mast()}${head}${areas}${bottom}</div>`;
 }
 
 const LAYOUTS = [
-  { id: "G2", name: "Material columns + job list", orient: "landscape", fn: () => layoutG2(false),
-    idea: "Round 3, from G: material cells drop their prices and show the EXACT amount each product needs (1.6 kits, 2.7 bags, 0.8 roll). The bottom-left job list adds those up per item, rounds up once, and prices each line; totals sit bottom-right.",
-    fixes: "The columns answer \"what goes where, how much\"; the list answers \"what are we ordering and what does it cost\" — every dollar once. Rounding happens once per job (ProLite 2.7 + 0.6 = 3.3 → 4 bags), not per product.",
-    trade: "Exact decimals (0.8 roll) can read odd to a customer next to a rounded order; the list's Needed → Order columns explain it. Bases appear only in the list (\"for 3 kits\")." },
   { id: "G3", name: "Material columns + job list", orient: "portrait", fn: () => layoutG2(true),
-    idea: "The same sheet, portrait: products squeezed to a narrow column with the price stacked under the order, four material columns at ~8.5px, and the job list + totals across the bottom.",
-    fixes: "Keeps today's portrait paper while getting the column-per-material read. Everything still fits one page for this job.",
-    trade: "Tight: product names and specs wrap to 2–3 lines, and a big job hits page 2 sooner than landscape. Smallest type of any option." },
+    idea: "Round 4 (your focus): plain Grout · Mortar · Membrane · Caulk headers; material cells show the exact amount each product needs; the job order list below adds them up, rounds once, and prices each line. Special order is one line; the estimated total is the same size as the other numbers.",
+    fixes: "Every dollar appears once (products on the left, materials in the job list). Portrait keeps the most room below for the list on bigger jobs.",
+    trade: "Product names/specs wrap in the narrow product column — see the three tightening options (G3a–c)." },
+  { id: "G3a", name: "Tighten: two-line rows", orient: "portrait", fn: () => layoutG2(true, "two"),
+    idea: "Keeps the area bands (thinner). Each product is two lines — name — color, then type · size · coverage · SKU — and the price column is two lines (9 ct · $5.40/sf, then the total). Material cells go to two lines: product name, then color with the exact amount right-aligned. Caulk folds into the grout cell (+ matching caulk · 1.0 tube) — in the app caulk is set on the grout pick — so three wider columns replace four.",
+    fixes: "Rows shrink ~30% with no information lost. Product text stays a hair bigger (10.2px) while material text drops to 8px.",
+    trade: "The joint width moves from the grout cell to the tile's spec line (it's the tile's joint). Caulk loses its own column." },
+  { id: "G3b", name: "Tighten: ledger", orient: "portrait", fn: () => layoutG2(true, "ledger"),
+    idea: "Styled like the job order list you liked: no area bands — the area name sits in a narrow first column on its first row (the way the job list shows Grout color / Mortar). Order and Total get their own columns; the unit price moves into the spec line.",
+    fixes: "Drops three band rows and makes the top table and the bottom list read as one system. Row height is driven by the materials, not the price stack.",
+    trade: "Area SF/flooring subtotals shrink to a small line under the area name; per-area $ subtotal is gone (the job total is still there)." },
+  { id: "G3c", name: "Tighten: lean ledger", orient: "portrait", fn: () => layoutG2(true, "lean"),
+    idea: "The ledger with the spec trimmed to size · SKU (type and coverage dropped) and the unit price stacked under the order qty. ◆ moves inline before the product name.",
+    fixes: "Densest option: most products fit on one name line and one short spec line.",
+    trade: "Coverage (SF/carton) and the product type no longer print — the customer sees them only on the order qty/price." },
+  { id: "G2", name: "Material columns + job list", orient: "landscape", fn: () => layoutG2(false),
+    idea: "The same round-4 changes on landscape: plain column headers, one-line special-order note, estimated total the same size as the other numbers.",
+    fixes: "Widest product column — least wrapping.",
+    trade: "Fewer rows fit per page than portrait: the job list shares the bottom with the totals instead of running full width." },
   { id: "G", name: "D + material columns", orient: "landscape", fn: layoutG,
     idea: "Round 2 (rev): generic columns — Grout · Mortar · Membrane · Caulk — and each cell names the actual item for the product beside it: SpectraLOCK PRO Bright White next to the Ash floor, PermaColor Select Light Pewter next to the Craft wall; ProLite vs. VersaBond; DITRA vs. KERDI. Qty and price sit in the cell. Page is ~50/50.",
     fixes: "Works when every product uses a different grout, mortar or membrane. Each material is priced once, right where it's used; areas total in their band. Grout bases (one per brand) sit in a Whole-job row with who they're for.",
@@ -578,7 +626,7 @@ LAYOUTS.forEach((L, i) => {
 });
 tabs.addEventListener("click", (e) => { const b = e.target.closest(".tab"); if (!b) return; show(b.dataset.id); });
 function show(id) { document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("on", t.dataset.id === id)); document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("on", p.id === "p" + id)); try { history.replaceState(null, "", "#" + id); } catch (e) {} }
-if (/^#(?:[A-H]|G2|G3)$/.test(location.hash)) show(location.hash.slice(1));
+if (/^#(?:[A-H]|G2|G3|G3a|G3b|G3c)$/.test(location.hash)) show(location.hash.slice(1));
 </script>
 </body>
 </html>

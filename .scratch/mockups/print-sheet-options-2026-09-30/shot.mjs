@@ -7,7 +7,7 @@ const b = await chromium.launch();
 const pg = await b.newPage({ viewport: { width: 1240, height: 1000 }, deviceScaleFactor: 1.5 });
 const errs = []; pg.on("pageerror", (e) => errs.push(e.message)); pg.on("console", (m) => m.type() === "error" && errs.push(m.text()));
 await pg.goto(f); await pg.waitForTimeout(800);
-for (const id of ["A","B","C","D","E","F","G","H","G2","G3"]) {
+for (const id of ["A","B","C","D","E","F","G","H","G2","G3","G3a","G3b","G3c"]) {
   await pg.evaluate((i) => show(i), id); await pg.waitForTimeout(150);
   const s = await pg.$(`#p${id} .sheet`);
   const bb = await s.boundingBox(); const sh = await s.evaluate((el) => [el.scrollHeight, el.clientHeight, el.scrollWidth, el.clientWidth]);
