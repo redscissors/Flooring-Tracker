@@ -137,6 +137,36 @@ h1{font-size:22px;margin:0 0 4px}
 .f-mats .h{font-size:7px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--paper-faint);border-top:0;border-bottom:1px solid #000;padding-bottom:3px}
 .f-for{display:inline-block;font-size:8px;font-weight:800;border:1px solid var(--paper-rule);border-radius:3px;padding:0 4px;margin-right:3px}
 
+
+/* G — D with material columns */
+.g-row{display:grid;grid-template-columns:12px minmax(0,1fr) 128px 112px 98px 90px 90px;column-gap:8px;align-items:start}
+.g-hrow{border-bottom:1px solid #000}
+.g-hrow > .g-head{border-bottom:0}
+.g-row > .g-c{align-self:stretch;background:#FBFAF6;padding:3px 6px;font-size:9.6px;line-height:1.3}
+.g-row > .g-c.first{border-left:1px solid var(--paper-rule)}
+.g-prod{padding:4px 0}
+.g-prod + .g-prod{border-top:1px solid var(--paper-hair)}
+.g-c b{font-weight:800;font-size:10px;display:block}
+.g-c .q{color:var(--paper-muted)}
+.g-none{color:var(--paper-rule);text-align:center}
+.g-head{font-size:7.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--paper-faint);padding:6px 0 3px;border-bottom:1px solid #000}
+.g-head .sub{display:block;font-size:8.5px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--paper-muted);margin-top:1px}
+.g-foot{border-top:1px solid var(--paper-rule)}
+.g-foot > div{padding-top:3px;padding-bottom:3px;font-size:8.8px}
+.g-foot .g-c{font-weight:700}
+
+/* H — cards with keys in the middle */
+.h-card{display:grid;grid-template-columns:minmax(0,1fr) 178px 150px;column-gap:14px;padding:3px 10px;align-items:start}
+.h-card + .h-card{border-top:1px solid var(--paper-hair)}
+.h-keys{display:flex;flex-direction:column;gap:2px;padding-top:2px}
+.h-key{display:flex;align-items:center;gap:5px;font-size:9.2px;white-space:nowrap;line-height:14px}
+.h-key .kdot{width:13px;height:13px;font-size:7.5px}
+.h-key i{font-style:normal;color:var(--paper-faint)}
+.h-box{background:var(--paper-band);border-radius:4px;padding:8px 12px;margin-top:4px}
+.h-list{display:grid;grid-template-columns:1fr 1fr;column-gap:26px}
+.h-item{display:grid;grid-template-columns:16px minmax(0,1fr) auto;gap:0 7px;align-items:baseline;padding:3px 0;border-bottom:1px solid #DCD7CA;font-size:10px}
+.h-item .kdot{width:13px;height:13px;font-size:7.5px;align-self:start;margin-top:1px}
+
 @page{size:letter portrait;margin:0}
 @page land{size:letter landscape;margin:0}
 @media print{
@@ -154,8 +184,8 @@ h1{font-size:22px;margin:0 0 4px}
 <div class="wrap">
   <div class="chrome">
     <div class="eyebrow">Mockups · 2026-09-30 · throwaway</div>
-    <h1>Selection sheet — six ways to tie extras to products</h1>
-    <p class="lede">One sample job, five layouts plus a bonus. Every dollar on each sheet appears exactly once and all six reconcile to the same <b>$3,943.12</b>. Special-order lines come from what the app already knows (<code>isSpecialOrder</code> — order-book picks, Sheoga, unstocked SKUs); nothing new to key in. Use <b>Print this sheet</b> to see the real page (C–F print landscape).</p>
+    <h1>Selection sheet — ways to tie extras to products</h1>
+    <p class="lede">One sample job, five layouts plus a bonus, and two round-2 options (G, H) built from your feedback on D and F. Every dollar on each sheet appears exactly once and all eight reconcile to the same <b>$3,943.12</b>. Special-order lines come from what the app already knows (<code>isSpecialOrder</code> — order-book picks, Sheoga, unstocked SKUs); nothing new to key in. Use <b>Print this sheet</b> to see the real page (C–G print landscape).</p>
   </div>
   <div class="tabs" id="tabs"></div>
   <div id="panels"></div>
@@ -363,7 +393,65 @@ function layoutF() {
   </div>`;
 }
 
+// ---- G. D + material columns: each column lines up with the product it goes with ----
+function layoutG() {
+  const COLS = [
+    { label: "Grout", sub: "SpectraLOCK PRO color kit", keys: ["A", "B"], top: (m, n) => m.color, bot: (m, q, n) => `${n ? n.replace(" joint", "") + " · " : ""}${pl(q, m.unit)}` },
+    { label: "Mortar", sub: "ProLite", keys: ["D"], top: (m, q) => pl(q, m.unit), bot: () => "" },
+    { label: "Membrane", sub: "Schluter DITRA 175 SF", keys: ["E"], top: (m, q) => pl(q, m.unit), bot: () => "" },
+    { label: "Caulk", sub: "SpectraLOCK matching", keys: ["F"], top: (m) => m.color, bot: (m, q) => pl(q, m.unit) },
+  ];
+  const cell = (p, c, i) => { const hit = p.mats.find(([k]) => c.keys.includes(k)); const cls = `g-c${i ? "" : " first"}`;
+    if (!hit) return `<div class="${cls} g-none">—</div>`;
+    const [k, q, n] = hit, m = M[k];
+    return `<div class="${cls}"><b>${m.special ? "◆ " : ""}${c.top(m, q, n)}</b>${c.bot(m, q, n) ? `<span class="q num">${c.bot(m, q, n)}</span>` : ""}</div>`; };
+  const head = `<div class="g-row g-hrow"><div class="g-head"></div><div class="g-head">Products</div><div class="g-head"></div>${COLS.map((c, i) => `<div class="g-head" style="padding-left:6px;${i ? "" : "border-left:1px solid var(--paper-rule)"}">${c.label}<span class="sub">${c.sub}</span></div>`).join("")}</div>`;
+  const areas = AREAS.map((a) => {
+    const floor = a.items.reduce((t, p) => t + p.line, 0);
+    const agg = {}; a.items.forEach((p) => p.mats.forEach(([k, q]) => (agg[k] = (agg[k] || 0) + q)));
+    const matT = Object.entries(agg).reduce((t, [k, q]) => t + mc(k, q), 0);
+    const foot = COLS.map((c, i) => { const ks = c.keys.filter((k) => agg[k]); return `<div class="g-c${i ? "" : " first"} num">${ks.length ? ks.map((k) => `<div style="display:flex;justify-content:space-between;gap:4px;align-items:baseline"><span class="mut" style="font-weight:600;white-space:nowrap">${pl(agg[k], M[k].unit)}</span><span style="white-space:nowrap">${$(mc(k, agg[k]))}</span></div>`).join("") : ""}</div>`; }).join("");
+    return `<div class="band"><span class="n">${a.name}</span><span class="s num">${a.sf} SF · flooring ${$(floor)}${matT ? ` · materials ${$(matT)}` : ""}</span></div>
+      ${a.items.map((p) => `<div class="g-row"><span class="d-mk" style="padding-top:4px">${p.special ? "◆" : ""}</span><div class="g-prod" style="min-width:0">${pname(p)}<div class="spec">${specLine(p)}</div></div><div class="num r" style="padding-top:4px;white-space:nowrap"><div class="mut" style="font-size:9.3px">${p.order} · ${p.unit}</div><div class="money">${$(p.line)}</div></div>${COLS.map((c, i) => cell(p, c, i)).join("")}</div>`).join('<div style="border-top:1px solid var(--paper-hair)"></div>')}
+      ${matT ? `<div class="g-row g-foot"><div></div><div class="fnt" style="font-size:9px">${a.name} install materials</div><div class="num r" style="font-weight:800">${$(matT)}</div>${foot}</div>` : ""}`;
+  }).join("");
+  return `<div class="sheet land">${mast()}${head}${areas}
+    <div class="band" style="background:#fff;border:1px solid var(--paper-rule)"><span class="n">Whole job</span><span class="s">shared by more than one area</span></div>
+    <div class="g-row"><div></div><div class="fnt" style="font-size:9.5px;padding:4px 0">Grout base — the grout itself. Every color kit in the Grout column mixes into it; one commercial unit takes up to 4 kits (this job uses 4).</div><div class="num r money" style="padding-top:4px">${$(M.C.cost)}</div>
+      <div class="g-c first"><b>Base</b><span class="q">1 commercial unit</span></div><div class="g-c g-none"></div><div class="g-c g-none"></div><div class="g-c g-none"></div></div>
+    <div class="d-foot" style="grid-template-columns:1.2fr 1fr"><div style="padding:8px 10px 0 0">${soFoot()}</div>
+      <div style="padding:8px 0 0 10px"><div class="a-sum num" style="margin-top:0"><span class="mut">Flooring &amp; trim</span><span class="r">${$(FLOOR)}</span><span class="mut">Install materials</span><span class="r">${$(MATS)}</span></div>
+      <div class="grand" style="border-top:1px solid var(--paper-rule);margin-top:6px"><span class="l">Estimated total</span><span class="v num">${$(GRAND)}</span></div><div class="fine r">Includes 10% waste on tile, 8% on plank.</div></div></div>
+  </div>`;
+}
+
+// ---- H. Today's cards, lettered keys in the empty middle, one priced key box ----
+function layoutH() {
+  const keyLbl = (k, n) => { const m = M[k]; return m.short === "Grout" ? `Grout · ${m.color}${n ? ` <i>${n.replace(" joint", "")}</i>` : ""}` : m.short === "Caulk" ? `Caulk · ${m.color}` : m.short; };
+  const body = AREAS.map((a) => `<div class="band"><span class="n">${a.name}</span>${a.items.some((p) => p.mats.length) ? `<span class="s" style="font-style:italic">lettered items priced below</span>` : ""}</div>` + a.items.map((p) => `
+      <div class="h-card"><div style="min-width:0">${pname(p)}<div class="spec">${specLine(p)}</div>${p.special ? `<div style="font-size:9px;margin-top:2px"><b>◆ Special order</b> <span class="mut">· can't be returned</span></div>` : ""}</div>
+        <div class="h-keys">${p.mats.map(([k, , n]) => `<span class="h-key"><span class="kdot">${k}</span>${keyLbl(k, n)}${M[k].special ? " ◆" : ""}</span>`).join("")}</div>
+        ${rightRail(p)}</div>`).join("")).join("");
+  const item = (m) => `<div class="h-item"><span class="kdot${m.key === "C" ? " o" : ""}">${m.key}</span>
+      <div style="min-width:0"><b style="font-weight:800">${m.kind}${m.color && m.key !== "E" ? ` — ${m.color}` : ""}</b>${m.special ? " ◆" : ""}<div class="fnt" style="font-size:8.6px">${m.name}${m.key === "E" ? ` · ${m.color}` : ""}${["A", "B", "C"].includes(m.key) ? ` · ${m.key === "C" ? "A and B mix into it (up to 4 kits)" : "color powder, mixes into C"}` : ""}</div></div>
+      <div class="num r" style="white-space:nowrap"><span class="mut" style="font-size:9px">${pl(m.qty, m.unit)} × ${$(m.price)}</span><div style="font-weight:800">${$(m.cost)}</div></div></div>`;
+  const ms = Object.values(M);
+  return `<div class="sheet">${mast()}${body}
+    <div style="margin-top:10px"><div class="ey" style="font-size:9.5px;margin-bottom:3px">Install materials</div>
+      <div class="h-box"><div class="h-list"><div>${ms.slice(0, 3).map(item).join("")}</div><div>${ms.slice(3).map(item).join("")}</div></div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid var(--paper-rule);margin-top:6px;padding-top:5px"><span class="ey">Install materials subtotal</span><span class="num" style="font-weight:800;font-size:12px">${$(MATS)}</span></div></div></div>
+    ${grand()}${soFoot()}</div>`;
+}
+
 const LAYOUTS = [
+  { id: "G", name: "D + material columns", orient: "landscape", fn: layoutG,
+    idea: "Round 2, from D: the right half becomes one column per material (Grout · Mortar · Membrane · Caulk), each cell sitting beside the product it's for — Bright White next to the Ash floor tile, Bright White again next to the Craft wall tile. Each area ends with a slim line that prices each column once.",
+    fixes: "At a glance you see which grout color goes on which tile. Prices stay on the sheet (area footer under each column), and the sheet is no taller than D.",
+    trade: "Columns are fixed per job — a job using an add-on category (ADR 0016) gets a 5th narrower column, or the rarest kinds fold into an \"Other\" column. Column headers name the product only when the whole job uses one; otherwise the cell carries it." },
+  { id: "H", name: "Cards + keys in the middle", orient: "portrait", fn: layoutH,
+    idea: "Round 2, from F: today's card layout, but the empty middle of each card holds its lettered keys (A Grout · Bright White 1/8\") instead of chips underneath. One priced key box at the bottom — each material appears once, as its letter above.",
+    fixes: "Cards get shorter (no chip line), so the sheet shrinks. Keys point to the one priced line, so nothing reads as a double charge. The base (hollow C) says it's what A and B mix into.",
+    trade: "Letters are per job, so the customer still cross-references. A product with 4+ materials stacks 4 keys and grows a little taller than its price rail." },
   { id: "A", name: "Tied-in", orient: "portrait", fn: layoutA,
     idea: "No Extras box. Each tile's grout, mortar and membrane hang off it on a dotted rail with their own quantity and price. Only the grout base — genuinely shared — sits in one small \"shared\" box that says what it is.",
     fixes: "Nothing appears twice. The customer sees why each material is there. The shared box answers \"what's the base vs. the color kit\" in one sentence.",
@@ -392,7 +480,7 @@ const LAYOUTS = [
 
 const tabs = document.getElementById("tabs"), panels = document.getElementById("panels");
 LAYOUTS.forEach((L, i) => {
-  const b = document.createElement("button"); b.className = "tab" + (i ? "" : " on"); b.innerHTML = `${L.id} · ${L.name}<small>${L.orient}</small>`; b.dataset.id = L.id; tabs.appendChild(b);
+  const b = document.createElement("button"); b.className = "tab" + (i ? "" : " on"); b.innerHTML = `${L.id} · ${L.name}<small>${L.orient}${"GH".includes(L.id) ? " · new" : ""}</small>`; b.dataset.id = L.id; tabs.appendChild(b);
   const p = document.createElement("div"); p.className = "panel" + (i ? "" : " on"); p.id = "p" + L.id;
   p.innerHTML = `<div class="note"><div><h4>The idea</h4><p>${L.idea}</p></div><div><h4>What it fixes</h4><p>${L.fixes}</p></div><div><h4>Trade-offs</h4><p>${L.trade}</p></div></div>
     <div class="bar"><b>${L.id} · ${L.name}</b><button class="btn" onclick="window.print()">Print this sheet</button></div><div class="stage">${L.fn()}</div>`;
@@ -400,7 +488,7 @@ LAYOUTS.forEach((L, i) => {
 });
 tabs.addEventListener("click", (e) => { const b = e.target.closest(".tab"); if (!b) return; show(b.dataset.id); });
 function show(id) { document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("on", t.dataset.id === id)); document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("on", p.id === "p" + id)); try { history.replaceState(null, "", "#" + id); } catch (e) {} }
-if (/^#[A-F]$/.test(location.hash)) show(location.hash.slice(1));
+if (/^#[A-H]$/.test(location.hash)) show(location.hash.slice(1));
 </script>
 </body>
 </html>
