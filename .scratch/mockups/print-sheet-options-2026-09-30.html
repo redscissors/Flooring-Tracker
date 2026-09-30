@@ -156,7 +156,7 @@ h1{font-size:22px;margin:0 0 4px}
 .g-foot .g-c{font-weight:700}
 
 /* H — cards with keys in the middle */
-.h-card{display:grid;grid-template-columns:minmax(0,1fr) 178px 150px;column-gap:14px;padding:3px 10px;align-items:start}
+.h-card{display:grid;grid-template-columns:minmax(0,1fr) 116px 150px;column-gap:14px;padding:3px 10px;align-items:start}
 .h-card + .h-card{border-top:1px solid var(--paper-hair)}
 .h-keys{display:flex;flex-direction:column;gap:2px;padding-top:2px}
 .h-key{display:flex;align-items:center;gap:5px;font-size:9.2px;white-space:nowrap;line-height:14px}
@@ -166,6 +166,16 @@ h1{font-size:22px;margin:0 0 4px}
 .h-list{display:grid;grid-template-columns:1fr 1fr;column-gap:26px}
 .h-item{display:grid;grid-template-columns:16px minmax(0,1fr) auto;gap:0 7px;align-items:baseline;padding:3px 0;border-bottom:1px solid #DCD7CA;font-size:10px}
 .h-item .kdot{width:13px;height:13px;font-size:7.5px;align-self:start;margin-top:1px}
+
+.g2-row{display:grid;grid-template-columns:12px minmax(0,1fr) 104px repeat(4,112px);column-gap:7px;align-items:start}
+.g2-row > .g-c{align-self:stretch;background:#FBFAF6;padding:3px 6px;font-size:8.8px;line-height:1.28}
+.g2-row > .g-c.first{border-left:1px solid var(--paper-rule)}
+.g2-row .g-c b{font-weight:800;font-size:9.3px;display:block}
+.g2-row .g-c .c2{display:block}
+.g2-row .g-c .q{display:block;color:var(--paper-muted)}
+.g2-row.g-hrow{border-bottom:1px solid #000}
+.h-keys2{display:flex;flex-wrap:wrap;gap:4px;padding-top:3px;max-width:116px}
+.h-keys2 .kdot{width:15px;height:15px;font-size:8.5px}
 
 @page{size:letter portrait;margin:0}
 @page land{size:letter landscape;margin:0}
@@ -185,7 +195,7 @@ h1{font-size:22px;margin:0 0 4px}
   <div class="chrome">
     <div class="eyebrow">Mockups · 2026-09-30 · throwaway</div>
     <h1>Selection sheet — ways to tie extras to products</h1>
-    <p class="lede">One sample job, five layouts plus a bonus, and two round-2 options (G, H) built from your feedback on D and F. Every dollar on each sheet appears exactly once and all eight reconcile to the same <b>$3,943.12</b>. Special-order lines come from what the app already knows (<code>isSpecialOrder</code> — order-book picks, Sheoga, unstocked SKUs); nothing new to key in. Use <b>Print this sheet</b> to see the real page (C–G print landscape).</p>
+    <p class="lede">One sample job, five layouts plus a bonus, and two round-2 options (G, H) built from your feedback on D and F. G and H use a mixed version of the job (different grout, mortar and membrane per tile), so they total <b>$4,131.62</b>. Every dollar on each sheet appears exactly once and A–F reconcile to the same <b>$3,943.12</b>. Special-order lines come from what the app already knows (<code>isSpecialOrder</code> — order-book picks, Sheoga, unstocked SKUs); nothing new to key in. Use <b>Print this sheet</b> to see the real page (C–G print landscape).</p>
   </div>
   <div class="tabs" id="tabs"></div>
   <div id="panels"></div>
@@ -393,65 +403,83 @@ function layoutF() {
   </div>`;
 }
 
-// ---- G. D + material columns: each column lines up with the product it goes with ----
+// ---- Round 2 data: the same job, but the bath's two tiles use DIFFERENT grout, mortar and membrane ----
+const M2 = {
+  A: { key: "A", col: "grout", kind: "Grout color kit", name: "SpectraLOCK PRO", color: "Bright White", qty: 2, unit: "kit", price: 38.90, sub: "SpectraLOCK PRO · mixes into D" },
+  B: { key: "B", col: "grout", kind: "Grout color kit", name: "PermaColor Select", color: "Light Pewter", qty: 1, unit: "kit", price: 24.95, sub: "PermaColor Select · mixes into E" },
+  C: { key: "C", col: "grout", kind: "Grout color kit", name: "SpectraLOCK PRO", color: "Natural Gray", qty: 1, unit: "kit", price: 38.90, special: true, sub: "SpectraLOCK PRO · mixes into D" },
+  D: { key: "D", col: "grout", base: true, kind: "Grout base", name: "SpectraLOCK PRO", color: "commercial unit", qty: 1, unit: "unit", price: 218.00, for: "Bright White + Natural Gray", sub: "The grout A and C mix into · takes up to 4 kits" },
+  E: { key: "E", col: "grout", base: true, kind: "Grout base", name: "PermaColor Select", color: "unsanded", qty: 1, unit: "unit", price: 32.95, for: "Light Pewter", sub: "The grout B mixes into" },
+  F: { key: "F", col: "mortar", kind: "Mortar", name: "ProLite", color: "", qty: 4, unit: "bag", price: 32.50, sub: "Large-format thinset" },
+  G: { key: "G", col: "mortar", kind: "Mortar", name: "VersaBond", color: "", qty: 2, unit: "bag", price: 18.75, sub: "Wall thinset" },
+  H: { key: "H", col: "mem", kind: "Membrane", name: "Schluter DITRA", color: "175 SF roll", qty: 1, unit: "roll", price: 420.00, sub: "Uncoupling — stops floor cracks" },
+  I: { key: "I", col: "mem", kind: "Membrane", name: "Schluter KERDI", color: "108 SF roll", qty: 1, unit: "roll", price: 199.00, sub: "Waterproofs the shower walls" },
+  J: { key: "J", col: "caulk", kind: "Caulk", name: "Custom matching caulk", color: "Light Pewter", qty: 1, unit: "tube", price: 12.95, sub: "For inside corners" },
+};
+Object.values(M2).forEach((m) => (m.cost = +(m.qty * m.price).toFixed(2)));
+const MATS2 = 1192.05, GRAND2 = 4131.62;
+const MATS2_BY = { A: [["A", 2, '1/8" joint'], ["F", 3], ["H", 1]], B: [["B", 1, '1/16" joint'], ["G", 2], ["I", 1], ["J", 1]], K: [["C", 1, '1/16" joint'], ["F", 1]] };
+const AREAS2 = AREAS.map((a) => ({ ...a, items: a.items.map((p) => ({ ...p, mats: p.brand === "Daltile Volume 1.0" ? MATS2_BY.A : p.brand === "Emser Craft" ? MATS2_BY.B : p.brand === "Daltile Keystones" ? MATS2_BY.K : [] })) }));
+const baseOf = { A: "D", C: "D", B: "E" };
+const mc2 = (k, q) => +(q * M2[k].price).toFixed(2);
+const totals2 = () => `<div class="a-sum num" style="margin-top:0"><span class="mut">Flooring &amp; trim</span><span class="r">${$(FLOOR)}</span><span class="mut">Install materials</span><span class="r">${$(MATS2)}</span></div>
+  <div class="grand" style="border-top:1px solid var(--paper-rule);margin-top:6px"><span class="l">Estimated total</span><span class="v num" style="font-size:22px">${$(GRAND2)}</span></div>`;
+
+// ---- G. Generic material columns; each cell carries the actual item for the product beside it ----
 function layoutG() {
-  const COLS = [
-    { label: "Grout", sub: "SpectraLOCK PRO color kit", keys: ["A", "B"], top: (m, n) => m.color, bot: (m, q, n) => `${n ? n.replace(" joint", "") + " · " : ""}${pl(q, m.unit)}` },
-    { label: "Mortar", sub: "ProLite", keys: ["D"], top: (m, q) => pl(q, m.unit), bot: () => "" },
-    { label: "Membrane", sub: "Schluter DITRA 175 SF", keys: ["E"], top: (m, q) => pl(q, m.unit), bot: () => "" },
-    { label: "Caulk", sub: "SpectraLOCK matching", keys: ["F"], top: (m) => m.color, bot: (m, q) => pl(q, m.unit) },
-  ];
-  const cell = (p, c, i) => { const hit = p.mats.find(([k]) => c.keys.includes(k)); const cls = `g-c${i ? "" : " first"}`;
-    if (!hit) return `<div class="${cls} g-none">—</div>`;
-    const [k, q, n] = hit, m = M[k];
-    return `<div class="${cls}"><b>${m.special ? "◆ " : ""}${c.top(m, q, n)}</b>${c.bot(m, q, n) ? `<span class="q num">${c.bot(m, q, n)}</span>` : ""}</div>`; };
-  const head = `<div class="g-row g-hrow"><div class="g-head"></div><div class="g-head">Products</div><div class="g-head"></div>${COLS.map((c, i) => `<div class="g-head" style="padding-left:6px;${i ? "" : "border-left:1px solid var(--paper-rule)"}">${c.label}<span class="sub">${c.sub}</span></div>`).join("")}</div>`;
-  const areas = AREAS.map((a) => {
+  const COLS = [["grout", "Grout"], ["mortar", "Mortar"], ["mem", "Membrane"], ["caulk", "Caulk"]];
+  const cellBody = (k, q, n) => { const m = M2[k]; return `<b>${m.special ? "◆ " : ""}${m.name}</b>${m.color ? `<span class="c2">${m.color}${n ? ` · ${n.replace(" joint", "")}` : ""}</span>` : ""}<span class="q num">${pl(q, m.unit)} · ${$(mc2(k, q))}</span>`; };
+  const cell = (p, col, i) => { const hits = p.mats.filter(([k]) => M2[k].col === col); const cls = `g-c${i ? "" : " first"}`;
+    return hits.length ? `<div class="${cls}">${hits.map(([k, q, n]) => cellBody(k, q, n)).join("")}</div>` : `<div class="${cls} g-none">—</div>`; };
+  const head = `<div class="g2-row g-hrow"><div class="g-head"></div><div class="g-head">Products</div><div class="g-head"></div>${COLS.map(([, l], i) => `<div class="g-head" style="padding-left:6px;${i ? "" : "border-left:1px solid var(--paper-rule)"}">${l}</div>`).join("")}</div>`;
+  const areas = AREAS2.map((a) => {
     const floor = a.items.reduce((t, p) => t + p.line, 0);
-    const agg = {}; a.items.forEach((p) => p.mats.forEach(([k, q]) => (agg[k] = (agg[k] || 0) + q)));
-    const matT = Object.entries(agg).reduce((t, [k, q]) => t + mc(k, q), 0);
-    const foot = COLS.map((c, i) => { const ks = c.keys.filter((k) => agg[k]); return `<div class="g-c${i ? "" : " first"} num">${ks.length ? ks.map((k) => `<div style="display:flex;justify-content:space-between;gap:4px;align-items:baseline"><span class="mut" style="font-weight:600;white-space:nowrap">${pl(agg[k], M[k].unit)}</span><span style="white-space:nowrap">${$(mc(k, agg[k]))}</span></div>`).join("") : ""}</div>`; }).join("");
-    return `<div class="band"><span class="n">${a.name}</span><span class="s num">${a.sf} SF · flooring ${$(floor)}${matT ? ` · materials ${$(matT)}` : ""}</span></div>
-      ${a.items.map((p) => `<div class="g-row"><span class="d-mk" style="padding-top:4px">${p.special ? "◆" : ""}</span><div class="g-prod" style="min-width:0">${pname(p)}<div class="spec">${specLine(p)}</div></div><div class="num r" style="padding-top:4px;white-space:nowrap"><div class="mut" style="font-size:9.3px">${p.order} · ${p.unit}</div><div class="money">${$(p.line)}</div></div>${COLS.map((c, i) => cell(p, c, i)).join("")}</div>`).join('<div style="border-top:1px solid var(--paper-hair)"></div>')}
-      ${matT ? `<div class="g-row g-foot"><div></div><div class="fnt" style="font-size:9px">${a.name} install materials</div><div class="num r" style="font-weight:800">${$(matT)}</div>${foot}</div>` : ""}`;
+    const matT = a.items.reduce((t, p) => t + p.mats.reduce((u, [k, q]) => u + mc2(k, q), 0), 0);
+    return `<div class="band"><span class="n">${a.name}</span><span class="s num">${a.sf} SF · flooring ${$(floor)}${matT ? ` · install materials ${$(matT)}` : ""}</span></div>
+      ${a.items.map((p, pi) => `<div class="g2-row"${pi ? ' style="border-top:1px solid var(--paper-hair)"' : ""}><span class="d-mk" style="padding-top:3px">${p.special ? "◆" : ""}</span>
+        <div style="min-width:0;padding:3px 0"><div class="pname" style="font-size:10.5px">${p.brand} — ${p.color}</div><div class="spec" style="font-size:8.8px">${p.type} · ${specLine(p)}</div></div>
+        <div class="num r" style="padding-top:3px;white-space:nowrap"><div class="mut" style="font-size:8.8px">${p.order} · ${p.unit}</div><div class="money" style="font-size:11px">${$(p.line)}</div></div>
+        ${COLS.map(([c], i) => cell(p, c, i)).join("")}</div>`).join("")}`;
   }).join("");
+  const bases = ["D", "E"].map((k) => { const m = M2[k]; return `<div><b>${m.name} base</b><span class="c2">for ${m.for}</span><span class="q num">1 unit · ${$(m.cost)}</span></div>`; }).join("");
   return `<div class="sheet land">${mast()}${head}${areas}
-    <div class="band" style="background:#fff;border:1px solid var(--paper-rule)"><span class="n">Whole job</span><span class="s">shared by more than one area</span></div>
-    <div class="g-row"><div></div><div class="fnt" style="font-size:9.5px;padding:4px 0">Grout base — the grout itself. Every color kit in the Grout column mixes into it; one commercial unit takes up to 4 kits (this job uses 4).</div><div class="num r money" style="padding-top:4px">${$(M.C.cost)}</div>
-      <div class="g-c first"><b>Base</b><span class="q">1 commercial unit</span></div><div class="g-c g-none"></div><div class="g-c g-none"></div><div class="g-c g-none"></div></div>
-    <div class="d-foot" style="grid-template-columns:1.2fr 1fr"><div style="padding:8px 10px 0 0">${soFoot()}</div>
-      <div style="padding:8px 0 0 10px"><div class="a-sum num" style="margin-top:0"><span class="mut">Flooring &amp; trim</span><span class="r">${$(FLOOR)}</span><span class="mut">Install materials</span><span class="r">${$(MATS)}</span></div>
-      <div class="grand" style="border-top:1px solid var(--paper-rule);margin-top:6px"><span class="l">Estimated total</span><span class="v num">${$(GRAND)}</span></div><div class="fine r">Includes 10% waste on tile, 8% on plank.</div></div></div>
+    <div class="band" style="background:#fff;border:1px solid var(--paper-rule)"><span class="n">Whole job</span><span class="s">grout bases — bought once, shared by every color kit of that brand</span></div>
+    <div class="g2-row"><div></div><div class="fnt" style="font-size:8.8px;padding:3px 0;line-height:1.35">Grout comes in two parts: a <b style="color:#000">color kit</b> for each color above, and a <b style="color:#000">base</b> the kits mix into. One SpectraLOCK commercial unit takes up to 4 color kits.</div><div class="num r money" style="padding-top:3px;font-size:11px">${$(M2.D.cost + M2.E.cost)}</div>
+      <div class="g-c first" style="grid-column:span 2;display:grid;grid-template-columns:1fr 1fr;column-gap:13px">${bases}</div><div class="g-c g-none"></div><div class="g-c g-none"></div></div>
+    <div class="d-foot" style="grid-template-columns:1.2fr 1fr"><div style="padding:8px 10px 0 0">${soFoot()}</div><div style="padding:8px 0 0 10px">${totals2()}<div class="fine r">Includes 10% waste on tile, 8% on plank.</div></div></div>
   </div>`;
 }
 
-// ---- H. Today's cards, lettered keys in the empty middle, one priced key box ----
+// ---- H. Today's cards; just the letter keys in the empty middle; one priced key box ----
 function layoutH() {
-  const keyLbl = (k, n) => { const m = M[k]; return m.short === "Grout" ? `Grout · ${m.color}${n ? ` <i>${n.replace(" joint", "")}</i>` : ""}` : m.short === "Caulk" ? `Caulk · ${m.color}` : m.short; };
-  const body = AREAS.map((a) => `<div class="band"><span class="n">${a.name}</span>${a.items.some((p) => p.mats.length) ? `<span class="s" style="font-style:italic">lettered items priced below</span>` : ""}</div>` + a.items.map((p) => `
+  const keysFor = (p) => { const ks = []; p.mats.forEach(([k]) => { ks.push(k); const b = baseOf[k]; if (b && !ks.includes(b)) ks.push(b); }); return ks.sort(); };
+  const body = AREAS2.map((a) => `<div class="band"><span class="n">${a.name}</span>${a.items.some((p) => p.mats.length) ? `<span class="s" style="font-style:italic">lettered items priced below</span>` : ""}</div>` + a.items.map((p) => `
       <div class="h-card"><div style="min-width:0">${pname(p)}<div class="spec">${specLine(p)}</div>${p.special ? `<div style="font-size:9px;margin-top:2px"><b>◆ Special order</b> <span class="mut">· can't be returned</span></div>` : ""}</div>
-        <div class="h-keys">${p.mats.map(([k, , n]) => `<span class="h-key"><span class="kdot">${k}</span>${keyLbl(k, n)}${M[k].special ? " ◆" : ""}</span>`).join("")}</div>
+        <div class="h-keys2">${keysFor(p).map((k) => `<span class="kdot${M2[k].base ? " o" : ""}">${k}</span>`).join("")}</div>
         ${rightRail(p)}</div>`).join("")).join("");
-  const item = (m) => `<div class="h-item"><span class="kdot${m.key === "C" ? " o" : ""}">${m.key}</span>
-      <div style="min-width:0"><b style="font-weight:800">${m.kind}${m.color && m.key !== "E" ? ` — ${m.color}` : ""}</b>${m.special ? " ◆" : ""}<div class="fnt" style="font-size:8.6px">${m.name}${m.key === "E" ? ` · ${m.color}` : ""}${["A", "B", "C"].includes(m.key) ? ` · ${m.key === "C" ? "A and B mix into it (up to 4 kits)" : "color powder, mixes into C"}` : ""}</div></div>
+  const item = (m) => `<div class="h-item"><span class="kdot${m.base ? " o" : ""}">${m.key}</span>
+      <div style="min-width:0"><b style="font-weight:800">${m.kind} — ${m.base ? m.name : m.color || m.name}</b>${m.special ? " ◆" : ""}<div class="fnt" style="font-size:8.6px">${m.base ? `${m.color} · ${m.sub}` : m.color ? m.sub : m.sub}${!m.base && m.col === "mem" ? "" : ""}</div></div>
       <div class="num r" style="white-space:nowrap"><span class="mut" style="font-size:9px">${pl(m.qty, m.unit)} × ${$(m.price)}</span><div style="font-weight:800">${$(m.cost)}</div></div></div>`;
-  const ms = Object.values(M);
+  const ms = Object.values(M2).map((m) => (m.col === "mem" || m.col === "mortar" ? { ...m, color: "", sub: `${m.name}${m.col === "mem" ? ` · ${M2[m.key].color}` : ""} · ${m.sub}` } : m));
+  // membranes/mortars title with their product name; colors title grout/caulk
+  ms.forEach((m) => { if (m.col === "mem" || m.col === "mortar") { m.color = m.name; m.sub = m.sub.replace(`${m.name} · `, ""); } });
   return `<div class="sheet">${mast()}${body}
-    <div style="margin-top:10px"><div class="ey" style="font-size:9.5px;margin-bottom:3px">Install materials</div>
-      <div class="h-box"><div class="h-list"><div>${ms.slice(0, 3).map(item).join("")}</div><div>${ms.slice(3).map(item).join("")}</div></div>
-      <div style="display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid var(--paper-rule);margin-top:6px;padding-top:5px"><span class="ey">Install materials subtotal</span><span class="num" style="font-weight:800;font-size:12px">${$(MATS)}</span></div></div></div>
-    ${grand()}${soFoot()}</div>`;
+    <div style="margin-top:10px"><div class="ey" style="font-size:9.5px;margin-bottom:3px">Install materials <span style="font-weight:600;letter-spacing:.04em;text-transform:none;color:var(--paper-faint)">— letters on each product point here · hollow letters are grout bases</span></div>
+      <div class="h-box"><div class="h-list"><div>${ms.slice(0, 5).map(item).join("")}</div><div>${ms.slice(5).map(item).join("")}</div></div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;border-top:1px solid var(--paper-rule);margin-top:6px;padding-top:5px"><span class="ey">Install materials subtotal</span><span class="num" style="font-weight:800;font-size:12px">${$(MATS2)}</span></div></div></div>
+    <div class="grand"><span class="l">Estimated total</span><span class="v num">${$(GRAND2)}</span></div>
+    <div class="fine r">Includes 10% waste on tile, 8% on plank. Confirm against final measurements before ordering.</div>${soFoot()}</div>`;
 }
 
 const LAYOUTS = [
   { id: "G", name: "D + material columns", orient: "landscape", fn: layoutG,
-    idea: "Round 2, from D: the right half becomes one column per material (Grout · Mortar · Membrane · Caulk), each cell sitting beside the product it's for — Bright White next to the Ash floor tile, Bright White again next to the Craft wall tile. Each area ends with a slim line that prices each column once.",
-    fixes: "At a glance you see which grout color goes on which tile. Prices stay on the sheet (area footer under each column), and the sheet is no taller than D.",
-    trade: "Columns are fixed per job — a job using an add-on category (ADR 0016) gets a 5th narrower column, or the rarest kinds fold into an \"Other\" column. Column headers name the product only when the whole job uses one; otherwise the cell carries it." },
+    idea: "Round 2 (rev): generic columns — Grout · Mortar · Membrane · Caulk — and each cell names the actual item for the product beside it: SpectraLOCK PRO Bright White next to the Ash floor, PermaColor Select Light Pewter next to the Craft wall; ProLite vs. VersaBond; DITRA vs. KERDI. Qty and price sit in the cell. Page is ~50/50.",
+    fixes: "Works when every product uses a different grout, mortar or membrane. Each material is priced once, right where it's used; areas total in their band. Grout bases (one per brand) sit in a Whole-job row with who they're for.",
+    trade: "Smaller type (8.8–9.3px in the cells). A product with two items in one column (e.g. two membranes) stacks them in the cell. Job-wide ordering still rounds up per product here." },
   { id: "H", name: "Cards + keys in the middle", orient: "portrait", fn: layoutH,
-    idea: "Round 2, from F: today's card layout, but the empty middle of each card holds its lettered keys (A Grout · Bright White 1/8\") instead of chips underneath. One priced key box at the bottom — each material appears once, as its letter above.",
-    fixes: "Cards get shorter (no chip line), so the sheet shrinks. Keys point to the one priced line, so nothing reads as a double charge. The base (hollow C) says it's what A and B mix into.",
-    trade: "Letters are per job, so the customer still cross-references. A product with 4+ materials stacks 4 keys and grows a little taller than its price rail." },
+    idea: "Round 2 (rev): today's cards with just the letter keys in the empty middle — a row of up to six before it wraps, so a dozen fit without adding height. Hollow letters are grout bases. The key box at the bottom names and prices each item once.",
+    fixes: "Cards shrink back to today's height or less, nothing is printed twice, and mixed grouts/mortars/membranes are just more letters.",
+    trade: "The customer has to look up every letter — the card alone no longer says \"Bright White\". Letters are assigned per job." },
   { id: "A", name: "Tied-in", orient: "portrait", fn: layoutA,
     idea: "No Extras box. Each tile's grout, mortar and membrane hang off it on a dotted rail with their own quantity and price. Only the grout base — genuinely shared — sits in one small \"shared\" box that says what it is.",
     fixes: "Nothing appears twice. The customer sees why each material is there. The shared box answers \"what's the base vs. the color kit\" in one sentence.",
