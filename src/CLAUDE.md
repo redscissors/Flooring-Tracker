@@ -145,7 +145,22 @@ src/
                     # `printAreaFloor`, `areaPrintLabel`, `orderEntryRow`,
                     # `ESTIMATE_PRINT_LAYOUT`… (print.test.js). Each
                     # printProduct mat carries `noCost` (priced, no cost) so
-                    # the extras strip can say why Employee left it at retail
+                    # the extras strip can say why Employee left it at retail.
+                    # `printMatList` prices each material's JOB order (exact
+                    # needs summed, rounded up once) × price (ADR 0053) and
+                    # carries the grout color's `bookId`;
+                    # `ESTIMATE_PRINT_LAYOUT` is "columns" (2026-09-30)
+  printcols.js      # the material-columns sheet's pure half (spec 2026-09-30,
+                    # owner pick G3c): `specSize`/`specLine` (tile thickness
+                    # never prints, × tightened, SF/ct kept), `qtyCells`/
+                    # `priceCells` (ct over SF, $/sf over $/ct), `COLS` +
+                    # `matColumn`/`lineCells`/`columnsUsed` (Grout · Mortar ·
+                    # Underlay · Other — caulk and install items print only in
+                    # the list, and a column no line uses never prints),
+                    # `needText` (exact, one decimal, the catalog's own unit
+                    # word), `gridSpec` (the pricing-mode column set) and
+                    # `jobListGroups` (the job order list's groups and rows)
+                    # (printcols.test.js)
   options.js        # quote options (ADR 0031): fixed slots A–L (letters live in
                     # model.js, re-exported here; A–C → A–F 2026-08-19, → A–L
                     # 2026-08-26) + the ONE shared option tint (per-slot colors
@@ -191,7 +206,10 @@ src/
                     # Whole-job = shared bucket + option bucket (additive on paper);
                     # order entry re-runs the UNION so freight minimums stay exact
                     # (jobtotals.test.js). An underlayment row bills its sheets,
-                    # never re-counts floor sq ft (ADR 0043)
+                    # never re-counts floor sq ft (ADR 0043). Grout, mortar and
+                    # underlayment cost their JOB order × price (ADR 0053) —
+                    # the gList/mList/uList costs, never each row's own
+                    # rounded amount summed
   fileread.js       # `readXlsxSheets`/`readPdfPages` — lazy `import("xlsx")`/
                     # `import("pdfjs-dist")` preserved
   widgets.jsx       # shared widgets: `Modal`, `SideDock` (the order entry /
@@ -466,7 +484,23 @@ src/
                     # chunk here would still be loading and print a blank page.
                     # Selection-sheet masthead (2026-09-08, owner pick from
                     # .scratch/126), no footer; the SELECTIONS watermark that
-                    # shipped with it was pulled the same day (owner)
+                    # shipped with it was pulled the same day (owner).
+                    # `EstimatePaper` hands off to EstimateColumns.jsx when
+                    # ESTIMATE_PRINT_LAYOUT is "columns"; the cards and
+                    # classic sheets stay intact as fallbacks
+  EstimateColumns.jsx  # `EstimateColumnsPaper` — the material-columns selection
+                    # sheet (spec 2026-09-30, ADR 0053): products left, one
+                    # column per install material beside them with the exact
+                    # amount each line needs, one priced job order list below
+                    # (Needed · Order · Each · Total), same-size totals, and a
+                    # ◆ special-order mark from orderentry.js's own classifiers
+                    # (props `stockBookIds`/`stockSkus`, passed by App.jsx).
+                    # Quote options: the shared list, then per option its rows
+                    # and a compact list. Imported statically (same reason as
+                    # EstimatePrint.jsx). Preview proof:
+                    # .scratch/162_selection-sheet-columns
+  sheethead.jsx     # `SheetHead` — the selection-sheet masthead + people row +
+                    # job notes, shared by the cards and columns sheets
   usetoast.js       # `useToast` — toast/save-flash UI state (`ping`, `flashSaved`)
   usedirectory.js   # `useDirectory` — the project/people/builder directory: state, selection,
                     # and their write paths (`updateProject`/`addProject`/`setSettings`/`saveProfile`…);

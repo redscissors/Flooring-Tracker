@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { jobTotals } from "./jobtotals.js";
 import { normC } from "./model.js";
-import { normalizeSettings, withProjWaste } from "./catalog.js";
+import { normalizeSettings, withProjWaste, getMortar, getGrout, ceilQty } from "./catalog.js";
 import { scopedCats, bucketCats } from "./options.js";
 
 // Real catalog product names (not made-up ones): mergeSettings only merges
@@ -118,4 +118,30 @@ test("grout bases follow each row's pick and consolidate per base (ADR 0006 amen
   assert.equal(t.bList[0].order, 1); // 2 + 2 kits / 4
   assert.equal(t.baseCost, 218);
   assert.ok(t.matAll.some((m) => m.kind === "Grout base" && m.product === "Commercial Unit"));
+});
+
+// ADR 0053: two 20 sf rows each need ~0.32 bag of mortar and 0.2 unit of grout —
+// one each rounded per row, but one of each for the whole job.
+test("materials charge the rounded job order (ADR 0053)", () => {
+  const cats = normC({ id: "j3", name: "J", categories: [{ name: "Bath", option: "", products: [tile(20), tile(20)] }] }).categories;
+  const [r1, r2] = cats[0].products;
+  const m1 = getMortar(r1, wSet).exact, m2 = getMortar(r2, wSet).exact;
+  const g1 = getGrout(r1, wSet).exact, g2 = getGrout(r2, wSet).exact;
+  assert.equal(Math.ceil(m1) + Math.ceil(m2), ceilQty(m1 + m2) + 1);
+  assert.equal(Math.ceil(g1) + Math.ceil(g2), ceilQty(g1 + g2) + 1);
+  const t = totals(cats);
+  assert.equal(t.mortarCost, ceilQty(m1 + m2) * 18.95);
+  assert.equal(t.mList[0].cost, t.mortarCost);
+  assert.equal(t.groutCost, ceilQty(g1 + g2) * 18.95);
+  assert.equal(t.gList[0].cost, t.groutCost);
+});
+
+// The printed job list must add up to the Install materials total — every kind,
+// including caulk (a hand-typed per-row count, charged per row).
+test("the printed materials list sums to materialsCost", () => {
+  const caulked = (price) => tile(40, { grout: { checked: true, product: "PermaColor Select", joint: 0.125, color: "Bright White", caulk: "1", caulkPrice: String(price) } });
+  const cats = normC({ id: "j4", name: "J", categories: [{ name: "Bath", option: "", products: [caulked(10), caulked(12), tile(20)] }] }).categories;
+  const t = totals(cats);
+  const listed = t.pMats.filter((m) => m.kind !== "Freight").reduce((s, m) => s + m.cost, 0);
+  assert.equal(Math.round(listed * 100), Math.round(t.materialsCost * 100));
 });
