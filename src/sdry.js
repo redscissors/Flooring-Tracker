@@ -235,9 +235,11 @@ export function sdryCurb(openLen, pick, cat) {
  * What an S-DRY membrane wall bills, as { key, qty, note } rows the engine
  * pushes. `wallSf` is the membrane's wall area (all faces), `walls` the
  * standing walls ({ side, len, h }), `curbed` / `openLen` the entry, `seams`
- * the floor's extension seams (lf, in inches).
+ * the floor's extension seams (lf, in inches), `pick` the membrane roll the
+ * salesman swapped to — the standard 50"×25' roll when absent (owner
+ * 2026-09-30); a pick the book doesn't know falls back with a note.
  */
-export function sdryWalls({ wallSf, walls, curbed, openLen, seams }, cat) {
+export function sdryWalls({ wallSf, walls, curbed, openLen, seams, pick }, cat) {
   const byKey = (k) => cat.find((e) => e.key === k) || null;
   const rows = [];
   const need = r2((wallSf || 0) * LAP);
@@ -245,8 +247,11 @@ export function sdryWalls({ wallSf, walls, curbed, openLen, seams }, cat) {
     const rolls = [SDRY.roll, SDRY.rollXL].map(byKey).filter(Boolean).map((e) => {
       const sf = +(/(\d+(?:\.\d+)?)\s*sf\b/i.exec(e.name || "") || [])[1] || ROLL_SF[e.key] || 0;
       return sf > 0 ? { e, sf, n: Math.ceil(need / sf) } : null;
-    }).filter(Boolean).sort((a, b) => a.n * a.e.retail - b.n * b.e.retail || (b.e.stock ? 1 : 0) - (a.e.stock ? 1 : 0));
-    if (rolls[0]) rows.push({ key: rolls[0].e.key, qty: rolls[0].n, note: `${need} sf of wall + laps — ${rolls[0].sf} sf/roll` });
+    }).filter(Boolean);
+    const picked = pick ? rolls.find((r) => r.e.key === pick) : null;
+    const roll = picked || rolls.find((r) => r.e.key === SDRY.roll) || rolls[0];
+    const stale = pick && !picked ? `${pick} not in the book — standard roll · ` : "";
+    if (roll) rows.push({ key: roll.e.key, qty: roll.n, note: `${stale}${need} sf of wall + laps — ${roll.sf} sf/roll` });
   }
   const sides = new Set((walls || []).map((w) => w.side));
   const vCorners = sides.has("back") ? ["left", "right"].filter((s) => sides.has(s)).length : 0;

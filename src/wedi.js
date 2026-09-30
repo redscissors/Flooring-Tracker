@@ -5672,6 +5672,7 @@ export function kitFor(panKey, opts) {
     sdry = sdryWalls({
       wallSf: panelSf, walls, curbed: !!(curb.item && curb.qty > 0), openLen,
       seams: sdryFloor && option && option.seams ? option.seams : [],
+      pick: opts.membraneKey,
     }, catalog());
     const rows = fam === "curbless" ? withFieldSeal(sdry.rows) : sdry.rows;
     rows.forEach((r) => push(lines, r.key, r.qty, r.key === SDRY.roll || r.key === SDRY.rollXL ? "walls" : "install", r.note, true));
@@ -5702,6 +5703,7 @@ export function kitFor(panKey, opts) {
   const fw = room ? room.w : pan.w, fd = room ? room.d : pan.d;
   const factory = factoryKit(fw, fd, fam, pan.drain ? pan.drain.type : null);
 
+  const membraneRoll = membrane ? lines.find((l) => l.item.key === SDRY.roll || l.item.key === SDRY.rollXL) : null;
   const cfgWalls = walls.map((w) => {
     const o = { len: w.len, h: w.h, side: w.side };
     if (w.extra) o.extra = true;
@@ -5717,6 +5719,7 @@ export function kitFor(panKey, opts) {
     ...(fastener && fastener.item.key !== SKU.fastenerKit ? { fastenerKey: fastener.item.key } : {}),
     ...(coverPick ? { coverPick } : {}),
     ...(membrane ? { wallSys: "membrane" } : {}),
+    ...(membraneRoll && membraneRoll.item.key !== SDRY.roll ? { membraneKey: membraneRoll.item.key } : {}),
     ...(opts.sdryBase === "wedi" ? { sdryBase: "wedi" } : {}),
     coverFrame: frame ? frame.finish : null,
     sealantForm: form, recess: recess,
@@ -5765,7 +5768,7 @@ export function buildFromMarker(marker) {
     walls: cfg.walls && cfg.walls.length ? cfg.walls.map((w) => ({ ...w })) : undefined,
     wallHeight: cfg.walls && cfg.walls[0] ? +cfg.walls[0].h : undefined,
     panelKey: cfg.panelKey || undefined,
-    curbPick: cfg.curbPick, curbKey: cfg.curbKey, fastenerKey: cfg.fastenerKey,
+    curbPick: cfg.curbPick, curbKey: cfg.curbKey, fastenerKey: cfg.fastenerKey, membraneKey: cfg.membraneKey,
     coverPick: cfg.coverPick || legacyCoverPick(cfg.coverKey),
     coverFrame: cfg.coverFrame || undefined,
     wallSys: cfg.wallSys, sdryBase: cfg.sdryBase,
@@ -6538,6 +6541,17 @@ export function rowItemKey(row) {
   const us = /^wedi (US\d+) —/.exec(String(row.brandColor || ""));
   const e2 = us && item(us[1]);
   return e2 ? e2.key : null;
+}
+
+// A Membrane kit placed before the roll swap existed billed whichever roll
+// was cheaper (the XL) with no membraneKey in its cfg; its placed XL row is
+// that pick, so Reconfigure reopens on it rather than on a zeroed standard
+// roll plus an "added" XL. Null when the cfg names a roll or the rows don't
+// bill the XL alone.
+export function rowPickedMembrane(cfg, rows) {
+  if (!cfg || cfg.wallSys !== "membrane" || cfg.membraneKey) return null;
+  const keys = new Set((rows || []).map(rowItemKey));
+  return keys.has(SDRY.rollXL) && !keys.has(SDRY.roll) ? SDRY.rollXL : null;
 }
 
 // The session a placed kit's rows imply, so Reconfigure reopens on what the

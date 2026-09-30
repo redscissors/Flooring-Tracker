@@ -152,7 +152,7 @@ export function anchorManualFor(brand, hostBuild, hostBrand, { cat, source } = {
     : { sku: h.part.item.sku, qty: h.qty, g: h.part.g }));
 }
 
-const WEDI_CHOICES = ["panelKey", "curbPick", "fastenerKey", "coverPick", "coverFrame", "sealantForm", "recess"];
+const WEDI_CHOICES = ["panelKey", "curbPick", "fastenerKey", "membraneKey", "coverPick", "coverFrame", "sealantForm", "recess"];
 
 /**
  * Which kept choices didn't resolve in a build: slot words ("drain", "curb",

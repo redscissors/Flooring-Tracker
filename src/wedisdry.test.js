@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { solve, savedOption, kitFor, buildFromMarker, sdryNoFit, wediSlotOf, item, SKU, markerCurbKey, coverPickApplies, setSoSource, clearSoSource } from "./wedi.js";
+import { solve, savedOption, kitFor, buildFromMarker, sessionFromRows, rowPickedMembrane, sdryNoFit, wediSlotOf, item, SKU, markerCurbKey, coverPickApplies, setSoSource, clearSoSource } from "./wedi.js";
 import { SDRY } from "./sdry.js";
 import { wediBuildFor, schluterBuildFor, mirrorPlan, wediCompareRows } from "./comparekit.js";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
@@ -29,6 +29,47 @@ test("an S-DRY Membrane build bills the S-DRY floor and walls, no panel", () => 
   assert.ok(b.hints.includes("backer"));
   assert.equal(b.cfg.wallSys, "membrane");
   assert.equal(b.cfg.sdryBase, undefined);
+});
+
+test("the membrane roll swaps to XL: billed, written to the cfg, kept on reopen, inert under Building Panel", () => {
+  const o = solve({ ...room(60, 36), system: "sdry" })[0];
+  const plain = build(o);
+  assert.ok(qty(plain)[SDRY.roll] > 0);
+  assert.equal(qty(plain)[SDRY.rollXL], undefined);
+  assert.equal(plain.cfg.membraneKey, undefined);
+  assert.equal(plain.lines.find((l) => l.item.key === SDRY.roll).group, "walls");
+  const xl = build(o, { membraneKey: SDRY.rollXL });
+  assert.ok(qty(xl)[SDRY.rollXL] > 0);
+  assert.equal(qty(xl)[SDRY.roll], undefined);
+  assert.equal(xl.cfg.membraneKey, SDRY.rollXL);
+  assert.ok(qty(buildFromMarker({ mode: "custom", cfg: xl.cfg }))[SDRY.rollXL] > 0);
+  assert.equal(build(o, { membraneKey: SDRY.roll }).cfg.membraneKey, undefined, "the default roll is no pick");
+  const wp = solve(room(60, 36, "curbed", "center"))[0];
+  const board = kitFor(wp.pan.key, { option: wp, room: wp.room, mode: "custom", membraneKey: SDRY.rollXL });
+  assert.equal(qty(board)[SDRY.rollXL], undefined);
+  assert.equal(board.cfg.membraneKey, undefined);
+});
+
+test("a kit placed while the XL roll was the auto pick reopens on XL, not on a zeroed standard roll", () => {
+  const o = solve({ ...room(60, 36), system: "sdry" })[0];
+  const old = build(o, { membraneKey: SDRY.rollXL });
+  const cfg = { ...old.cfg };
+  delete cfg.membraneKey;
+  const rows = old.lines.map((l) => ({ wedi: { part: l.item.key }, qty: String(l.qty) }));
+  assert.equal(rowPickedMembrane(cfg, rows), SDRY.rollXL);
+  const b = buildFromMarker({ mode: "custom", cfg: { ...cfg, membraneKey: rowPickedMembrane(cfg, rows) } });
+  assert.deepEqual(sessionFromRows(b.lines, rows), { qtyOv: {}, manual: [] });
+  assert.equal(rowPickedMembrane({ ...cfg, membraneKey: SDRY.roll }, rows), null, "a cfg that names a roll wins");
+  assert.equal(rowPickedMembrane({ ...cfg, wallSys: undefined }, rows), null, "Building Panel has no roll");
+  const std = build(o).lines.map((l) => ({ wedi: { part: l.item.key }, qty: String(l.qty) }));
+  assert.equal(rowPickedMembrane(cfg, std), null);
+});
+
+test("Compare carries a kept wedi membrane pick", () => {
+  const walls = [{ side: "back", on: true, len: 60, h: 96 }, { side: "left", on: true, len: 36, h: 96 }];
+  const xl = wediBuildFor({ w: 60, d: 36, curbed: true, drain: "point", walls },
+    { wallSys: "membrane", choices: { membraneKey: SDRY.rollXL } });
+  assert.ok(xl && qty(xl)[SDRY.rollXL] > 0);
 });
 
 test("curbless S-DRY takes no curb; the extension seam joins the tape run", () => {

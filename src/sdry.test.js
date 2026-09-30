@@ -90,6 +90,19 @@ test("the wall bill for a curbed 60×36 alcove", () => {
   assert.ok(q[SDRY.roll] || q[SDRY.rollXL]);
 });
 
+test("walls: the standard 50\"×25' roll by default; a pick swaps to XL; a stale pick falls back", () => {
+  const walls = [{ side: "back", len: 60, h: 96 }, { side: "left", len: 36, h: 96 }, { side: "right", len: 36, h: 96 }];
+  const args = { wallSf: 132 * 96 / 144, walls, curbed: true, openLen: 60, seams: [] };
+  const roll = (pick) => sdryWalls({ ...args, pick }, cat).rows.find((r) => r.key === SDRY.roll || r.key === SDRY.rollXL);
+  // 88 sf of wall × 1.1 laps = 96.8 sf
+  assert.deepEqual([roll().key, roll().qty], [SDRY.roll, 1]);
+  assert.deepEqual([roll(SDRY.rollXL).key, roll(SDRY.rollXL).qty], [SDRY.rollXL, 1]);
+  assert.equal(roll("US0000000").key, SDRY.roll);
+  assert.match(roll("US0000000").note, /not in the book/);
+  const big = sdryWalls({ ...args, wallSf: 200 }, cat).rows.find((r) => r.key === SDRY.roll);
+  assert.equal(big.qty, 3, "220 sf ÷ 104 sf/roll");
+});
+
 test("slots: every S-DRY role lands in a shared slot", () => {
   const e = (key) => cat.find((x) => x.key === key);
   assert.equal(sdrySlot(e("US9176001")), "tray");

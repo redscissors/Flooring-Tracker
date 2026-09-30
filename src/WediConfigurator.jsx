@@ -24,7 +24,7 @@ import {
   lineItems, coverFrames, inch, round2, SKU, coverageOf, MODULE_DEPTH, MODEXT_DEPTH,
   FINISHES, GROUP_LABEL, BUILDER_MULT, SO_MIN_NET,
   normBench, benchPremades, benchPanRoom, benchPanPlan, smallerPanFor,
-  BENCH_CORNER_LBL, buildFromMarker, sessionFromRows, wediSlotOf, coverStyles, legacyCoverPick, coverPickApplies,
+  BENCH_CORNER_LBL, buildFromMarker, sessionFromRows, rowPickedMembrane, wediSlotOf, coverStyles, legacyCoverPick, coverPickApplies,
   resolveCurb, curbOptions, curbPickOf, panelOptions, panelSheets, fastenerKits,
   addedRows, setAddedRow, wediBucketOf, wediAddParts, wediAddPartOf, curbAddOptions, coverAddOptions, curbProfile, catalog,
   sdryNoFit, panelFitLines,
@@ -500,7 +500,7 @@ const DEF_WALLS = [
   { id: "left", label: "Left", on: true, len: "", h: "", faces: "in" },
   { id: "right", label: "Right", on: true, len: "", h: "", faces: "in" },
 ];
-const DEF_OPTS = { panelKey: undefined, curbPick: undefined, fastenerKey: undefined, coverPick: undefined, coverFrame: undefined, sealantForm: "tube", recess: undefined };
+const DEF_OPTS = { panelKey: undefined, curbPick: undefined, fastenerKey: undefined, membraneKey: undefined, coverPick: undefined, coverFrame: undefined, sealantForm: "tube", recess: undefined };
 const DEF_INP = { w: 48, d: 66, curb: "curbed", drain: "any", drainX: "", drainY: "", anchor: "left" };
 // Building Panel sits on a wedi pan, so leaving S-DRY clears the S-DRY base,
 // drain, curb and membrane whichever way the user goes.
@@ -543,6 +543,7 @@ function seedState(seed) {
       panelKey: cfg.panelKey && cfg.panelKey !== SKU.panelDefault ? cfg.panelKey : undefined,
       curbPick: curbPickOf(cfg),
       fastenerKey: cfg.fastenerKey || undefined,
+      membraneKey: cfg.membraneKey || undefined,
       coverPick: cfg.coverPick || legacyCoverPick(cfg.coverKey),
       coverFrame: cfg.coverFrame || undefined,
       sealantForm: cfg.sealantForm === "sausage" ? "sausage" : "tube",
@@ -945,6 +946,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   const kitDirty = !!panKey && (geomDirty || Object.keys(qtyOv).length > 0 || manual.length > 0
     || benches.length > 0
     || opts.panelKey !== undefined || opts.curbPick !== undefined || opts.fastenerKey !== undefined
+    || (wallSys === "membrane" && opts.membraneKey !== undefined)
     || coverPickApplies(opts.coverPick, panKey, wallSys)
     || opts.coverFrame !== undefined
     || opts.sealantForm !== "tube" || opts.recess !== undefined);
@@ -959,7 +961,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
         option: option || undefined,
         room: option ? option.room : { w: auto.back, d: auto.left },
         walls: buildWalls, wallHeight: +wallH || 80,
-        panelKey: opts.panelKey, curbPick: opts.curbPick, fastenerKey: opts.fastenerKey, coverPick: opts.coverPick,
+        panelKey: opts.panelKey, curbPick: opts.curbPick, fastenerKey: opts.fastenerKey, membraneKey: opts.membraneKey, coverPick: opts.coverPick,
         coverFrame: opts.coverFrame, sealantForm: opts.sealantForm, recess: opts.recess,
         ...(wallSys === "membrane" ? { wallSys, ...(pan && pan.sub !== "sdry" ? { sdryBase: "wedi" } : {}) } : {}),
         manual: manual.slice(), benches: benches.slice(), tier: tierId,
@@ -991,8 +993,10 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   useEffect(() => {
     if (rowsSeeded.current || !editing || !editRows?.length || !seed?.cfg?.panKey) return;
     rowsSeeded.current = true;
-    const b = buildFromMarker(seed);
+    const membraneKey = rowPickedMembrane(seed.cfg, editRows);
+    const b = buildFromMarker(membraneKey ? { ...seed, cfg: { ...seed.cfg, membraneKey } } : seed);
     if (!b) return;
+    if (membraneKey) setOpts((o) => ({ ...o, membraneKey }));
     const s = sessionFromRows(wediApplySession(b, b.cfg.walls, { qtyOv: {}, panelFit: true }), editRows);
     if (Object.keys(s.qtyOv).length) setQtyOv(s.qtyOv);
     // a placed row's extra beyond the marker's own added lines tops up that row
@@ -1472,6 +1476,10 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     if (role === "curb") {
       return { title: "S-DRY curb", list: bySource([item(SDRY.curbFull), item(SDRY.curbLean)].filter(Boolean)), none: "No curb",
         set: (k) => setOpts((o) => ({ ...o, curbPick: !k ? { none: true } : k === SDRY.curbLean ? { sub: "lean" } : undefined })) };
+    }
+    if (role === "membrane") {
+      return { title: "S-DRY membrane roll", list: bySource([item(SDRY.roll), item(SDRY.rollXL)].filter(Boolean)),
+        set: (k) => setOpts((o) => ({ ...o, membraneKey: k && k !== SDRY.roll ? k : undefined })) };
     }
     if (g === "fastener" && fastenerKits().some((f) => f.key === line.item.key)) {
       return { title: "Fastener kit", list: bySource(fastenerKits()), set: (k) => setOpts((o) => ({ ...o, fastenerKey: k && k !== SKU.fastenerKit ? k : undefined })) };

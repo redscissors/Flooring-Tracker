@@ -1062,7 +1062,12 @@ src/
                     # and `markerCurbKey` knows the S-DRY curb (tile sf).
                     # S-DRY parts slot through `sdrySlot`, and
                     # `WEDI_ADD_PARTS` gains them (wedisdry.test.js,
-                    # wallsysgolden.test.js). A curbless pan under Membrane
+                    # wallsysgolden.test.js). `opts.membraneKey` is the
+                    # membrane-roll swap: written to the cfg only when it
+                    # bills the XL roll, inert under Building Panel, carried
+                    # by Compare's kept choices; `rowPickedMembrane` reads a
+                    # kit placed before the swap (auto-billed XL, no key) back
+                    # as the XL pick on Reconfigure. A curbless pan under Membrane
                     # bills ONE SEAL line and ONE trowel: `withFieldSeal`
                     # folds the field seal's own unit into the walls' SEAL
                     # row (qty + 1, the note says so) rather than billing a
@@ -1288,7 +1293,10 @@ src/
                     # `sdryNearest` (the "nearest S-DRY base anyway" answer,
                     # shortfall warned), `sdryCurb` (full default, lean on
                     # pick, ⌈open ÷ 72⌉), `sdryWalls` (membrane +10% laps on
-                    # the cheaper roll, tape lf in 32′ rolls, corners, collars,
+                    # the standard 50″×25′ roll, or the roll `pick` names — the
+                    # popup's ⇄ swaps to the 80″×16′ XL, owner 2026-09-30; a
+                    # pick the book lacks falls back with a note — tape lf in
+                    # 32′ rolls, corners, collars,
                     # SEAL ⌈lf ÷ 45⌉ + trowel), `sdryProSet` (1 + ⌈membrane
                     # sf ÷ 100⌉ — wedi's TDS: 36×60 → 2, 48×72 → 3),
                     # `sdryRole`/`sdrySlot` (role and slot off the SKU).
