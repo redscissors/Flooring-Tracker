@@ -32,8 +32,8 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
     || [...(pMats || []), ...(optionPrint ? optionPrint.sections.flatMap((S) => S.t.pMats) : [])].some(specialMat);
   const areaCount = !optionPrint && areas.length > 0 ? `${areas.length} ${areas.length === 1 ? "area" : "areas"} selected` : "";
   const hasShared = !!optionPrint && optionPrint.sharedT.grandTotal > 0;
-  const row = (inner, first) => (
-    <div style={{ display: "grid", gridTemplateColumns: g.template, columnGap: 6, alignItems: "start", borderTop: first ? "none" : `1px solid ${HAIR}`, breakInside: "avoid" }}>{inner}</div>
+  const row = (inner, first, last) => (
+    <div style={{ display: "grid", gridTemplateColumns: g.template, columnGap: 6, alignItems: "start", borderTop: first ? "none" : `1px solid ${HAIR}`, borderBottom: last ? `1px solid ${HAIR}` : "none", breakInside: "avoid" }}>{inner}</div>
   );
 
   const matItem = (m, i) => {
@@ -63,7 +63,7 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
       </>
     );
   };
-  const productRow = (p, pi) => {
+  const productRow = (p, pi, all) => {
     const c = computed.get(p.id);
     const cells = lineCells(c);
     const q = qtyCells(p, c), pr = priceCells(p, c);
@@ -87,7 +87,7 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
           )}
           {moneyCells(q, pr, c, oneLine)}
           {cols.map((col) => <div key={col.key} style={cellStyle}>{cells[col.key].map(matItem)}</div>)}
-        </>, pi === 0)}
+        </>, pi === 0, pi === all.length - 1)}
       </Fragment>
     );
   };
@@ -96,7 +96,7 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
     if (!rows.length) return null;
     return (
       <div key={a.id}>
-        <div className="ft-pband flex justify-between items-center" style={{ gap: 12, background: BAND, borderRadius: 3, padding: "1px 10px 1px 16px", marginTop: 5, breakAfter: "avoid" }}>
+        <div className="ft-pband flex justify-between items-center" style={{ gap: 12, background: BAND, borderRadius: 3, padding: "2px 10px 0 16px", marginTop: 5, breakAfter: "avoid" }}>
           <div className="uppercase" style={{ fontSize: 9, fontWeight: 800, letterSpacing: ".22em", color: DEEP }}>{areaPrintLabel(a, ai)}</div>
           {full && <div className="ft-mono" style={{ fontSize: 9, color: MUTED, whiteSpace: "nowrap" }}>flooring {money(printAreaFloor(a, tSet))}</div>}
         </div>
