@@ -96,7 +96,7 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
     if (!rows.length) return null;
     return (
       <div key={a.id}>
-        <div className="ft-pband flex justify-between items-center" style={{ gap: 12, background: BAND, borderRadius: 3, padding: "1px 10px", marginTop: 5, breakAfter: "avoid" }}>
+        <div className="ft-pband flex justify-between items-center" style={{ gap: 12, background: BAND, borderRadius: 3, padding: "1px 10px 1px 16px", marginTop: 5, breakAfter: "avoid" }}>
           <div className="uppercase" style={{ fontSize: 9, fontWeight: 800, letterSpacing: ".22em", color: DEEP }}>{areaPrintLabel(a, ai)}</div>
           {full && <div className="ft-mono" style={{ fontSize: 9, color: MUTED, whiteSpace: "nowrap" }}>flooring {money(printAreaFloor(a, tSet))}</div>}
         </div>
@@ -108,10 +108,10 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
     <div style={{ display: "grid", gridTemplateColumns: g.template, columnGap: 6, borderBottom: "1px solid var(--ft-text)", padding: "8px 0 3px", breakAfter: "avoid" }}>
       <div />
       <div style={eyebrow}>Product</div>
-      {g.money.qty && <div style={{ ...eyebrow, textAlign: "right" }}>Qty</div>}
-      {g.money.price && <div style={{ ...eyebrow, textAlign: "right" }}>Price</div>}
-      {g.money.total && <div style={{ ...eyebrow, textAlign: "right" }}>Total</div>}
-      {cols.map((col) => <div key={col.key} style={{ ...eyebrow, letterSpacing: ".05em", paddingLeft: 5 }}>{col.label}</div>)}
+      {g.money.qty && <div style={{ ...eyebrow, textAlign: "right", marginRight: "-.14em" }}>Qty</div>}
+      {g.money.price && <div style={{ ...eyebrow, textAlign: "right", marginRight: "-.14em" }}>Price</div>}
+      {g.money.total && <div style={{ ...eyebrow, textAlign: "right", marginRight: "-.14em" }}>Total</div>}
+      {cols.map((col) => <div key={col.key} style={{ ...eyebrow, letterSpacing: ".05em", paddingLeft: 4, borderLeft: `1px solid ${HAIR}` }}>{col.label}</div>)}
     </div>
   );
   const listCols = full ? "72px minmax(0,1fr) 54px 54px 52px 62px" : pMode === "unit" ? "72px minmax(0,1fr) 72px" : "72px minmax(0,1fr)";
