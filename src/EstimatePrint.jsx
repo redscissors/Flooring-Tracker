@@ -7,6 +7,7 @@ import { printProduct, printAreaFloor, areaPrintLabel, PRINT_COLS, PRINT_COLS_UN
 import { unitNoun } from "./units.js";
 import { sfPartsText } from "./sfparts.js";
 import NedLogo from "./NedLogo.jsx";
+import { SheetHead } from "./sheethead.jsx";
 import keimLogo from "./assets/keim-logo-ink.png";
 
 export const PRINT_DASH = <span style={{ color: "var(--ft-faint)" }}>—</span>;
@@ -188,11 +189,6 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
   const renderEstimatePaperCards = () => {
     const pMode = normPrintPricing(sel.printPricing);
     const showUnit = pMode !== "none", showTotals = pMode === "full";
-    const tag = showUnit ? tierTag(tv.tier, tv.pct) : "";
-    const cust = people.find((c) => c.id === sel.customerId);
-    const sp = sel.salesperson || profile;
-    const pname = sp.name || sp.email;
-    const printName = sel.quick ? quickPrintName(sel) : sel.name;
     // CT/SH/RL read as cartons/sheets/rolls on the qty line; the price keeps the
     // short unit.
     const unitLong = (unit, n) => unitNoun(n, unit);
@@ -249,49 +245,12 @@ export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet,
     // "Whole job" beside an option total only earns its ink when shared areas
     // actually add cost — otherwise it repeats the option total verbatim.
     const hasShared = !!optionPrint && optionPrint.sharedT.grandTotal > 0;
-    // Selection-sheet masthead (owner pick 2026-09-08, .scratch/126): the
-    // document's name is the hero, the Keim mark steps to the right with the
-    // number + date, and one tagline replaces the Rough Estimate badge. The
-    // people row prints without run labels — the names speak for themselves.
-    const stackLine = { fontSize: 9.5, lineHeight: 1.35, color: "var(--ft-muted)" };
     // Not on an option print — `areas` is only the shared bucket there, and
     // "1 area selected" under a two-option job misleads.
     const areaCount = !optionPrint && areas.length > 0 ? `${areas.length} ${areas.length === 1 ? "area" : "areas"} selected` : "";
     return (
       <div style={{ fontSize: 11, color: "var(--ft-text)" }}>
-        <div className="flex justify-between items-end" style={{ gap: 16, borderBottom: "2px solid var(--ft-text)", paddingBottom: 8 }}>
-          <div style={{ minWidth: 0 }}>
-            <div className="uppercase" style={{ fontSize: 8, fontWeight: 800, letterSpacing: ".3em", color: "var(--ft-brand-deep)", marginBottom: 3 }}>Flooring &amp; Tile</div>
-            <div className="uppercase" style={{ fontSize: 28, fontWeight: 800, letterSpacing: ".12em", lineHeight: 1 }}>Selection Sheet</div>
-            <div style={{ fontSize: 9, color: "var(--ft-muted)", marginTop: 5 }}>Rough pricing and quantities for planning purposes only</div>
-          </div>
-          <div style={{ textAlign: "right", flexShrink: 0 }}>
-            <img src={keimLogo} alt="Keim" style={{ height: 24, width: "auto", display: "inline-block" }} />
-            <div className="flex items-baseline justify-end" style={{ gap: 8, marginTop: 4, whiteSpace: "nowrap" }}>
-              {sel.projectNo && <span style={{ fontSize: 12, fontWeight: 800 }}>N{sel.projectNo}</span>}
-              <span className="ft-mono" style={{ fontSize: 9.5, color: "var(--ft-muted)" }}>{new Date().toLocaleDateString()}</span>
-            </div>
-            {tag && <div className="uppercase" style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: ".18em", color: "var(--ft-brand-deep)" }}>{tag}</div>}
-          </div>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr 1fr", gap: 18, padding: "6px 0 7px", borderBottom: "1px solid var(--ft-paper-rule)", marginBottom: 8 }}>
-          {/* No customer record → no name fallback here: the project name in
-              the next cell already identifies the job. */}
-          <div>
-            {cust?.name && <div style={{ fontSize: 11.5, fontWeight: 800, lineHeight: 1.3 }}>{cust.name}</div>}
-            {(sel.address || cust?.address) && <div style={stackLine}>{sel.address || cust?.address}</div>}
-            {(cust?.phone || sel.phone) && <div style={stackLine}>{cust?.phone || sel.phone}</div>}
-          </div>
-          <div>
-            <div style={{ fontSize: 11.5, fontWeight: 800, lineHeight: 1.3 }}>{printName || PRINT_DASH}</div>
-            {(scopeNote || areaCount) && <div style={stackLine}>{scopeNote || areaCount}</div>}
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: 11, fontWeight: 700, lineHeight: 1.3 }}>{pname || PRINT_DASH}</div>
-            {[sp.phone, sp.email].filter((x) => x && x !== pname).map((d, j) => <div key={j} style={stackLine}>{d}</div>)}
-          </div>
-        </div>
-        {sel.notes && <div style={{ fontSize: 11, fontStyle: "italic", color: "var(--ft-muted)", margin: "0 0 8px" }}>{sel.notes}</div>}
+        <SheetHead sel={sel} people={people} profile={profile} tv={tv} scopeNote={scopeNote} areaCount={areaCount} />
 
         {/* Areas may split across a page turn (cards themselves never do, and
             the band sticks with its first card via breakAfter) — refusing to
