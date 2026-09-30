@@ -177,6 +177,20 @@ h1{font-size:22px;margin:0 0 4px}
 .h-keys2{display:flex;flex-wrap:wrap;gap:4px;padding-top:3px;max-width:116px}
 .h-keys2 .kdot{width:15px;height:15px;font-size:8.5px}
 
+.g3-row{display:grid;grid-template-columns:10px minmax(0,1fr) 70px repeat(4,94px);column-gap:6px;align-items:start}
+.g3-row > .g-c{align-self:stretch;background:#FBFAF6;padding:3px 5px;font-size:8.4px;line-height:1.26}
+.g3-row > .g-c.first{border-left:1px solid var(--paper-rule)}
+.g3-row .g-c b{font-weight:800;font-size:8.8px;display:block}
+.g3-row .g-c .c2{display:block}
+.g3-row .g-c .q{display:block;color:#000;font-weight:700}
+.g2-row .g-c .q{font-weight:700}
+.g3-row.g-hrow{border-bottom:1px solid #000}
+.jl-r{display:grid;grid-template-columns:72px minmax(0,1fr) 54px 46px 50px 56px;column-gap:8px;font-size:9.1px;padding:1.5px 0;border-bottom:1px solid var(--paper-hair);align-items:baseline}
+.jl-r.end{border-bottom-color:var(--paper-rule)}
+.jl-k{font-size:7px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--ft-brand-deep);line-height:1.2}
+.jl-h{font-size:7px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--paper-faint);border-bottom:1px solid #000}
+.jl-g{font-size:7.5px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--ft-brand-deep);padding:4px 0 1px}
+
 @page{size:letter portrait;margin:0}
 @page land{size:letter landscape;margin:0}
 @media print{
@@ -195,7 +209,7 @@ h1{font-size:22px;margin:0 0 4px}
   <div class="chrome">
     <div class="eyebrow">Mockups · 2026-09-30 · throwaway</div>
     <h1>Selection sheet — ways to tie extras to products</h1>
-    <p class="lede">One sample job, five layouts plus a bonus, and two round-2 options (G, H) built from your feedback on D and F. G and H use a mixed version of the job (different grout, mortar and membrane per tile), so they total <b>$4,131.62</b>. Every dollar on each sheet appears exactly once and A–F reconcile to the same <b>$3,943.12</b>. Special-order lines come from what the app already knows (<code>isSpecialOrder</code> — order-book picks, Sheoga, unstocked SKUs); nothing new to key in. Use <b>Print this sheet</b> to see the real page (C–G print landscape).</p>
+    <p class="lede">One sample job, five layouts plus a bonus, and two round-2 options (G, H) built from your feedback on D and F. G, G2, G3 and H use a mixed version of the job (different grout, mortar and membrane per tile), so they total <b>$4,131.62</b>. Every dollar on each sheet appears exactly once and A–F reconcile to the same <b>$3,943.12</b>. Special-order lines come from what the app already knows (<code>isSpecialOrder</code> — order-book picks, Sheoga, unstocked SKUs); nothing new to key in. Use <b>Print this sheet</b> to see the real page (C–G print landscape).</p>
   </div>
   <div class="tabs" id="tabs"></div>
   <div id="panels"></div>
@@ -471,7 +485,55 @@ function layoutH() {
     <div class="fine r">Includes 10% waste on tile, 8% on plank. Confirm against final measurements before ordering.</div>${soFoot()}</div>`;
 }
 
+// ---- G2 / G3: material columns with EXACT per-product amounts (no prices), plus a consolidated job list ----
+// Exact amounts each product needs; the job list sums them and rounds up once.
+const EX_BY = { "Daltile Volume 1.0": [["A", 1.62, '1/8"'], ["F", 2.7], ["H", 0.8]], "Emser Craft": [["B", 0.62, '1/16"'], ["G", 1.8], ["I", 0.9], ["J", 1]], "Daltile Keystones": [["C", 0.45, '1/16"'], ["F", 0.6]] };
+const AREAS3 = AREAS.map((a) => ({ ...a, items: a.items.map((p) => ({ ...p, ex: EX_BY[p.brand] || [] })) }));
+const exU = (n, u) => `${n.toFixed(1)} ${u}${Math.abs(n - 1) < 1e-9 ? "" : "s"}`;
+function layoutG2(portrait) {
+  const COLS = [["grout", "Grout"], ["mortar", "Mortar"], ["mem", "Membrane"], ["caulk", "Caulk"]];
+  const cell = (p, col, i) => { const hits = p.ex.filter(([k]) => M2[k].col === col); const cls = `g-c${i ? "" : " first"}`;
+    return hits.length ? `<div class="${cls}">${hits.map(([k, q, n]) => { const m = M2[k]; return `<b>${m.special ? "◆ " : ""}${m.name}</b>${m.color ? `<span class="c2">${m.color}${n ? ` · ${n}` : ""}</span>` : ""}<span class="q num">${exU(q, m.unit)}</span>`; }).join("")}</div>` : `<div class="${cls} g-none">—</div>`; };
+  const rowCls = portrait ? "g3-row" : "g2-row";
+  const head = `<div class="${rowCls} g-hrow"><div class="g-head"></div><div class="g-head">Products</div><div class="g-head"></div>${COLS.map(([, l], i) => `<div class="g-head" style="padding-left:6px;${i ? "" : "border-left:1px solid var(--paper-rule)"}">${l} <span style="font-weight:600;letter-spacing:.04em;text-transform:none">needed</span></div>`).join("")}</div>`;
+  const areas = AREAS3.map((a) => {
+    const floor = a.items.reduce((t, p) => t + p.line, 0);
+    return `<div class="band"><span class="n">${a.name}</span><span class="s num">${a.sf} SF · flooring ${$(floor)}</span></div>
+      ${a.items.map((p, pi) => `<div class="${rowCls}"${pi ? ' style="border-top:1px solid var(--paper-hair)"' : ""}><span class="d-mk" style="padding-top:3px">${p.special ? "◆" : ""}</span>
+        <div style="min-width:0;padding:3px 0"><div class="pname" style="font-size:${portrait ? 9.8 : 10.5}px">${p.brand} — ${p.color}</div><div class="spec" style="font-size:${portrait ? 8.3 : 8.8}px">${p.type} · ${specLine(p)}</div></div>
+        <div class="num r" style="padding-top:3px;white-space:nowrap"><div class="mut" style="font-size:${portrait ? 8.2 : 8.8}px">${p.order}<br>${p.unit}</div><div class="money" style="font-size:${portrait ? 10.5 : 11}px">${$(p.line)}</div></div>
+        ${COLS.map(([c], i) => cell(p, c, i)).join("")}</div>`).join("")}`;
+  }).join("");
+  // consolidated list: sum exact per material, round up once for the job
+  const need = {}; AREAS3.forEach((a) => a.items.forEach((p) => p.ex.forEach(([k, q]) => (need[k] = (need[k] || 0) + q))));
+  const groups = [["Grout color", ["A", "B", "C"]], ["Grout base", ["D", "E"]], ["Mortar", ["F", "G"]], ["Membrane", ["H", "I"]], ["Caulk", ["J"]]];
+  const list = groups.map(([g, ks]) => ks.map((k, ki) => { const m = M2[k];
+      const needed = m.base ? (k === "D" ? "for 3 kits" : "for 1 kit") : exU(need[k], m.unit);
+      const title = m.base ? `${m.name} <span class="fnt">· for ${m.for}</span>` : m.col === "grout" || m.col === "caulk" ? `${m.name} <span class="fnt">·</span> ${m.color}` : `${m.name}${m.color ? ` <span class="fnt">· ${m.color}</span>` : ""}`;
+      return `<div class="jl-r${ki === ks.length - 1 ? " end" : ""}"><span class="jl-k">${ki ? "" : g}</span><span>${m.special ? "◆ " : ""}${title}</span><span class="num r mut">${needed}</span><span class="num r" style="font-weight:700">${pl(m.qty, m.unit)}</span><span class="num r mut">${$(m.price)}</span><span class="num r" style="font-weight:800">${$(m.cost)}</span></div>`; }).join("")).join("");
+  const jobList = `<div><div class="ey" style="font-size:9px;margin-bottom:2px">Install materials — job order</div>
+    <div class="jl-r jl-h"><span></span><span>Item</span><span class="r">Needed</span><span class="r">Order</span><span class="r">Each</span><span class="r">Total</span></div>${list}
+    <div class="jl-r" style="border-top:1px solid #000;border-bottom:0;font-weight:800"><span></span><span>Install materials subtotal</span><span></span><span></span><span></span><span class="num r">${$(MATS2)}</span></div>
+    <div class="fnt" style="font-size:8px;margin-top:2px">Needed = the exact amounts in the columns above, added up. Order rounds up once for the whole job. Every grout color kit mixes into its brand's base.</div></div>`;
+  const right = `<div>${totals2()}<div class="fine r">Includes 10% waste on tile, 8% on plank.</div>
+    <div class="sofoot" style="display:block"><div><b>◆ Special order</b> — ordered from the manufacturer for your job. <b>Special-order items can't be returned.</b> Please confirm color, size and quantity before we order.</div><div class="initials" style="margin-top:8px;justify-content:flex-end">Initials <span></span></div></div></div>`;
+  const soBox = `<div class="sofoot" style="display:block;margin-top:0"><div><b>◆ Special order</b> — ordered from the manufacturer for your job. <b>Special-order items can't be returned.</b> Please confirm color, size and quantity before we order.</div><div class="initials" style="margin-top:8px;justify-content:flex-end">Initials <span></span></div></div>`;
+  const bottom = portrait
+    ? `<div style="border-top:2px solid #000;margin-top:10px;padding-top:8px">${jobList}
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:10px;align-items:start">${soBox}<div>${totals2()}<div class="fine r">Includes 10% waste on tile, 8% on plank.</div></div></div></div>`
+    : `<div style="display:grid;grid-template-columns:1.25fr 1fr;gap:26px;border-top:2px solid #000;margin-top:10px;padding-top:8px;align-items:start">${jobList}${right}</div>`;
+  return `<div class="sheet${portrait ? "" : " land"}">${mast()}${head}${areas}${bottom}</div>`;
+}
+
 const LAYOUTS = [
+  { id: "G2", name: "Material columns + job list", orient: "landscape", fn: () => layoutG2(false),
+    idea: "Round 3, from G: material cells drop their prices and show the EXACT amount each product needs (1.6 kits, 2.7 bags, 0.8 roll). The bottom-left job list adds those up per item, rounds up once, and prices each line; totals sit bottom-right.",
+    fixes: "The columns answer \"what goes where, how much\"; the list answers \"what are we ordering and what does it cost\" — every dollar once. Rounding happens once per job (ProLite 2.7 + 0.6 = 3.3 → 4 bags), not per product.",
+    trade: "Exact decimals (0.8 roll) can read odd to a customer next to a rounded order; the list's Needed → Order columns explain it. Bases appear only in the list (\"for 3 kits\")." },
+  { id: "G3", name: "Material columns + job list", orient: "portrait", fn: () => layoutG2(true),
+    idea: "The same sheet, portrait: products squeezed to a narrow column with the price stacked under the order, four material columns at ~8.5px, and the job list + totals across the bottom.",
+    fixes: "Keeps today's portrait paper while getting the column-per-material read. Everything still fits one page for this job.",
+    trade: "Tight: product names and specs wrap to 2–3 lines, and a big job hits page 2 sooner than landscape. Smallest type of any option." },
   { id: "G", name: "D + material columns", orient: "landscape", fn: layoutG,
     idea: "Round 2 (rev): generic columns — Grout · Mortar · Membrane · Caulk — and each cell names the actual item for the product beside it: SpectraLOCK PRO Bright White next to the Ash floor, PermaColor Select Light Pewter next to the Craft wall; ProLite vs. VersaBond; DITRA vs. KERDI. Qty and price sit in the cell. Page is ~50/50.",
     fixes: "Works when every product uses a different grout, mortar or membrane. Each material is priced once, right where it's used; areas total in their band. Grout bases (one per brand) sit in a Whole-job row with who they're for.",
@@ -508,7 +570,7 @@ const LAYOUTS = [
 
 const tabs = document.getElementById("tabs"), panels = document.getElementById("panels");
 LAYOUTS.forEach((L, i) => {
-  const b = document.createElement("button"); b.className = "tab" + (i ? "" : " on"); b.innerHTML = `${L.id} · ${L.name}<small>${L.orient}${"GH".includes(L.id) ? " · new" : ""}</small>`; b.dataset.id = L.id; tabs.appendChild(b);
+  const b = document.createElement("button"); b.className = "tab" + (i ? "" : " on"); b.innerHTML = `${L.id} · ${L.name}<small>${L.orient}${L.id.startsWith("G") && L.id.length > 1 ? " · new" : ""}</small>`; b.dataset.id = L.id; tabs.appendChild(b);
   const p = document.createElement("div"); p.className = "panel" + (i ? "" : " on"); p.id = "p" + L.id;
   p.innerHTML = `<div class="note"><div><h4>The idea</h4><p>${L.idea}</p></div><div><h4>What it fixes</h4><p>${L.fixes}</p></div><div><h4>Trade-offs</h4><p>${L.trade}</p></div></div>
     <div class="bar"><b>${L.id} · ${L.name}</b><button class="btn" onclick="window.print()">Print this sheet</button></div><div class="stage">${L.fn()}</div>`;
@@ -516,7 +578,7 @@ LAYOUTS.forEach((L, i) => {
 });
 tabs.addEventListener("click", (e) => { const b = e.target.closest(".tab"); if (!b) return; show(b.dataset.id); });
 function show(id) { document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("on", t.dataset.id === id)); document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("on", p.id === "p" + id)); try { history.replaceState(null, "", "#" + id); } catch (e) {} }
-if (/^#[A-H]$/.test(location.hash)) show(location.hash.slice(1));
+if (/^#(?:[A-H]|G2|G3)$/.test(location.hash)) show(location.hash.slice(1));
 </script>
 </body>
 </html>
