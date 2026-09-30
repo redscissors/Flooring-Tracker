@@ -31,7 +31,7 @@ export function printProduct(p, s) {
     // Show selected grout even when the quantity can't be computed (e.g. tile
     // thickness/joint not entered) so it prints like mortar/backer instead of
     // silently vanishing; blank order/price when uncomputed.
-    mats.push({ kind: "Grout", key: `g|${p.grout.product}|${p.grout.color || ""}`, name: p.grout.product, spec: p.grout.color || "", sku: p.grout.sku || "", detail: [j ? `${j} joint` : "", G && G.round ? "penny round" : ""].filter(Boolean).join(" · "), inline: true, order: G ? G.order : 0, unit: G ? G.unit : (s.grouts[p.grout.product]?.unit || ""), exact: G ? G.exact : 0, price: G ? G.price : num(s.grouts[p.grout.product]?.price), cost: G && G.price > 0 ? G.order * G.price : 0, noCost: noCost(s.grouts[p.grout.product]?.price, s.grouts[p.grout.product]?.cost) });
+    mats.push({ kind: "Grout", key: `g|${p.grout.product}|${p.grout.color || ""}`, name: p.grout.product, spec: p.grout.color || "", sku: p.grout.sku || "", bookId: p.grout.bookId || "", detail: [j ? `${j} joint` : "", G && G.round ? "penny round" : ""].filter(Boolean).join(" · "), inline: true, order: G ? G.order : 0, unit: G ? G.unit : (s.grouts[p.grout.product]?.unit || ""), exact: G ? G.exact : 0, price: G ? G.price : num(s.grouts[p.grout.product]?.price), cost: G && G.price > 0 ? G.order * G.price : 0, noCost: noCost(s.grouts[p.grout.product]?.price, s.grouts[p.grout.product]?.cost) });
     const ck = num(p.grout.caulk);
     if (ck > 0) mats.push({ kind: "Caulk", key: `c|${p.grout.product}|${p.grout.color || ""}`, name: `${p.grout.product} matching caulk`, spec: p.grout.color || "", sku: p.grout.caulkSku || "", detail: "", inline: true, order: ck, unit: "tubes", exact: ck, price: num(p.grout.caulkPrice), cost: ck * num(p.grout.caulkPrice), noCost: noCost(p.grout.caulkPrice, p.grout.caulkCost) });
   }
@@ -109,18 +109,18 @@ export const matSku = (kind, name, s) =>
       : kind === "Tile Backer" || kind === "Underlayment" ? s.underlayments?.[name]?.sku || "" : "";
 // Whole-job materials for the estimate's bottom breakdown: aggregate exact
 // quantities per item (ceil once at the end, like the on-screen totals) and
-// sum the per-line costs so the breakdown reconciles with the grand total.
+// price that job order (ADR 0053), the same figure the grand total charges.
 // Base units derive from the aggregated grout kit counts (ADR 0006) via the
 // same groutBaseList the on-screen summary uses.
 export function printMatList(cust, s) {
   const agg = new Map();
   (cust.categories || []).forEach((a) => a.products.forEach((p) => printProduct(p, s).mats.forEach((m) => {
     const e = agg.get(m.key) || { kind: m.kind, name: m.name, spec: m.spec, detail: m.detail || "", sku: "", unit: m.unit, price: m.price, exact: 0, cost: 0 };
-    e.exact += m.exact; e.cost += m.cost; e.sku = e.sku || m.sku || ""; e.detail = e.detail || m.detail || ""; agg.set(m.key, e);
+    e.exact += m.exact; e.sku = e.sku || m.sku || ""; e.bookId = e.bookId || m.bookId || ""; e.detail = e.detail || m.detail || ""; agg.set(m.key, e);
   })));
   // A selection-snapshotted SKU (the grout color's own SKU, ADR 0007) outranks
   // the catalog product's SKU; the catalog SKU is the fallback.
-  const rows = [...agg.values()].map((m) => ({ ...m, sku: m.sku || matSku(m.kind, m.name, s), order: ceilQty(m.exact) }));
+  const rows = [...agg.values()].map((m) => { const order = ceilQty(m.exact); return { ...m, sku: m.sku || matSku(m.kind, m.name, s), order, cost: order * m.price }; });
   const bases = groutBaseList(groutBaseEntries(cust.categories, s), s)
     .map((b) => ({ kind: "Grout base", name: b.name, spec: "", sku: b.sku, unit: b.unit, price: b.price, exact: b.exact, order: b.order, cost: b.cost }));
   // Built-in kinds sort by PRINT_KINDS; add-on categories (unknown kinds) sort

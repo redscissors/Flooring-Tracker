@@ -326,3 +326,19 @@ test("printMatList orders each row's picked base, colors sharing a Commercial un
   const bases = rows.filter((r) => r.kind === "Grout base");
   assert.deepEqual(bases.map((b) => [b.sku, b.order]).sort(), [["SLP-COMM", 1], ["SLP-FULL", 2]]);
 });
+
+// ADR 0053: the breakdown prices the job order, not each row's rounded amount.
+test("printMatList: a shared material costs its job order × price", () => {
+  const s3 = normalizeSettings({ mortars: { "ProLite": { unit: "bags", price: 18.95, coverage: 60 } } });
+  const row = { ...newProduct(), type: "tile", L: "12", W: "12", thickness: "0.375", qtyType: "sqft", qty: "20", priceSqft: "2", mortar: { checked: true, product: "ProLite", manual: "" } };
+  const rows = printMatList({ categories: [{ id: "a", name: "Bath", products: [row, { ...row, id: "r2" }] }] }, s3);
+  const m = rows.find((r) => r.kind === "Mortar");
+  assert.equal(m.order, 1);
+  assert.equal(m.cost, 18.95);
+});
+
+test("printMatList: a grout color keeps its order-book bookId", () => {
+  const row = { ...newProduct(), type: "tile", L: "12", W: "12", thickness: "0.375", qtyType: "sqft", qty: "20", priceSqft: "2", grout: { ...newProduct().grout, checked: true, product: "PermaColor Select", color: "Bright White", joint: 0.125, bookId: "bk1" } };
+  const rows = printMatList({ categories: [{ id: "a", name: "Bath", products: [row] }] }, s);
+  assert.equal(rows.find((r) => r.kind === "Grout").bookId, "bk1");
+});
