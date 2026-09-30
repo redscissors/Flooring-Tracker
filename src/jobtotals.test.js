@@ -135,3 +135,13 @@ test("materials charge the rounded job order (ADR 0053)", () => {
   assert.equal(t.groutCost, ceilQty(g1 + g2) * 18.95);
   assert.equal(t.gList[0].cost, t.groutCost);
 });
+
+// The printed job list must add up to the Install materials total — every kind,
+// including caulk (a hand-typed per-row count, charged per row).
+test("the printed materials list sums to materialsCost", () => {
+  const caulked = (price) => tile(40, { grout: { checked: true, product: "PermaColor Select", joint: 0.125, color: "Bright White", caulk: "1", caulkPrice: String(price) } });
+  const cats = normC({ id: "j4", name: "J", categories: [{ name: "Bath", option: "", products: [caulked(10), caulked(12), tile(20)] }] }).categories;
+  const t = totals(cats);
+  const listed = t.pMats.filter((m) => m.kind !== "Freight").reduce((s, m) => s + m.cost, 0);
+  assert.equal(Math.round(listed * 100), Math.round(t.materialsCost * 100));
+});

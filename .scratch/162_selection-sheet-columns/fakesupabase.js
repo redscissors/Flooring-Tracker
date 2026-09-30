@@ -50,7 +50,14 @@ const splash = { ...newArea(), name: "Kitchen Backsplash", products: [
   tile("WOW Vestige Sagano Square Matte", "WOWVSSA44M", "4.3", "4.3", 40, 20.31, 4.4, { grout: grout("PermaColor Select", "Bright White", 0.125), mortar: { checked: true, product: "AcrylPro", manual: "" } }),
 ] };
 if (q.get("opts")) { floor.option = "A"; splash.option = "B"; }
-const project = { ...newProject(null, "Test"), id: "p1", categories: [shower, floor, beds, splash], printPricing: q.get("pricing") || "full" };
+// ?freight=1: the backsplash comes off a freight-program order book (ADR 0030).
+if (q.get("freight")) splash.products[0].bookId = "fv1";
+// ?lvp=1: a job with no install materials at all — no material columns print.
+const lvp = { ...newArea(), name: "Living Room", products: [
+  P({ type: "vinyl", brandColor: "Mannington Adura Max — Napa Dune", sku: "MAX011", sizeText: '6" x 48"', qty: "220", priceSqft: "4.29", cartonSf: "24.03" }),
+  misc("Schluter Jolly Trendline - A100TSC Cream", '3/8"', "23187", 1, 28.14),
+] };
+const project = { ...newProject(null, "Test"), id: "p1", categories: q.get("lvp") ? [lvp] : [shower, floor, beds, splash], printPricing: q.get("pricing") || "full" };
 const now = new Date().toISOString();
 const TABLES = {
   projects: [{ id: "p1", customer_id: null, project_no: 259, created_at: now, updated_at: now, name: project.name, quick: "false", sales: "", data: project }],
@@ -59,7 +66,8 @@ const TABLES = {
   // The shop's stock book carries every SKU on the job except the WOW
   // backsplash, so that line (hand-entered, unstocked SKU) and the Sheoga floor
   // are the sheet's special orders — the app's own isSpecialOrder rules.
-  price_books: [{ id: "stock1", kind: "stock", name: "Keim stock", active: true, data: {}, updated_at: now }],
+  price_books: [{ id: "stock1", kind: "stock", name: "Keim stock", active: true, data: {}, updated_at: now },
+    { id: "fv1", kind: "order", name: "Glazzio", active: true, updated_at: now, data: { freight: { mode: "program", destination: "OH", palletSf: 500, perSqft: 0.25, minCharge: 79, palletAt: 0, palletRate: 0, largeRate: 0, largeAtSqin: 200, largeSeries: "", smallSeries: "", perPiece: 0, pieceMin: 0, effective: "2026" } } }],
   price_book_items: ["1504065", "1504066", "23194", "1504156", "47735", "47828", "1518129"].map((sku) => ({ book_id: "stock1", sku, active: true, disabled: false, updated_at: now, data: { description: sku } })),
 };
 

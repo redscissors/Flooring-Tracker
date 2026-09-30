@@ -1442,7 +1442,9 @@ export default function App({ user, onSignOut }) {
     if (!sel || !sel._full || previewScopeLive === "all" || !optsUsed.length) return null;
     return jobTotals({ ...tv.proj, categories: scopedCats(tv.proj.categories, previewScopeLive) }, { ...sel, categories: scopedCats(sel.categories, previewScopeLive) }, tSet, wSet, settings, books);
   }, [sel, tv.proj, previewScopeLive, optsUsed, tSet, wSet, settings, books]);
-  const paperProps = { stockBookIds, stockSkus, ...(scopedT
+  // The sheet's ◆ special-order marks wait for the stock books (a missing set
+  // reads every book pick as special order); printcols.js specialCheck.
+  const paperProps = { stockBookIds: booksHydrated && books.length ? stockBookIds : undefined, stockSkus, ...(scopedT
     ? { sel, people: data.people, profile, tv: { ...tv, proj: { ...tv.proj, categories: scopedCats(tv.proj.categories, previewScopeLive) } }, jobWaste, tSet, optionPrint: null, scopeNote: optionShort(sel, previewScopeLive), pMats: scopedT.pMats, materialsCost: scopedT.materialsCost, freightCost: scopedT.freightCost, flooringPrice: scopedT.flooringPrice, miscCost: scopedT.miscCost, totalSqft: scopedT.totalSqft, orderedSqft: scopedT.orderedSqft, grandTotal: scopedT.grandTotal }
     : optionPrint
     ? { sel, people: data.people, profile, tv, jobWaste, pMats: buckets.shared.pMats, tSet, materialsCost: buckets.shared.materialsCost, freightCost: buckets.shared.freightCost, flooringPrice: buckets.shared.flooringPrice, miscCost: buckets.shared.miscCost, totalSqft: buckets.shared.totalSqft, orderedSqft: buckets.shared.orderedSqft, grandTotal: buckets.shared.grandTotal, optionPrint }

@@ -117,11 +117,13 @@ export function printMatList(cust, s) {
   const agg = new Map();
   (cust.categories || []).forEach((a) => a.products.forEach((p) => printProduct(p, s).mats.forEach((m) => {
     const e = agg.get(m.key) || { kind: m.kind, name: m.name, spec: m.spec, detail: m.detail || "", sku: "", unit: m.unit, price: m.price, exact: 0, cost: 0 };
-    e.exact += m.exact; e.sku = e.sku || m.sku || ""; e.bookId = e.bookId || m.bookId || ""; e.detail = e.detail || m.detail || ""; agg.set(m.key, e);
+    e.exact += m.exact; e.cost += m.cost; e.sku = e.sku || m.sku || ""; e.bookId = e.bookId || m.bookId || ""; e.detail = e.detail || m.detail || ""; agg.set(m.key, e);
   })));
   // A selection-snapshotted SKU (the grout color's own SKU, ADR 0007) outranks
   // the catalog product's SKU; the catalog SKU is the fallback.
-  const rows = [...agg.values()].map((m) => { const order = ceilQty(m.exact); return { ...m, sku: m.sku || matSku(m.kind, m.name, s), order, cost: order * m.price }; });
+  // Caulk is a hand-typed count charged per row (jobtotals caulkCost), so it
+  // keeps the rows' own costs; everything else prices its job order.
+  const rows = [...agg.values()].map((m) => { const order = ceilQty(m.exact); return { ...m, sku: m.sku || matSku(m.kind, m.name, s), order, cost: m.kind === "Caulk" ? m.cost : order * m.price }; });
   const bases = groutBaseList(groutBaseEntries(cust.categories, s), s)
     .map((b) => ({ kind: "Grout base", name: b.name, spec: "", sku: b.sku, unit: b.unit, price: b.price, exact: b.exact, order: b.order, cost: b.cost }));
   // Built-in kinds sort by PRINT_KINDS; add-on categories (unknown kinds) sort

@@ -4,8 +4,7 @@ import { wasteVaries } from "./catalog.js";
 import { money, wasteNote, rowBlank } from "./model.js";
 import { TLBL } from "./uiconst.js";
 import { printProduct, printAreaFloor, areaPrintLabel, u1 } from "./print.js";
-import { isSpecialOrder, isSpecialMat } from "./orderentry.js";
-import { specLine, qtyCells, priceCells, lineCells, columnsUsed, needText, gridSpec, jobListGroups } from "./printcols.js";
+import { specLine, qtyCells, priceCells, lineCells, columnsUsed, gridSpec, jobListGroups, specialCheck, isOneLine, cellParts } from "./printcols.js";
 import { SheetHead } from "./sheethead.jsx";
 
 const MUTED = "var(--ft-muted)", FAINT = "var(--ft-faint)", DEEP = "var(--ft-brand-deep)";
@@ -28,8 +27,7 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
   const computed = new Map(allRows.map((p) => [p.id, printProduct(p, tSet)]));
   const cols = columnsUsed([...computed.values()]);
   const g = gridSpec(pMode, cols);
-  const specialMat = (m) => isSpecialMat(m, stockBookIds);
-  const specialRow = (p) => isSpecialOrder(p, stockBookIds, stockSkus);
+  const { row: specialRow, mat: specialMat } = specialCheck(stockBookIds, stockSkus);
   const anySpecial = allRows.some((p) => specialRow(p) || computed.get(p.id).mats.some(specialMat))
     || [...(pMats || []), ...(optionPrint ? optionPrint.sections.flatMap((S) => S.t.pMats) : [])].some(specialMat);
   const areaCount = !optionPrint && areas.length > 0 ? `${areas.length} ${areas.length === 1 ? "area" : "areas"} selected` : "";
@@ -38,21 +36,24 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
     <div style={{ display: "grid", gridTemplateColumns: g.template, columnGap: 6, alignItems: "start", borderTop: first ? "none" : `1px solid ${HAIR}`, breakInside: "avoid" }}>{inner}</div>
   );
 
-  const matItem = (m, i) => (
-    <div key={i} style={{ marginTop: i ? 2 : 0 }}>
-      <div style={{ fontWeight: 800 }}>{specialMat(m) ? `${DIAMOND} ` : ""}{m.name}</div>
-      {m.kind === "Grout" && m.spec && <div style={{ color: MUTED }}>{m.spec}</div>}
-      {(full || (m.kind === "Grout" && m.detail)) && (
-        <div className="flex justify-between" style={{ gap: 4, alignItems: "baseline" }}>
-          <span style={{ color: MUTED }}>{m.kind === "Grout" ? m.detail.replace(/ joint\b/, "") : ""}</span>
-          {full && <span style={{ fontWeight: 700, whiteSpace: "nowrap" }}>{needText(m.exact, m.unit)}</span>}
-        </div>
-      )}
-    </div>
-  );
+  const matItem = (m, i) => {
+    const t = cellParts(m);
+    return (
+      <div key={i} style={{ marginTop: i ? 2 : 0 }}>
+        {t.label && <div style={{ ...kindLabel, fontSize: 6.5 }}>{t.label}</div>}
+        <div style={{ fontWeight: 800 }}>{specialMat(m) ? `${DIAMOND} ` : ""}{t.name}</div>
+        {t.color && <div style={{ color: MUTED }}>{t.color}</div>}
+        {(full || t.left) && (
+          <div className="flex justify-between" style={{ gap: 4, alignItems: "baseline" }}>
+            <span style={{ color: MUTED }}>{t.left}</span>
+            {full && <span style={{ fontWeight: 700, whiteSpace: "nowrap" }}>{t.amount}</span>}
+          </div>
+        )}
+      </div>
+    );
+  };
   const cellStyle = (i) => ({ alignSelf: "stretch", background: CELL, padding: "2px 4px", fontSize: 7.6, lineHeight: 1.22, borderLeft: i === 0 ? `1px solid ${RULE}` : "none" });
-  const moneyCells = (p, c, oneLine) => {
-    const q = qtyCells(p, c), pr = priceCells(p, c);
+  const moneyCells = (q, pr, c, oneLine) => {
     const cell = { paddingTop: 2, fontSize: 8.8, lineHeight: 1.3, textAlign: "right", whiteSpace: "nowrap" };
     return (
       <>
@@ -65,7 +66,8 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
   const productRow = (p, pi) => {
     const c = computed.get(p.id);
     const cells = lineCells(c);
-    const oneLine = cols.every((col) => cells[col.key].length === 0);
+    const q = qtyCells(p, c), pr = priceCells(p, c);
+    const oneLine = isOneLine(cells, cols, q, pr);
     const typeLbl = TLBL[p.type] || "";
     const name = <>{p.brandColor || typeLbl}{p.brandColor && p.type !== "misc" && typeLbl && <span style={{ fontWeight: 500, color: MUTED }}> — {typeLbl.toLowerCase()}</span>}</>;
     const spec = specLine(p, c);
@@ -83,8 +85,8 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
               {note}
             </div>
           )}
-          {moneyCells(p, c, oneLine)}
-          {cols.length > 0 && (oneLine
+          {moneyCells(q, pr, c, oneLine)}
+          {cols.length > 0 && (cols.every((col) => cells[col.key].length === 0)
             ? <div style={{ ...cellStyle(0), gridColumn: `span ${cols.length}` }} />
             : cols.map((col, i) => <div key={col.key} style={cellStyle(i)}>{cells[col.key].map(matItem)}</div>))}
         </>, pi === 0)}
@@ -130,9 +132,9 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
           {full && <span style={{ ...eyebrow, textAlign: "right" }}>Total</span>}
         </div>
         {groups.map((gr) => gr.rows.map((r, ri) => (
-          <div key={`${gr.label}-${ri}`} style={{ ...lr, borderBottom: `1px solid ${ri === gr.rows.length - 1 ? RULE : HAIR}`, breakBefore: "avoid" }}>
+          <div key={`${gr.label}-${ri}`} style={{ ...lr, borderBottom: `1px solid ${ri === gr.rows.length - 1 ? RULE : HAIR}`, breakBefore: ri === 1 ? "avoid" : "auto" }}>
             <span style={kindLabel}>{ri ? "" : gr.label}</span>
-            <span>{specialMat(r) ? `${DIAMOND} ` : ""}{r.name}{r.sku && <span style={{ color: FAINT }}> · SKU {r.sku}</span>}</span>
+            <span>{specialMat(r) ? `${DIAMOND} ` : ""}{r.name}{r.sku && <span style={{ color: FAINT }}> · SKU {r.sku}</span>}{r.detail && <span style={{ color: FAINT }}> · {r.detail}</span>}</span>
             {full && <><span className="ft-mono" style={{ textAlign: "right", color: MUTED, whiteSpace: "nowrap" }}>{r.needed}</span><span className="ft-mono" style={{ textAlign: "right", fontWeight: 700, whiteSpace: "nowrap" }}>{r.order > 0 ? `${r.order} ${u1(r.order, r.unit)}` : ""}</span></>}
             {pMode !== "none" && <span className="ft-mono" style={{ textAlign: "right", color: full ? MUTED : "inherit", whiteSpace: "nowrap" }}>{r.price > 0 ? money(r.price) : ""}</span>}
             {full && <span className="ft-mono" style={{ textAlign: "right", fontWeight: 800, whiteSpace: "nowrap" }}>{r.total > 0 ? money(r.total) : ""}</span>}

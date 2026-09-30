@@ -194,13 +194,14 @@ masthead as today (ADR 0018).
 - `jobtotals.js`: `groutCost`, `mortarCost`, `underlayCost` become the sums of the
   aggregated lists' costs (`gList`/`mList`/`uList`, each `order × price`, where order =
   `ceilQty(sum of exact)`), instead of accumulating each row's `G.order × G.price`.
-  Caulk (manual counts), grout base (`bList`) and add-ons (`attachedList`) already
-  aggregate this way; freight is unchanged.
+  Grout base (`bList`) and add-ons (`attachedList`) already aggregate this way;
+  caulk (a hand-typed per-row count) stays charged per row, and the printed list keeps
+  the rows' own caulk cost so it still adds up; freight is unchanged.
 - `printMatList`: each row's `cost` = `order × price` (not the sum of per-line costs).
 - Everything reading these totals moves with them — the screen totals, the print, quote
   option buckets. Order entry already keys the job order, so it doesn't change.
 - Quote totals **drop** on jobs where two or more lines share a material (N259:
-  −$179.82). Saved versions keep the totals they were saved with.
+  −$179.82). Totals are never stored, so a reopened saved version re-totals too.
 - The plan must check the special-order margin and any other consumer of
   per-line material cost for assumptions about the old sum.
 

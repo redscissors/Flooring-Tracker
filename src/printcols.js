@@ -4,6 +4,7 @@
 import { money, sf1, miscQty } from "./model.js";
 import { num } from "./catalog.js";
 import { u1 } from "./print.js";
+import { isSpecialOrder, isSpecialMat } from "./orderentry.js";
 
 const tighten = (t) => String(t || "").trim().replace(/(\d["”']?)\s*[x×]\s*(?=\d)/gi, "$1×");
 
@@ -67,6 +68,27 @@ export function needText(exact, unit) {
   return `${r.toFixed(1)} ${u1(r, unit)}`;
 }
 
+// The ◆ says "can't be returned" to a customer, so it prints only once the stock
+// books have loaded — before that every book pick would read as special order.
+export function specialCheck(stockBookIds, stockSkus) {
+  if (!stockBookIds) return { row: () => false, mat: () => false };
+  return { row: (p) => isSpecialOrder(p, stockBookIds, stockSkus), mat: (m) => isSpecialMat(m, stockBookIds) };
+}
+
+// One line only when there's nothing for a second line to say: no material in
+// any printed column and no ordered SF or bundle price to check the total by.
+export const isOneLine = (cells, cols, q, pr) => cols.every((col) => cells[col.key].length === 0) && !q.sub && !pr.sub;
+
+export function cellParts(m) {
+  return {
+    label: m.addon ? m.kind : "",
+    name: m.name,
+    color: m.kind === "Grout" ? m.spec || "" : "",
+    left: m.kind === "Grout" ? String(m.detail || "").replace(/ joint\b/, "") : "",
+    amount: needText(m.exact, m.unit),
+  };
+}
+
 export function gridSpec(pMode, cols) {
   const money = { qty: pMode !== "unit", price: pMode !== "none", total: pMode === "full" };
   const template = ["10px", "minmax(0,1fr)", money.qty && "38px", money.price && "60px", money.total && "58px", ...cols.map((c) => `${c.w}px`)].filter(Boolean).join(" ");
@@ -91,7 +113,8 @@ export function jobListGroups(pMats) {
     const row = {
       name: (m.kind === "Grout" || m.kind === "Caulk") && m.spec ? `${m.name} · ${m.spec}` : m.name,
       sku: m.sku || "", needed: NO_NEED.has(m.kind) ? "" : needText(m.exact, m.unit),
-      order: m.order, unit: m.unit, price: m.price, total: m.cost, bookId: m.bookId || "",
+      order: m.kind === "Freight" ? Math.round(m.order) : m.order, unit: m.unit, price: m.price, total: m.cost, bookId: m.bookId || "",
+      detail: m.kind === "Freight" ? m.detail || "" : "",
     };
     if (!groups.has(label)) groups.set(label, []);
     groups.get(label).push(row);

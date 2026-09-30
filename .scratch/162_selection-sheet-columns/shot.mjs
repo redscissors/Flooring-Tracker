@@ -10,7 +10,7 @@ const dir = dirname(fileURLToPath(import.meta.url));
 const pre = process.argv[2] || "";
 const base = "http://localhost:5199/.scratch/162_selection-sheet-columns/preview.html";
 const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium", args: ["--no-sandbox"] });
-for (const [name, qs] of [["full", ""], ["unit", "?pricing=unit"], ["none", "?pricing=none"], ["options", "?opts=1"]]) {
+for (const [name, qs] of [["full", ""], ["unit", "?pricing=unit"], ["none", "?pricing=none"], ["options", "?opts=1"], ["freight", "?freight=1"], ["lvp-only", "?lvp=1"]]) {
   const page = await browser.newPage({ viewport: { width: 1366, height: 3200 }, deviceScaleFactor: 2 });
   page.on("pageerror", (e) => console.log("[pageerror]", e.message));
   page.on("console", (m) => { if (m.type() === "error" && !/fonts|ERR_CERT|net::/.test(m.text())) console.log("[console]", m.text().slice(0, 200)); });

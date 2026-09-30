@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { normalizeSettings } from "./catalog.js";
 import { newProduct } from "./model.js";
 import { printProduct } from "./print.js";
-import { specSize, specLine, qtyCells, priceCells, COLS, matColumn, lineCells, columnsUsed, needText, gridSpec, jobListGroups } from "./printcols.js";
+import { specSize, specLine, qtyCells, priceCells, COLS, matColumn, lineCells, columnsUsed, needText, gridSpec, jobListGroups, specialCheck, isOneLine, cellParts } from "./printcols.js";
 
 const s = normalizeSettings();
 const mat = (kind, over = {}) => ({ kind, name: `${kind} item`, spec: "", detail: "", exact: 1, order: 1, unit: "units", price: 10, cost: 10, ...over });
@@ -102,4 +102,35 @@ test("jobListGroups: order, merged Underlay, blank needed for base/caulk/freight
   assert.equal(g[2].rows[0].name, "SpectraLOCK PRO matching caulk · Bright White");
   assert.equal(g[4].rows.length, 2);
   assert.equal(g[6].rows[0].needed, "");
+});
+
+test("specialCheck: no ◆ at all until the stock books have loaded", () => {
+  const row = { bookId: "bk", sku: "X1" };
+  const off = specialCheck(undefined, null);
+  assert.equal(off.row(row), false);
+  assert.equal(off.mat({ bookId: "bk" }), false);
+  const on = specialCheck(new Set(["stock1"]), new Set());
+  assert.equal(on.row(row), true);
+  assert.equal(on.row({ bookId: "stock1", sku: "X1" }), false);
+  assert.equal(on.mat({ bookId: "bk" }), true);
+});
+
+test("isOneLine: a line keeps its second line when it has ordered SF or a bundle price", () => {
+  const empty = { grout: [], mortar: [], underlay: [], other: [] };
+  const cols = COLS.slice(0, 1);
+  assert.equal(isOneLine(empty, cols, { top: "4 ea", sub: "" }, { top: "$22.50/ea", sub: "" }), true);
+  assert.equal(isOneLine(empty, [], { top: "39 ct", sub: "916.5 SF" }, { top: "$14.98/sf", sub: "$352.03/ct" }), false);
+  assert.equal(isOneLine({ ...empty, grout: [mat("Grout")] }, cols, { top: "4 ea", sub: "" }, { top: "", sub: "" }), false);
+});
+
+test("cellParts: add-ons carry their category label; grout its color and joint", () => {
+  assert.deepEqual(cellParts(mat("Sealer", { addon: true, name: "Seal-it", exact: 1.2, unit: "bottles" })), { label: "Sealer", name: "Seal-it", color: "", left: "", amount: "1.2 bottles" });
+  assert.deepEqual(cellParts(mat("Grout", { name: "SpectraLOCK PRO", spec: "Bright White", detail: '1/8" joint', exact: 1.62, unit: "units" })), { label: "", name: "SpectraLOCK PRO", color: "Bright White", left: '1/8"', amount: "1.6 units" });
+});
+
+test("jobListGroups: freight keeps its note and a whole sq ft count", () => {
+  const g = jobListGroups([mat("Freight", { name: "Glazzio — small format", spec: "OH", detail: "order minimum applied", exact: 0, order: 148.37, unit: "sq ft", price: 0.25, cost: 79 })]);
+  assert.equal(g[0].rows[0].detail, "order minimum applied");
+  assert.equal(g[0].rows[0].order, 148);
+  assert.equal(g[0].rows[0].total, 79);
 });

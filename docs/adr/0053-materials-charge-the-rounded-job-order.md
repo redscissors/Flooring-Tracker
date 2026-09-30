@@ -22,8 +22,11 @@ so the printed list reads Needed → Order → Each → Total without a gap.
 
 ## Consequences
 
-- Quote totals drop on any job where two or more lines share a material; saved versions
-  keep their saved totals.
+- Quote totals drop on any job where two or more lines share a material. Totals are
+  never stored — a saved version keeps the job's areas, not its money — so every job and
+  every reopened version re-totals under this rule.
+- Caulk stays charged per row: its count is typed per row (never computed), so its
+  charge is the rows' own tubes × price, and the printed list carries the same figure.
 - The rounding cushion per line is gone — any deliberate spare comes from the waste
   factor or a manual quantity override.
 - Rounding happens once per totals bucket: the whole job, or on a quote-options job the
