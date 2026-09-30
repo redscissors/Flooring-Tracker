@@ -984,6 +984,11 @@ export default function SchluterConfigurator({
       list: pool(halfBoardPool(cat, "all")).sort(byShelf),
       set: (sku) => setSwaps((o) => ({ ...o, board: sku })),
     };
+    if (l.g === "Drain" && e.part === "flange" && e.drain === "point") return {
+      title: "Drain flange kit",
+      list: pool(cat.filter((i) => i.g === "drain" && i.part === "flange" && i.drain === "point")).sort(byShelf),
+      set: (sku) => setSwaps((o) => ({ ...o, flange: sku })),
+    };
     if (l.g === "Walls" && e.fastener) return {
       title: "Board fasteners",
       list: pool(cat.filter((i) => i.fastener)).sort(byShelf),
@@ -1019,7 +1024,7 @@ export default function SchluterConfigurator({
   // only the grate (the tray fixes the drain family).
   const pointGrates = () => pool(cat.filter((i) => i.g === "drain" && i.part === "grate")).sort(byShelf);
   const drainKind = (l) => (l.g !== "Drain" || l.noteOnly || l.manual || !build ? null
-    : build.drainFit ? "linear" : pointGrates().length ? "point" : null);
+    : build.drainFit ? "linear" : l.item.part === "flange" ? null : pointGrates().length ? "point" : null);
   const panW = benchTrayRoom(normBenches, cfg).w;
   const openSwap = (l, ev) => {
     setAdd(null);

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FIXTURE_ITEMS } from "./schluterfixture.js";
-import { FINISH_LABEL, ovKey, rowItemEntry, sessionFromRows, classify, catalogOf, coverageOf, trayCandidates, pickRolls, pickFrom, buildKit, buildFromMarker, linesTotal, tierPrice, lineItems, orderCopyLines, entryOpening, openRuns, boardPlan, boardSheets, expandBoardFaces, normBench, benchTrayRoom, slotOf, resolveDrain, drainOptions, pointGrateLabel,
+import { FINISH_LABEL, flangePipe, ovKey, rowItemEntry, sessionFromRows, classify, catalogOf, coverageOf, trayCandidates, pickRolls, pickFrom, buildKit, buildFromMarker, linesTotal, tierPrice, lineItems, orderCopyLines, entryOpening, openRuns, boardPlan, boardSheets, expandBoardFaces, normBench, benchTrayRoom, slotOf, resolveDrain, drainOptions, pointGrateLabel,
   resolveMembrane, membraneOptions, resolveBand, bandOptions, bandWidthLabel,
   addedGroup, addedLines, setAddedQty, ADD_PARTS, addParts, addPartOf, addRollOptions, drainAddOptions, applyBoardPlan, applyQtyOv } from "./schluter.js";
 import { isSlot, groupOf } from "./slots.js";
@@ -1527,4 +1527,28 @@ test("applyQtyOv: a hand-set kit line never moves an added line of the same grou
   const bands = lines.filter((l) => l.g === "Seams" && l.item.sku === kitBand.item.sku);
   assert.deepEqual(bands.map((l) => [!!l.manual, l.qty]), [[false, 3], [true, 1]]);
   assert.equal(applyQtyOv(b.lines, { [ovKey(kitBand)]: 0 }).filter((l) => l.item.sku === kitBand.item.sku).length, 1, "stepping the kit line to 0 leaves the added line");
+});
+
+// --- point flange: PVC by default, ABS on pick (owner 2026-09-30) ------------
+
+test("the point flange bills 2\" PVC by default even when ABS is cheaper and listed first; a pick swaps to ABS", () => {
+  const abs = { sku: "SLRKD2FLKABS", name: "Kerdi Drain Flange Kit 2\" ABS - KD2FLKABS", price: 73.38, cost: 48.9, stock: true };
+  const cat = catalogOf([abs, ...FIXTURE_ITEMS]);
+  const flange = (b) => b.lines.find((l) => l.g === "Drain" && l.item.part === "flange");
+  const def = flange(buildKit(cfg({}), cat, { source: "stock" }));
+  assert.equal(def.item.sku, "KD2FLKPVC");
+  assert.match(def.note, /2" PVC/);
+  const picked = flange(buildKit(cfg({ swaps: { flange: "SLRKD2FLKABS" } }), cat, { source: "stock" }));
+  assert.equal(picked.item.sku, "SLRKD2FLKABS");
+  assert.match(picked.note, /2" ABS/);
+  assert.doesNotMatch(picked.note, /PVC/);
+  assert.equal(flange(buildKit(cfg({ swaps: { flange: "NOPE" } }), cat, { source: "all" })).item.sku, "KD2FLKPVC");
+  // the linear flange kit is never a point pick
+  assert.equal(flange(buildKit(cfg({ swaps: { flange: "KLVR2FLK" } }), cat, { source: "all" })).item.sku, "KD2FLKPVC");
+});
+
+test("flangePipe reads PVC/ABS and the pipe size off the code or the name", () => {
+  assert.deepEqual(flangePipe({ sku: "KD2FLKPVC", name: "" }), { pipe: "PVC", size: 2 });
+  assert.deepEqual(flangePipe({ sku: "SLRKD4FLKABS", name: "" }), { pipe: "ABS", size: 4 });
+  assert.deepEqual(flangePipe({ sku: "X", name: "Kerdi Drain Flange Kit 3\" ABS" }), { pipe: "ABS", size: 3 });
 });

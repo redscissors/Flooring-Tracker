@@ -31,7 +31,11 @@ import { kitFor } from "./wedi.js";
 // ERP export already spells it), so the harness names carry the lead too —
 // the popup strips it for display and the shots must prove that.
 const lead = (name) => (/^schluter/i.test(name) ? name : `Schluter ${name}`);
-const stockRows = FIXTURE_ITEMS.filter((i) => i.stock).map((i) => normOrderItem({
+// The live stock book's 2" ABS flange kit (owner screenshot 2026-09-30):
+// stocked and cheaper than the PVC kit, listed first so the shots prove PVC
+// still bills by default and the flange ⇄ offers ABS.
+const ABS_FLANGE = { sku: "SLRKD2FLKABS", name: "Kerdi Drain Flange Kit 2\" ABS - KD2FLKABS", unit: "EA", price: 73.38, cost: 48.92, stock: true };
+const stockRows = [ABS_FLANGE, ...FIXTURE_ITEMS].filter((i) => i.stock).map((i) => normOrderItem({
   sku: i.erp || i.sku, bookId: "bk_stock", description: lead(i.name), vendorSkus: i.erp ? [i.sku] : [],
   size: i.size || "", unit: i.unit, price: i.price, cost: i.cost, leadTime: i.lead || "",
 }));
