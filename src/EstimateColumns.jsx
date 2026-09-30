@@ -52,7 +52,7 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
       </div>
     );
   };
-  const cellStyle = { alignSelf: "stretch", background: CELL, border: `1px solid ${HAIR}`, padding: "2px 4px", fontSize: 7.6, lineHeight: 1.22 };
+  const cellStyle = { alignSelf: "stretch", background: CELL, borderLeft: `1px solid ${HAIR}`, padding: "2px 4px", fontSize: 7.6, lineHeight: 1.22 };
   const moneyCells = (q, pr, c, oneLine) => {
     const cell = { paddingTop: 2, fontSize: 8.8, lineHeight: 1.3, textAlign: "right", whiteSpace: "nowrap" };
     return (
