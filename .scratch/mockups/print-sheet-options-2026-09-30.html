@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Selection Sheet Layouts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ft-cream:#F6F3EC; --ft-card:#FFFFFF; --ft-border:rgba(28,26,23,.10); --ft-border-strong:rgba(28,26,23,.25);
+  --ft-text:#1C1A17; --ft-muted:#57534C; --ft-faint:#8A8378; --ft-brand:#57703A; --ft-brand-deep:#40542A;
+  --ft-brand-soft:color-mix(in oklab, var(--ft-brand) 13%, transparent);
+  --paper-ink:#000; --paper-muted:#403C36; --paper-faint:#615B51; --paper-rule:#ABA494; --paper-band:#EDE9DE; --paper-hair:#D9D4C7;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ft-cream);color:var(--ft-text);font-family:Manrope,system-ui,sans-serif;font-size:13px}
+.wrap{max-width:1200px;margin:0 auto;padding:20px 16px 60px}
+h1{font-size:22px;margin:0 0 4px}
+.eyebrow{font-size:9.5px;font-weight:800;letter-spacing:.2em;text-transform:uppercase;color:var(--ft-brand-deep)}
+.lede{color:var(--ft-muted);line-height:1.55;max-width:820px;margin:6px 0 0}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:16px 0 14px}
+.tab{border:1px solid var(--ft-border-strong);background:#fff;border-radius:999px;padding:7px 14px;font:inherit;font-weight:700;cursor:pointer;color:var(--ft-text)}
+.tab.on{background:var(--ft-text);color:var(--ft-cream);border-color:var(--ft-text)}
+.tab small{font-weight:600;opacity:.7;margin-left:4px}
+.panel{display:none}.panel.on{display:block}
+.note{background:#fff;border:1px solid var(--ft-border);border-left:3px solid var(--ft-brand);border-radius:8px;padding:12px 14px;margin:0 0 14px;line-height:1.5;display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.note h4{margin:0 0 3px;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--ft-brand-deep)}
+.note p{margin:0;color:var(--ft-muted)}
+.bar{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px;flex-wrap:wrap}
+.btn{border:1px solid var(--ft-border-strong);background:#fff;border-radius:7px;padding:6px 12px;font:inherit;font-weight:700;cursor:pointer}
+.stage{overflow-x:auto;padding:18px;background:#E6E2D6;border-radius:10px}
+@media (max-width:760px){.note{grid-template-columns:1fr}}
+
+/* ---------- paper ---------- */
+.sheet{background:#fff;color:var(--paper-ink);width:816px;min-height:1056px;padding:40px 46px;margin:0 auto;box-shadow:0 2px 14px rgba(0,0,0,.12);font-size:11px;line-height:1.3;position:relative}
+.sheet.land{width:1056px;min-height:816px;padding:34px 40px}
+.num{font-variant-numeric:tabular-nums}
+.r{text-align:right}
+.mut{color:var(--paper-muted)} .fnt{color:var(--paper-faint)}
+.ey{font-size:8.5px;font-weight:800;letter-spacing:.2em;text-transform:uppercase;color:var(--ft-brand-deep)}
+.mast{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;border-bottom:2px solid #000;padding-bottom:8px}
+.mast .t{font-size:26px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;line-height:1}
+.mast img{height:24px;display:inline-block}
+.people{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:18px;padding:6px 0 7px;border-bottom:1px solid var(--paper-rule);margin-bottom:10px}
+.people b{font-size:11.5px;font-weight:800;display:block}
+.people div div{font-size:9.5px;color:var(--paper-muted);line-height:1.35}
+.band{display:flex;justify-content:space-between;align-items:center;background:var(--paper-band);border-radius:4px;padding:3px 10px;margin-top:8px}
+.band .n{font-size:9.5px;font-weight:800;letter-spacing:.22em;text-transform:uppercase;color:var(--ft-brand-deep)}
+.band .s{font-size:9px;color:var(--paper-muted)}
+.pname{font-weight:800;font-size:11.5px}
+.pname i{font-style:normal;font-weight:500;font-size:10px;color:var(--paper-muted)}
+.spec{font-size:9.5px;color:var(--paper-muted);margin-top:1px}
+.money{font-weight:800;font-size:12px}
+.so{display:inline-flex;align-items:center;gap:3px;border:1.2px solid #000;border-radius:3px;padding:0 5px;font-size:7.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;vertical-align:2px;margin-left:6px;line-height:13px;white-space:nowrap}
+.so.soft{border-color:var(--paper-rule);color:var(--paper-muted)}
+.stk{display:inline-block;font-size:7.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--paper-faint)}
+.grand{display:flex;justify-content:flex-end;align-items:baseline;gap:10px;border-top:2px solid #000;padding-top:8px;margin-top:10px}
+.grand .l{font-size:10px;font-weight:800;letter-spacing:.2em;text-transform:uppercase;color:var(--ft-brand-deep)}
+.grand .v{font-size:26px;font-weight:800;letter-spacing:-.01em}
+.fine{font-size:9.5px;color:var(--paper-faint);margin-top:5px}
+.sofoot{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;border:1px solid var(--paper-rule);border-radius:4px;padding:7px 10px;margin-top:10px;font-size:9.5px}
+.sofoot b{font-weight:800}
+.initials{display:flex;align-items:flex-end;gap:6px;white-space:nowrap;font-size:8px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--paper-faint)}
+.initials span{display:inline-block;width:70px;border-bottom:1px solid #000;height:16px}
+.kdot{display:inline-grid;place-items:center;width:14px;height:14px;border-radius:50%;background:#000;color:#fff;font-size:8px;font-weight:800;flex-shrink:0}
+.kdot.o{background:#fff;color:#000;border:1.2px solid #000}
+
+/* A — tied-in */
+.a-prod{display:flex;justify-content:space-between;gap:18px;padding:5px 10px 2px}
+.a-prod + .a-prod, .a-mats + .a-prod{border-top:1px solid var(--paper-hair)}
+.a-mats{margin:1px 10px 5px 20px;border-left:1.5px dotted var(--paper-rule);padding-left:10px}
+.a-mat{display:grid;grid-template-columns:78px 1fr auto 62px;gap:10px;align-items:baseline;font-size:9.8px;padding:1px 0}
+.a-mat .k{font-size:7.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--ft-brand-deep)}
+.a-shared{border:1px solid var(--paper-rule);border-radius:5px;padding:7px 10px;margin-top:10px;display:grid;grid-template-columns:1fr auto 62px;gap:12px;align-items:center}
+.a-sum{display:grid;grid-template-columns:auto auto;justify-content:end;gap:2px 22px;margin-top:10px;font-size:10.5px}
+
+/* B — keyed */
+.b-chip{display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:600;border:1px solid var(--paper-rule);border-radius:20px;padding:1px 8px 1px 2px;margin:3px 5px 0 0;white-space:nowrap}
+.b-tbl{width:100%;border-collapse:collapse;font-size:10px}
+.b-tbl th{font-size:7.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--paper-faint);text-align:left;padding:4px 6px;border-bottom:1px solid #000}
+.b-tbl td{padding:4px 6px;border-bottom:1px solid var(--paper-hair);vertical-align:top}
+.b-tbl tr.base td{background:#F7F5EF}
+.b-tbl tfoot td{border-bottom:0;border-top:1px solid #000;font-weight:800}
+
+/* C — plain language */
+.c-with{font-size:9.5px;color:var(--paper-muted);margin-top:2px}
+.c-with b{color:#000;font-weight:700}
+.c-grid{display:grid;grid-template-columns:1.35fr 1fr;gap:10px;margin-top:6px}
+.c-card{border:1px solid var(--paper-rule);border-radius:5px;padding:8px 10px}
+.c-card h5{margin:0 0 1px;font-size:10.5px;font-weight:800}
+.c-card .why{font-size:9px;color:var(--paper-muted);margin-bottom:6px;line-height:1.35}
+.c-line{display:flex;justify-content:space-between;gap:10px;font-size:10px;padding:2px 0;align-items:baseline}
+.c-recipe{display:grid;grid-template-columns:1fr 18px 1fr;align-items:center;gap:6px;margin:4px 0 6px}
+.c-pk{border:1px dashed var(--paper-rule);border-radius:4px;padding:4px 7px;font-size:9.5px;margin-bottom:4px}
+.c-pk:last-child{margin-bottom:0}
+.c-bucket{border:1.5px solid #000;border-radius:4px;padding:6px 8px;font-size:9.5px;text-align:center}
+.c-sub{display:flex;justify-content:space-between;border-top:1px solid var(--paper-hair);margin-top:4px;padding-top:4px;font-weight:800;font-size:10px}
+
+/* D — landscape split */
+.d-grid{display:grid;grid-template-columns:1.15fr 1fr;column-gap:0}
+.d-colhead{font-size:7.5px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--paper-faint);padding:6px 10px 3px;border-bottom:1px solid #000}
+.d-l,.d-r{padding:4px 10px 6px}
+.d-r{border-left:1px solid var(--paper-rule);background:#FBFAF6}
+.d-row{display:contents}
+.d-area{grid-column:1 / -1;display:flex;justify-content:space-between;align-items:center;background:var(--paper-band);padding:3px 10px;margin-top:6px;border-radius:3px}
+.d-prod{display:grid;grid-template-columns:12px 1fr auto;gap:6px;padding:3px 0}
+.d-prod + .d-prod{border-top:1px solid var(--paper-hair)}
+.d-mk{font-size:10px;line-height:15px;font-weight:800}
+.d-mat{display:grid;grid-template-columns:1fr auto 58px;gap:10px;font-size:10px;padding:2px 0;align-items:baseline}
+.d-mat .k{font-size:7.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--ft-brand-deep);display:block}
+.d-foot{display:grid;grid-template-columns:1.15fr 1fr;gap:0;margin-top:8px;border-top:2px solid #000}
+
+/* E — landscape table */
+.e-tbl{width:100%;border-collapse:collapse;font-size:10px}
+.e-tbl th{font-size:7.5px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--paper-faint);text-align:left;padding:5px 6px;border-bottom:1.5px solid #000;white-space:nowrap}
+.e-tbl td{padding:3px 6px;vertical-align:baseline}
+.e-tbl tr.p td{border-top:1px solid var(--paper-hair);padding-top:5px}
+.e-tbl tr.p td.nm{font-weight:800}
+.e-tbl tr.m td{font-size:9.3px;color:var(--paper-muted)}
+.e-tbl tr.m td.nm{padding-left:22px}
+.e-tbl tr.ar td{background:var(--paper-band);font-size:9px;font-weight:800;letter-spacing:.2em;text-transform:uppercase;color:var(--ft-brand-deep);padding:3px 6px}
+.e-tbl .st{font-size:7.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;white-space:nowrap}
+.e-tbl .st.s{color:#000}
+.e-tbl .st.k{color:var(--paper-faint);font-weight:700}
+.e-tot{display:grid;grid-template-columns:1fr auto;gap:24px;align-items:end;margin-top:8px;border-top:2px solid #000;padding-top:8px}
+
+
+/* F — spec schedule */
+.f-row{display:grid;grid-template-columns:44px 1.9fr 1.05fr 1.2fr .95fr 1.1fr .95fr 1.2fr .85fr;gap:0 10px;padding:4px 8px;border-top:1px solid var(--paper-hair);align-items:start}
+.f-cell b{display:block;font-size:10.5px;font-weight:700;line-height:1.25}
+.f-cell span{display:block;font-size:6.8px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--paper-faint);margin-top:1px}
+.f-code{font-size:10px;font-weight:800;border:1.2px solid #000;border-radius:3px;text-align:center;padding:1px 0;margin-top:1px}
+.f-mats{display:grid;grid-template-columns:24px 1.9fr 1.6fr 1.05fr .6fr .65fr .7fr;gap:0;font-size:9.8px}
+.f-mats > div{padding:3px 8px 3px 0;border-top:1px solid var(--paper-hair)}
+.f-mats > div:nth-child(7n){padding-right:0}
+.f-mats .h{font-size:7px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--paper-faint);border-top:0;border-bottom:1px solid #000;padding-bottom:3px}
+.f-for{display:inline-block;font-size:8px;font-weight:800;border:1px solid var(--paper-rule);border-radius:3px;padding:0 4px;margin-right:3px}
+
+@page{size:letter portrait;margin:0}
+@page land{size:letter landscape;margin:0}
+@media print{
+  body{background:#fff}
+  .chrome,.note,.bar,.tabs,.panel:not(.on){display:none!important}
+  .wrap{padding:0;max-width:none}
+  .stage{padding:0;background:none;overflow:visible}
+  .sheet{box-shadow:none;margin:0;width:8.5in;min-height:11in}
+  .sheet.land{page:land;width:11in;min-height:8.5in}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="chrome">
+    <div class="eyebrow">Mockups · 2026-09-30 · throwaway</div>
+    <h1>Selection sheet — six ways to tie extras to products</h1>
+    <p class="lede">One sample job, five layouts plus a bonus. Every dollar on each sheet appears exactly once and all six reconcile to the same <b>$3,943.12</b>. Special-order lines come from what the app already knows (<code>isSpecialOrder</code> — order-book picks, Sheoga, unstocked SKUs); nothing new to key in. Use <b>Print this sheet</b> to see the real page (C–F print landscape).</p>
+  </div>
+  <div class="tabs" id="tabs"></div>
+  <div id="panels"></div>
+</div>
+
+<script>
+const KEIM = "data:image/png;base64,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";
+const $ = (n) => n.toLocaleString("en-US", { style: "currency", currency: "USD" });
+
+// ---- one sample job (numbers reconcile) ----
+const JOB = { title: "Hartman Remodel", no: "N214", date: "9/30/2026",
+  cust: { name: "Dana Hartman", addr: "412 Orchard Ln, Goshen IN", phone: "(574) 555-0142" },
+  sp: { name: "Sam Miller", phone: "(574) 555-0199", email: "sam@example.com" } };
+
+// Job-wide materials. key = the letter used by the keyed layout.
+const M = {
+  A: { key: "A", kind: "Grout color kit", short: "Grout", name: "SpectraLOCK PRO", color: "Bright White", qty: 3, unit: "kit", price: 38.90, used: "Master Bath floor + shower walls", what: "Colored powder that sets the grout color — mixes into the grout base (C)." },
+  B: { key: "B", kind: "Grout color kit", short: "Grout", name: "SpectraLOCK PRO", color: "Natural Gray", qty: 1, unit: "kit", price: 38.90, used: "Laundry mosaic", special: true, what: "Colored powder that sets the grout color — mixes into the grout base (C)." },
+  C: { key: "C", kind: "Grout base", short: "Base", name: "SpectraLOCK PRO commercial unit", color: "", qty: 1, unit: "unit", price: 218.00, used: "Mixes with A + B · 4 of 4 kits", what: "The grout itself (the part the color kits mix into). One commercial unit takes up to 4 color kits." },
+  D: { key: "D", kind: "Mortar", short: "Mortar", name: "ProLite", color: "", qty: 6, unit: "bag", price: 32.50, used: "All tile", what: "Thinset that bonds tile to the floor and walls." },
+  E: { key: "E", kind: "Membrane", short: "Membrane", name: "Schluter DITRA", color: "175 SF roll", qty: 1, unit: "roll", price: 420.00, used: "Master Bath floor", what: "Uncoupling layer under the floor tile — prevents cracks." },
+  F: { key: "F", kind: "Caulk", short: "Caulk", name: "SpectraLOCK matching caulk", color: "Bright White", qty: 1, unit: "tube", price: 14.95, used: "Shower walls", what: "Flexible sealant for inside corners, where grout would crack." },
+};
+Object.values(M).forEach((m) => (m.cost = +(m.qty * m.price).toFixed(2)));
+const SHORT = {"A": "Color powder — mixes into the base (C)", "B": "Color powder — mixes into the base (C)", "C": "The grout itself — takes up to 4 color kits", "D": "Thinset — bonds tile down", "E": "Uncoupling layer — stops cracks", "F": "Flexible — for inside corners"};
+const pl = (n, u) => `${n} ${u}${n === 1 ? "" : "s"}`;
+
+// Products. `mats` = [materialKey, qty on this product, note]
+const AREAS = [
+  { name: "Master Bath", sf: 205, items: [
+    { brand: "Daltile Volume 1.0", color: "Ash", type: "floor tile", size: '12" × 24" × 3/8"', sku: "VL01-1224", cov: "15.5 SF/carton", sf: 120, ordSf: 139.5, order: "9 cartons", unit: "$5.40/sf", unit2: "$83.70/carton", line: 753.30,
+      mats: [["A", 2, '1/8" joint'], ["D", 3], ["E", 1]] },
+    { brand: "Emser Craft", color: "Chalk", type: "wall tile", size: '3" × 12" × 3/8"', sku: "F11CRAF-CH0312", cov: "10.76 SF/carton", sf: 85, ordSf: 96.84, order: "9 cartons", unit: "$7.95/sf", unit2: "$85.54/carton", line: 769.88, special: true,
+      mats: [["A", 1, '1/16" joint'], ["D", 2], ["F", 1]] },
+    { brand: "Schluter JOLLY", color: "Brushed Nickel", type: "edge trim", size: "8' 2-1/2\" lengths", sku: "J100AE", cov: "", sf: 0, order: "4 pieces", unit: "$24.50/ea", line: 98.00, special: true, mats: [] },
+  ]},
+  { name: "Kitchen", sf: 220, items: [
+    { brand: "Mannington Adura Max", color: "Napa Dune", type: "luxury vinyl plank", size: '6" × 48"', sku: "MAX011", cov: "24.03 SF/carton", sf: 220, ordSf: 240.3, order: "10 cartons", unit: "$4.29/sf", unit2: "$103.09/carton", line: 1030.89, mats: [] },
+  ]},
+  { name: "Laundry", sf: 45, items: [
+    { brand: "Daltile Keystones", color: "Arctic White", type: "mosaic", size: '2" × 2" on 12" × 24" sheets', sku: "D617-22", cov: "2 SF/sheet", sf: 45, ordSf: 46, order: "23 sheets", unit: "$6.25/sf", unit2: "$12.50/sheet", line: 287.50, special: true,
+      mats: [["B", 1, '1/16" joint'], ["D", 1]] },
+  ]},
+];
+const FLOOR = 2939.57, MATS = 1003.55, GRAND = 3943.12;
+const mc = (k, q) => +(q * M[k].price).toFixed(2);
+
+// ---- shared bits ----
+const mast = (sub = "Rough pricing and quantities for planning purposes only") => `
+  <div class="mast">
+    <div><div class="ey" style="letter-spacing:.3em;margin-bottom:3px">Flooring &amp; Tile</div><div class="t">Selection Sheet</div><div style="font-size:9px;color:var(--paper-muted);margin-top:5px">${sub}</div></div>
+    <div class="r"><img src="${KEIM}" alt="Keim"><div style="margin-top:4px;white-space:nowrap"><b style="font-size:12px;font-weight:800">${JOB.no}</b> <span class="num" style="font-size:9.5px;color:var(--paper-muted);margin-left:6px">${JOB.date}</span></div></div>
+  </div>
+  <div class="people">
+    <div><b>${JOB.cust.name}</b><div>${JOB.cust.addr}</div><div>${JOB.cust.phone}</div></div>
+    <div><b>${JOB.title}</b><div>3 areas selected</div></div>
+    <div class="r"><b>${JOB.sp.name}</b><div>${JOB.sp.phone}</div><div>${JOB.sp.email}</div></div>
+  </div>`;
+const so = (p, soft) => (p.special ? `<span class="so${soft ? " soft" : ""}">◆ Special order</span>` : "");
+const pname = (p) => `<span class="pname">${p.brand} — ${p.color} <i>— ${p.type}</i></span>`;
+const specLine = (p) => [p.size, p.cov, `SKU ${p.sku}`].filter(Boolean).join(" · ");
+const rightRail = (p) => `<div class="num r" style="white-space:nowrap;flex-shrink:0">
+    <div class="mut" style="font-size:9.5px">${p.sf ? `${p.ordSf} SF ordered · ` : ""}${p.order}</div>
+    <div style="font-size:10px">${p.unit}${p.unit2 ? `<span class="mut"> · ${p.unit2}</span>` : ""}</div>
+    <div class="money">${$(p.line)}</div></div>`;
+const soFoot = (sym = "◆") => `<div class="sofoot"><div><b>${sym} Special order</b> — ordered from the manufacturer for your job. <b>Special-order items can't be returned.</b> Please confirm color, size and quantity before we order.</div><div class="initials">Initials <span></span></div></div>`;
+const grand = () => `<div class="grand"><span class="l">Estimated total</span><span class="v num">${$(GRAND)}</span></div>
+  <div class="fine r">Includes 10% waste on tile, 8% on plank. Confirm against final measurements before ordering.</div>`;
+
+// ---- A. Tied-in ----
+function layoutA() {
+  const mat = (k, q, note) => { const m = M[k]; return `<div class="a-mat"><span class="k">${m.kind === "Grout color kit" ? "Grout color" : m.short}</span>
+      <span>${m.name}${m.color ? ` — ${m.color}` : ""}${note ? `<span class="fnt"> · ${note}</span>` : ""}${m.special ? `<span class="so soft">◆ Special order</span>` : ""}</span>
+      <span class="num mut">${pl(q, m.unit)} × ${$(m.price)}</span><span class="num r" style="font-weight:700">${$(mc(k, q))}</span></div>`; };
+  const body = AREAS.map((a) => `<div class="band"><span class="n">${a.name}</span><span class="s num">${a.sf} SF</span></div>` + a.items.map((p) => `
+      <div class="a-prod"><div style="min-width:0">${pname(p)}${so(p)}<div class="spec">${specLine(p)}</div></div>${rightRail(p)}</div>
+      ${p.mats.length ? `<div class="a-mats">${p.mats.map(([k, q, n]) => mat(k, q, n)).join("")}</div>` : ""}`).join("")).join("");
+  return `<div class="sheet">${mast()}${body}
+    <div class="a-shared"><div><div class="ey" style="margin-bottom:2px">Shared across the job</div><b style="font-size:10.5px">Grout base — ${M.C.name}</b>
+      <div class="mut" style="font-size:9.5px;margin-top:1px">Every grout color above is a <b>color kit</b> that mixes into this base. One commercial unit takes up to 4 kits — this job uses 4 (3 Bright White + 1 Natural Gray).</div></div>
+      <span class="num mut" style="white-space:nowrap">1 unit × ${$(M.C.price)}</span><span class="num r" style="font-weight:800">${$(M.C.cost)}</span></div>
+    <div class="a-sum num"><span class="mut">Flooring &amp; trim</span><span class="r">${$(FLOOR)}</span><span class="mut">Install materials (indented lines + base)</span><span class="r">${$(MATS)}</span></div>
+    ${grand()}${soFoot()}</div>`;
+}
+
+// ---- B. Keyed references ----
+function layoutB() {
+  const chip = (k, n) => { const m = M[k]; return `<span class="b-chip"><span class="kdot${k === "C" ? " o" : ""}">${k}</span>${m.short === "Grout" ? `Grout — ${m.color}` : m.short}${n ? `<span class="fnt">&nbsp;· ${n}</span>` : ""}</span>`; };
+  const body = AREAS.map((a) => `<div class="band"><span class="n">${a.name}</span><span class="s num">${a.sf} SF</span></div>` + a.items.map((p, i) => `
+      <div class="a-prod" style="${i ? "border-top:1px solid var(--paper-hair)" : ""}"><div style="min-width:0">${pname(p)}${so(p)}<div class="spec">${specLine(p)}</div>
+        ${p.mats.length ? `<div>${p.mats.map(([k, , n]) => chip(k, n)).join("")}${p.mats.some(([k]) => k === "A" || k === "B") ? chip("C") : ""}</div>` : ""}</div>${rightRail(p)}</div>`).join("")).join("");
+  const rows = Object.values(M).map((m) => `<tr class="${m.key === "C" ? "base" : ""}">
+      <td style="width:22px"><span class="kdot${m.key === "C" ? " o" : ""}">${m.key}</span></td>
+      <td><b>${m.kind}</b> — ${m.name}${m.color ? ` · ${m.color}` : ""}${m.special ? `<span class="so soft">◆ Special order</span>` : ""}<div class="fnt" style="font-size:8.8px;margin-top:1px">${m.what}</div></td>
+      <td class="mut" style="font-size:9.3px">${m.used}</td>
+      <td class="num r" style="white-space:nowrap">${pl(m.qty, m.unit)}</td><td class="num r">${$(m.price)}</td><td class="num r" style="font-weight:700">${$(m.cost)}</td></tr>`).join("");
+  return `<div class="sheet">${mast()}${body}
+    <div style="margin-top:12px"><div class="ey" style="font-size:9.5px;margin-bottom:3px">Install materials <span style="font-weight:600;letter-spacing:.04em;text-transform:none;color:var(--paper-faint)">— the lettered tags above point here; each is priced once</span></div>
+    <table class="b-tbl"><thead><tr><th></th><th>Item · what it's for</th><th>Used in</th><th class="r">Qty</th><th class="r">Each</th><th class="r">Total</th></tr></thead><tbody>${rows}</tbody>
+    <tfoot><tr><td></td><td colspan="4">Install materials subtotal</td><td class="num r">${$(MATS)}</td></tr></tfoot></table></div>
+    ${grand()}${soFoot()}</div>`;
+}
+
+// ---- C. Plain-language recipe (landscape: products left, "what goes into the install" right) ----
+function layoutC() {
+  const withLine = (p) => p.mats.length ? `<div class="c-with">Installed with ${p.mats.map(([k, , n]) => { const m = M[k]; return m.short === "Grout" ? `<b>${m.color} grout</b>${n ? ` (${n})` : ""}` : m.short === "Mortar" ? `${m.name} mortar` : m.short === "Membrane" ? `${m.name} membrane` : "matching caulk"; }).join(" · ")}</div>` : p.type === "luxury vinyl plank" ? `<div class="c-with fnt">Floats over the subfloor — no setting materials</div>` : "";
+  const prods = AREAS.map((a) => `<div class="band"><span class="n">${a.name}</span><span class="s num">${a.sf} SF</span></div>` + a.items.map((p, i) => `
+      <div class="a-prod" style="${i ? "border-top:1px solid var(--paper-hair)" : ""}"><div style="min-width:0">${pname(p)}<div class="spec">${specLine(p)}</div>${withLine(p)}
+      ${p.special ? `<div style="font-size:9px;margin-top:2px"><b>◆ Special order</b> <span class="mut">· final sale, can't be returned</span></div>` : ""}</div>${rightRail(p)}</div>`).join("")).join("");
+  const line = (m, extra = "") => `<div class="c-line"><span>${m.name}${m.color ? ` — ${m.color}` : ""}${extra}</span><span class="num" style="white-space:nowrap"><span class="mut">${pl(m.qty, m.unit)} × ${$(m.price)}</span> &nbsp;<b>${$(m.cost)}</b></span></div>`;
+  const grout = M.A.cost + M.B.cost + M.C.cost;
+  return `<div class="sheet land">${mast()}
+    <div style="display:grid;grid-template-columns:1.25fr 1fr;gap:18px">
+      <div>${prods}</div>
+      <div>
+        <div class="ey" style="font-size:9.5px;margin:8px 0 2px">What goes into the install</div>
+        <div class="c-card" style="margin-top:4px"><h5>Grout</h5><div class="why">Grout comes in two parts: a <b>color kit</b> for each color you picked, and a <b>base</b> they all mix into.</div>
+          <div class="c-recipe"><div><div class="c-pk"><b>3 kits</b> · Bright White <span class="fnt">floor + shower</span></div><div class="c-pk"><b>1 kit</b> · Natural Gray <span class="fnt">laundry</span> <b style="font-size:8px">◆</b></div></div>
+            <div style="text-align:center;font-weight:800;font-size:14px">→</div>
+            <div class="c-bucket"><b>1 commercial base</b><div class="mut" style="font-size:8.5px">holds up to 4 color kits</div></div></div>
+          ${line(M.A, " <span class='fnt'>color kit</span>")}${line(M.B, " <span class='fnt'>color kit ◆</span>")}${line(M.C)}
+          <div class="c-sub"><span>Grout</span><span class="num">${$(grout)}</span></div></div>
+        <div class="c-card" style="margin-top:8px"><h5>Setting &amp; waterproofing</h5><div class="why">What holds the tile down and keeps it from cracking.</div>
+          ${line(M.D, " <span class='fnt'>mortar · all tile</span>")}${line(M.E, " <span class='fnt'>· bath floor</span>")}
+          <div class="c-sub"><span>Setting</span><span class="num">${$(M.D.cost + M.E.cost)}</span></div></div>
+        <div class="c-card" style="margin-top:8px"><h5>Finishing</h5><div class="why">Flexible caulk goes in corners where grout would crack.</div>
+          ${line(M.F)}</div>
+        <div class="a-sum num" style="margin-top:8px"><span class="mut">Flooring &amp; trim</span><span class="r">${$(FLOOR)}</span><span class="mut">Install materials</span><span class="r">${$(MATS)}</span></div>
+      </div>
+    </div>
+    ${grand()}${soFoot()}</div>`;
+}
+
+// ---- D. Landscape split by area (products left, that area's extras right) ----
+function layoutD() {
+  const areaMats = (a) => { const agg = {}; a.items.forEach((p) => p.mats.forEach(([k, q, n]) => { agg[k] = agg[k] || { q: 0, n: [] }; agg[k].q += q; if (n) agg[k].n.push(n); })); return agg; };
+  const rows = AREAS.map((a) => {
+    const agg = areaMats(a), keys = Object.keys(agg);
+    const floor = a.items.reduce((t, p) => t + p.line, 0), extra = keys.reduce((t, k) => t + mc(k, agg[k].q), 0);
+    return `<div class="d-area"><span class="band n" style="background:none;padding:0;margin:0"><span class="n">${a.name}</span></span><span class="s num" style="font-size:9px;color:var(--paper-muted)">${a.sf} SF · flooring ${$(floor)}${extra ? ` · materials ${$(extra)}` : ""}</span></div>
+      <div class="d-l">${a.items.map((p) => `<div class="d-prod"><span class="d-mk">${p.special ? "◆" : ""}</span><div style="min-width:0">${pname(p)}<div class="spec">${specLine(p)}</div></div>${rightRail(p)}</div>`).join("")}</div>
+      <div class="d-r">${keys.length ? keys.map((k) => { const m = M[k], q = agg[k].q; return `<div class="d-mat"><span><span class="k">${m.kind}</span>${m.special ? "◆ " : ""}${m.name}${m.color ? ` — ${m.color}` : ""}${agg[k].n.length ? `<span class="fnt"> · ${[...new Set(agg[k].n)].join(", ")}</span>` : ""}</span><span class="num mut" style="white-space:nowrap">${pl(q, m.unit)} × ${$(m.price)}</span><span class="num r" style="font-weight:700">${$(mc(k, q))}</span></div>`; }).join("") : `<div class="fnt" style="font-size:9.5px;padding:4px 0">No setting materials — plank floats over the subfloor.</div>`}</div>`;
+  }).join("");
+  return `<div class="sheet land">${mast()}
+    <div class="d-grid"><div class="d-colhead">Products</div><div class="d-colhead" style="border-left:1px solid var(--paper-rule)">Install materials for this area</div>${rows}
+      <div class="d-area" style="background:#fff;border:1px solid var(--paper-rule)"><span class="n" style="font-size:9.5px;font-weight:800;letter-spacing:.22em;text-transform:uppercase;color:var(--ft-brand-deep)">Whole job</span><span class="s" style="font-size:9px;color:var(--paper-muted)">shared by more than one area</span></div>
+      <div class="d-l fnt" style="font-size:9.5px">The grout base is bought once for the job: the Bright White kits (Master Bath) and the Natural Gray kit (Laundry) all mix into it.</div>
+      <div class="d-r"><div class="d-mat"><span><span class="k">Grout base</span>${M.C.name}<span class="fnt"> · takes up to 4 color kits (job uses 4)</span></span><span class="num mut">1 unit × ${$(M.C.price)}</span><span class="num r" style="font-weight:700">${$(M.C.cost)}</span></div></div>
+    </div>
+    <div class="d-foot"><div style="padding:8px 10px 0">${soFoot()}</div>
+      <div style="padding:8px 10px 0;border-left:1px solid var(--paper-rule)"><div class="a-sum num" style="margin-top:0"><span class="mut">Flooring &amp; trim</span><span class="r">${$(FLOOR)}</span><span class="mut">Install materials</span><span class="r">${$(MATS)}</span></div>
+      <div class="grand" style="border-top:1px solid var(--paper-rule);margin-top:6px"><span class="l">Estimated total</span><span class="v num">${$(GRAND)}</span></div><div class="fine r">Includes 10% waste on tile, 8% on plank.</div></div></div>
+  </div>`;
+}
+
+// ---- E. Landscape wide table ----
+function layoutE() {
+  const st = (s) => (s ? `<span class="st s">◆ Special order</span>` : `<span class="st k">Stock</span>`);
+  const rows = AREAS.map((a) => `<tr class="ar"><td colspan="10">${a.name} <span style="font-weight:600;letter-spacing:.06em;color:var(--paper-muted);text-transform:none">· ${a.sf} SF</span></td></tr>` + a.items.map((p) => `
+      <tr class="p"><td class="nm">${p.brand}</td><td style="font-weight:700">${p.color}</td><td class="mut">${p.type}</td><td class="num" style="white-space:nowrap">${p.size}</td><td class="num" style="font-size:9px;white-space:nowrap">${p.sku}</td><td>${st(p.special)}</td>
+        <td class="num r">${p.sf ? p.sf : "—"}</td><td class="num r" style="white-space:nowrap">${p.order}</td><td class="num r" style="white-space:nowrap">${p.unit}</td><td class="num r" style="font-weight:800">${$(p.line)}</td></tr>` +
+      p.mats.map(([k, q, n]) => { const m = M[k]; return `<tr class="m"><td class="nm">↳ ${m.kind}</td><td>${m.color || ""}</td><td>${m.name}</td><td>${n || ""}</td><td></td><td>${st(m.special)}</td><td></td><td class="num r">${pl(q, m.unit)}</td><td class="num r">${$(m.price)}/${m.unit}</td><td class="num r">${$(mc(k, q))}</td></tr>`; }).join("")).join("")).join("");
+  return `<div class="sheet land">${mast()}
+    <table class="e-tbl"><thead><tr><th>Product</th><th>Color</th><th>Type</th><th>Size</th><th>SKU</th><th>Status</th><th class="r">Meas. SF</th><th class="r">Order</th><th class="r">Price</th><th class="r">Total</th></tr></thead>
+    <tbody>${rows}
+      <tr class="ar"><td colspan="10">Whole job <span style="font-weight:600;letter-spacing:.06em;color:var(--paper-muted);text-transform:none">· shared by more than one area</span></td></tr>
+      <tr class="p"><td class="nm">Grout base</td><td></td><td class="mut">${M.C.name}</td><td colspan="2" class="mut" style="font-size:9px">Every grout color kit above mixes into it · up to 4 kits (job uses 4)</td><td>${st(false)}</td><td></td><td class="num r">1 unit</td><td class="num r">${$(M.C.price)}/unit</td><td class="num r" style="font-weight:800">${$(M.C.cost)}</td></tr>
+    </tbody></table>
+    <div class="e-tot"><div>${soFoot()}</div>
+      <div><div class="a-sum num" style="margin-top:0"><span class="mut">Flooring &amp; trim</span><span class="r">${$(FLOOR)}</span><span class="mut">Install materials (↳ rows + base)</span><span class="r">${$(MATS)}</span></div>
+      <div class="grand" style="border-top:1px solid var(--paper-rule);margin-top:6px"><span class="l">Estimated total</span><span class="v num">${$(GRAND)}</span></div></div></div>
+    <div class="fine r">Includes 10% waste on tile, 8% on plank. Confirm against final measurements before ordering.</div>
+  </div>`;
+}
+
+
+// ---- F. Spec schedule (Programa FF&E style: item codes, captioned cells) ----
+function layoutF() {
+  const code = { "Master Bath": "MB", Kitchen: "KI", Laundry: "LA" };
+  const uses = {};
+  const cell = (v, c, extra = "") => `<div class="f-cell" ${extra}><b>${v || "—"}</b><span>${c}</span></div>`;
+  const rows = AREAS.map((a) => `<div class="band" style="margin-top:6px"><span class="n">${a.name}</span><span class="s num">${a.sf} SF · ${a.items.length} ${a.items.length === 1 ? "item" : "items"}</span></div>` + a.items.map((p, i) => {
+    const id = `${code[a.name]}-${i + 1}`; p.mats.forEach(([k]) => { (uses[k] = uses[k] || []).push(id); });
+    if (p.mats.some(([k]) => k === "A" || k === "B")) (uses.C = uses.C || []).push(id);
+    return `<div class="f-row"><div class="f-code">${id}</div>
+      ${cell(`${p.brand}`, p.type)}${cell(p.color, "Color")}${cell(p.size, "Size")}${cell(p.cov ? p.cov.replace("carton", "ct") : "sold each", "Coverage")}
+      ${cell(`<span style="font-size:9.5px;font-weight:700;letter-spacing:0;text-transform:none;color:#000;display:inline;margin:0">${p.sku}</span>`, "SKU")}
+      ${cell(p.order, p.sf ? `${p.sf} SF meas. · ${p.ordSf} ord.` : "Order")}
+      ${cell(p.special ? "◆ Special order" : "In stock", p.special ? "Non-returnable" : "Returnable")}
+      <div class="f-cell r"><b class="num" style="font-size:11.5px;font-weight:800">${$(p.line)}</b><span>${p.unit}</span></div></div>`;
+  }).join("")).join("");
+  const mats = Object.values(M).map((m) => `<div><span class="kdot${m.key === "C" ? " o" : ""}" style="width:13px;height:13px;font-size:7.5px">${m.key}</span></div>
+      <div><b>${m.kind}</b><div class="fnt" style="font-size:8.8px">${SHORT[m.key]}</div></div>
+      <div>${m.name}${m.color ? ` — ${m.color}` : ""}${m.special ? ` <b style="font-size:8px">◆</b>` : ""}</div>
+      <div>${(uses[m.key] || []).map((c) => `<span class="f-for">${c}</span>`).join("")}</div>
+      <div class="num r">${pl(m.qty, m.unit)}</div><div class="num r mut">${$(m.price)}</div><div class="num r" style="font-weight:700">${$(m.cost)}</div>`).join("");
+  return `<div class="sheet land">${mast()}${rows}
+    <div style="display:grid;grid-template-columns:1fr 270px;gap:22px;margin-top:12px;align-items:start">
+      <div><div class="ey" style="font-size:9.5px;margin-bottom:3px">Install materials <span style="font-weight:600;letter-spacing:.04em;text-transform:none;color:var(--paper-faint)">— the codes show which items each one is for</span></div>
+        <div class="f-mats"><div class="h"></div><div class="h">What it is</div><div class="h">Product</div><div class="h">For</div><div class="h r">Qty</div><div class="h r">Each</div><div class="h r">Total</div>${mats}</div></div>
+      <div><div class="a-sum num" style="margin-top:14px"><span class="mut">Flooring &amp; trim</span><span class="r">${$(FLOOR)}</span><span class="mut">Install materials</span><span class="r">${$(MATS)}</span></div>
+        <div class="grand" style="border-top:1px solid var(--paper-rule);margin-top:6px"><span class="l">Estimated total</span><span class="v num" style="font-size:22px">${$(GRAND)}</span></div>
+        <div class="fine r">Includes 10% waste on tile, 8% on plank.</div>
+        <div class="sofoot" style="display:block"><div><b>◆ Special order</b> — ordered from the manufacturer for your job. <b>Special-order items can't be returned.</b></div><div class="initials" style="margin-top:8px;justify-content:flex-end">Initials <span></span></div></div></div></div>
+  </div>`;
+}
+
+const LAYOUTS = [
+  { id: "A", name: "Tied-in", orient: "portrait", fn: layoutA,
+    idea: "No Extras box. Each tile's grout, mortar and membrane hang off it on a dotted rail with their own quantity and price. Only the grout base — genuinely shared — sits in one small \"shared\" box that says what it is.",
+    fixes: "Nothing appears twice. The customer sees why each material is there. The shared box answers \"what's the base vs. the color kit\" in one sentence.",
+    trade: "Materials split per product can round up a little more than job-wide totals (e.g. mortar per row vs. whole job). The desk still needs the job-wide totals, which order entry already has." },
+  { id: "B", name: "Keyed tags", orient: "portrait", fn: layoutB,
+    idea: "Keep today's chips, but they become lettered pointers with no quantities (A Grout — Bright White). The bottom box becomes a lettered table: what each item is for, where it's used, qty, price.",
+    fixes: "Chip = reference, table = the one priced line, so it no longer reads as a double charge. The base row (hollow C) says which color kits it mixes with.",
+    trade: "Closest to today (least retraining), but the reader has to cross-reference letters. A \"what it's for\" line on every row adds height." },
+  { id: "C", name: "Plain-language recipe", orient: "landscape", fn: layoutC,
+    idea: "Landscape: products on the left carry only a plain \"Installed with …\" line; the right half explains the install in customer terms: Grout (color kits → base diagram), Setting & waterproofing, Finishing.",
+    fixes: "Directly answers \"what's a color kit vs. a base\" with a picture. Special order shows as a lululemon-style \"final sale\" line under the product.",
+    trade: "Groups are hand-curated categories; add-on categories (ADR 0016) would need a home. More prose — longer jobs will run to page 2 sooner on the right side." },
+  { id: "D", name: "Landscape split by area", orient: "landscape", fn: layoutD,
+    idea: "Landscape, two columns per area: products on the left, that area's install materials on the right, on the same band. A \"Whole job\" row at the end holds what areas share (the grout base).",
+    fixes: "The eye reads across: this room's tile → this room's grout and mortar. Area bands carry flooring + materials subtotals. ◆ in the left gutter marks special orders.",
+    trade: "Materials roll up per area (not per product). Busy areas with many products leave white space on the right; an area with lots of materials can outgrow its products." },
+  { id: "E", name: "Landscape wide table", orient: "landscape", fn: layoutE,
+    idea: "Landscape spreadsheet: Product · Color · Type · Size · SKU · Status · SF · Order · Price · Total. Materials are ↳ sub-rows under their product; the shared base gets a \"Whole job\" row.",
+    fixes: "Most information per line, easy to scan in columns, and a real Status column (Stock / ◆ Special order) on every line including materials.",
+    trade: "Reads like an invoice rather than a selection sheet. Color as its own column means splitting today's single brand-and-color field for display (\"Brand — Color\" pattern)." },
+  { id: "F", name: "Spec schedule", orient: "landscape", fn: layoutF,
+    idea: "Bonus, from an info-heavy reference (Programa's FF&E schedule): every product gets an item code (MB-1) and each value sits over a tiny caption — Color, Size, Coverage, SKU, Order, Status. Install materials list which codes they're for.",
+    fixes: "Densest layout — the most facts per inch while every value stays labelled. Codes tie extras to products without repeating them; Status shows returnable vs. special order on every line.",
+    trade: "Most \"designer spec book\", least \"receipt\". Captions add a line of height per row; very long product names need the wide first column." },
+];
+
+const tabs = document.getElementById("tabs"), panels = document.getElementById("panels");
+LAYOUTS.forEach((L, i) => {
+  const b = document.createElement("button"); b.className = "tab" + (i ? "" : " on"); b.innerHTML = `${L.id} · ${L.name}<small>${L.orient}</small>`; b.dataset.id = L.id; tabs.appendChild(b);
+  const p = document.createElement("div"); p.className = "panel" + (i ? "" : " on"); p.id = "p" + L.id;
+  p.innerHTML = `<div class="note"><div><h4>The idea</h4><p>${L.idea}</p></div><div><h4>What it fixes</h4><p>${L.fixes}</p></div><div><h4>Trade-offs</h4><p>${L.trade}</p></div></div>
+    <div class="bar"><b>${L.id} · ${L.name}</b><button class="btn" onclick="window.print()">Print this sheet</button></div><div class="stage">${L.fn()}</div>`;
+  panels.appendChild(p);
+});
+tabs.addEventListener("click", (e) => { const b = e.target.closest(".tab"); if (!b) return; show(b.dataset.id); });
+function show(id) { document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("on", t.dataset.id === id)); document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("on", p.id === "p" + id)); try { history.replaceState(null, "", "#" + id); } catch (e) {} }
+if (/^#[A-F]$/.test(location.hash)) show(location.hash.slice(1));
+</script>
+</body>
+</html>
