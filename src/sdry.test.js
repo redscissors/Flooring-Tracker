@@ -136,3 +136,15 @@ test("no option bills an extension it has no piece for", () => {
     }
   }
 });
+
+test("walls: each cut corner on a curbed build trades its 90° pair for two 135° pairs", () => {
+  const walls = [{ side: "back", len: 60, h: 96 }, { side: "left", len: 36, h: 96 }, { side: "right", len: 36, h: 96 }];
+  const q = (cutCorners) => Object.fromEntries(sdryWalls({ wallSf: 88, walls, curbed: true, openLen: 60, seams: [], cutCorners }, cat).rows.map((r) => [r.key, r.qty]));
+  assert.deepEqual([q(0)[SDRY.inCorner], q(0)[SDRY.inCorner135], q(0)[SDRY.outCorner], q(0)[SDRY.outCorner135]], [2, undefined, 1, undefined]);
+  // one cut: 3 inside 90° (2 wall + 1 curb end), 2 inside 135°, 1 outside 90°, 2 outside 135°
+  assert.deepEqual([q(1)[SDRY.inCorner], q(1)[SDRY.inCorner135], q(1)[SDRY.outCorner], q(1)[SDRY.outCorner135]], [2, 1, 1, 1]);
+  // both: 2 inside 90°, 4 inside 135°, no outside 90°, 4 outside 135°
+  assert.deepEqual([q(2)[SDRY.inCorner], q(2)[SDRY.inCorner135], q(2)[SDRY.outCorner], q(2)[SDRY.outCorner135]], [1, 2, undefined, 2]);
+  const curbless = Object.fromEntries(sdryWalls({ wallSf: 88, walls, curbed: false, openLen: 60, seams: [], cutCorners: 2 }, cat).rows.map((r) => [r.key, r.qty]));
+  assert.equal(curbless[SDRY.inCorner135], undefined, "no curb, no curb corners");
+});

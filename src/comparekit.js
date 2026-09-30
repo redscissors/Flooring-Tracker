@@ -152,7 +152,7 @@ export function anchorManualFor(brand, hostBuild, hostBrand, { cat, source } = {
     : { sku: h.part.item.sku, qty: h.qty, g: h.part.g }));
 }
 
-const WEDI_CHOICES = ["panelKey", "curbPick", "fastenerKey", "membraneKey", "coverPick", "coverFrame", "sealantForm", "recess"];
+const WEDI_CHOICES = ["panelKey", "curbPick", "fastenerKey", "membraneKey", "bench2Key", "wrapKey", "coverPick", "coverFrame", "sealantForm", "recess"];
 
 /**
  * Which kept choices didn't resolve in a build: slot words ("drain", "curb",
@@ -167,7 +167,7 @@ export function keptDropped(brand, cfg, build) {
     // membrane/band swaps are width/roll choices, not parts; board and
     // fastener picks only bill on a KERDI-BOARD build
     const skus = new Set(lines.map((l) => l.item && l.item.sku));
-    const slots = ["grate", "curb", ...(cfg.wallSys === "board" ? ["board", "fastener"] : [])];
+    const slots = ["grate", "flange", "curb", ...(cfg.wallSys === "board" ? ["board", "fastener"] : [])];
     for (const slot of slots) {
       const sku = (cfg.swaps || {})[slot];
       if (typeof sku === "string" && sku && !skus.has(sku)) out.push(slot);

@@ -65,6 +65,15 @@ test("a kit placed while the XL roll was the auto pick reopens on XL, not on a z
   assert.equal(rowPickedMembrane(cfg, std), null);
 });
 
+test("a cut front corner on a curbed S-DRY build bills 135° corners; reopening keeps them", () => {
+  const o = solve({ ...room(60, 36), system: "sdry" })[0];
+  const b = build(o, { corners: ["fl"] });
+  assert.equal(qty(b)[SDRY.inCorner135], 1);
+  assert.equal(qty(b)[SDRY.outCorner135], 1);
+  assert.equal(qty(build(o))[SDRY.inCorner135], undefined);
+  assert.equal(qty(buildFromMarker({ mode: "custom", cfg: b.cfg }))[SDRY.outCorner135], 1);
+});
+
 test("Compare carries a kept wedi membrane pick", () => {
   const walls = [{ side: "back", on: true, len: 60, h: 96 }, { side: "left", on: true, len: 36, h: 96 }];
   const xl = wediBuildFor({ w: 60, d: 36, curbed: true, drain: "point", walls },

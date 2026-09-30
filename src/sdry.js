@@ -11,7 +11,7 @@ export const SDRY = {
   ext: "US3076003", curbFull: "US3076001", curbLean: "US3076002",
   drain: "US9476006", coverSS: "US1076002",
   roll: "US5076009", rollXL: "US5076008", tape: "US5076007",
-  inCorner: "US5076002", outCorner: "US5076005",
+  inCorner: "US5076002", outCorner: "US5076005", inCorner135: "US5076001", outCorner135: "US5076004",
   collarValve: "US5076003", collarPipe: "US5076006",
   seal: "US5076011", sealTrowel: "US5076010", proSet: "US5076012",
 };
@@ -31,7 +31,7 @@ const ROLE = {
   [SDRY.ext]: "ext", [SDRY.curbFull]: "curb", [SDRY.curbLean]: "curb",
   [SDRY.drain]: "drain", US9476016: "drain", US9476011: "drain", US9476012: "drain",
   [SDRY.roll]: "membrane", [SDRY.rollXL]: "membrane", [SDRY.tape]: "tape",
-  [SDRY.inCorner]: "corner", US5076001: "corner", [SDRY.outCorner]: "corner", US5076004: "corner",
+  [SDRY.inCorner]: "corner", [SDRY.inCorner135]: "corner", [SDRY.outCorner]: "corner", [SDRY.outCorner135]: "corner",
   [SDRY.collarValve]: "collar", [SDRY.collarPipe]: "collar",
   [SDRY.seal]: "seal", [SDRY.sealTrowel]: "seal", [SDRY.proSet]: "setting",
   US2076001: "kit", US2076002: "kit",
@@ -235,11 +235,14 @@ export function sdryCurb(openLen, pick, cat) {
  * What an S-DRY membrane wall bills, as { key, qty, note } rows the engine
  * pushes. `wallSf` is the membrane's wall area (all faces), `walls` the
  * standing walls ({ side, len, h }), `curbed` / `openLen` the entry, `seams`
- * the floor's extension seams (lf, in inches), `pick` the membrane roll the
+ * the floor's extension seams (lf, in inches), `cutCorners` how many corners
+ * are cut at 45° (a curbed build's curb turns a diagonal at each — owner
+ * 2026-09-30: its 90° inside + outside pair becomes two 135° pairs, one where
+ * the diagonal meets the wall, one where it meets the curb), `pick` the membrane roll the
  * salesman swapped to — the standard 50"×25' roll when absent (owner
  * 2026-09-30); a pick the book doesn't know falls back with a note.
  */
-export function sdryWalls({ wallSf, walls, curbed, openLen, seams, pick }, cat) {
+export function sdryWalls({ wallSf, walls, curbed, openLen, seams, pick, cutCorners }, cat) {
   const byKey = (k) => cat.find((e) => e.key === k) || null;
   const rows = [];
   const need = r2((wallSf || 0) * LAP);
@@ -263,9 +266,13 @@ export function sdryWalls({ wallSf, walls, curbed, openLen, seams, pick }, cat) 
     + (seams || []).reduce((t, s) => t + s, 0);
   const lf = r2(lfIn / 12);
   if (lf > 0) rows.push({ key: SDRY.tape, qty: Math.ceil(lf / TAPE_LF), note: `${lf} lf — corners, wall base${curbed ? ", curb" : ""}${(seams || []).length ? ", extension seams" : ""}` });
-  const inside = vCorners + (curbed && openLen > 0 ? 2 : 0);
+  const curbEnds = curbed && openLen > 0 ? 2 : 0;
+  const cuts = Math.min(curbEnds, Math.max(0, +cutCorners || 0));
+  const inside = vCorners + curbEnds - cuts;
   if (inside > 0) rows.push({ key: SDRY.inCorner, qty: Math.ceil(inside / 2), note: `${inside} inside corners — 2 per bag` });
-  if (curbed && openLen > 0) rows.push({ key: SDRY.outCorner, qty: 1, note: "2 outside corners at the curb ends" });
+  if (cuts) rows.push({ key: SDRY.inCorner135, qty: cuts, note: `${2 * cuts} inside corners at the cut corner${cuts > 1 ? "s" : ""} — 2 per bag` });
+  if (curbEnds - cuts > 0) rows.push({ key: SDRY.outCorner, qty: 1, note: curbEnds - cuts === 2 ? "2 outside corners at the curb ends" : "1 outside corner at the curb end — 2 per bag" });
+  if (cuts) rows.push({ key: SDRY.outCorner135, qty: cuts, note: `${2 * cuts} outside corners at the cut corner${cuts > 1 ? "s" : ""} — 2 per bag` });
   rows.push({ key: SDRY.collarValve, qty: 1, note: "mixing valve" });
   rows.push({ key: SDRY.collarPipe, qty: 1, note: "shower arm / pipe" });
   if (lf > 0) rows.push({ key: SDRY.seal, qty: Math.ceil(lf / SEAL_LF), note: `${lf} lf of seams — ~${SEAL_LF} lf per unit` });

@@ -4943,7 +4943,12 @@ export function benchPanPlan(pan, benches, dims) {
 // wraps figure in the build's wall panel. surfSf is what feeds the sealant/
 // fastener consumables — a premade whose details say the sealant is included
 // contributes nothing.
-export function benchLines(benches, dims, panel) {
+// The sheets a bench swap may name (owner 2026-09-30): the 2" build-up and
+// the ½" framed wrap each take one pick for every bench on the build.
+export const bench2Sheets = () => catalog().filter((e) => e.group === "panel" && e.sub === "board" && e.t === 2 && e.sf > 0);
+export const benchWrapSheets = () => catalog().filter((e) => e.group === "panel" && (e.sub === "board" || e.sub === "vapor") && e.t === 0.5 && e.sf > 0);
+
+export function benchLines(benches, dims, panel, sheet2) {
   const lines = [];
   let sf2 = 0, wrapSf = 0, surfSf = 0;
   const notes2 = [];
@@ -4982,7 +4987,9 @@ export function benchLines(benches, dims, panel) {
     surfSf += (top + face) / 144;
     notes2.push(label + " — top + face + " + n + " supports");
   });
-  if (sf2 > 0.01) {
+  if (sf2 > 0.01 && sheet2) {
+    push(lines, sheet2, Math.ceil(sf2 / sheet2.sf), "bench", round2(sf2) + ' sf of 2" build-up — ' + notes2.join(" · "), true);
+  } else if (sf2 > 0.01) {
     const big = item(BENCH_SHEETS_2IN[0]), small = item(BENCH_SHEETS_2IN[1]);
     const note = round2(sf2) + ' sf of 2" build-up — ' + notes2.join(" · ");
     if (big && big.sf && small && small.sf) {
@@ -5599,7 +5606,9 @@ export function kitFor(panKey, opts) {
   else hints.push("no-panel");
 
   // --- benches ---------------------------------------------------------------
-  const bl = benchLines(benches, roomDims, panel);
+  const bench2Pick = opts.bench2Key ? bench2Sheets().find((e) => e.key === opts.bench2Key) || null : null;
+  const wrapPick = opts.wrapKey ? benchWrapSheets().find((e) => e.key === opts.wrapKey) || null : null;
+  const bl = benchLines(benches, roomDims, wrapPick || panel, bench2Pick);
   bl.lines.forEach((l) => { lines.push(l); });
 
   // --- curb ------------------------------------------------------------------
@@ -5672,7 +5681,7 @@ export function kitFor(panKey, opts) {
     sdry = sdryWalls({
       wallSf: panelSf, walls, curbed: !!(curb.item && curb.qty > 0), openLen,
       seams: sdryFloor && option && option.seams ? option.seams : [],
-      pick: opts.membraneKey,
+      pick: opts.membraneKey, cutCorners: (opts.corners || []).length,
     }, catalog());
     const rows = fam === "curbless" ? withFieldSeal(sdry.rows) : sdry.rows;
     rows.forEach((r) => push(lines, r.key, r.qty, r.key === SDRY.roll || r.key === SDRY.rollXL ? "walls" : "install", r.note, true));
@@ -5716,6 +5725,8 @@ export function kitFor(panKey, opts) {
     panKey: pan.key, walls: cfgWalls,
     ...(panel && panel.key !== SKU.panelDefault ? { panelKey: panel.key } : {}),
     ...(curbPick ? { curbPick } : {}),
+    ...(bench2Pick ? { bench2Key: bench2Pick.key } : {}),
+    ...(wrapPick ? { wrapKey: wrapPick.key } : {}),
     ...(fastener && fastener.item.key !== SKU.fastenerKit ? { fastenerKey: fastener.item.key } : {}),
     ...(coverPick ? { coverPick } : {}),
     ...(membrane ? { wallSys: "membrane" } : {}),
@@ -5769,6 +5780,7 @@ export function buildFromMarker(marker) {
     wallHeight: cfg.walls && cfg.walls[0] ? +cfg.walls[0].h : undefined,
     panelKey: cfg.panelKey || undefined,
     curbPick: cfg.curbPick, curbKey: cfg.curbKey, fastenerKey: cfg.fastenerKey, membraneKey: cfg.membraneKey,
+    bench2Key: cfg.bench2Key, wrapKey: cfg.wrapKey,
     coverPick: cfg.coverPick || legacyCoverPick(cfg.coverKey),
     coverFrame: cfg.coverFrame || undefined,
     wallSys: cfg.wallSys, sdryBase: cfg.sdryBase,

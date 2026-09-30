@@ -24,7 +24,7 @@ import {
   lineItems, coverFrames, inch, round2, SKU, coverageOf, MODULE_DEPTH, MODEXT_DEPTH,
   FINISHES, GROUP_LABEL, BUILDER_MULT, SO_MIN_NET,
   normBench, benchPremades, benchPanRoom, benchPanPlan, smallerPanFor,
-  BENCH_CORNER_LBL, buildFromMarker, sessionFromRows, rowPickedMembrane, wediSlotOf, coverStyles, legacyCoverPick, coverPickApplies,
+  BENCH_CORNER_LBL, buildFromMarker, sessionFromRows, rowPickedMembrane, bench2Sheets, benchWrapSheets, wediSlotOf, coverStyles, legacyCoverPick, coverPickApplies,
   resolveCurb, curbOptions, curbPickOf, panelOptions, panelSheets, fastenerKits,
   addedRows, setAddedRow, wediBucketOf, wediAddParts, wediAddPartOf, curbAddOptions, coverAddOptions, curbProfile, catalog,
   sdryNoFit, panelFitLines,
@@ -500,7 +500,7 @@ const DEF_WALLS = [
   { id: "left", label: "Left", on: true, len: "", h: "", faces: "in" },
   { id: "right", label: "Right", on: true, len: "", h: "", faces: "in" },
 ];
-const DEF_OPTS = { panelKey: undefined, curbPick: undefined, fastenerKey: undefined, membraneKey: undefined, coverPick: undefined, coverFrame: undefined, sealantForm: "tube", recess: undefined };
+const DEF_OPTS = { panelKey: undefined, curbPick: undefined, fastenerKey: undefined, membraneKey: undefined, bench2Key: undefined, wrapKey: undefined, coverPick: undefined, coverFrame: undefined, sealantForm: "tube", recess: undefined };
 const DEF_INP = { w: 48, d: 66, curb: "curbed", drain: "any", drainX: "", drainY: "", anchor: "left" };
 // Building Panel sits on a wedi pan, so leaving S-DRY clears the S-DRY base,
 // drain, curb and membrane whichever way the user goes.
@@ -544,6 +544,8 @@ function seedState(seed) {
       curbPick: curbPickOf(cfg),
       fastenerKey: cfg.fastenerKey || undefined,
       membraneKey: cfg.membraneKey || undefined,
+      bench2Key: cfg.bench2Key || undefined,
+      wrapKey: cfg.wrapKey || undefined,
       coverPick: cfg.coverPick || legacyCoverPick(cfg.coverKey),
       coverFrame: cfg.coverFrame || undefined,
       sealantForm: cfg.sealantForm === "sausage" ? "sausage" : "tube",
@@ -961,7 +963,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
         option: option || undefined,
         room: option ? option.room : { w: auto.back, d: auto.left },
         walls: buildWalls, wallHeight: +wallH || 80,
-        panelKey: opts.panelKey, curbPick: opts.curbPick, fastenerKey: opts.fastenerKey, membraneKey: opts.membraneKey, coverPick: opts.coverPick,
+        panelKey: opts.panelKey, curbPick: opts.curbPick, fastenerKey: opts.fastenerKey, membraneKey: opts.membraneKey, bench2Key: opts.bench2Key, wrapKey: opts.wrapKey, coverPick: opts.coverPick,
         coverFrame: opts.coverFrame, sealantForm: opts.sealantForm, recess: opts.recess,
         ...(wallSys === "membrane" ? { wallSys, ...(pan && pan.sub !== "sdry" ? { sdryBase: "wedi" } : {}) } : {}),
         manual: manual.slice(), benches: benches.slice(), tier: tierId,
@@ -1457,7 +1459,15 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     // every other swap writes opts, which a Browse-only build (no pan) ignores
     // and a Browse-added line in a kit build isn't the part they pick
     if (!build || !build.pan || line.auto === false) return null;
-    // the walls' panel only — a bench's own sheet is not the wall pick
+    // a bench's sheet is not the wall pick: one pick covers every bench's
+    // 2" build-up, another every framed wrap (owner 2026-09-30)
+    if (g === "panel" && line.group === "bench") {
+      return line.item.t === 2
+        ? { title: "Bench 2″ build-up — every bench", list: bySource(bench2Sheets()), none: "Auto — 4×8s, then one 4×5",
+          set: (k) => setOpts((o) => ({ ...o, bench2Key: k || undefined })) }
+        : { title: "Bench ½″ wrap — every framed bench", list: bySource(benchWrapSheets()), none: "Same as the wall panel",
+          set: (k) => setOpts((o) => ({ ...o, wrapKey: k || undefined })) };
+    }
     if (g === "panel") return line.group === "walls" ? { stepped: "panel" } : null;
     if (g === "cover") return { drain: true };
     if (g === "coverFrame") {
@@ -2142,7 +2152,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
                 {lines.map((l) => {
                   const e = l.item;
                   const price = tierOf(e);
-                  const ch = e.group === "panel" && panelFit ? null : swapChoices(l);
+                  const ch = e.group === "panel" && panelFit && l.group === "walls" ? null : swapChoices(l);
                   const can = ch && (ch.drain || ch.stepped || new Set([...ch.list.map((x) => x.key), e.key]).size + (ch.none ? 1 : 0) > 1);
                   // tag and double-up hint only beside a kit — a Browse-only build is all added
                   const tagged = l.added && !!build.pan;

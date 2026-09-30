@@ -1737,3 +1737,27 @@ test("sessionFromRows: a placed kit's added lines come off the totals — never 
   const bumped = rows.map((r, i) => (k.lines[i] === panel ? { ...r, qty: String(panel.qty + 1) } : r));
   assert.deepEqual(sessionFromRows(k.lines, bumped), { qtyOv: { [SKU.panelDefault]: panel.qty + 1 }, manual: [] });
 });
+
+// --- bench sheet swaps (owner 2026-09-30): one pick for the 2" build-up, one for the ½" wrap ---
+
+test("bench sheets: 2\" build-up and framed wrap take a hand-picked sheet; a stale or wrong-type pick stays auto", () => {
+  const walls = [{ side: "back", len: 60, h: 96 }, { side: "left", len: 36, h: 96 }, { side: "right", len: 36, h: 96 }];
+  const benchQ = (b) => Object.fromEntries(b.lines.filter((l) => l.group === "bench").map((l) => [l.item.key, l.qty]));
+  const site = { walls, benches: [{ kind: "wall", side: "left", len: 36, depth: 15, h: 18 }] };
+  const auto = kitFor("US9100004", site);
+  assert.deepEqual(benchQ(auto), { US8000020: 1 });
+  const big = kitFor("US9100004", { ...site, bench2Key: "US8000016" });
+  assert.deepEqual(benchQ(big), { US8000016: 1 });
+  assert.equal(big.cfg.bench2Key, "US8000016");
+  assert.deepEqual(benchQ(buildFromMarker({ mode: "custom", cfg: big.cfg })), { US8000016: 1 });
+  assert.deepEqual(benchQ(kitFor("US9100004", { ...site, bench2Key: "US8000014" })), { US8000020: 1 }, "a ½\" sheet is no 2\" pick");
+  assert.equal(auto.cfg.bench2Key, undefined);
+  const framed = { walls, benches: [{ kind: "wall", side: "back", len: 60, depth: 18, h: 18, build: "framed" }] };
+  const wall = kitFor("US9100004", framed).lines.find((l) => l.group === "bench").item.key;
+  const other = kitFor("US9100004", { ...framed, wrapKey: "US8000015" });
+  assert.notEqual(wall, "US8000015");
+  assert.deepEqual(benchQ(other), { US8000015: 1 });
+  assert.equal(other.cfg.wrapKey, "US8000015");
+  assert.equal(kitFor("US9100004", { ...framed, wrapKey: "US8000016" }).lines.find((l) => l.group === "bench").item.key, wall, "a 2\" sheet is no wrap pick");
+  assert.equal(kitFor("US9100004", { ...framed, wrapKey: "NOPE" }).cfg.wrapKey, undefined);
+});
