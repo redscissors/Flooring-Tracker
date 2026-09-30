@@ -90,6 +90,19 @@ test("the wall bill for a curbed 60×36 alcove", () => {
   assert.ok(q[SDRY.roll] || q[SDRY.rollXL]);
 });
 
+test("walls: the standard 50\"×25' roll by default; a pick swaps to XL; a stale pick falls back", () => {
+  const walls = [{ side: "back", len: 60, h: 96 }, { side: "left", len: 36, h: 96 }, { side: "right", len: 36, h: 96 }];
+  const args = { wallSf: 132 * 96 / 144, walls, curbed: true, openLen: 60, seams: [] };
+  const roll = (pick) => sdryWalls({ ...args, pick }, cat).rows.find((r) => r.key === SDRY.roll || r.key === SDRY.rollXL);
+  // 88 sf of wall × 1.1 laps = 96.8 sf
+  assert.deepEqual([roll().key, roll().qty], [SDRY.roll, 1]);
+  assert.deepEqual([roll(SDRY.rollXL).key, roll(SDRY.rollXL).qty], [SDRY.rollXL, 1]);
+  assert.equal(roll("US0000000").key, SDRY.roll);
+  assert.match(roll("US0000000").note, /not in the book/);
+  const big = sdryWalls({ ...args, wallSf: 200 }, cat).rows.find((r) => r.key === SDRY.roll);
+  assert.equal(big.qty, 3, "220 sf ÷ 104 sf/roll");
+});
+
 test("slots: every S-DRY role lands in a shared slot", () => {
   const e = (key) => cat.find((x) => x.key === key);
   assert.equal(sdrySlot(e("US9176001")), "tray");
@@ -122,4 +135,16 @@ test("no option bills an extension it has no piece for", () => {
       assert.equal(/2 extensions/.test(o.title) ? 2 : /extension/.test(o.title) ? 1 : 0, n, `${w}×${d} ${drain}: ${o.title}`);
     }
   }
+});
+
+test("walls: each cut corner on a curbed build trades its 90° pair for two 135° pairs", () => {
+  const walls = [{ side: "back", len: 60, h: 96 }, { side: "left", len: 36, h: 96 }, { side: "right", len: 36, h: 96 }];
+  const q = (cutCorners) => Object.fromEntries(sdryWalls({ wallSf: 88, walls, curbed: true, openLen: 60, seams: [], cutCorners }, cat).rows.map((r) => [r.key, r.qty]));
+  assert.deepEqual([q(0)[SDRY.inCorner], q(0)[SDRY.inCorner135], q(0)[SDRY.outCorner], q(0)[SDRY.outCorner135]], [2, undefined, 1, undefined]);
+  // one cut: 3 inside 90° (2 wall + 1 curb end), 2 inside 135°, 1 outside 90°, 2 outside 135°
+  assert.deepEqual([q(1)[SDRY.inCorner], q(1)[SDRY.inCorner135], q(1)[SDRY.outCorner], q(1)[SDRY.outCorner135]], [2, 1, 1, 1]);
+  // both: 2 inside 90°, 4 inside 135°, no outside 90°, 4 outside 135°
+  assert.deepEqual([q(2)[SDRY.inCorner], q(2)[SDRY.inCorner135], q(2)[SDRY.outCorner], q(2)[SDRY.outCorner135]], [1, 2, undefined, 2]);
+  const curbless = Object.fromEntries(sdryWalls({ wallSf: 88, walls, curbed: false, openLen: 60, seams: [], cutCorners: 2 }, cat).rows.map((r) => [r.key, r.qty]));
+  assert.equal(curbless[SDRY.inCorner135], undefined, "no curb, no curb corners");
 });

@@ -1062,7 +1062,18 @@ src/
                     # and `markerCurbKey` knows the S-DRY curb (tile sf).
                     # S-DRY parts slot through `sdrySlot`, and
                     # `WEDI_ADD_PARTS` gains them (wedisdry.test.js,
-                    # wallsysgolden.test.js). A curbless pan under Membrane
+                    # wallsysgolden.test.js). `opts.membraneKey` is the
+                    # membrane-roll swap: written to the cfg only when it
+                    # bills the XL roll, inert under Building Panel, carried
+                    # by Compare's kept choices; `rowPickedMembrane` reads a
+                    # kit placed before the swap (auto-billed XL, no key) back
+                    # as the XL pick on Reconfigure. `opts.bench2Key`/
+                    # `opts.wrapKey` (owner 2026-09-30) are the bench sheet
+                    # swaps — one pick for every bench's 2" build-up (a
+                    # `bench2Sheets` 2" board, else the 4×8s + one 4×5 mix),
+                    # one for every framed wrap (a `benchWrapSheets` ½" sheet,
+                    # else the wall panel); written only when honoured.
+                    # A curbless pan under Membrane
                     # bills ONE SEAL line and ONE trowel: `withFieldSeal`
                     # folds the field seal's own unit into the walls' SEAL
                     # row (qty + 1, the note says so) rather than billing a
@@ -1288,8 +1299,14 @@ src/
                     # `sdryNearest` (the "nearest S-DRY base anyway" answer,
                     # shortfall warned), `sdryCurb` (full default, lean on
                     # pick, ⌈open ÷ 72⌉), `sdryWalls` (membrane +10% laps on
-                    # the cheaper roll, tape lf in 32′ rolls, corners, collars,
-                    # SEAL ⌈lf ÷ 45⌉ + trowel), `sdryProSet` (1 + ⌈membrane
+                    # the standard 50″×25′ roll, or the roll `pick` names — the
+                    # popup's ⇄ swaps to the 80″×16′ XL, owner 2026-09-30; a
+                    # pick the book lacks falls back with a note — tape lf in
+                    # 32′ rolls, corners, collars,
+                    # SEAL ⌈lf ÷ 45⌉ + trowel; each 45° cut corner on a
+                    # curbed build trades a 90° inside + outside pair for two
+                    # 135° pairs — `cutCorners`, owner 2026-09-30),
+                    # `sdryProSet` (1 + ⌈membrane
                     # sf ÷ 100⌉ — wedi's TDS: 36×60 → 2, 48×72 → 3),
                     # `sdryRole`/`sdrySlot` (role and slot off the SKU).
                     # Rates are wedi's published ones — see the Phase 2 spec's
@@ -1554,7 +1571,10 @@ src/
                     # S-DRY base, or Back to Building Panel. A non-fit answer wears a bill chip
                     # (`data-wedi-sdrychip`) that reopens it. The subtitle and the print head
                     # name the wall system; the backer hint shows on the bill and prints under
-                    # the install notes. The S-DRY cover and curb ⇄ are one-click lists.
+                    # the install notes. The S-DRY cover and curb ⇄ are one-click lists,
+                    # as is the membrane roll (standard / XL, `membraneKey`). A bench
+                    # sheet line's ⇄ lists the 2" or ½" sheets for every bench
+                    # (`bench2Key`/`wrapKey`), open under Fit too (Fit plans only the walls).
                     # `applyPanelFit` skips a build with no kit panel line.
                     # Flipping to Building Panel never wipes hand work silently (build
                     # amendment 21): on the Custom tab the room is kept and re-solved for wedi
@@ -1907,7 +1927,12 @@ src/
                     # `{wallSf, bandLf}`) and lines carry their `bench` index
                     # so the popup's list swap can key on group+bench+sku;
                     # `pointGrateLabel` reads the point grate's plain-English
-                    # chip text.
+                    # chip text. The point flange kit bills 2" PVC by default
+                    # (owner 2026-09-30 — the live book also stocks a cheaper
+                    # ABS kit, which the old first-match pick could land under
+                    # a PVC note); `cfg.swaps.flange` picks another point
+                    # flange, and `flangePipe` reads material + size for the
+                    # note.
                     # Ticket 158 Phase 1c (ADR 0049): added lines are parts +
                     # a hand-set qty, never choices. `cfg.manual` rows gain
                     # `g` (the engine group they're keyed under, one of
@@ -2295,7 +2320,9 @@ src/
                     # board fastener pack and each bench's board swap via a
                     # one-click list, keyed by group+bench+sku so a bench
                     # board sharing a sku with another line can't hijack its
-                    # ⇄. ⇄ shows only when the line has more than one valid
+                    # ⇄. The point flange kit swaps via a one-click list
+                    # (`cfg.swaps.flange`; PVC ↔ ABS), not the grate popover.
+                    # ⇄ shows only when the line has more than one valid
                     # part; a saved `drainPick` inert on a point tray stays in
                     # the marker without forcing Custom.
                     # Ticket 158 Phase 1c (ADR 0049): every group header

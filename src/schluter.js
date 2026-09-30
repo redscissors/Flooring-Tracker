@@ -614,6 +614,14 @@ export function pickRolls(sfNeed, cat, { source } = {}) {
  * lands — the line's `so` flag says so, the build is never silently wrong.
  * Under "all" this is plain cat.find(pred), so defaults cannot move.
  */
+/** A drain flange kit's pipe material and size, off its code (KD2FLKABS) or name. */
+export function flangePipe(i) {
+  const text = String((i && i.sku) || "") + " " + String((i && i.name) || "");
+  const pipe = /ABS/i.test(text) ? "ABS" : /PVC/i.test(text) ? "PVC" : "";
+  const size = +((/KD(\d)FLK/i.exec(text) || /(\d)\s*(?:"|in\b|″)/i.exec(i && i.name || "") || [])[1]) || 0;
+  return { pipe, size };
+}
+
 export function pickFrom(cat, pred, { source } = {}) {
   if (source === "stock") {
     const stocked = cat.find((i) => pred(i) && i.stock);
@@ -1311,8 +1319,14 @@ export function buildKit(cfg, cat, { source, pick } = {}) {
     for (const l of r.lines) add("Drain", l.item, l.qty, l.note);
     drainFit = { family: r.family, len: r.len, gap: r.gap };
   } else {
-    add("Drain", pickFrom(cat, (i) => i.g === "drain" && i.part === "flange" && i.drain === "point", { source }), 1,
-      'bonded flange, 2" PVC — incl. 4+2 corners, pipe + valve seals');
+    // PVC is the house flange (owner 2026-09-30) — the book also stocks ABS,
+    // cheaper, which the old first-match pick could land under a PVC note
+    const isPoint = (i) => i.g === "drain" && i.part === "flange" && i.drain === "point";
+    const fl = swapped(swaps.flange, isPoint)
+      || pickFrom(cat, (i) => isPoint(i) && flangePipe(i).pipe === "PVC", { source })
+      || pickFrom(cat, isPoint, { source });
+    const fp = fl ? flangePipe(fl) : {};
+    add("Drain", fl, 1, `bonded flange, ${fp.size || 2}" ${fp.pipe || "PVC"} — incl. 4+2 corners, pipe + valve seals`);
     add("Drain", swapped(swaps.grate, (i) => i.g === "drain" && i.part === "grate")
       || pickFrom(cat, (i) => i.g === "drain" && i.part === "grate", { source }), 1,
       "finish pick — tileable & floral stocked too");
