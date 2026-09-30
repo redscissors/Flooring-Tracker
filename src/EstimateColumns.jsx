@@ -52,7 +52,7 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
       </div>
     );
   };
-  const cellStyle = (i) => ({ alignSelf: "stretch", background: CELL, padding: "2px 4px", fontSize: 7.6, lineHeight: 1.22, borderLeft: i === 0 ? `1px solid ${RULE}` : "none" });
+  const cellStyle = { alignSelf: "stretch", background: CELL, border: `1px solid ${HAIR}`, padding: "2px 4px", fontSize: 7.6, lineHeight: 1.22 };
   const moneyCells = (q, pr, c, oneLine) => {
     const cell = { paddingTop: 2, fontSize: 8.8, lineHeight: 1.3, textAlign: "right", whiteSpace: "nowrap" };
     return (
@@ -86,9 +86,7 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
             </div>
           )}
           {moneyCells(q, pr, c, oneLine)}
-          {cols.length > 0 && (cols.every((col) => cells[col.key].length === 0)
-            ? <div style={{ ...cellStyle(0), gridColumn: `span ${cols.length}` }} />
-            : cols.map((col, i) => <div key={col.key} style={cellStyle(i)}>{cells[col.key].map(matItem)}</div>))}
+          {cols.map((col) => <div key={col.key} style={cellStyle}>{cells[col.key].map(matItem)}</div>)}
         </>, pi === 0)}
       </Fragment>
     );
@@ -113,7 +111,7 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
       {g.money.qty && <div style={{ ...eyebrow, textAlign: "right" }}>Qty</div>}
       {g.money.price && <div style={{ ...eyebrow, textAlign: "right" }}>Price</div>}
       {g.money.total && <div style={{ ...eyebrow, textAlign: "right" }}>Total</div>}
-      {cols.map((col, i) => <div key={col.key} style={{ ...eyebrow, letterSpacing: ".05em", paddingLeft: 4, borderLeft: i === 0 ? `1px solid ${RULE}` : "none" }}>{col.label}</div>)}
+      {cols.map((col) => <div key={col.key} style={{ ...eyebrow, letterSpacing: ".05em", paddingLeft: 5 }}>{col.label}</div>)}
     </div>
   );
   const listCols = full ? "72px minmax(0,1fr) 54px 54px 52px 62px" : pMode === "unit" ? "72px minmax(0,1fr) 72px" : "72px minmax(0,1fr)";
