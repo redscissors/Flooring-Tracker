@@ -93,13 +93,14 @@ export const PRINT_COLS = "0.95fr 2.5fr 1fr 0.55fr 0.5fr 0.6fr 0.8fr 0.8fr";
 export const PRINT_COLS_UNIT = "0.95fr 2.5fr 1fr 0.55fr 0.5fr 0.6fr 0.8fr";
 export const PRINT_COLS_NONE = "0.95fr 2.5fr 1fr 0.55fr 0.5fr 0.8fr";
 export const KSHORT = { Grout: "Grout", "Grout base": "Base", Caulk: "Caulk", Mortar: "Mortar", "Tile Backer": "Backer", Underlayment: "Underlay", "Install materials": "Install", Install: "Install" };
-// Estimate print layout. "cards" is the 2026-07 receipt-card redesign; flip to
-// "classic" to restore the prior 8-column table sheet (kept intact in
-// renderEstimatePaperClassic) if the new one ever needs to be pulled.
+// Estimate print layout. "columns" is the 2026-09-30 material-columns sheet
+// (EstimateColumns.jsx, owner pick "G3c"); "cards" is the 2026-07 receipt-card
+// sheet, and "classic" the prior 8-column table — both kept intact in
+// EstimatePrint.jsx as fallbacks if the current one ever needs to be pulled.
 // "classic" predates quote options (ADR 0031) and knows nothing about them: it
 // prints an options job flat — every area, no option bands, no per-option
 // totals. Only flip back for an option-free job.
-export const ESTIMATE_PRINT_LAYOUT = "cards";
+export const ESTIMATE_PRINT_LAYOUT = "columns";
 export const u1 = (order, unit) => (order === 1 ? String(unit || "").replace(/s$/, "") : unit);
 // The catalog SKU a breakdown row carries (materials resolve by name — the SKU
 // is display-only, per ADR 0006).

@@ -64,6 +64,9 @@ test("needText: one decimal, singular at 1.0, dash when uncomputed", () => {
   assert.equal(needText(1.04, "bags"), "1.0 bag");
   assert.equal(needText(0.8, "rolls"), "0.8 rolls");
   assert.equal(needText(0, "kits"), "—");
+  assert.equal(needText(1.62, "units"), "1.6 units"); // the catalog's own word, as the print always showed it
+  assert.equal(needText(1, "units"), "1.0 unit");
+  assert.equal(needText(1.8, "EA"), "1.8 EA");
 });
 
 test("gridSpec: unit shows price only, none shows qty only", () => {

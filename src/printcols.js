@@ -3,7 +3,7 @@
 // material cell and job-list line says. No React here, so it runs under node:test.
 import { money, sf1, miscQty } from "./model.js";
 import { num } from "./catalog.js";
-import { unitNoun } from "./units.js";
+import { u1 } from "./print.js";
 
 const tighten = (t) => String(t || "").trim().replace(/(\d["”']?)\s*[x×]\s*(?=\d)/gi, "$1×");
 
@@ -64,7 +64,7 @@ export function columnsUsed(lines) {
 export function needText(exact, unit) {
   if (!(exact > 0)) return "—";
   const r = Math.round(exact * 10) / 10;
-  return `${r.toFixed(1)} ${unitNoun(r === 1 ? 1 : 2, unit)}`;
+  return `${r.toFixed(1)} ${u1(r, unit)}`;
 }
 
 export function gridSpec(pMode, cols) {

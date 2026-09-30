@@ -8,11 +8,17 @@ import { unitNoun } from "./units.js";
 import { sfPartsText } from "./sfparts.js";
 import NedLogo from "./NedLogo.jsx";
 import { SheetHead } from "./sheethead.jsx";
+import { EstimateColumnsPaper } from "./EstimateColumns.jsx";
 import keimLogo from "./assets/keim-logo-ink.png";
 
 export const PRINT_DASH = <span style={{ color: "var(--ft-faint)" }}>—</span>;
 
-export function EstimatePaper({ sel, people, profile, tv, jobWaste, pMats, tSet, materialsCost, freightCost = 0, flooringPrice, miscCost, totalSqft, orderedSqft, grandTotal, optionPrint = null, scopeNote = "" }) {
+export function EstimatePaper(props) {
+  if (ESTIMATE_PRINT_LAYOUT === "columns") return <EstimateColumnsPaper {...props} />;
+  return <EstimatePaperLegacy {...props} />;
+}
+
+function EstimatePaperLegacy({ sel, people, profile, tv, jobWaste, pMats, tSet, materialsCost, freightCost = 0, flooringPrice, miscCost, totalSqft, orderedSqft, grandTotal, optionPrint = null, scopeNote = "" }) {
   const wVar = wasteVaries(tv.proj.categories, tSet);
   // pMats already carries the job's freight as its own trailing "Freight" group
   // (App.jsx appends freightPrintRows), so the breakdown band renders it with
