@@ -151,8 +151,13 @@ src/
                     # carries the grout color's `bookId`;
                     # `ESTIMATE_PRINT_LAYOUT` is "columns" (2026-09-30)
   printcols.js      # the material-columns sheet's pure half (spec 2026-09-30,
-                    # owner pick G3c): `specSize`/`specLine` (tile thickness
-                    # never prints, × tightened, SF/ct kept), `qtyCells`/
+                    # owner pick G3c): `specSize`/`specParts`/`specLine` (tile
+                    # thickness never prints, × tightened, SF/ct kept; the
+                    # parts are separate so the sheet can keep "SKU n" on one
+                    # line), `brandRow` (ADR 0054: a row carrying a wedi or
+                    # Schluter marker → `{lead: "size name", tail: "SKU n" |
+                    # the marker's vendor part number}`; null for any other
+                    # row, however wedi-looking its text), `qtyCells`/
                     # `priceCells` (ct over SF, $/sf over $/ct), `COLS` +
                     # `matColumn`/`lineCells`/`columnsUsed` (Grout · Adhesive ·
                     # Underlay · Other — mortar reads "Adhesive" in the columns
@@ -521,6 +526,11 @@ src/
                     # under the Total column and prints only on a multi-item
                     # area; a lone unnamed area prints no band and no "1 area
                     # selected". Proof: .scratch/163_selection-sheet-grid-options/proof
+                    # ADR 0054 (2026-10-01): a brand row (`brandRow`) prints
+                    # one dark `size name` line and a muted no-wrap tail
+                    # ("SKU n" / the part number), no spec line; every other
+                    # row keeps its spec line with the SKU part wrapped
+                    # no-wrap. Proof: .scratch/165_shower-line-descriptions
   sheethead.jsx     # `SheetHead` — the selection-sheet masthead + people row +
                     # job notes, shared by the cards and columns sheets
   usetoast.js       # `useToast` — toast/save-flash UI state (`ping`, `flashSaved`)
@@ -1013,20 +1023,26 @@ src/
                     # A non-dimensional item keeps its pricelist CONTENTS as its
                     # sizeText ("100 ct 1 5/8\" Screws…", "20 oz foil sausage",
                     # "2 per bag" — contentOf), so a Fastener Kit row says what
-                    # one EA holds everywhere a size shows. Display names are a
-                    # LAYER over the transcribed tables (issue 080, owner asks
-                    # 2026-08-06): curbs read <len>\" <profile> Curb (CURB_NAMES,
-                    # SKU-keyed; sizeText blank — second line is the SKU alone;
-                    # curbs() orders full foam → lean → AT → caps), panels by
-                    # the foot (4'x5'x1/2\" Building Panel), bases size-first
-                    # (36\"x60\" Shower Base, offset drains named), covers with
-                    # finish WORDS for the codes (FIN_SHORT; full finish stays
-                    # the second line), S-DRY covers by color (S-Dry Drain
-                    # Cover — Matte Black; SDRY_COVER_NAMES, SKU-keyed — the
-                    # pricelist names them DCMB/DCORB/…), niches by their EXTERIOR with "interior
-                    # 12\" x 8\"" as sizeText (vendor-name parse, 4\" flange
-                    # fallback) — all derived in makeEntry, so a pricelist
-                    # re-transcription keeps every treatment.
+                    # one EA holds everywhere a size shows — UNTIL ADR 0054
+                    # (2026-10-01): `entryText` (the last step of makeEntry)
+                    # now sets every entry's `sizeText` (the Size field: the
+                    # measure — `sizeOf` by the foot for pans/panels when both
+                    # sides are whole feet, inches otherwise, rolls w"×len',
+                    # thickness last, hyphenated mixed numbers; a counted part's
+                    # "100 ct"/"20 oz"/"25 lb") and a brand-free, size-free
+                    # `name` ("Shower Base, Offset Drain", "Building Panel",
+                    # "Lean Curb", "Stainless Drain Cover", "Fastener Kit,
+                    # Screws & Washers with Tabs", "S-Dry Membrane, 104 sf";
+                    # CURB_NAMES / FIN_SHORT / SDRY_COVER_NAMES still feed the
+                    # words; a niche's interior rides `e.interior`, read by
+                    # showersf.js and comparemirror.js). `lineItems` lands
+                    # `brandColor: "wedi " + name` and `sizeText` — no dash
+                    # lead, no "wedi US… —"; a special-order line's US number
+                    # stays on the marker (`key`/`part`) and the print shows
+                    # it. `panTitle(e)` (size + name) is what option cards and
+                    # the kit view title with, since the name has no size.
+                    # The 2026-08-06 treatments (feet in the name, inches on
+                    # the second line, curb size blank) are superseded.
                     # The STOCK half is no longer transcribed (ADR 0037,
                     # 2026-09-01): `buildCatalog` reads `STOCK_SRC ||
                     # WEDI_STOCK`, and `setStockSource`/`clearStockSource`
@@ -1763,7 +1779,9 @@ src/
                     # The name's own size wins; `hint` (the item's sizeText /
                     # size) fills in when the name has none or holds the fuller
                     # size (curb profile, board sheet under the name's
-                    # thickness, band width × roll length). DISPLAY ONLY — the
+                    # thickness, band width × roll length). Since ADR 0054 the
+                    # entry names carry no size, so the hint is the usual
+                    # source (pinned in kitlabel.test.js). DISPLAY ONLY — the
                     # rows that land, the print, order entry and Compare's
                     # quote-option names keep the vendor text. Mounted by both
                     # build columns and every Compare line (Qty | Size + item |
@@ -1964,12 +1982,21 @@ src/
                     # 0018), with a builder-tier snapshot riding along; the
                     # anchor row carries `cfg` untouched so "Schluter —
                     # reconfigure" can re-run `buildKit` and replace the
-                    # kit's lines, companions carry `{ part: true }`. A
-                    # classified row whose name doesn't lead with a Schluter
-                    # family word gets a "Schluter — " brandColor lead (the
-                    # wedi idiom); a non-classified item (the Settings
-                    # mortar) never does — it isn't necessarily Schluter
-                    # goods. Geometry (the Iso/TopDown drawings) is
+                    # kit's lines, companions carry `{ part: true }`. ADR
+                    # 0054 (2026-10-01): `catalogOf` keeps the book's text on
+                    # `desc` and sets `name`/`size` from `partText(e)` —
+                    # derived from the classified part ("KERDI-SHOWER-T Tray"
+                    # · `38"x60"`, "KERDI-DRAIN Flange Kit, PVC" · `2"`,
+                    # "KERDI Membrane, 108 sf" · `3'3"x33'`, "KERDI-BOARD-SC
+                    # Curb" · `60"x6"x4-1/2"`), no brand word, the book text
+                    # only as the fallback for a code the grammar doesn't
+                    # size. `lineItems` lands `brandColor: e.name`,
+                    # `sizeText: e.size`; the old "Schluter — " lead is gone,
+                    # and a non-classified item (the Settings mortar) lands
+                    # its own name. The grammar also reads a point drain's
+                    # `pipe` + `material`, a KERECK pack's `ct`, a niche's mm
+                    # pair (its own table), and the EFT's slash-less roll
+                    # codes. Geometry (the Iso/TopDown drawings) is
                     # deliberately NOT this module's concern — that mapping
                     # lives in schluterdraw.js, and every live row this
                     # module sees crosses schluteradapter.js first.

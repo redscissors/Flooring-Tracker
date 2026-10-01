@@ -1,8 +1,9 @@
-// Harness (question 2026-10-01): the REAL EstimatePaper over the 090 fixture job
-// plus one wedi shower and one Schluter shower, each built by the real engine
-// off registry-shaped stock rows. `?names=stock` swaps every configurator line's
-// name/size for what a stock-book search pick of the SAME sku lands
-// (stockPatch), so the two sheets differ only in the words. No Supabase.
+// Harness (issue 165): the REAL EstimatePaper over the 090 fixture job plus one
+// wedi shower and one Schluter shower, each built by the real engine off
+// registry-shaped stock rows — so the sheet shows whatever the engines land
+// today. `?names=stock` swaps every configurator line's name/size for what a
+// stock-book search pick of the SAME sku lands (stockPatch); that variant was
+// the owner's 2026-10-01 question, kept for the record. No Supabase.
 import { createRoot } from "react-dom/client";
 import "../../src/index.css";
 import { EstimatePaper } from "../../src/EstimatePrint.jsx";
@@ -34,8 +35,8 @@ const srows = [
   { sku: "1509783", description: "KERDI MEMBRANE ROLL", vendorSkus: ["KERDI200/10M"], size: "3'3\"×33' = 108 sf", unit: "RL", price: 207.65, cost: 138.43 },
   { sku: "1509790", description: "90 Kerdi Kereck F Inside - KERECK/FI10 10/pk", vendorSkus: ["KERECK/FI10"], unit: "PK", cost: 48.61, price: 72.92 },
   { sku: "1509800", description: "Kerdi Drain Flange Kit - KD3FLKE Stainless", vendorSkus: ["KD3FLKE"], unit: "EA", price: 95.2, cost: 63.5 },
-  { sku: "1509810", description: "Kerdi Board SC Curb - KBSC115150152 60x6x4-1/2", vendorSkus: ["KBSC115150152"], size: '60"x6"x4-1/2"', unit: "EA", price: 88.1, cost: 58.7 },
-  { sku: "1509830", description: "Kerdi Band - KEBA100/125 5in x 33ft", vendorSkus: ["KEBA100/125"], unit: "RL", price: 44.2, cost: 29.5 },
+  { sku: "1509810", description: "Kerdi Board SC Curb - KBSC115150152 60x6x4-1/2", vendorSkus: ["KBSC1151501524"], size: '60"x6"x4-1/2"', unit: "EA", price: 88.1, cost: 58.7 },
+  { sku: "1509830", description: "Kerdi Band - KEBA100/125 5in x 33ft", vendorSkus: ["KEBA100/125/10M"], unit: "RL", price: 44.2, cost: 29.5 },
 ].map((r) => normOrderItem({ bookId: "bk_stock", ...r }));
 const sBySku = new Map(srows.map((it) => [String(it.sku), it]));
 const cfg = { w: 60, d: 38, curbed: true, drain: "point", wallSys: "membrane", walls: [{ on: true, len: 60, h: 84 }, { on: true, len: 38, h: 84 }, { on: true, len: 38, h: 84 }] };
@@ -51,7 +52,7 @@ const asStock = (rows, bySku) => rows.map((r) => {
 
 function Paper() {
   const sel = makeJob();
-  sel.name = STOCK ? "Shower lines — stock-book descriptions" : "Shower lines — configurator descriptions";
+  sel.name = STOCK ? "Shower lines — stock-book descriptions" : "Shower lines — size · name · SKU";
   sel.categories = sel.categories.slice(0, 2);
   sel.categories.push({ ...newArea(), name: "Master shower — wedi", option: "", products: STOCK ? asStock(wediRows, wediBySku) : wediRows });
   sel.categories.push({ ...newArea(), name: "Hall shower — Schluter", option: "", products: STOCK ? asStock(schRows, sBySku) : schRows });

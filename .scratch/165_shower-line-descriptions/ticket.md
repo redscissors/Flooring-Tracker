@@ -1,10 +1,10 @@
 ---
-issue_type: Question
+issue_type: Feature
 summary: wedi/Schluter lines print differently depending on whether a part was
   searched in from the stock book or landed by the configurator — what would the
   sheet look like with the stock-book descriptions?
-status: open
-labels: [needs-info]
+status: done
+labels: [ready-for-human]
 ---
 
 # Shower line descriptions — stock book vs configurator
@@ -39,3 +39,17 @@ swaps each line's name/size for what a search pick of the same SKU lands.
 - `configurator.pdf/.png` — today
 - `stock-book.pdf/.png` — stock-book descriptions on the same lines
 - `compare.png` — the two shower areas side by side
+
+## Landed (2026-10-01, ADR 0054)
+
+Owner decisions: size in the Size field, Product `wedi <Part>` / Schluter
+`<PRODUCT-LINE> <Part>` with no brand word, no dashes or marks, bases with
+thickness, extensions with both dimensions; print = one dark `size name` line +
+muted no-split `SKU n`; saved rows untouched; Schluter in the same pass.
+Spec `docs/superpowers/specs/2026-10-01-shower-line-descriptions-design.md`,
+plan `docs/superpowers/plans/2026-10-01-shower-line-descriptions.md`.
+
+Proof: `after.pdf` / `after.png` (the sheet as the engines land it now),
+`before-after.png` (the two shower areas, before vs after), `print-narrow.png`
+(a squeezed brand row — "SKU n" wraps as a unit), `grid/grid-wedi-schluter.png`
+(the editor grid: Size column filled on every landed row, Product free of sizes).

@@ -1,6 +1,6 @@
 # Shower line descriptions — wedi and Schluter rows read size · name · SKU — design
 
-**Date:** 2026-10-01 · **Status:** draft for owner review
+**Date:** 2026-10-01 · **Status:** implemented (ADR 0054; plan `docs/superpowers/plans/2026-10-01-shower-line-descriptions.md`)
 · **Mockup of the problem:** `.scratch/165_shower-line-descriptions/compare.png`
 (the same lines printed with configurator names and with stock-book names)
 · **Supersedes:** the 2026-08-06 naming ask recorded in `wedi.js` (`makeEntry`:
