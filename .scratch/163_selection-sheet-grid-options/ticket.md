@@ -34,3 +34,7 @@ totals + special-order note moved under the material columns. One page.
 - `C.pdf` — open columns: no horizontal rules on the right, verticals only
 - `A-totals-below.pdf` — A with the totals left at the bottom: two pages for N259
 - `compare-columns.png` — Today vs A/B/C close-up
+- `A-rule.pdf` / `B-rule.pdf` / `C-rule.pdf` (`&band=rule`) — no black band:
+  the area name on white with a 2px black rule under it (owner 2026-10-01);
+  one page
+- `compare-rule.png` — the three rule versions side by side

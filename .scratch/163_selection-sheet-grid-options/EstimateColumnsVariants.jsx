@@ -13,7 +13,7 @@ const CELL = "color-mix(in srgb, var(--ft-paper-band) 40%, #fff)";
 const DIAMOND = "◆";
 // Mockup knobs (issue 163): ?look=weight|gray|open  ?list=full|aligned|beside
 const Q = new URLSearchParams(location.search);
-const LOOK = Q.get("look") || "weight", LIST = Q.get("list") || "aligned";
+const LOOK = Q.get("look") || "weight", LIST = Q.get("list") || "aligned", BAND_RULE = Q.get("band") === "rule";
 const MAT_INK = LOOK === "gray" ? "#4d4d4d" : "var(--ft-text)";
 const MAT_SUB = LOOK === "gray" ? "#6e6e6e" : MUTED;
 const MAT_RULE = LOOK === "gray" ? "1px solid #a3a3a3" : "0.6px solid var(--ft-border)";
@@ -108,10 +108,15 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
     if (!rows.length) return null;
     return (
       <div key={a.id}>
-        <div className="ft-pband flex justify-between items-center" style={{ gap: 12, background: BAND, borderRadius: "3px 0 0 3px", padding: "1px 10px 1px 16px", marginTop: ai ? 0 : 5, breakAfter: "avoid" }}>
+        {BAND_RULE ? (
+          <div className="flex justify-between items-end" style={{ gap: 12, borderBottom: "2px solid var(--ft-text)", padding: `${ai ? 4 : 3}px 4px 1px 16px`, breakAfter: "avoid" }}>
+            <div className="uppercase" style={{ fontSize: 9, fontWeight: 800, letterSpacing: ".22em", color: DEEP }}>{areaPrintLabel(a, ai)}</div>
+            {full && <div className="ft-mono" style={{ fontSize: 9, color: MUTED, whiteSpace: "nowrap" }}>flooring {money(printAreaFloor(a, tSet))}</div>}
+          </div>
+        ) : <div className="ft-pband flex justify-between items-center" style={{ gap: 12, background: BAND, borderRadius: "3px 0 0 3px", padding: "1px 10px 1px 16px", marginTop: ai ? 0 : 5, breakAfter: "avoid" }}>
           <div className="uppercase" style={{ fontSize: 9, fontWeight: 800, letterSpacing: ".22em", color: DEEP }}>{areaPrintLabel(a, ai)}</div>
           {full && <div className="ft-mono" style={{ fontSize: 9, color: MUTED, whiteSpace: "nowrap" }}>flooring {money(printAreaFloor(a, tSet))}</div>}
-        </div>
+        </div>}
         {rows.map((p, pi) => productRow(p, pi, rows))}
       </div>
     );
