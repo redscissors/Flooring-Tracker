@@ -1,11 +1,11 @@
-import { Fragment, useEffect, useState } from "react";
-import { normPrintPricing } from "./pricing.js";
-import { wasteVaries } from "./catalog.js";
-import { money, wasteNote, rowBlank } from "./model.js";
-import { TLBL } from "./uiconst.js";
-import { printProduct, printAreaFloor, areaPrintLabel, u1 } from "./print.js";
-import { specLine, qtyCells, priceCells, lineCells, columnsUsed, gridSpec, jobListGroups, specialCheck, isOneLine, cellParts, loneUnnamedArea, fitColumns, stripRuled } from "./printcols.js";
-import { SheetHead } from "./sheethead.jsx";
+import { Fragment } from "react";
+import { normPrintPricing } from "../../src/pricing.js";
+import { wasteVaries } from "../../src/catalog.js";
+import { money, wasteNote, rowBlank } from "../../src/model.js";
+import { TLBL } from "../../src/uiconst.js";
+import { printProduct, printAreaFloor, areaPrintLabel, u1 } from "../../src/print.js";
+import { specLine, qtyCells, priceCells, lineCells, columnsUsed, gridSpec, jobListGroups, specialCheck, isOneLine, cellParts, loneUnnamedArea, matColumn } from "../../src/printcols.js";
+import { SheetHead } from "../../src/sheethead.jsx";
 
 const MUTED = "var(--ft-muted)", FAINT = "var(--ft-faint)", DEEP = "var(--ft-brand-deep)";
 const RULE = "var(--ft-paper-rule)", HAIR = "var(--ft-border)", BAND = "var(--ft-paper-band)";
@@ -16,23 +16,29 @@ const MAT_RULE = "0.6px solid var(--ft-border)";
 // the first material divider (owner 2026-10-01).
 const GUTTER = 6;
 const DIAMOND = "◆";
+// Mockup knobs (issue 164): ?lines=mat|both|row  ?fit=0 keeps today's fixed widths
+const Q = new URLSearchParams(location.search);
+const LINES = Q.get("lines") || "mat", FIT = Q.get("fit") !== "0";
+// Mockup-only: the seed's short catalog names → the longer names the live books carry.
+const LONG = { ProLite: "Custom Prolite Mortar White", AcrylPro: "Custom AcrylPro Tile Adhesive", "Ditra Underlayment Uncoupling Membrane": "Ditra Uncoupling Membrane 54 SF", "Aquabar B": "Aquabar B Underlayment 500 sf" };
+const CELL_FS = 7.6, PAD_X = 3, MIN_W = 56, MAX_W = 150, MAX_TOTAL = 330;
+let ctx;
+const textW = (t, weight = 500, fs = CELL_FS) => { ctx = ctx || document.createElement("canvas").getContext("2d"); ctx.font = `${weight} ${fs}px Manrope`; return ctx.measureText(t).width; };
+const twoLine = (t) => { const w = t.split(/\s+/).filter(Boolean); if (w.length < 2) return textW(t); let best = Infinity; for (let k = 1; k < w.length; k++) best = Math.min(best, Math.max(textW(w.slice(0, k).join(" ")), textW(w.slice(k).join(" ")))); return best; };
+function fitCols(cols, lines, gutter) {
+  if (!FIT) return cols;
+  const need = (m) => { const t = cellParts(m); return Math.max(t.sub ? Math.max(textW(t.name), textW(t.sub)) : twoLine(t.name), t.label ? textW(t.label, 800, 6.5) * 1.12 : 0); };
+  const ws = cols.map((col) => {
+    let w = textW(col.label.toUpperCase(), 800, 7.5) * 1.06 + 2;
+    for (const c of lines) for (const m of c.mats || []) if (matColumn(m) === col.key) w = Math.max(w, need(m) * 1.04 + gutter);
+    return Math.min(MAX_W, Math.max(MIN_W, Math.ceil(w + PAD_X * 2 + 1)));
+  });
+  const total = ws.reduce((a, b) => a + b, 0);
+  const k = total > MAX_TOTAL ? MAX_TOTAL / total : 1;
+  return cols.map((col, i) => ({ ...col, w: Math.max(MIN_W, Math.floor(ws[i] * k)) }));
+}
 const eyebrow = { fontSize: 7.5, fontWeight: 800, letterSpacing: ".14em", textTransform: "uppercase", color: FAINT };
 const kindLabel = { fontSize: 7, fontWeight: 800, letterSpacing: ".12em", textTransform: "uppercase", color: DEEP };
-const MAT_FS = 7.6, MAT_PAD = 3;
-
-let measureCtx;
-// Printed widths for fitColumns, in the cells' own type; null without a canvas.
-function matMeasure() {
-  if (measureCtx === undefined) measureCtx = typeof document === "undefined" ? null : document.createElement("canvas").getContext("2d");
-  const ctx = measureCtx;
-  if (!ctx) return null;
-  return (text, kind) => {
-    const caps = kind !== "cell", px = kind === "head" ? 7.5 : kind === "label" ? 6.5 : MAT_FS;
-    ctx.font = `${caps ? 800 : 500} ${px}px Manrope`;
-    const t = caps ? text.toUpperCase() : text;
-    return ctx.measureText(t).width + (caps ? t.length * px * (kind === "head" ? 0.05 : 0.12) : 0);
-  };
-}
 
 // The material-columns selection sheet (spec 2026-09-30, owner pick "G3c"):
 // products on the left, one column per install material beside them with the
@@ -44,11 +50,8 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
   const areas = optionPrint ? tv.proj.categories.filter((a) => !a.option) : tv.proj.categories;
   const liveRows = (cats) => cats.flatMap((a) => a.products.filter((p) => !rowBlank(p)));
   const allRows = [...liveRows(areas), ...(optionPrint ? optionPrint.sections.flatMap((S) => liveRows(S.cats)) : [])];
-  const computed = new Map(allRows.map((p) => [p.id, printProduct(p, tSet)]));
-  // Re-measure once the web font is in; before that the canvas sees a fallback face.
-  const [, setFontsIn] = useState(false);
-  useEffect(() => { document.fonts?.ready.then(() => setFontsIn(true)); }, []);
-  const cols = fitColumns(columnsUsed([...computed.values()]), [...computed.values()], matMeasure(), full ? 21 : 0);
+  const computed = new Map(allRows.map((p) => { const c = printProduct(p, tSet); return [p.id, { ...c, mats: c.mats.map((m) => ({ ...m, name: LONG[m.name] || m.name })) }]; }));
+  const cols = fitCols(columnsUsed([...computed.values()]).map((c) => (c.key === "mortar" ? { ...c, label: "Adhesive" } : c)), [...computed.values()], full ? 21 : 0);
   const g = gridSpec(pMode, cols);
   const { row: specialRow, mat: specialMat } = specialCheck(stockBookIds, stockSkus);
   const anySpecial = allRows.some((p) => specialRow(p) || computed.get(p.id).mats.some(specialMat))
@@ -56,10 +59,10 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
   const noHead = !optionPrint && loneUnnamedArea(areas);
   const areaCount = !optionPrint && !noHead && areas.length > 0 ? `${areas.length} ${areas.length === 1 ? "area" : "areas"} selected` : "";
   const hasShared = !!optionPrint && optionPrint.sharedT.grandTotal > 0;
-  const row = (left, mats, first, last, matRule) => (
+  const row = (left, mats, first, last, leftRule) => (
     <div style={{ display: "grid", gridTemplateColumns: g.outer, breakInside: "avoid" }}>
-      <div style={{ display: "grid", gridTemplateColumns: g.left, columnGap: 6, alignItems: "start", borderTop: first ? "none" : `1px solid ${HAIR}`, paddingRight: GUTTER, paddingBottom: last ? 3 : 0 }}>{left}</div>
-      {cols.length > 0 && <div style={{ display: "flex", borderTop: first ? "none" : matRule ? MAT_RULE : "0.6px solid transparent" }}>{mats}</div>}
+      <div style={{ display: "grid", gridTemplateColumns: g.left, columnGap: 6, alignItems: "start", borderTop: first || !leftRule ? "1px solid transparent" : `1px solid ${HAIR}`, paddingRight: GUTTER, paddingBottom: last ? 3 : 0 }}>{left}</div>
+      {cols.length > 0 && <div style={{ display: "flex" }}>{mats}</div>}
     </div>
   );
 
@@ -79,7 +82,7 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
       </div>
     );
   };
-  const cellStyle = { flex: "none", borderLeft: MAT_RULE, padding: `1px ${MAT_PAD}px`, fontSize: MAT_FS, lineHeight: 1.2 };
+  const cellStyle = { flex: "none", borderLeft: MAT_RULE, padding: `1px ${PAD_X}px`, fontSize: CELL_FS, lineHeight: 1.2 };
   const moneyCells = (q, pr, c, oneLine) => {
     const cell = { paddingTop: 2, fontSize: 8.8, lineHeight: 1.3, textAlign: "right", whiteSpace: "nowrap" };
     return (
@@ -93,7 +96,11 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
   const productRow = (p, pi, rows) => {
     const c = computed.get(p.id);
     const cells = lineCells(c);
-    const prevCells = pi > 0 ? lineCells(computed.get(rows[pi - 1].id)) : null;
+    const prev = pi > 0 ? lineCells(computed.get(rows[pi - 1].id)) : null;
+    const ruledCol = (k) => !!prev && (LINES === "old" || prev[k].length > 0 || cells[k].length > 0);
+    const anyRuled = cols.some((col) => ruledCol(col.key));
+    const ruled = (k) => (LINES === "row" ? anyRuled : ruledCol(k));
+    const leftRule = LINES !== "both" || cols.some((col) => ruled(col.key));
     const q = qtyCells(p, c), pr = priceCells(p, c);
     const oneLine = isOneLine(cells, cols, q, pr);
     const typeLbl = TLBL[p.type] || "";
@@ -114,7 +121,7 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
             </div>
           )}
           {moneyCells(q, pr, c, oneLine)}
-        </>, cols.map((col) => <div key={col.key} style={{ ...cellStyle, width: col.w }}>{cells[col.key].map(matItem)}</div>), pi === 0, pi === rows.length - 1, stripRuled(prevCells, cells, cols))}
+        </>, cols.map((col) => <div key={col.key} style={{ ...cellStyle, width: col.w, borderTop: ruled(col.key) ? MAT_RULE : "0.6px solid transparent" }}>{cells[col.key].map(matItem)}</div>), pi === 0, pi === rows.length - 1, leftRule)}
       </Fragment>
     );
   };
@@ -152,7 +159,7 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
   );
   const listCols = full ? "72px minmax(0,1fr) 54px 54px 52px 62px" : pMode === "unit" ? "72px minmax(0,1fr) 72px" : "72px minmax(0,1fr)";
   const jobList = (rows, title, freight) => {
-    const groups = jobListGroups(rows);
+    const groups = jobListGroups((rows || []).map((m) => ({ ...m, name: LONG[m.name] || m.name })));
     if (!groups.length) return null;
     const lr = { display: "grid", gridTemplateColumns: listCols, columnGap: 8, fontSize: 9.1, padding: "1.5px 0", alignItems: "baseline", breakInside: "avoid" };
     const subtotal = groups.reduce((t, gr) => t + gr.rows.reduce((u, r) => u + (r.total || 0), 0), 0);
@@ -167,7 +174,7 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
         </div>
         {groups.map((gr) => gr.rows.map((r, ri) => (
           <div key={`${gr.label}-${ri}`} style={{ ...lr, borderBottom: `1px solid ${ri === gr.rows.length - 1 ? RULE : HAIR}`, breakBefore: ri === 1 ? "avoid" : "auto" }}>
-            <span style={kindLabel}>{ri ? "" : gr.label}</span>
+            <span style={kindLabel}>{ri ? "" : gr.label === "Mortar" ? "Adhesive" : gr.label}</span>
             <span>{specialMat(r) ? `${DIAMOND} ` : ""}{r.name}{r.sku && <span style={{ color: FAINT }}> · SKU {r.sku}</span>}{r.detail && <span style={{ color: FAINT }}> · {r.detail}</span>}</span>
             {full && <><span className="ft-mono" style={{ textAlign: "right", color: MUTED, whiteSpace: "nowrap" }}>{r.needed}</span><span className="ft-mono" style={{ textAlign: "right", fontWeight: 700, whiteSpace: "nowrap" }}>{r.order > 0 ? `${r.order} ${u1(r.order, r.unit)}` : ""}</span></>}
             {pMode !== "none" && <span className="ft-mono" style={{ textAlign: "right", color: full ? MUTED : "inherit", whiteSpace: "nowrap" }}>{r.price > 0 ? money(r.price) : ""}</span>}
