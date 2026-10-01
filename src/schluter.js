@@ -33,7 +33,7 @@ const THICK_IN = { 3: '1/8"', 5: '3/16"', 9: '3/8"', 12: '1/2"', 19: '3/4"', 25:
 
 // Roll-size fallback table (used only when the sheet's "= N sf" text is
 // missing) — 5M/7M/10M/12M/20M rolls, "plain" = the unsuffixed full roll.
-const ROLL_SF = { 5: 54, 7: 75, 10: 108, 12: 128, 20: 215 };
+const ROLL_SF = { 5: 54, 7: 75, 10: 108, 12: 128, 15: 323, 20: 215 };
 const PLAIN_SF = 323;
 
 // KERDI-BAND seam-band roll lengths by /<n>M suffix; no suffix = full roll.
@@ -431,7 +431,7 @@ const ftIn = (n) => {
   return ft + "'" + (r > 1e-6 ? inchText(r) + '"' : "");
 };
 // roll lengths as the sheet prints them (10 m reads 33', not 32'10")
-const ROLL_LEN = { 5: "16'5\"", 7: "23'", 10: "33'", 12: "39'5\"", 20: "65'7\"", 30: "98'5\"" };
+const ROLL_LEN = { 5: "16'5\"", 7: "23'", 10: "33'", 12: "39'5\"", 15: "49'3\"", 20: "65'7\"", 30: "98'5\"" };
 const ROLL_W_IN = { narrow: 39, wide: 79 };
 const words = (s) => String(s || "").replace(/\b([a-z])/g, (m) => m.toUpperCase());
 function cleanBookName(e) {
@@ -455,7 +455,10 @@ export function partText(e) {
   } else if (g === "drain" && e.drain === "point") {
     size = e.pipe ? `${e.pipe}"` : "";
     name = "KERDI-DRAIN " + (e.part === "grate" ? "Grate" : "Flange Kit");
-    qual = e.material || "";
+    // a grate's style rides the code: …CS tileable, …D<n> a Vario design
+    const code = String(e.sku || "").replace(/^SLR/, "");
+    const style = e.part === "grate" ? (/CS$/.test(code) ? "Tileable" : VARIO_DESIGN[(/D(\d+)$/.exec(code) || [])[1]] || "") : "";
+    qual = [style, e.material].filter(Boolean).join(", ");
   } else if (g === "drain") {
     if (e.part === "flange") { size = '2"'; name = "KERDI-LINE-VARIO Flange Kit"; }
     else {
@@ -482,8 +485,11 @@ export function partText(e) {
     size = [w ? inchText(w) + '"' : "", e.lf ? ftIn(e.lf * 12) : ""].filter(Boolean).join("x");
     name = "KERDI-BAND";
   } else if (g === "curb") {
-    if (e.ramp) name = "KERDI-SHOWER-R Ramp";
-    else {
+    if (e.ramp) {
+      const mm = mmExactTokens(String(e.sku || "").replace(/^SLR?KSR/, "").replace(/\D.*$/, ""));
+      size = mm.length === 2 ? `${inchText(Math.min(...mm))}"x${inchText(Math.max(...mm))}"` : String(e.size || "");
+      name = "KERDI-SHOWER-R Ramp";
+    } else {
       const m = /^KBSC(\d{3})(\d{3})/.exec(String(e.sku || "").replace(/^SLR/, ""));
       const halfIn = (mm) => Math.round((Number(mm) / 25.4) * 2) / 2;
       const prof = m ? `x${inchText(halfIn(m[2]))}"x${inchText(halfIn(m[1]))}"` : "";
@@ -498,7 +504,9 @@ export function partText(e) {
     size = e.bw && e.bl ? `${inchText(e.bw)}"x${inchText(e.bl)}"${th ? "x" + th : ""}` : String(e.size || "");
     name = "KERDI-BOARD Panel";
   } else if (g === "extra" && e.extra === "niche") {
-    size = e.size || ""; name = "KERDI-BOARD-SN Niche";
+    const lit = /^(?:SLR)?KB12SNLT/.test(String(e.sku || ""));
+    size = !lit && /\d/.test(String(e.size || "")) ? e.size : "";
+    name = lit ? "KERDI-BOARD-SN-LT Lighted Niche" : "KERDI-BOARD-SN Niche";
   } else if (g === "extra" && e.extra === "bench" && e.bench) {
     const b = e.bench;
     size = b.corner ? `${inchText(b.a)}"x${inchText(b.a)}"x${BENCH_H}"` : b.len ? `${inchText(b.d)}"x${inchText(b.len)}"x${BENCH_H}"` : "";

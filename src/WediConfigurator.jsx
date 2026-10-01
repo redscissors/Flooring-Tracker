@@ -464,6 +464,8 @@ const stripSize = (name, sz) => {
   pats.forEach((p) => { try { out = out.replace(new RegExp(p, "i"), " "); } catch (x) { } });
   return out;
 };
+// a swap summary names the part WITH its size — the thickness is the point of a panel swap (ADR 0054)
+const sized = (e) => [e && e.sizeText, unwedi((e && e.name) || "")].filter(Boolean).join(" ");
 const browseName = (e) => unwedi(stripSize(e.name, e.sizeText))
   .replace(/\s{2,}/g, " ").replace(/[\s—–-]+$/, "").trim() || unwedi(e.name);
 const sizeLed = (e) => /^\d/.test(e.name);
@@ -2124,7 +2126,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
         <div className="bc-scroll">
           <div className="bc-h">
             <div className="t">The build</div>
-            <div className="sub">{pan ? (option ? option.title : unwedi(pan.name)) : "manual — from Browse"}
+            <div className="sub">{pan ? (option ? option.title : sized(pan)) : "manual — from Browse"}
               {pan && " · " + (wallSys === "membrane" ? "S-DRY membrane walls" : "Building Panel walls")}
               {pan && wallSys === "membrane" && (pan.sub !== "sdry" || sdryNear) && (
                 <button className="sdrychip" data-wedi-sdrychip title="reopen the Membrane floor choice"
@@ -2361,7 +2363,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
       <SwapPop at={{ anchor: swap.anchor, x: r.right - 470, y: r.bottom + 6 }} className="wedi-swap wedi-grown"
         title={lin ? `Linear cover — ${committed.len}″ channel` : "Drain cover — 4×4"} rows={rows}
         summary={{
-          what: unwedi(draft.name) + (draft.stock ? "" : " · special order"),
+          what: sized(draft) + (draft.stock ? "" : " · special order"),
           why: lin ? "follows the channel length if the room changes" : "",
           delta: fmDelta(d), total: fm(tierOf(draft)), up: d > 0,
         }}
@@ -2396,7 +2398,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
       <SwapPop at={{ anchor: swap.anchor, x: r.right - 470, y: r.bottom + 6 }} className="wedi-swap wedi-grown"
         title={`Curb — ${round2(openLen)}″ of open edge`} rows={rows} stockFirst={source === "stock"}
         summary={{
-          what: res.item ? `${res.qty} × ${unwedi(res.item.name)}${res.item.stock ? "" : " · special order"}` : "No curb",
+          what: res.item ? `${res.qty} × ${sized(res.item)}${res.item.stock ? "" : " · special order"}` : "No curb",
           why: res.note || (res.item ? "Auto re-fits if the opening changes" : ""),
           delta: fmDelta(round2(next - curTotal)), total: fm(next), up: next > curTotal,
         }}
@@ -2428,7 +2430,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
       <SwapPop at={{ anchor: swap.anchor, x: r.right - 470, y: r.bottom + 6 }} className="wedi-swap wedi-grown"
         title={`Wall panel — ${round2(build.panelSf)} sf of wall`} rows={rows} stockFirst={source === "stock"}
         summary={{
-          what: `${sheets} × ${unwedi(draft.name)}${draft.stock ? "" : " · special order"}`,
+          what: `${sheets} × ${sized(draft)}${draft.stock ? "" : " · special order"}`,
           why: `${draft.sf} sf/sheet — the count follows the wall area${(build.benches || []).some((b) => b.build === "framed") ? "; the bench wrap follows the wall panel" : ""}`,
           delta: fmDelta(round2(next - curTotal)), total: fm(next), up: next > curTotal,
         }}
@@ -2496,7 +2498,7 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
     const summaryFor = (e) => {
       const q = add.replace ? oldQty : add.qty;
       const d = round2(tierOf(e) * q - (old ? tierOf(old) * q : 0));
-      return { what: (q > 1 ? q + " × " : "") + unwedi(e.name) + (e.stock ? "" : " · special order"), why: e.stock ? e.erp : "SO " + e.us, delta: fmDelta(d), total: fm(round2(sell + d)), up: d > 0 };
+      return { what: (q > 1 ? q + " × " : "") + sized(e) + (e.stock ? "" : " · special order"), why: e.stock ? e.erp : "SO " + e.us, delta: fmDelta(d), total: fm(round2(sell + d)), up: d > 0 };
     };
     const use = (e) => {
       if (add.replace) {

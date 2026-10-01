@@ -219,3 +219,20 @@ test("specParts: the SKU is its own part so the sheet can keep it on one line", 
   assert.deepEqual(specParts(tile, printProduct(tile, s)), ['12"×24"', "11.6 SF/ct", "SKU 1504065"]);
   assert.equal(specLine(tile, printProduct(tile, s)), '12"×24" · 11.6 SF/ct · SKU 1504065');
 });
+
+test("brandRow: a row landed before ADR 0054 keeps the standard treatment (its old text would double the size)", () => {
+  const legacyWedi = { ...newProduct(), type: "misc", sizeText: '36" x 60" x 1 37/64"', brandColor: "wedi — 3'x5' Shower Base", sku: "1504156", wedi: { mode: "kit", cfg: {}, key: "US9100004" } };
+  assert.equal(brandRow(legacyWedi), null);
+  const legacyMark = { ...newProduct(), type: "misc", sizeText: "25 lbs. Bag", brandColor: "wedi®PRO-SET™ Tile Adhesive", sku: "1518109", wedi: { part: "US5076012" } };
+  assert.equal(brandRow(legacyMark), null);
+  const legacySo = { ...newProduct(), type: "misc", sizeText: "", brandColor: "wedi US9100004 — 3'x5' Shower Base", sku: "", wedi: { part: true } };
+  assert.equal(brandRow(legacySo), null);
+  const legacySch = { ...newProduct(), type: "misc", sizeText: "3'3\"×33' = 108 sf", brandColor: "Kerdi Membrane Roll", sku: "1509783", schluter: { part: "KERDI200/10M" } };
+  assert.equal(brandRow(legacySch), null);
+  const legacySch2 = { ...newProduct(), type: "misc", sizeText: "", brandColor: "Kerdi Drain Flange Kit - KD3FLKE Stainless", sku: "1509800", schluter: { part: "KD3FLKE" } };
+  assert.equal(brandRow(legacySch2), null);
+  const legacySch3 = { ...newProduct(), type: "misc", sizeText: "", brandColor: "Schluter — Kerdi-Shower-T Tray 38 X 60 Pvc", sku: "1509821", schluter: { key: "KST965/1525", mode: "kit", cfg: {} } };
+  assert.equal(brandRow(legacySch3), null);
+  // a new-shape row with no size still qualifies
+  assert.deepEqual(brandRow({ ...newProduct(), type: "misc", sizeText: "", brandColor: "wedi Corner Putty Knife", sku: "47822", wedi: { part: "US5000044" } }), { lead: "wedi Corner Putty Knife", tail: "SKU 47822" });
+});

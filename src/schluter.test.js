@@ -529,6 +529,20 @@ test("Schluter landed rows: Size field + brand-free name, the 2026-10-01 table",
   t("KB12SN305711A1", '12"x28"', "KERDI-BOARD-SN Niche");
   t("SLRKBSB410TA", '16"x16"x20"', "KERDI-BOARD-SB Bench, Triangular");
   t("SLRSETA50W", "50 lb", "ALL-SET Thin-set");
+  // review fixes (2026-10-01): grate styles stay distinct, the lighted niche keeps its identity, the wide 15 m roll has a length
+  const more = catalogOf(adaptBookRows([
+    row("1509764", "KERDI-DRAIN grate 4\" tileable", "", ["KD4GRKECS"]),
+    row("1509768", "KERDI-DRAIN grate kit 4\" floral brushed SS", "", ["KDIF4GRKEBD5"]),
+    row("1509752", "KERDI-BOARD-SN-LT lighted niche 12\"×20\"", "warm white", ["KB12SNLT2WW"]),
+    row("1509786", "KERDI 200 wide roll", "6'7\"x49'3\" = 323 sf", ["KERDI200200/15M"]),
+    row("1509740", "KERDI-SHOWER-R ramp", "12\"x48\"", ["KSR3051220"]),
+  ], { stock: true }));
+  const m = (code, size, name) => { const e = more.find((x) => x.sku === code); assert.ok(e, code); assert.deepEqual([e.size, e.name], [size, name], code); };
+  m("KD4GRKECS", '4"', "KERDI-DRAIN Grate, Tileable, Stainless");
+  m("KDIF4GRKEBD5", '4"', "KERDI-DRAIN Grate, Floral, Brushed Stainless");
+  m("KB12SNLT2WW", "", "KERDI-BOARD-SN-LT Lighted Niche");
+  m("KERDI200200/15M", "6'7\"x49'3\"", "KERDI Membrane, 323 sf");
+  m("KSR3051220", '12"x48"', "KERDI-SHOWER-R Ramp");
   assert.ok(cat.every((e) => !/schluter|—|®/i.test(e.name) && typeof e.desc === "string"), "no brand word, dash or mark; the book text kept on desc");
   // landed: brandColor is the name, sizeText the size
   const c = { w: 60, d: 38, curbed: true, drain: "point", wallSys: "membrane", walls: [{ on: true, len: 60, h: 84 }, { on: true, len: 38, h: 84 }, { on: true, len: 38, h: 84 }] };

@@ -21,9 +21,14 @@ export const specLine = (p, c) => specParts(p, c).join(" · ");
 // Size field verbatim then the name, and a muted tail — the shop SKU, or the
 // vendor part number off the marker for a special-order line. Null for any
 // other row, however wedi-looking its text.
+// A row landed before ADR 0054 carries the old text (a dash lead, a brand
+// mark, a spaced "36\" x 60\"" size, the book's "= 108 sf") — the standard
+// treatment still fits it; the new one would print its size twice.
+const LEGACY_TEXT = /[—®™×=]|\s[xX-]\s|^wedi US\d|^Schluter\s/;
 export function brandRow(p) {
   const m = (p && (p.wedi || p.schluter)) || null;
   if (!m || typeof m !== "object") return null;
+  if (LEGACY_TEXT.test(String(p.brandColor || "")) || LEGACY_TEXT.test(String(p.sizeText || ""))) return null;
   const lead = [p.sizeText, p.brandColor].map((x) => String(x || "").trim()).filter(Boolean).join(" ");
   const part = typeof m.key === "string" ? m.key : typeof m.part === "string" ? m.part : "";
   return { lead, tail: p.sku ? `SKU ${p.sku}` : part };

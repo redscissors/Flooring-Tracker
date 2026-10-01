@@ -82,6 +82,10 @@ test("wedi catalog: a non-dimensional item's count is its size, the contents its
   t(SKU.subliner53, "39\"x16'", "Subliner Dry Roll, 53 sf");
   t(SKU.subCornerIn, "", "Subliner Dry Inside Corner, 2 per bag");
   assert.equal(item("095225053").sizeText, "5\"x82'", "mesh tape reads width by roll length");
+  // review fixes (2026-10-01): a roll length that isn't whole feet reads feet-and-inches; a bare "24x48" in an S-Dry name never prints twice
+  assert.equal(item("US5000002").sizeText, "5\"x32'10\"", "sealing tape roll length");
+  assert.deepEqual([item("US3076003").sizeText, item("US3076003").name], ['24"x48"', "S-Dry Extension"]);
+  assert.deepEqual([item("US2076001").sizeText, item("US2076001").name], ["38\"x64\"", "S-Dry Shower Kit"]);
 });
 
 // --- pans ---------------------------------------------------------------------

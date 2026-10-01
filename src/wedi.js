@@ -3984,7 +3984,12 @@ export function sizeOf(w, d, t, opts) {
   const side = (n) => (feet ? ftIn(n) : measure(n) + '"');
   return side(w) + "x" + side(d) + (t != null ? "x" + measure(t) + '"' : "");
 }
-const rollSize = (w, len) => measure(w) + '"x' + ftIn(len);
+// a roll's length reads feet-and-inches to the inch (32.8' → 32'10")
+const rollSize = (w, len) => {
+  const ft = Math.floor(len / 12 + 1e-9), r = Math.round(len - ft * 12);
+  return measure(w) + '"x' + (r >= 12 ? ft + 1 + "'" : ft + "'" + (r ? r + '"' : ""));
+};
+const BARE_DIMS_RE = /\b\d+(?:\.\d+)?\s*[x×]\s*\d+(?:\.\d+)?\b/i;
 
 const NUMTOK = "(?:\\d+[ -]\\d+\\/\\d+|\\d+\\/\\d+|\\d+(?:\\.\\d+)?)";
 const DIMTOK = NUMTOK + "\\s*(?:\"|″|in\\.?|')";
@@ -4330,7 +4335,7 @@ function entryText(e, name, soRow) {
   let size = "", out = "", qual = "";
   if (g === "pan" || g === "kit") {
     size = sizeOf(e.w, e.d, g === "pan" ? e.t : null, { feet: true });
-    out = g === "kit" ? cleanName(stripDims(name))
+    out = g === "kit" ? cleanName(stripDims(name).replace(BARE_DIMS_RE, " "))
       : e.sub === "curbless" ? "Curbless Shower Base" : e.sub === "linear" ? "Linear Shower Base"
         : e.sub === "sdry" ? "S-Dry Shower Base" : "Shower Base";
     if (g === "pan" && e.drain && e.drain.type === "offset") qual = "Offset Drain";
@@ -4364,6 +4369,7 @@ function entryText(e, name, soRow) {
     else size = qtyOf(content);
     const sf = SF_RE.exec(name) || SF_RE.exec(content);
     let body = stripDims(name).replace(SF_RE, " ");
+    if (e.w && e.d) body = body.replace(BARE_DIMS_RE, " ");
     if (size && qtyOf(body) === size) body = body.replace(QTY_RE, " ");
     if (g === "sdry") body = body.replace(/\bShower Pipe Collar\b/, "Pipe Collar").replace(/\s+Full\s*$/, "");
     out = cleanName(body);
