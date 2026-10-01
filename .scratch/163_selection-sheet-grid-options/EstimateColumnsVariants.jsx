@@ -1,18 +1,23 @@
 import { Fragment } from "react";
-import { normPrintPricing } from "./pricing.js";
-import { wasteVaries } from "./catalog.js";
-import { money, wasteNote, rowBlank } from "./model.js";
-import { TLBL } from "./uiconst.js";
-import { printProduct, printAreaFloor, areaPrintLabel, u1 } from "./print.js";
-import { specLine, qtyCells, priceCells, lineCells, columnsUsed, gridSpec, jobListGroups, specialCheck, isOneLine, cellParts, loneUnnamedArea } from "./printcols.js";
-import { SheetHead } from "./sheethead.jsx";
+import { normPrintPricing } from "../../src/pricing.js";
+import { wasteVaries } from "../../src/catalog.js";
+import { money, wasteNote, rowBlank } from "../../src/model.js";
+import { TLBL } from "../../src/uiconst.js";
+import { printProduct, printAreaFloor, areaPrintLabel, u1 } from "../../src/print.js";
+import { specLine, qtyCells, priceCells, lineCells, columnsUsed, gridSpec, jobListGroups, specialCheck, isOneLine, cellParts } from "../../src/printcols.js";
+import { SheetHead } from "../../src/sheethead.jsx";
 
 const MUTED = "var(--ft-muted)", FAINT = "var(--ft-faint)", DEEP = "var(--ft-brand-deep)";
 const RULE = "var(--ft-paper-rule)", HAIR = "var(--ft-border)", BAND = "var(--ft-paper-band)";
-// The material strip reads lighter than the products: a thinner rule, regular
-// weight (owner 2026-10-01, issue 163 — still 100% black on paper).
-const MAT_RULE = "0.6px solid var(--ft-border)";
+const CELL = "color-mix(in srgb, var(--ft-paper-band) 40%, #fff)";
 const DIAMOND = "◆";
+// Mockup knobs (issue 163): ?look=weight|gray|open  ?list=full|aligned|beside
+const Q = new URLSearchParams(location.search);
+const LOOK = Q.get("look") || "weight", LIST = Q.get("list") || "aligned", BAND_RULE = Q.get("band") === "rule", CELL_MODE = Q.get("cell") || "stack";
+const MAT_INK = LOOK === "gray" ? "#4d4d4d" : "var(--ft-text)";
+const MAT_SUB = LOOK === "gray" ? "#6e6e6e" : MUTED;
+const MAT_RULE = LOOK === "gray" ? "1px solid #a3a3a3" : "0.6px solid var(--ft-border)";
+const MAT_NAME_W = LOOK === "gray" ? 700 : 500, MAT_AMT_W = LOOK === "gray" ? 700 : 600;
 const eyebrow = { fontSize: 7.5, fontWeight: 800, letterSpacing: ".14em", textTransform: "uppercase", color: FAINT };
 const kindLabel = { fontSize: 7, fontWeight: 800, letterSpacing: ".12em", textTransform: "uppercase", color: DEEP };
 
@@ -27,38 +32,69 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
   const liveRows = (cats) => cats.flatMap((a) => a.products.filter((p) => !rowBlank(p)));
   const allRows = [...liveRows(areas), ...(optionPrint ? optionPrint.sections.flatMap((S) => liveRows(S.cats)) : [])];
   const computed = new Map(allRows.map((p) => [p.id, printProduct(p, tSet)]));
-  const cols = columnsUsed([...computed.values()]);
+  const COL_W = { grout: 102, mortar: 74, underlay: 94, other: 90 };
+  const cols = columnsUsed([...computed.values()]).map((c) => (CELL_MODE === "stack" ? c : { ...c, w: COL_W[c.key] }));
   const g = gridSpec(pMode, cols);
   const { row: specialRow, mat: specialMat } = specialCheck(stockBookIds, stockSkus);
   const anySpecial = allRows.some((p) => specialRow(p) || computed.get(p.id).mats.some(specialMat))
     || [...(pMats || []), ...(optionPrint ? optionPrint.sections.flatMap((S) => S.t.pMats) : [])].some(specialMat);
-  const noHead = !optionPrint && loneUnnamedArea(areas);
-  const areaCount = !optionPrint && !noHead && areas.length > 0 ? `${areas.length} ${areas.length === 1 ? "area" : "areas"} selected` : "";
+  const areaCount = !optionPrint && areas.length > 0 ? `${areas.length} ${areas.length === 1 ? "area" : "areas"} selected` : "";
   const hasShared = !!optionPrint && optionPrint.sharedT.grandTotal > 0;
+  const leftTemplate = g.template.split(" ").slice(0, g.template.split(" ").length - cols.length).join(" ")
+    .replace(CELL_MODE === "stack" ? /^$/ : / 38px/, " 34px").replace(CELL_MODE === "stack" ? /^$/ : / 60px/, " 50px");
+  const matsW = cols.reduce((t, c) => t + c.w, 0);
+  const outer = cols.length ? `minmax(0,1fr) ${matsW}px` : "minmax(0,1fr)";
   const row = (left, mats, first, last) => (
-    <div style={{ display: "grid", gridTemplateColumns: g.outer, columnGap: 6, breakInside: "avoid" }}>
-      <div style={{ display: "grid", gridTemplateColumns: g.left, columnGap: 6, alignItems: "start", borderTop: first ? "none" : `1px solid ${HAIR}`, paddingBottom: last ? 3 : 0 }}>{left}</div>
-      {cols.length > 0 && <div style={{ display: "flex", borderTop: first ? "none" : MAT_RULE, borderBottom: last ? MAT_RULE : "none", borderRight: MAT_RULE }}>{mats}</div>}
+    <div style={{ display: "grid", gridTemplateColumns: outer, columnGap: 6, breakInside: "avoid" }}>
+      <div style={{ display: "grid", gridTemplateColumns: leftTemplate, columnGap: 6, alignItems: "start", borderTop: first ? "none" : `1px solid ${HAIR}`, paddingBottom: last ? 3 : 0 }}>{left}</div>
+      {cols.length > 0 && <div style={{ display: "flex", borderTop: first || LOOK === "open" ? "none" : MAT_RULE, borderBottom: last && LOOK !== "open" ? MAT_RULE : "none", borderRight: MAT_RULE }}>{mats}</div>}
     </div>
   );
 
-  // Amount first, its unit small beneath, the name beside (owner pick 3).
   const matItem = (m, i) => {
     const t = cellParts(m);
+    const name = <>{specialMat(m) ? `${DIAMOND} ` : ""}{t.name}</>;
+    const label = t.label && <div style={{ ...kindLabel, fontSize: 6.5, color: LOOK === "gray" ? MAT_SUB : DEEP }}>{t.label}</div>;
+    if (CELL_MODE === "stack") return (
+      <div key={i} style={{ marginTop: i ? 2 : 0 }}>
+        {label}
+        <div style={{ fontWeight: MAT_NAME_W }}>{name}</div>
+        {t.color && <div style={{ color: MAT_SUB }}>{t.color}</div>}
+        {(full || t.left) && (
+          <div className="flex justify-between" style={{ gap: 4, alignItems: "baseline" }}>
+            <span style={{ color: MAT_SUB }}>{t.left}</span>
+            {full && <span style={{ fontWeight: MAT_AMT_W, whiteSpace: "nowrap" }}>{t.amount}</span>}
+          </div>
+        )}
+      </div>
+    );
+    const num = m.exact > 0 ? (Math.round(m.exact * 10) / 10).toFixed(1) : "—";
+    const unit = m.exact > 0 ? u1(Math.round(m.exact * 10) / 10, m.unit) : "";
+    const sub = [t.color, t.left].filter(Boolean).join(" · ");
+    if (CELL_MODE === "split") return (
+      <div key={i} style={{ marginTop: i ? 3 : 0 }}>
+        {label}
+        <div className="flex justify-between" style={{ gap: 4, alignItems: "baseline" }}>
+          <span>{name}</span>
+          {full && <span style={{ fontWeight: 800, whiteSpace: "nowrap" }}>{num}</span>}
+        </div>
+        {sub && <div style={{ color: MAT_SUB }}>{sub}</div>}
+      </div>
+    );
     return (
       <div key={i} style={{ marginTop: i ? 3 : 0 }}>
-        {t.label && <div style={{ ...kindLabel, fontSize: 6.5 }}>{t.label}</div>}
+        {label}
         <div style={{ display: "grid", gridTemplateColumns: full ? "17px minmax(0,1fr)" : "minmax(0,1fr)", columnGap: 4, alignItems: "baseline" }}>
-          {full && <div style={{ textAlign: "right" }}><div style={{ fontWeight: 800 }}>{t.qty}</div>{t.unit && <div style={{ fontSize: 6, color: MUTED, lineHeight: 1.1 }}>{t.unit}</div>}</div>}
+          {full && <div style={{ textAlign: "right" }}><div style={{ fontWeight: 800 }}>{num}</div>{CELL_MODE === "leadunit" && unit && <div style={{ fontSize: 6, color: MAT_SUB, lineHeight: 1.1 }}>{unit}</div>}</div>}
           <div style={{ minWidth: 0 }}>
-            <div>{specialMat(m) ? `${DIAMOND} ` : ""}{t.name}</div>
-            {t.sub && <div style={{ color: MUTED }}>{t.sub}</div>}
+            <div>{name}</div>
+            {sub && <div style={{ color: MAT_SUB }}>{sub}</div>}
           </div>
         </div>
       </div>
     );
   };
-  const cellStyle = { flex: "none", borderLeft: MAT_RULE, padding: "2px 4px", fontSize: 7.6, lineHeight: 1.22 };
+  const cellStyle = { flex: "none", borderLeft: MAT_RULE, padding: "2px 4px", fontSize: 7.6, lineHeight: 1.22, color: MAT_INK };
   const moneyCells = (q, pr, c, oneLine) => {
     const cell = { paddingTop: 2, fontSize: 8.8, lineHeight: 1.3, textAlign: "right", whiteSpace: "nowrap" };
     return (
@@ -96,36 +132,39 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
       </Fragment>
     );
   };
-  // The band sits flush on the grid above; its total covers the product rows
-  // only, so it ends under Total, and a one-item area skips it (owner 2026-10-01).
+  const printedAreas = areas.filter((a) => a.products.some((p) => !rowBlank(p)));
+  const loneUnnamed = !optionPrint && printedAreas.length === 1 && !(printedAreas[0].name || "").trim();
   const areaBlock = (a, ai) => {
     const rows = a.products.filter((p) => !rowBlank(p));
     if (!rows.length) return null;
     return (
       <div key={a.id}>
-        {!noHead && (
-          <div className="ft-pband" style={{ display: "grid", gridTemplateColumns: g.outer, columnGap: 6, alignItems: "center", background: BAND, borderRadius: "3px 0 0 3px", padding: "1px 0 1px 16px", marginTop: ai ? 0 : 5, breakAfter: "avoid" }}>
-            <div className="flex justify-between items-center" style={{ gap: 12, minWidth: 0 }}>
-              <div className="uppercase" style={{ fontSize: 9, fontWeight: 800, letterSpacing: ".22em", color: DEEP }}>{areaPrintLabel(a, ai)}</div>
-              {full && rows.length > 1 && <div className="ft-mono" style={{ fontSize: 9, color: MUTED, whiteSpace: "nowrap" }}>Area Total {money(printAreaFloor(a, tSet))}</div>}
-            </div>
-            {cols.length > 0 && <div />}
+        {loneUnnamed ? null : BAND_RULE ? (
+          <div className="flex justify-between items-baseline" style={{ gap: 12, borderBottom: "2px solid var(--ft-text)", padding: `${ai ? 5 : 4}px 4px 0.5px 16px`, breakAfter: "avoid" }}>
+            <div className="uppercase" style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: ".16em", lineHeight: 1, color: "var(--ft-text)" }}>{areaPrintLabel(a, ai)}</div>
+            {full && <div className="ft-mono" style={{ fontSize: 9, lineHeight: 1, color: MUTED, whiteSpace: "nowrap" }}>flooring {money(printAreaFloor(a, tSet))}</div>}
           </div>
-        )}
+        ) : <div className="ft-pband" style={{ display: "grid", gridTemplateColumns: outer, columnGap: 6, alignItems: "center", background: BAND, borderRadius: "3px 0 0 3px", padding: "1px 0 1px 16px", marginTop: ai ? 0 : 5, breakAfter: "avoid" }}>
+          <div className="flex justify-between items-center" style={{ gap: 12, minWidth: 0 }}>
+            <div className="uppercase" style={{ fontSize: 9, fontWeight: 800, letterSpacing: ".22em", color: DEEP }}>{areaPrintLabel(a, ai)}</div>
+            {full && rows.length > 1 && <div className="ft-mono" style={{ fontSize: 9, color: MUTED, whiteSpace: "nowrap" }}>Area total {money(printAreaFloor(a, tSet))}</div>}
+          </div>
+          {cols.length > 0 && <div />}
+        </div>}
         {rows.map((p, pi) => productRow(p, pi, rows))}
       </div>
     );
   };
   const header = (
-    <div style={{ display: "grid", gridTemplateColumns: g.outer, columnGap: 6, borderBottom: "1px solid var(--ft-text)", padding: "8px 0 3px", breakAfter: "avoid" }}>
-      <div style={{ display: "grid", gridTemplateColumns: g.left, columnGap: 6 }}>
+    <div style={{ display: "grid", gridTemplateColumns: outer, columnGap: 6, borderBottom: "1px solid var(--ft-text)", padding: "8px 0 3px", breakAfter: "avoid" }}>
+      <div style={{ display: "grid", gridTemplateColumns: leftTemplate, columnGap: 6 }}>
         <div />
         <div style={eyebrow}>Product</div>
         {g.money.qty && <div style={{ ...eyebrow, textAlign: "right", marginRight: "-.14em" }}>Qty</div>}
         {g.money.price && <div style={{ ...eyebrow, textAlign: "right", marginRight: "-.14em" }}>Price</div>}
         {g.money.total && <div style={{ ...eyebrow, textAlign: "right", marginRight: "-.14em" }}>Total</div>}
       </div>
-      {cols.length > 0 && <div style={{ display: "flex", borderRight: MAT_RULE }}>{cols.map((col) => <div key={col.key} style={{ ...eyebrow, flex: "none", width: col.w, letterSpacing: ".05em", paddingLeft: 4, borderLeft: MAT_RULE }}>{col.label}</div>)}</div>}
+      {cols.length > 0 && <div style={{ display: "flex", borderRight: MAT_RULE }}>{cols.map((col) => <div key={col.key} style={{ ...eyebrow, color: LOOK === "gray" ? MAT_SUB : FAINT, flex: "none", width: col.w, letterSpacing: ".05em", paddingLeft: 4, borderLeft: MAT_RULE }}>{col.label}</div>)}</div>}
     </div>
   );
   const listCols = full ? "72px minmax(0,1fr) 54px 54px 52px 62px" : pMode === "unit" ? "72px minmax(0,1fr) 72px" : "72px minmax(0,1fr)";
@@ -161,6 +200,43 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
       </div>
     );
   };
+  // The list keeps the product block's width — Order under Qty, Each under
+  // Price, Total under Total — until that block gets too narrow for it.
+  const aligned = LIST !== "full" && full && !optionPrint && matsW <= 280;
+  const alignedList = (rows) => {
+    const groups = jobListGroups(rows);
+    if (!groups.length) return null;
+    const tmpl = leftTemplate.replace("10px minmax(0,1fr)", "minmax(0,1fr) 30px");
+    const lr = { display: "grid", gridTemplateColumns: tmpl, columnGap: 6, fontSize: 8.5, lineHeight: 1.28, padding: "1.5px 0", alignItems: "baseline", breakInside: "avoid" };
+    const num = { textAlign: "right", whiteSpace: "nowrap" };
+    const hd = { ...eyebrow, textAlign: "right", marginRight: "-.14em" };
+    const subtotal = groups.reduce((t, gr) => t + gr.rows.reduce((u, r) => u + (r.total || 0), 0), 0);
+    return (
+      <div>
+        <div className="uppercase" style={{ fontSize: 9, fontWeight: 800, letterSpacing: ".2em", color: DEEP, margin: "8px 0 2px", breakAfter: "avoid" }}>Install materials — job order</div>
+        <div style={{ ...lr, borderBottom: "1px solid var(--ft-text)", breakAfter: "avoid" }}>
+          <span style={eyebrow}>Item</span>
+          <span style={hd}>Need</span><span style={hd}>Order</span><span style={hd}>Each</span><span style={hd}>Total</span>
+        </div>
+        {groups.map((gr) => gr.rows.map((r, ri) => (
+          <Fragment key={`${gr.label}-${ri}`}>
+            {ri === 0 && <div style={{ ...kindLabel, padding: "2.5px 0 0", fontSize: 6.5, breakAfter: "avoid" }}>{gr.label}</div>}
+            <div style={{ ...lr, borderTop: ri ? `1px solid ${HAIR}` : "none" }}>
+              <span>{specialMat(r) ? `${DIAMOND} ` : ""}{r.name}{r.sku && <span style={{ color: FAINT }}> · SKU {r.sku}</span>}{r.detail && <span style={{ color: FAINT }}> · {r.detail}</span>}</span>
+              <span className="ft-mono" style={{ ...num, color: MUTED }}>{r.needed ? r.needed.replace(/ .*/, "") : ""}</span>
+              <span className="ft-mono" style={{ ...num, fontWeight: 700 }}>{r.order > 0 ? `${r.order} ${u1(r.order, r.unit)}` : ""}</span>
+              <span className="ft-mono" style={{ ...num, color: MUTED }}>{r.price > 0 ? money(r.price) : ""}</span>
+              <span className="ft-mono" style={{ ...num, fontWeight: 800 }}>{r.total > 0 ? money(r.total) : ""}</span>
+            </div>
+          </Fragment>
+        )))}
+        <div style={{ ...lr, borderTop: "1px solid var(--ft-text)", fontWeight: 800, marginTop: 2 }}>
+          <span>{freightCost > 0 ? "Materials & freight subtotal" : "Install materials subtotal"}</span><span /><span /><span />
+          <span className="ft-mono" style={num}>{money(subtotal)}</span>
+        </div>
+      </div>
+    );
+  };
   const specialLine = anySpecial && <div style={{ fontSize: 9.5 }}><b>{DIAMOND} Special order</b> — special-order items can&apos;t be returned.</div>;
   const waste = wasteNote(jobWaste, wVar);
   const totalRow = (label, value, strong) => (
@@ -173,9 +249,24 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
       <SheetHead sel={sel} people={people} profile={profile} tv={tv} scopeNote={scopeNote} areaCount={areaCount} />
       {header}
       {areas.map(areaBlock)}
-      <div style={{ borderTop: "2px solid var(--ft-text)", marginTop: 8 }}>
+      {aligned ? (
+        <div style={{ position: "relative", borderTop: "2px solid var(--ft-text)", marginTop: 8 }}>
+          <div style={{ marginRight: matsW + 6 }}>{alignedList(pMats)}</div>
+          {LIST === "beside" && specialLine && <div style={{ position: "absolute", right: 0, top: 10, width: matsW, paddingLeft: 14, boxSizing: "border-box" }}>{specialLine}</div>}
+          {LIST === "beside" && (
+            <div style={{ position: "absolute", right: 0, bottom: 0, width: matsW, paddingLeft: 14, boxSizing: "border-box" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "2px 12px", fontSize: 10.5 }}>
+                {totalRow("Flooring & trim", flooringPrice + miscCost)}
+                {materialsCost > 0 && totalRow("Install materials", materialsCost)}
+                {freightCost > 0 && totalRow("Freight", freightCost)}
+                {totalRow("Estimated total", grandTotal, true)}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : <div style={{ borderTop: "2px solid var(--ft-text)", marginTop: 8 }}>
         {jobList(pMats, optionPrint ? "Install materials — shared areas" : "Install materials — job order", optionPrint ? optionPrint.sharedT.freightCost : freightCost)}
-      </div>
+      </div>}
       {optionPrint && full && hasShared && (
         <div className="flex justify-end" style={{ fontSize: 10.5, fontWeight: 800, marginTop: 4 }}>Shared areas total&nbsp;<span className="ft-mono">{money(optionPrint.sharedT.grandTotal)}</span></div>
       )}
@@ -206,9 +297,9 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
           ))}
         </div>
       )}
-      <div className="flex justify-between items-start break-inside-avoid" style={{ gap: 20, marginTop: 10 }}>
+      {!(aligned && LIST === "beside") && <div className="flex justify-between items-start break-inside-avoid" style={{ gap: 20, marginTop: 10 }}>
         <div>{specialLine}</div>
-        {full && !optionPrint && (
+        {full && !optionPrint && !(aligned && LIST === "beside") && (
           <div>
             <div style={{ display: "grid", gridTemplateColumns: "auto auto", justifyContent: "end", gap: "2px 26px", fontSize: 10.5 }}>
               {totalRow("Flooring & trim", flooringPrice + miscCost)}
@@ -218,7 +309,7 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
             </div>
           </div>
         )}
-      </div>
+      </div>}
       {waste && <div className="break-inside-avoid" style={{ fontSize: 8.5, color: FAINT, marginTop: 3, textAlign: "right" }}>Includes {waste}</div>}
     </div>
   );
