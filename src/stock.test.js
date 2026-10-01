@@ -313,7 +313,6 @@ test("dropOwnCodes: a column code with up to three letters in front still matche
 test("dropOwnCodes: pack sizes, coverage, weights and codes the columns don't state stay", () => {
   assert.equal(dropOwnCodes("90 Kerdi Kereck F Inside - KERECK/FI10 10/pk", ["SLRKERECKFI10"]), "90 Kerdi Kereck F Inside - 10/pk");
   assert.equal(dropOwnCodes("9lb Spectralock Pro 95 Mink Part C", ["LATSPC95"]), "9lb Spectralock Pro 95 Mink Part C");
-  assert.equal(dropOwnCodes("4x15 Marazzi Terramater Moss 10.29 sf/ct - TM22RCT415AGL", ["MRZTM22415G"]), "4x15 Marazzi Terramater Moss 10.29 sf/ct - TM22RCT415AGL");
   assert.equal(dropOwnCodes("12x24 Mayfair - 4500-0413-1 Vol", ["4500-0407-1"]), "12x24 Mayfair - 4500-0413-1 Vol");
 });
 
@@ -323,6 +322,33 @@ test("dropOwnCodes: a trailing dash goes with its code; nothing left keeps the o
   assert.equal(dropOwnCodes("White Scrub Pad - RTCSCPAWHITE", ["RTCSCPAWHITE"]), "White Scrub Pad - RTCSCPAWHITE");
   assert.equal(dropOwnCodes("Durock Seam Tape", []), "Durock Seam Tape");
   assert.equal(dropOwnCodes("Durock Seam Tape", undefined), "Durock Seam Tape");
+});
+
+test("dropOwnCodes: a column code spelled out in order inside the word comes off", () => {
+  assert.equal(dropOwnCodes("Marazzi Terramater Moss - TM22RCT415AGL", ["MRZTM22415G"]), "Marazzi Terramater Moss");
+  assert.equal(dropOwnCodes("CTI Chicago - 10473651 South Side", ["104365", "MEDCHSO48"]), "CTI Chicago - South Side");
+  assert.equal(dropOwnCodes("Terramater - TM22RCT415AGL Moss", ["MRZXTM22415G"]), "Terramater - TM22RCT415AGL Moss");
+  assert.equal(dropOwnCodes("Terramater - XM22RCT415AGL Moss", ["TM22415G"]), "Terramater - XM22RCT415AGL Moss");
+  assert.equal(dropOwnCodes("Chicago - 1047 South", ["1047"]), "Chicago - South");
+  assert.equal(dropOwnCodes("Chicago - 10473 South", ["1043"]), "Chicago - 10473 South");
+});
+
+test("dropOwnCodes: a letters-and-digits code ending the name after a dash comes off, columns or not", () => {
+  assert.equal(dropOwnCodes("VT Quartz Essence Nest - U4P4E3C2", ["CAEQENS1224R"]), "VT Quartz Essence Nest");
+  assert.equal(dropOwnCodes("Kerdi Shower Linear - KSTL1395S", ["KSLT1395S"]), "Kerdi Shower Linear");
+  assert.equal(dropOwnCodes("50lb VersaBond Gray Mortar - MTSG50", []), "50lb VersaBond Gray Mortar");
+});
+
+test("dropOwnCodes: the end-of-name rule leaves measures, pack sizes, short and mid-name words", () => {
+  assert.equal(dropOwnCodes("Kerdi Seal Pipe Seal - 10/pk", []), "Kerdi Seal Pipe Seal - 10/pk");
+  assert.equal(dropOwnCodes("Underlayment Roll - 1200mm", []), "Underlayment Roll - 1200mm");
+  assert.equal(dropOwnCodes("Durock Panel - 12x24in", []), "Durock Panel - 12x24in");
+  assert.equal(dropOwnCodes("Shower Pan - 250mil", []), "Shower Pan - 250mil");
+  assert.equal(dropOwnCodes("Slip Rated - R11", []), "Slip Rated - R11");
+  assert.equal(dropOwnCodes("Nest - U4P4E3C2 Matte", []), "Nest - U4P4E3C2 Matte");
+  assert.equal(dropOwnCodes("Quartz Essence U4P4E3C2", []), "Quartz Essence U4P4E3C2");
+  assert.equal(dropOwnCodes("White Scrub Pad - RTCSCPAWHITE", []), "White Scrub Pad - RTCSCPAWHITE");
+  assert.equal(dropOwnCodes("- U4P4E3C2", []), "U4P4E3C2");
 });
 
 test("stockPatch: a stock item's line name drops its own codes; a vendor-book item's keeps them", () => {
