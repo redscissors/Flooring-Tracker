@@ -4,7 +4,7 @@ import { wasteVaries } from "./catalog.js";
 import { money, wasteNote, rowBlank } from "./model.js";
 import { TLBL } from "./uiconst.js";
 import { printProduct, printAreaFloor, areaPrintLabel, u1 } from "./print.js";
-import { specLine, qtyCells, priceCells, lineCells, columnsUsed, gridSpec, jobListGroups, specialCheck, isOneLine, cellParts, loneUnnamedArea, fitColumns, stripRuled } from "./printcols.js";
+import { brandRow, specParts, qtyCells, priceCells, lineCells, columnsUsed, gridSpec, jobListGroups, specialCheck, isOneLine, cellParts, loneUnnamedArea, fitColumns, stripRuled } from "./printcols.js";
 import { SheetHead } from "./sheethead.jsx";
 
 const MUTED = "var(--ft-muted)", FAINT = "var(--ft-faint)", DEEP = "var(--ft-brand-deep)";
@@ -97,8 +97,12 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
     const q = qtyCells(p, c), pr = priceCells(p, c);
     const oneLine = isOneLine(cells, cols, q, pr);
     const typeLbl = TLBL[p.type] || "";
-    const name = <>{p.brandColor || typeLbl}{p.brandColor && p.type !== "misc" && typeLbl && <span style={{ fontWeight: 500, color: MUTED }}> — {typeLbl.toLowerCase()}</span>}</>;
-    const spec = specLine(p, c);
+    const br = brandRow(p);
+    const name = br ? br.lead
+      : <>{p.brandColor || typeLbl}{p.brandColor && p.type !== "misc" && typeLbl && <span style={{ fontWeight: 500, color: MUTED }}> — {typeLbl.toLowerCase()}</span>}</>;
+    // the SKU and its number never split across a line
+    const parts = br ? (br.tail ? [br.tail] : []) : specParts(p, c);
+    const spec = parts.length ? parts.map((t, i) => <Fragment key={i}>{i ? " · " : ""}{/^SKU |^[A-Z]/.test(t) && (br || i === parts.length - 1) ? <span style={{ whiteSpace: "nowrap" }}>{t}</span> : t}</Fragment>) : null;
     const note = p.note && <div style={{ fontSize: 8.3, fontStyle: "italic", color: MUTED }}>{p.note}</div>;
     return (
       <Fragment key={p.id}>

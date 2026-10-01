@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { normalizeSettings } from "./catalog.js";
 import { newProduct } from "./model.js";
 import { printProduct } from "./print.js";
-import { specSize, specLine, qtyCells, priceCells, COLS, matColumn, lineCells, columnsUsed, needText, gridSpec, jobListGroups, specialCheck, isOneLine, cellParts, loneUnnamedArea, twoLineWidth, fitColumns, stripRuled, FIT } from "./printcols.js";
+import { brandRow, specParts, specSize, specLine, qtyCells, priceCells, COLS, matColumn, lineCells, columnsUsed, needText, gridSpec, jobListGroups, specialCheck, isOneLine, cellParts, loneUnnamedArea, twoLineWidth, fitColumns, stripRuled, FIT } from "./printcols.js";
 
 const s = normalizeSettings();
 const mat = (kind, over = {}) => ({ kind, name: `${kind} item`, spec: "", detail: "", exact: 1, order: 1, unit: "units", price: 10, cost: 10, ...over });
@@ -199,4 +199,23 @@ test("stripRuled: the material rule runs across when any column has a material a
   assert.equal(stripRuled(empty, { ...empty, underlay: [mat("Tile Backer")] }, cols), true);
   // a column that isn't printed doesn't count
   assert.equal(stripRuled(empty, { ...empty, other: [mat("Sealer", { addon: true })] }, cols), false);
+});
+
+test("brandRow: a wedi/Schluter marker prints size + name and a muted SKU or part number", () => {
+  const w = { ...newProduct(), type: "misc", sizeText: "3'x5'x1/2\"", brandColor: "wedi Building Panel", sku: "47700", wedi: { part: "US8000017" } };
+  assert.deepEqual(brandRow(w), { lead: "3'x5'x1/2\" wedi Building Panel", tail: "SKU 47700" });
+  const so = { ...w, sku: "", wedi: { key: "US9100004", mode: "kit", cfg: {} } };
+  assert.deepEqual(brandRow(so), { lead: "3'x5'x1/2\" wedi Building Panel", tail: "US9100004" });
+  const s = { ...newProduct(), type: "misc", sizeText: '38"x60"', brandColor: "KERDI-SHOWER-T Tray", sku: "1509821", schluter: { part: "KST965/1525" } };
+  assert.deepEqual(brandRow(s), { lead: '38"x60" KERDI-SHOWER-T Tray', tail: "SKU 1509821" });
+  assert.deepEqual(brandRow({ ...w, sizeText: "" }), { lead: "wedi Building Panel", tail: "SKU 47700" });
+  assert.deepEqual(brandRow({ ...so, wedi: { part: true } }), { lead: "3'x5'x1/2\" wedi Building Panel", tail: "" });
+  // no marker → not a brand row, however wedi-looking the text
+  assert.equal(brandRow({ ...newProduct(), type: "misc", brandColor: "wedi — 60\" Lean Curb", sku: "29118" }), null);
+});
+
+test("specParts: the SKU is its own part so the sheet can keep it on one line", () => {
+  const tile = { ...newProduct(), type: "tile", L: "12", W: "24", thickness: "0.375", qtyType: "sqft", qty: "120", cartonSf: "11.6", cartonUnit: "CT", priceSqft: "10.92", sku: "1504065" };
+  assert.deepEqual(specParts(tile, printProduct(tile, s)), ['12"×24"', "11.6 SF/ct", "SKU 1504065"]);
+  assert.equal(specLine(tile, printProduct(tile, s)), '12"×24" · 11.6 SF/ct · SKU 1504065');
 });
