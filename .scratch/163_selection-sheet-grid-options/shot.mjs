@@ -9,7 +9,7 @@ const dir = dirname(fileURLToPath(import.meta.url));
 const base = "http://localhost:5198/.scratch/163_selection-sheet-grid-options/preview.html";
 const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium", args: ["--no-sandbox"] });
 const only = process.argv[2];
-for (const [name, qs] of [["A", "?look=weight&list=beside"], ["B", "?look=gray&list=beside"], ["C", "?look=open&list=beside"], ["A-totals-below", "?look=weight&list=aligned"], ["A-rule", "?look=weight&list=beside&band=rule"], ["B-rule", "?look=gray&list=beside&band=rule"], ["C-rule", "?look=open&list=beside&band=rule"]]) {
+for (const [name, qs] of [["A", "?look=weight&list=beside"], ["B", "?look=gray&list=beside"], ["C", "?look=open&list=beside"], ["A-totals-below", "?look=weight&list=aligned"], ["A-rule", "?look=weight&list=beside&band=rule"], ["B-rule", "?look=gray&list=beside&band=rule"], ["C-rule", "?look=open&list=beside&band=rule"], ["final", "?look=weight&list=full"]]) {
   if (only && !name.includes(only)) continue;
   const page = await browser.newPage({ viewport: { width: 1366, height: 3200 } });
   page.on("pageerror", (e) => console.log("[pageerror]", e.message));

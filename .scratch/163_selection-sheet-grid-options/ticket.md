@@ -42,3 +42,6 @@ totals + special-order note moved under the material columns. One page.
 Owner, 2026-10-01: rule-under-the-name headers rejected — keep the black area
 band (flush on the grid above, square right corners). The `-rule` files stay
 only as a record.
+Owner picks, 2026-10-01: look A (lighter type, 100% black) and the ORIGINAL
+full-width job order list with the totals below — no aligned list. Proposed
+final: `final.pdf` / `final.png` (`?look=weight&list=full`), one page.
