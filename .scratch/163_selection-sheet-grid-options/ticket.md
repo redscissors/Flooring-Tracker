@@ -38,3 +38,7 @@ totals + special-order note moved under the material columns. One page.
   the area name on white with a 2px black rule under it (owner 2026-10-01);
   one page
 - `compare-rule.png` — the three rule versions side by side
+
+Owner, 2026-10-01: rule-under-the-name headers rejected — keep the black area
+band (flush on the grid above, square right corners). The `-rule` files stay
+only as a record.
