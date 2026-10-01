@@ -1,7 +1,7 @@
 // The material-columns selection sheet (spec 2026-09-30, owner pick "G3c"):
 // the pure formatting behind EstimateColumns.jsx — what each product row,
 // material cell and job-list line says. No React here, so it runs under node:test.
-import { money, sf1, miscQty } from "./model.js";
+import { money, sf1, miscQty, rowBlank } from "./model.js";
 import { num } from "./catalog.js";
 import { u1 } from "./print.js";
 import { isSpecialOrder, isSpecialMat } from "./orderentry.js";
@@ -34,9 +34,9 @@ export function priceCells(p, c) {
 }
 
 export const COLS = [
-  { key: "grout", label: "Grout", w: 88 },
-  { key: "mortar", label: "Mortar", w: 82 },
-  { key: "underlay", label: "Underlay", w: 100 },
+  { key: "grout", label: "Grout", w: 102 },
+  { key: "mortar", label: "Mortar", w: 74 },
+  { key: "underlay", label: "Underlay", w: 94 },
   { key: "other", label: "Other", w: 90 },
 ];
 
@@ -80,19 +80,31 @@ export function specialCheck(stockBookIds, stockSkus) {
 export const isOneLine = (cells, cols, q, pr) => cols.every((col) => cells[col.key].length === 0) && !q.sub && !pr.sub;
 
 export function cellParts(m) {
+  const r = Math.round((m.exact || 0) * 10) / 10;
+  const color = m.kind === "Grout" ? m.spec || "" : "";
+  const joint = m.kind === "Grout" ? String(m.detail || "").replace(/ joint\b/, "") : "";
   return {
     label: m.addon ? m.kind : "",
     name: m.name,
-    color: m.kind === "Grout" ? m.spec || "" : "",
-    left: m.kind === "Grout" ? String(m.detail || "").replace(/ joint\b/, "") : "",
-    amount: needText(m.exact, m.unit),
+    sub: [color, joint].filter(Boolean).join(" · "),
+    qty: m.exact > 0 ? r.toFixed(1) : "—",
+    unit: m.exact > 0 ? u1(r, m.unit) : "",
   };
 }
 
+// The product block's own grid; the material columns ride beside it as one
+// strip so their boxes butt and close (issue 163).
 export function gridSpec(pMode, cols) {
   const money = { qty: pMode !== "unit", price: pMode !== "none", total: pMode === "full" };
-  const template = ["10px", "minmax(0,1fr)", money.qty && "38px", money.price && "60px", money.total && "58px", ...cols.map((c) => `${c.w}px`)].filter(Boolean).join(" ");
-  return { template, money };
+  const left = ["10px", "minmax(0,1fr)", money.qty && "34px", money.price && "50px", money.total && "58px"].filter(Boolean).join(" ");
+  const matsW = cols.reduce((t, c) => t + c.w, 0);
+  return { left, matsW, outer: cols.length ? `minmax(0,1fr) ${matsW}px` : "minmax(0,1fr)", money };
+}
+
+// A quote whose only printed area was never named prints no area header.
+export function loneUnnamedArea(areas) {
+  const printed = areas.filter((a) => a.products.some((p) => !rowBlank(p)));
+  return printed.length === 1 && !(printed[0].name || "").trim();
 }
 
 const GROUP_ORDER = ["Grout color", "Grout base", "Caulk", "Mortar", "Underlay", "Install"];

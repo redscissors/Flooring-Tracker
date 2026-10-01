@@ -3,8 +3,8 @@ issue_type: Bug + Feature
 summary: Selection sheet print — close the material-column grid (it left every
   area's boxes open at the bottom and right), lighten the material columns, and
   line the job order list up under the product block's Qty/Price/Total.
-status: needs-triage
-labels: [needs-triage]
+status: done
+labels: [ready-for-human]
 ---
 
 # Selection sheet — grid fix + lighter material columns + aligned job list
@@ -69,3 +69,14 @@ an area with more than one item; a quote with ONE printed area that was never
 named prints no area header at all (option prints keep theirs). The harness
 now aliases its own copy of the fake client (`fakesupabase.js`, + `?single=1`
 — the shower as the job's only, unnamed area). `single-leadunit.pdf`/`.png`.
+
+Owner, 2026-10-01: hide "1 area selected" with the header; capitalize "Area
+Total"; build and merge. Built in src/EstimateColumns.jsx + src/printcols.js
+(columns grout 102 · mortar 74 · underlay 94; Qty 34 · Price 50 · Total 58).
+
+## Preview proof — the REAL App + sheet (`proof/`)
+`npx vite --config .scratch/163_selection-sheet-grid-options/proof/vite.config.mjs`
+(run from the repo root — Tailwind reads its content paths from the cwd), then
+`node .scratch/163_selection-sheet-grid-options/proof/shot.mjs`:
+`full` · `unit` · `none` · `freight` · `lvp-only` · `single` one page each,
+`options` two.

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { normalizeSettings } from "./catalog.js";
 import { newProduct } from "./model.js";
 import { printProduct } from "./print.js";
-import { specSize, specLine, qtyCells, priceCells, COLS, matColumn, lineCells, columnsUsed, needText, gridSpec, jobListGroups, specialCheck, isOneLine, cellParts } from "./printcols.js";
+import { specSize, specLine, qtyCells, priceCells, COLS, matColumn, lineCells, columnsUsed, needText, gridSpec, jobListGroups, specialCheck, isOneLine, cellParts, loneUnnamedArea } from "./printcols.js";
 
 const s = normalizeSettings();
 const mat = (kind, over = {}) => ({ kind, name: `${kind} item`, spec: "", detail: "", exact: 1, order: 1, unit: "units", price: 10, cost: 10, ...over });
@@ -56,7 +56,7 @@ test("columnsUsed: only columns some line uses, in COLS order; none → []", () 
   assert.deepEqual(columnsUsed([{ mats: [mat("Grout"), mat("Caulk")] }, { mats: [] }]).map((c) => c.key), ["grout"]);
   assert.deepEqual(columnsUsed([{ mats: [mat("Tile Backer")] }, { mats: [mat("Grout")] }]).map((c) => c.key), ["grout", "underlay"]);
   assert.deepEqual(columnsUsed([{ mats: [] }, { mats: [mat("Caulk")] }]), []);
-  assert.deepEqual(COLS.map((c) => [c.label, c.w]), [["Grout", 88], ["Mortar", 82], ["Underlay", 100], ["Other", 90]]);
+  assert.deepEqual(COLS.map((c) => [c.label, c.w]), [["Grout", 102], ["Mortar", 74], ["Underlay", 94], ["Other", 90]]);
 });
 
 test("needText: one decimal, singular at 1.0, dash when uncomputed", () => {
@@ -69,15 +69,18 @@ test("needText: one decimal, singular at 1.0, dash when uncomputed", () => {
   assert.equal(needText(1.8, "EA"), "1.8 EA");
 });
 
-test("gridSpec: unit shows price only, none shows qty only", () => {
+test("gridSpec: unit shows price only, none shows qty only; the material strip is one track", () => {
   const cols = COLS.slice(0, 2);
   const full = gridSpec("full", cols);
   assert.deepEqual(full.money, { qty: true, price: true, total: true });
-  assert.equal(full.template, "10px minmax(0,1fr) 38px 60px 58px 88px 82px");
+  assert.equal(full.left, "10px minmax(0,1fr) 34px 50px 58px");
+  assert.equal(full.matsW, 176);
+  assert.equal(full.outer, "minmax(0,1fr) 176px");
   assert.deepEqual(gridSpec("unit", cols).money, { qty: false, price: true, total: false });
-  assert.equal(gridSpec("unit", cols).template, "10px minmax(0,1fr) 60px 88px 82px");
+  assert.equal(gridSpec("unit", cols).left, "10px minmax(0,1fr) 50px");
   assert.deepEqual(gridSpec("none", []).money, { qty: true, price: false, total: false });
-  assert.equal(gridSpec("none", []).template, "10px minmax(0,1fr) 38px");
+  assert.equal(gridSpec("none", []).left, "10px minmax(0,1fr) 34px");
+  assert.equal(gridSpec("none", []).outer, "minmax(0,1fr)");
 });
 
 test("jobListGroups: order, merged Underlay, blank needed for base/caulk/freight", () => {
@@ -123,9 +126,21 @@ test("isOneLine: a line keeps its second line when it has ordered SF or a bundle
   assert.equal(isOneLine({ ...empty, grout: [mat("Grout")] }, cols, { top: "4 ea", sub: "" }, { top: "", sub: "" }), false);
 });
 
-test("cellParts: add-ons carry their category label; grout its color and joint", () => {
-  assert.deepEqual(cellParts(mat("Sealer", { addon: true, name: "Seal-it", exact: 1.2, unit: "bottles" })), { label: "Sealer", name: "Seal-it", color: "", left: "", amount: "1.2 bottles" });
-  assert.deepEqual(cellParts(mat("Grout", { name: "SpectraLOCK PRO", spec: "Bright White", detail: '1/8" joint', exact: 1.62, unit: "units" })), { label: "", name: "SpectraLOCK PRO", color: "Bright White", left: '1/8"', amount: "1.6 units" });
+test("cellParts: amount and its unit apart; add-ons carry their label; grout its color · joint", () => {
+  assert.deepEqual(cellParts(mat("Sealer", { addon: true, name: "Seal-it", exact: 1.2, unit: "bottles" })), { label: "Sealer", name: "Seal-it", sub: "", qty: "1.2", unit: "bottles" });
+  assert.deepEqual(cellParts(mat("Grout", { name: "SpectraLOCK PRO", spec: "Bright White", detail: '1/8" joint', exact: 1.62, unit: "units" })), { label: "", name: "SpectraLOCK PRO", sub: 'Bright White · 1/8"', qty: "1.6", unit: "units" });
+  assert.deepEqual(cellParts(mat("Mortar", { name: "ProLite", exact: 1, unit: "bags" })), { label: "", name: "ProLite", sub: "", qty: "1.0", unit: "bag" });
+  assert.deepEqual(cellParts(mat("Mortar", { name: "ProLite", exact: 0, unit: "bags" })), { label: "", name: "ProLite", sub: "", qty: "—", unit: "" });
+});
+
+test("loneUnnamedArea: one printed area that was never named; blank areas don't count", () => {
+  const live = { brandColor: "Tile" }, blank = {};
+  const area = (name, ...products) => ({ name, products });
+  assert.equal(loneUnnamedArea([area("", live, blank)]), true);
+  assert.equal(loneUnnamedArea([area("  ", live), area("Hall", blank)]), true);
+  assert.equal(loneUnnamedArea([area("Kitchen", live)]), false);
+  assert.equal(loneUnnamedArea([area("", live), area("", live)]), false);
+  assert.equal(loneUnnamedArea([]), false);
 });
 
 test("jobListGroups: freight keeps its note and a whole sq ft count", () => {

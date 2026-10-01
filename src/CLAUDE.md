@@ -158,7 +158,13 @@ src/
                     # Underlay · Other — caulk and install items print only in
                     # the list, and a column no line uses never prints),
                     # `needText` (exact, one decimal, the catalog's own unit
-                    # word), `gridSpec` (the pricing-mode column set) and
+                    # word), `gridSpec` (the pricing-mode column set: the
+                    # product block's own `left` grid beside the material
+                    # columns as ONE strip of `matsW`, so their boxes butt and
+                    # close — issue 163), `cellParts` (a material cell's amount
+                    # and unit apart, grout's color · joint as `sub`),
+                    # `loneUnnamedArea` (a quote whose one printed area was
+                    # never named prints no area header) and
                     # `jobListGroups` (the job order list's groups and rows)
                     # (printcols.test.js)
   options.js        # quote options (ADR 0031): fixed slots A–L (letters live in
@@ -498,7 +504,14 @@ src/
                     # Quote options: the shared list, then per option its rows
                     # and a compact list. Imported statically (same reason as
                     # EstimatePrint.jsx). Preview proof:
-                    # .scratch/162_selection-sheet-columns
+                    # .scratch/162_selection-sheet-columns.
+                    # Issue 163 (owner 2026-10-01): the material strip is closed
+                    # on every side and reads lighter (thin rule, regular
+                    # weight, amount first with its unit beneath); area bands
+                    # sit flush on the grid above, their "Area Total" ends
+                    # under the Total column and prints only on a multi-item
+                    # area; a lone unnamed area prints no band and no "1 area
+                    # selected". Proof: .scratch/163_selection-sheet-grid-options/proof
   sheethead.jsx     # `SheetHead` — the selection-sheet masthead + people row +
                     # job notes, shared by the cards and columns sheets
   usetoast.js       # `useToast` — toast/save-flash UI state (`ping`, `flashSaved`)
