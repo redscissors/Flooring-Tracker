@@ -215,8 +215,28 @@ export const parseThickness = (t) => {
   return Number.isFinite(n) && n > 0 && n < 2 ? String(n) : null;
 };
 
+// A stock line's name sheds the item's own manufacturer codes (owner
+// 2026-10-01) — only the codes its code columns state, so pack sizes, coverage
+// and weights stay. The ERP columns often carry the code behind a 1–3 letter
+// distributor tag the description doesn't print (SLRRO100AT for RO100AT).
+const codeKey = (s) => str(s).toUpperCase().replace(/[^A-Z0-9]/g, "");
+export const dropOwnCodes = (description, codes) => {
+  const desc = str(description);
+  const keys = (codes || []).map(codeKey).filter(Boolean);
+  if (!keys.length) return desc;
+  const own = (w) => {
+    const k = codeKey(w);
+    return k.length >= 4 && /\d/.test(k) && keys.some((c) => c === k || (c.endsWith(k) && /^[A-Z]{1,3}$/.test(c.slice(0, -k.length))));
+  };
+  const words = desc.split(/\s+/).filter((w) => w && !own(w));
+  while (words.length && /^[-–—]+$/.test(words[words.length - 1])) words.pop();
+  while (words.length && /^[-–—]+$/.test(words[0])) words.shift();
+  return words.join(" ") || desc;
+};
+
 const label = (it) => {
-  const bits = [it.brand && !it.description.toLowerCase().includes(it.brand.toLowerCase()) ? it.brand : "", it.description].filter(Boolean);
+  const desc = it.stockKind ? dropOwnCodes(it.description, it.vendorSkus) : it.description;
+  const bits = [it.brand && !desc.toLowerCase().includes(it.brand.toLowerCase()) ? it.brand : "", desc].filter(Boolean);
   return bits.join(" ");
 };
 

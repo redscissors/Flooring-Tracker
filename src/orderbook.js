@@ -315,7 +315,7 @@ export const withBookBrand = (item, brandLabel) => {
 // keeps its other numeric fields.
 export function orderPatch(item, book, product) {
   const priced = pricedItem(withBookBrand(item, book?.data?.brandLabel), book?.data?.markups);
-  const patch = stockPatch(priced, product);
+  const patch = stockPatch(book?.kind === "stock" ? { ...priced, stockKind: true } : priced, product);
   patch.bookId = str(item.bookId || book?.id);
   patch.cost = item.cost != null ? String(item.cost) : "";
   // Honest vendor cost per sell unit, carried alongside priceSqft so the margin
@@ -339,9 +339,9 @@ export function orderPatch(item, book, product) {
 // L×W (grout/mortar compute) from one that fell through as free text.
 // `brandLabel` is the book's brand box (withBookBrand) — the preview has to
 // wear it for the same reason: a pick lands it.
-export function bookRowPreview(item, markups, brandLabel) {
+export function bookRowPreview(item, markups, brandLabel, stock = false) {
   const priced = pricedItem(withBookBrand(item, brandLabel), markups);
-  const patch = stockPatch(priced, {});
+  const patch = stockPatch(stock ? { ...priced, stockKind: true } : priced, {});
   const flooring = patch.type !== "misc";
   const sizeParsed = flooring && patch.L != null && patch.W != null;
   return {

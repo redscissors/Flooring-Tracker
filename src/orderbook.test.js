@@ -293,6 +293,15 @@ test("costSqft: reads priceUnit (cost basis) when the two units are split", () =
   assert.equal(costSqft(oi({ unit: "", priceUnit: "SF", orderUnit: "CT", cost: 3.29, sfPerUnit: 15.5 })), 3.29);
 });
 
+test("orderPatch: a stock-kind book's pick drops the item's own codes from the name; an order book's keeps them", () => {
+  const it = oi({ sku: "22969", type: "tile", unit: "CT", cost: 54.25, price: 93.23, sfPerUnit: 15.5, size: "12x24",
+    description: "12x24 Mayfair Polished - 4500-0413-1 Vol Grig", vendorSkus: ["4500-0413-1"] });
+  assert.equal(orderPatch(it, { id: "virti", kind: "stock", data: {} }, {}).brandColor, "12x24 Mayfair Polished - Vol Grig");
+  assert.equal(orderPatch(it, { id: "vtc", kind: "order", data: {} }, {}).brandColor, "12x24 Mayfair Polished - 4500-0413-1 Vol Grig");
+  assert.equal(bookRowPreview(it, {}, "", true).name, "12x24 Mayfair Polished - Vol Grig");
+  assert.equal(bookRowPreview(it, {}, "").name, "12x24 Mayfair Polished - 4500-0413-1 Vol Grig");
+});
+
 test("orderPatch: a split SF/CT item prices by the foot and orders in whole cartons", () => {
   const item = oi({ sku: "CER1", type: "tile", priceUnit: "SF", orderUnit: "CT", unit: "", cost: 3.29, sfPerUnit: 15.5, size: "12x24" });
   const patch = orderPatch(item, book(), {});

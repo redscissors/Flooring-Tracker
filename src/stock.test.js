@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { searchStock, hitRank, relaxSearchWords, findStock, parseTileSize, parseThickness, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant, stockBaseCompanion, stockAltBases, basePer, groutFamilies, groutColorItem, groutCaulkItem, groutSnapshotPatch, deriveSquareDim, groutColorOptions, groutFamilyFor, switchToSqftPatch, switchChipText } from "./stock.js";
+import { searchStock, hitRank, relaxSearchWords, findStock, parseTileSize, parseThickness, stockPatch, stockDrift, stockCompanionBase, stockBaseVariant, stockBaseCompanion, stockAltBases, basePer, groutFamilies, groutColorItem, groutCaulkItem, groutSnapshotPatch, deriveSquareDim, groutColorOptions, groutFamilyFor, switchToSqftPatch, switchChipText, dropOwnCodes } from "./stock.js";
 import { normOrderItem } from "./orderbook.js";
 import { groutExact, mortarExact, mergeSettings, ceilQty } from "./catalog.js";
 
@@ -294,6 +294,43 @@ test("a typed, piece-priced, carton-sold item with no coverage lands as a per-pi
   assert.equal(patch.cartonPc, "10");       // ordering rounds up to cartons of 10
   assert.equal(patch.cartonUnit, "CT");
   assert.doesNotMatch(patch.brandColor, /carton of/);
+});
+
+// --- the item's own manufacturer codes off the line name (2026-10-01) ------------
+
+test("dropOwnCodes: a description code matching a code column comes off", () => {
+  assert.equal(dropOwnCodes("12x24 Mayfair Polished - 4500-0413-1 Vol Grig 15.5sf/ct", ["4500-0413-1", "ANAMYVO1224PN"]), "12x24 Mayfair Polished - Vol Grig 15.5sf/ct");
+  assert.equal(dropOwnCodes("3x6 AO Profiles Tile - 006136MODSP4 Des Wh 12.5 sf/ct", ["006136MODSP4", "AOT6136"]), "3x6 AO Profiles Tile - Des Wh 12.5 sf/ct");
+});
+
+test("dropOwnCodes: a column code with up to three letters in front still matches", () => {
+  assert.equal(dropOwnCodes("3/8\"x8' Schluter Rondec - RO100AT Satin Nickel", ["SLRRO100AT"]), "3/8\"x8' Schluter Rondec - Satin Nickel");
+  assert.equal(dropOwnCodes("3/8\" Schluter Jolly PVC - BW100 Bright White", ["SLRBW100"]), "3/8\" Schluter Jolly PVC - Bright White");
+  assert.equal(dropOwnCodes("Rondec - RO100AT Satin", ["SLRXRO100AT"]), "Rondec - RO100AT Satin");
+  assert.equal(dropOwnCodes("Tile - 0100 White", ["10100"]), "Tile - 0100 White");
+});
+
+test("dropOwnCodes: pack sizes, coverage, weights and codes the columns don't state stay", () => {
+  assert.equal(dropOwnCodes("90 Kerdi Kereck F Inside - KERECK/FI10 10/pk", ["SLRKERECKFI10"]), "90 Kerdi Kereck F Inside - 10/pk");
+  assert.equal(dropOwnCodes("9lb Spectralock Pro 95 Mink Part C", ["LATSPC95"]), "9lb Spectralock Pro 95 Mink Part C");
+  assert.equal(dropOwnCodes("4x15 Marazzi Terramater Moss 10.29 sf/ct - TM22RCT415AGL", ["MRZTM22415G"]), "4x15 Marazzi Terramater Moss 10.29 sf/ct - TM22RCT415AGL");
+  assert.equal(dropOwnCodes("12x24 Mayfair - 4500-0413-1 Vol", ["4500-0407-1"]), "12x24 Mayfair - 4500-0413-1 Vol");
+});
+
+test("dropOwnCodes: a trailing dash goes with its code; nothing left keeps the original", () => {
+  assert.equal(dropOwnCodes("120V Ditra Heat Cable 27 sf - SLRDHEHK12027", ["SLRDHEHK12027"]), "120V Ditra Heat Cable 27 sf");
+  assert.equal(dropOwnCodes("SLRDHEHK12027", ["SLRDHEHK12027"]), "SLRDHEHK12027");
+  assert.equal(dropOwnCodes("White Scrub Pad - RTCSCPAWHITE", ["RTCSCPAWHITE"]), "White Scrub Pad - RTCSCPAWHITE");
+  assert.equal(dropOwnCodes("Durock Seam Tape", []), "Durock Seam Tape");
+  assert.equal(dropOwnCodes("Durock Seam Tape", undefined), "Durock Seam Tape");
+});
+
+test("stockPatch: a stock item's line name drops its own codes; a vendor-book item's keeps them", () => {
+  const raw = { sku: "22969", description: "12x24 Mayfair Polished - 4500-0413-1 Vol Grig", type: "tile", unit: "CT", price: 93.23, sfPerUnit: 15.5, vendorSkus: ["4500-0413-1"] };
+  assert.equal(stockPatch({ ...item(raw), stockKind: true }, {}).brandColor, "12x24 Mayfair Polished - Vol Grig");
+  assert.equal(stockPatch(item(raw), {}).brandColor, "12x24 Mayfair Polished - 4500-0413-1 Vol Grig");
+  const count = { sku: "29496", description: "120V Ditra Heat Cable 27 sf - SLRDHEHK12027", unit: "EA", price: 300, vendorSkus: ["SLRDHEHK12027"] };
+  assert.equal(stockPatch({ ...item(count), stockKind: true }, {}).brandColor, "120V Ditra Heat Cable 27 sf");
 });
 
 // --- drift -----------------------------------------------------------------------
