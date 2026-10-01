@@ -45,3 +45,14 @@ only as a record.
 Owner picks, 2026-10-01: look A (lighter type, 100% black) and the ORIGINAL
 full-width job order list with the totals below — no aligned list. Proposed
 final: `final.pdf` / `final.png` (`?look=weight&list=full`), one page.
+
+Owner, 2026-10-01: grout/mortar cells read busy; mortar's amount drops to a
+second line; maybe drop the unit word. Cell layouts (`&cell=`), all on look A
+with the full-width list, columns rebalanced to grout 102 · mortar 74 ·
+underlay 94 (same 270 total) so names stop wrapping:
+- `cell-split` — name left, amount right on line 1 (no unit); grout's color ·
+  joint on line 2
+- `cell-lead` — amount first in a narrow gutter, name beside (no unit)
+- `cell-leadunit` — as lead, the unit tiny under the number
+- `compare-cells.png` — today vs the three, real Manrope (the harness now
+  loads .scratch/126's manrope.woff2 — earlier shots used a wider fallback)

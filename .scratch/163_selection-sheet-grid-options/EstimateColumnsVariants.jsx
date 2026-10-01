@@ -13,7 +13,7 @@ const CELL = "color-mix(in srgb, var(--ft-paper-band) 40%, #fff)";
 const DIAMOND = "◆";
 // Mockup knobs (issue 163): ?look=weight|gray|open  ?list=full|aligned|beside
 const Q = new URLSearchParams(location.search);
-const LOOK = Q.get("look") || "weight", LIST = Q.get("list") || "aligned", BAND_RULE = Q.get("band") === "rule";
+const LOOK = Q.get("look") || "weight", LIST = Q.get("list") || "aligned", BAND_RULE = Q.get("band") === "rule", CELL_MODE = Q.get("cell") || "stack";
 const MAT_INK = LOOK === "gray" ? "#4d4d4d" : "var(--ft-text)";
 const MAT_SUB = LOOK === "gray" ? "#6e6e6e" : MUTED;
 const MAT_RULE = LOOK === "gray" ? "1px solid #a3a3a3" : "0.6px solid var(--ft-border)";
@@ -32,7 +32,8 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
   const liveRows = (cats) => cats.flatMap((a) => a.products.filter((p) => !rowBlank(p)));
   const allRows = [...liveRows(areas), ...(optionPrint ? optionPrint.sections.flatMap((S) => liveRows(S.cats)) : [])];
   const computed = new Map(allRows.map((p) => [p.id, printProduct(p, tSet)]));
-  const cols = columnsUsed([...computed.values()]);
+  const COL_W = { grout: 102, mortar: 74, underlay: 94, other: 90 };
+  const cols = columnsUsed([...computed.values()]).map((c) => (CELL_MODE === "stack" ? c : { ...c, w: COL_W[c.key] }));
   const g = gridSpec(pMode, cols);
   const { row: specialRow, mat: specialMat } = specialCheck(stockBookIds, stockSkus);
   const anySpecial = allRows.some((p) => specialRow(p) || computed.get(p.id).mats.some(specialMat))
@@ -51,10 +52,12 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
 
   const matItem = (m, i) => {
     const t = cellParts(m);
-    return (
+    const name = <>{specialMat(m) ? `${DIAMOND} ` : ""}{t.name}</>;
+    const label = t.label && <div style={{ ...kindLabel, fontSize: 6.5, color: LOOK === "gray" ? MAT_SUB : DEEP }}>{t.label}</div>;
+    if (CELL_MODE === "stack") return (
       <div key={i} style={{ marginTop: i ? 2 : 0 }}>
-        {t.label && <div style={{ ...kindLabel, fontSize: 6.5, color: LOOK === "gray" ? MAT_SUB : DEEP }}>{t.label}</div>}
-        <div style={{ fontWeight: MAT_NAME_W }}>{specialMat(m) ? `${DIAMOND} ` : ""}{t.name}</div>
+        {label}
+        <div style={{ fontWeight: MAT_NAME_W }}>{name}</div>
         {t.color && <div style={{ color: MAT_SUB }}>{t.color}</div>}
         {(full || t.left) && (
           <div className="flex justify-between" style={{ gap: 4, alignItems: "baseline" }}>
@@ -62,6 +65,31 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
             {full && <span style={{ fontWeight: MAT_AMT_W, whiteSpace: "nowrap" }}>{t.amount}</span>}
           </div>
         )}
+      </div>
+    );
+    const num = m.exact > 0 ? (Math.round(m.exact * 10) / 10).toFixed(1) : "—";
+    const unit = m.exact > 0 ? u1(Math.round(m.exact * 10) / 10, m.unit) : "";
+    const sub = [t.color, t.left].filter(Boolean).join(" · ");
+    if (CELL_MODE === "split") return (
+      <div key={i} style={{ marginTop: i ? 3 : 0 }}>
+        {label}
+        <div className="flex justify-between" style={{ gap: 4, alignItems: "baseline" }}>
+          <span>{name}</span>
+          {full && <span style={{ fontWeight: 800, whiteSpace: "nowrap" }}>{num}</span>}
+        </div>
+        {sub && <div style={{ color: MAT_SUB }}>{sub}</div>}
+      </div>
+    );
+    return (
+      <div key={i} style={{ marginTop: i ? 3 : 0 }}>
+        {label}
+        <div style={{ display: "grid", gridTemplateColumns: full ? "17px minmax(0,1fr)" : "minmax(0,1fr)", columnGap: 4, alignItems: "baseline" }}>
+          {full && <div style={{ textAlign: "right" }}><div style={{ fontWeight: 800 }}>{num}</div>{CELL_MODE === "leadunit" && unit && <div style={{ fontSize: 6, color: MAT_SUB, lineHeight: 1.1 }}>{unit}</div>}</div>}
+          <div style={{ minWidth: 0 }}>
+            <div>{name}</div>
+            {sub && <div style={{ color: MAT_SUB }}>{sub}</div>}
+          </div>
+        </div>
       </div>
     );
   };
