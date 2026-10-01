@@ -161,7 +161,7 @@ src/
                     # word), `gridSpec` (the pricing-mode column set: the
                     # product block's own `left` grid beside the material
                     # columns as ONE strip of `matsW`, so their boxes butt and
-                    # close — issue 163), `cellParts` (a material cell's amount
+                    # butt — issue 163), `cellParts` (a material cell's amount
                     # and unit apart, grout's color · joint as `sub`),
                     # `loneUnnamedArea` (a quote whose one printed area was
                     # never named prints no area header) and
@@ -505,9 +505,11 @@ src/
                     # and a compact list. Imported statically (same reason as
                     # EstimatePrint.jsx). Preview proof:
                     # .scratch/162_selection-sheet-columns.
-                    # Issue 163 (owner 2026-10-01): the material strip is closed
-                    # on every side and reads lighter (thin rule, regular
-                    # weight, amount first with its unit beneath); area bands
+                    # Issue 163 (owner 2026-10-01): the material strip reads
+                    # lighter (thin rule, regular weight, amount first with its
+                    # unit beneath, blank when there is no amount), open at the
+                    # bottom and right; a product row's rule runs on to the
+                    # first material divider (the gutter is padding); area bands
                     # sit flush on the grid above, their "Area Total" ends
                     # under the Total column and prints only on a multi-item
                     # area; a lone unnamed area prints no band and no "1 area

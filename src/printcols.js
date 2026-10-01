@@ -87,7 +87,7 @@ export function cellParts(m) {
     label: m.addon ? m.kind : "",
     name: m.name,
     sub: [color, joint].filter(Boolean).join(" · "),
-    qty: m.exact > 0 ? r.toFixed(1) : "—",
+    qty: m.exact > 0 ? r.toFixed(1) : "",
     unit: m.exact > 0 ? u1(r, m.unit) : "",
   };
 }

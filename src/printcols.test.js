@@ -130,7 +130,7 @@ test("cellParts: amount and its unit apart; add-ons carry their label; grout its
   assert.deepEqual(cellParts(mat("Sealer", { addon: true, name: "Seal-it", exact: 1.2, unit: "bottles" })), { label: "Sealer", name: "Seal-it", sub: "", qty: "1.2", unit: "bottles" });
   assert.deepEqual(cellParts(mat("Grout", { name: "SpectraLOCK PRO", spec: "Bright White", detail: '1/8" joint', exact: 1.62, unit: "units" })), { label: "", name: "SpectraLOCK PRO", sub: 'Bright White · 1/8"', qty: "1.6", unit: "units" });
   assert.deepEqual(cellParts(mat("Mortar", { name: "ProLite", exact: 1, unit: "bags" })), { label: "", name: "ProLite", sub: "", qty: "1.0", unit: "bag" });
-  assert.deepEqual(cellParts(mat("Mortar", { name: "ProLite", exact: 0, unit: "bags" })), { label: "", name: "ProLite", sub: "", qty: "—", unit: "" });
+  assert.deepEqual(cellParts(mat("Mortar", { name: "ProLite", exact: 0, unit: "bags" })), { label: "", name: "ProLite", sub: "", qty: "", unit: "" });
 });
 
 test("loneUnnamedArea: one printed area that was never named; blank areas don't count", () => {
