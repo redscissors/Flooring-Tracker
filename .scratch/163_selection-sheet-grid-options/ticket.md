@@ -61,3 +61,6 @@ Owner picks, 2026-10-01: cell layout 3 (`cell-leadunit` — amount first, unit
 tiny under it). The area band's "flooring $" total now ends at the TOTAL
 column's right edge (it covers the product rows only, not the materials); the
 band still runs full width. Proposed final: `cell-leadunit.pdf`/`.png`.
+Owner, 2026-10-01: tighten Qty/Price/Total — Qty 38→34px, Price 60→50px
+(Total stays 58, it has to hold $13,729.17); the product column takes the
+14px. `money-closeup.png`.

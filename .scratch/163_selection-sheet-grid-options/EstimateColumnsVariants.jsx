@@ -40,7 +40,8 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
     || [...(pMats || []), ...(optionPrint ? optionPrint.sections.flatMap((S) => S.t.pMats) : [])].some(specialMat);
   const areaCount = !optionPrint && areas.length > 0 ? `${areas.length} ${areas.length === 1 ? "area" : "areas"} selected` : "";
   const hasShared = !!optionPrint && optionPrint.sharedT.grandTotal > 0;
-  const leftTemplate = g.template.split(" ").slice(0, g.template.split(" ").length - cols.length).join(" ");
+  const leftTemplate = g.template.split(" ").slice(0, g.template.split(" ").length - cols.length).join(" ")
+    .replace(CELL_MODE === "stack" ? /^$/ : / 38px/, " 34px").replace(CELL_MODE === "stack" ? /^$/ : / 60px/, " 50px");
   const matsW = cols.reduce((t, c) => t + c.w, 0);
   const outer = cols.length ? `minmax(0,1fr) ${matsW}px` : "minmax(0,1fr)";
   const row = (left, mats, first, last) => (
