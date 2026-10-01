@@ -1243,7 +1243,7 @@ export function BookDetail({ book, updateBook, confirmBook, delBook, onDeleted, 
               </thead>
               <tbody>
                 {shown.map((it) => {
-                  const pv = bookRowPreview(it, markups, brandLabel);
+                  const pv = bookRowPreview(it, markups, brandLabel, book.kind === "stock");
                   const openCodes = (flagsBySku.get(it.sku) || []).filter((f) => !f.resolved).map((f) => f.code);
                   const reviewedCodes = Object.keys(it.flagReview || {});
                   const detail = itemDetailBits(it);
