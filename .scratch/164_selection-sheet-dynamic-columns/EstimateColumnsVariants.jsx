@@ -16,7 +16,7 @@ const MAT_RULE = "0.6px solid var(--ft-border)";
 // the first material divider (owner 2026-10-01).
 const GUTTER = 6;
 const DIAMOND = "◆";
-// Mockup knobs (issue 164): ?lines=mat|both  ?fit=0 keeps today's fixed widths
+// Mockup knobs (issue 164): ?lines=mat|both|row  ?fit=0 keeps today's fixed widths
 const Q = new URLSearchParams(location.search);
 const LINES = Q.get("lines") || "mat", FIT = Q.get("fit") !== "0";
 // Mockup-only: the seed's short catalog names → the longer names the live books carry.
@@ -97,7 +97,9 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
     const c = computed.get(p.id);
     const cells = lineCells(c);
     const prev = pi > 0 ? lineCells(computed.get(rows[pi - 1].id)) : null;
-    const ruled = (k) => !!prev && (LINES === "old" || prev[k].length > 0 || cells[k].length > 0);
+    const ruledCol = (k) => !!prev && (LINES === "old" || prev[k].length > 0 || cells[k].length > 0);
+    const anyRuled = cols.some((col) => ruledCol(col.key));
+    const ruled = (k) => (LINES === "row" ? anyRuled : ruledCol(k));
     const leftRule = LINES !== "both" || cols.some((col) => ruled(col.key));
     const q = qtyCells(p, c), pr = priceCells(p, c);
     const oneLine = isOneLine(cells, cols, q, pr);

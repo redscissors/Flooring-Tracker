@@ -32,4 +32,10 @@ name + grout sub one line each; clamp 56–150px per column, 330px total.
   material sits beside it
 - `compare.png` — today / A / B close-up
 
-Awaiting owner pick (recommended: A).
+Owner, 2026-10-01: if ANY material column has something above or below the
+line, the rule runs across all the material columns:
+- `C-full-row.pdf` (`?lines=row`) — product rows keep every rule; the material
+  strip's rule spans every column when any column has a material on either side
+- `compare-A-vs-C.png` — A vs C close-up
+
+Awaiting owner pick (C proposed).

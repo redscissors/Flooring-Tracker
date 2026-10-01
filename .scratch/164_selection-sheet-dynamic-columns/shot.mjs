@@ -9,7 +9,7 @@ const dir = dirname(fileURLToPath(import.meta.url));
 const base = "http://localhost:5199/.scratch/164_selection-sheet-dynamic-columns/preview.html";
 const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium", args: ["--no-sandbox"] });
 const only = process.argv[2];
-for (const [name, qs] of [["before", "?fit=0&lines=old"], ["A-material-lines", "?lines=mat"], ["B-both-sides", "?lines=both"]]) {
+for (const [name, qs] of [["before", "?fit=0&lines=old"], ["A-material-lines", "?lines=mat"], ["B-both-sides", "?lines=both"], ["C-full-row", "?lines=row"]]) {
   if (only && !name.includes(only)) continue;
   const page = await browser.newPage({ viewport: { width: 1366, height: 3200 } });
   page.on("pageerror", (e) => console.log("[pageerror]", e.message));
