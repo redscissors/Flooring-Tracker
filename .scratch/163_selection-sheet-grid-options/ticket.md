@@ -80,3 +80,11 @@ Total"; build and merge. Built in src/EstimateColumns.jsx + src/printcols.js
 `node .scratch/163_selection-sheet-grid-options/proof/shot.mjs`:
 `full` · `unit` · `none` · `freight` · `lvp-only` · `single` one page each,
 `options` two.
+
+## Follow-up — on-screen Print preview matches paper (owner 2026-10-01)
+The ink-only rules moved out of `@media print` onto `.ft-ink` (index.css),
+worn by both the preview card and the print copy (App.jsx), so the Print
+preview tab shows what prints — reversing issue 085's colored preview, owner
+confirmed "match paper exactly" incl. option bands. Proof: `proof/screen.mjs`
+→ `screen-full.png` / `screen-options.png`; the print PDFs are unchanged
+(full.pdf re-rendered: 0 px differ).
