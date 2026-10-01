@@ -44,7 +44,7 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
   const outer = cols.length ? `minmax(0,1fr) ${matsW}px` : "minmax(0,1fr)";
   const row = (left, mats, first, last) => (
     <div style={{ display: "grid", gridTemplateColumns: outer, columnGap: 6, breakInside: "avoid" }}>
-      <div style={{ display: "grid", gridTemplateColumns: leftTemplate, columnGap: 6, alignItems: "start", borderTop: first ? "none" : `1px solid ${HAIR}` }}>{left}</div>
+      <div style={{ display: "grid", gridTemplateColumns: leftTemplate, columnGap: 6, alignItems: "start", borderTop: first ? "none" : `1px solid ${HAIR}`, paddingBottom: last ? 3 : 0 }}>{left}</div>
       {cols.length > 0 && <div style={{ display: "flex", borderTop: first || LOOK === "open" ? "none" : MAT_RULE, borderBottom: last && LOOK !== "open" ? MAT_RULE : "none", borderRight: MAT_RULE }}>{mats}</div>}
     </div>
   );
@@ -108,7 +108,7 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
     if (!rows.length) return null;
     return (
       <div key={a.id}>
-        <div className="ft-pband flex justify-between items-center" style={{ gap: 12, background: BAND, borderRadius: 3, padding: "1px 10px 1px 16px", marginTop: 5, breakAfter: "avoid" }}>
+        <div className="ft-pband flex justify-between items-center" style={{ gap: 12, background: BAND, borderRadius: "3px 0 0 3px", padding: "1px 10px 1px 16px", marginTop: ai ? 0 : 5, breakAfter: "avoid" }}>
           <div className="uppercase" style={{ fontSize: 9, fontWeight: 800, letterSpacing: ".22em", color: DEEP }}>{areaPrintLabel(a, ai)}</div>
           {full && <div className="ft-mono" style={{ fontSize: 9, color: MUTED, whiteSpace: "nowrap" }}>flooring {money(printAreaFloor(a, tSet))}</div>}
         </div>

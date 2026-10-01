@@ -26,7 +26,7 @@ rules run through where the verticals stop.
 then `PW=/opt/node22/lib/node_modules/playwright node .scratch/163_selection-sheet-grid-options/shot.mjs`
 
 All three: grid closed (material columns as one butted strip, bottom + right
-edge drawn), job list Order/Each/Total under Qty/Price/Total, Need beside it,
+edge drawn; area bands sit flush on the grid above — owner 2026-10-01), job list Order/Each/Total under Qty/Price/Total, Need beside it,
 totals + special-order note moved under the material columns. One page.
 
 - `A.pdf` — lighter weight, still 100% black ink
