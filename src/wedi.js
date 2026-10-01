@@ -6578,12 +6578,11 @@ export function lineItems(build, opts) {
   return build.lines.map((l, i) => {
     const e = l.item;
     const anchor = i === 0;
-    const lead = e.stock ? (/^\s*wedi/i.test(e.name) ? "" : "wedi — ") : "wedi " + e.us + " — ";
     return {
       type: "misc",
       sku: e.stock ? e.erp || "" : "",
       sizeText: e.sizeText || "",
-      brandColor: lead + e.name,
+      brandColor: "wedi " + e.name,
       qtyType: "count",
       qty: String(l.qty),
       priceSqft: String(round2(e.retail)),

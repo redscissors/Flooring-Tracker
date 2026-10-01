@@ -885,8 +885,8 @@ test("wedi line payloads: the pan anchors the kit, cfg round-trips (requirement 
     "pan row carries the 0.82 builder stamp (566.01 → 464.13)");
   assert.ok((() => {
     const so = rows.filter((r) => r.sku === "");
-    return rows[0].sku === "1504156" && so.every((r) => /^wedi US/.test(r.brandColor));
-  })(), "stocked rows key the ERP sku, special-order rows lead with the US sku");
+    return rows[0].sku === "1504156" && so.every((r) => /^wedi [^U]/.test(r.brandColor) && /^US\d+$/.test(r.wedi.part || r.wedi.key));
+  })(), "stocked rows key the ERP sku, special-order rows keep the US sku on the marker, no lead");
   assert.ok(rows.every((r) =>
     typeof r.qty === "string" && typeof r.priceSqft === "string" && typeof r.costSqft === "string" && r.qtyType === "count"),
     "payload strings only (qty/price)");
@@ -898,6 +898,32 @@ test("wedi line payloads: the pan anchors the kit, cfg round-trips (requirement 
   });
   assert.deepEqual(round.lines.map((l) => l.item.key + "×" + l.qty), kit.lines.map((l) => l.item.key + "×" + l.qty),
     "cfg round-trips: reconfigure rebuilds the same lines");
+});
+
+test("wedi landed rows: Size field + 'wedi ' name, the 2026-10-01 table", () => {
+  const rows = (o, extra) => lineItems(kitFor(o.pan.key, { option: o, room: o.room, mode: "custom", ...extra }));
+  const by = (list, sku) => list.find((r) => r.sku === sku);
+  const t = (list, sku, size, name) => assert.deepEqual([by(list, sku).sizeText, by(list, sku).brandColor], [size, name], sku);
+  const point = rows(solve({ w: 36, d: 60, curb: "curbed", drain: "any" })[0]);
+  t(point, "1504156", "3'x5'x1-37/64\"", "wedi Shower Base");
+  t(point, "47700", "3'x5'x1/2\"", "wedi Building Panel");
+  t(point, "29118", "60\"", "wedi Lean Curb");
+  t(point, "1504181", "4\"x4\"", "wedi Stainless Drain Cover");
+  t(point, "28960", "100 ct", "wedi Fastener Kit, Screws & Washers with Tabs");
+  t(point, "29647", "20 oz", "wedi Joint Sealant Sausage");
+  t(point, "47822", "", "wedi Corner Putty Knife");
+  t(point, "1518109", "25 lb", "wedi Pro-Set Tile Adhesive");
+  const linear = rows(solve({ w: 32, d: 72, curb: "curbed", drain: "linear" })[0]);
+  t(linear, "29075", "32\"x66-3/4\"", "wedi Linear Shower Extension");
+  t(linear, "28955", "27\"", "wedi Stainless Linear Drain Cover");
+  const sdry = rows(solve({ w: 60, d: 36, system: "sdry" })[0], { wallSys: "membrane" });
+  t(sdry, "1518075", "38\"x64\"", "wedi S-Dry Shower Base");
+  t(sdry, "1518096", "50\"x25'", "wedi S-Dry Membrane, 104 sf");
+  t(sdry, "1518089", "", "wedi S-Dry 90° Inside Corner, 2 per bag");
+  const all = point.concat(linear, sdry);
+  assert.ok(all.every((r) => !/[—®™]|\bFundo\b|wedi.*\bwedi\b/i.test(r.brandColor) && typeof r.sizeText === "string"), "no dashes, marks, Fundo or a doubled wedi");
+  const so = all.find((r) => r.sku === "");
+  if (so) { assert.ok(/^wedi [A-Z]/.test(so.brandColor), so.brandColor); assert.ok(/^US\d+$/.test(so.wedi.part || so.wedi.key)); }
 });
 
 // --- search entry -------------------------------------------------------------

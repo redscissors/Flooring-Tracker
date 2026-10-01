@@ -1657,7 +1657,8 @@ function WediConfiguratorBody({ seed, tier, onTierChange, wediBuilderPct, schlut
   };
 
   const copyList = () => {
-    const txt = build.lines.map((l) => (l.item.stock ? l.item.erp + "\t" + l.qty : "wedi " + l.item.us + " — " + l.item.name + " × " + l.qty)).join("\n");
+    const txt = build.lines.map((l) => (l.item.stock ? l.item.erp + "\t" + l.qty
+      : l.item.us + " — " + [l.item.sizeText, "wedi " + l.item.name].filter(Boolean).join(" ") + " × " + l.qty)).join("\n");
     (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(
       () => say("Copied — stocked lines as SKU ⇥ qty, special order by description"),
       () => say("Clipboard blocked — copy the list from the print sheet"));
