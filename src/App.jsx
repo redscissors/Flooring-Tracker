@@ -2774,7 +2774,7 @@ export default function App({ user, onSignOut }) {
                       </div>
                     </div>
                   )}
-                  <div className="ft-light bg-white text-black rounded-sm shadow-lg mx-auto" style={{ maxWidth: 780, padding: "clamp(18px,3vw,38px)" }}>
+                  <div className="ft-light ft-ink bg-white text-black rounded-sm shadow-lg mx-auto" style={{ maxWidth: 780, padding: "clamp(18px,3vw,38px)" }}>
                     <EstimatePaper {...paperProps} />
                   </div>
                   <div className="text-center mt-4">
@@ -2933,7 +2933,7 @@ export default function App({ user, onSignOut }) {
       </div>
 
       {/* PRINT VIEW — the print buttons pick the layout: estimate (default, also Ctrl+P) or order sheet */}
-      <div className="ft-light hidden print:block text-black p-2">
+      <div className="ft-light ft-ink hidden print:block text-black p-2">
         {sel && sel._full && (printMode === "order" ? (() => {
           // Scoped to the option chosen in the picker (Task 8), same union-scoped
           // totals run as the order-entry panel so freight/consolidation match.
