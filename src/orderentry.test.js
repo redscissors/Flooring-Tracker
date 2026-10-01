@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { isSpecialOrder, isSpecialMat, orderCopyText, orderDescription, nameBudget, sheetNominal, tightSize } from "./orderentry.js";
+import { orderEntryRow } from "./print.js";
+import { normalizeSettings } from "./catalog.js";
+import { newProduct } from "./model.js";
+const settings = normalizeSettings();
 import { DEFAULT_DESC_LIMIT } from "./descfit.js";
 import { lineItems, multiWidthLineItems, defaultConfig } from "./sheoga.js";
 
@@ -408,4 +412,13 @@ test("isSpecialMat: a grout color from an order-book source is special; stock-bo
   assert.equal(isSpecialMat({ bookId: "" }, stockIds), false);
   assert.equal(isSpecialMat({}, stockIds), false);
   assert.equal(isSpecialMat({ bookId: "lat" }, null), false);
+});
+
+test("orderDescription: a configurator row carries its size once — size · wedi name · SKU (2026-10-01)", () => {
+  const w = { ...newProduct(), type: "misc", qtyType: "count", qty: "5", sizeText: "3'x5'x1/2\"", brandColor: "wedi Building Panel", sku: "47700", priceSqft: "54.66", sellUnit: "EA", wedi: { part: "US8000017" } };
+  const r = orderEntryRow(w, settings, "Master shower", 70, new Set(), null, null);
+  assert.equal(r.desc.main, "3'x5'x1/2\" wedi Building Panel 47700");
+  assert.equal((r.desc.main.match(/1\/2"/g) || []).length, 1, "the thickness appears once");
+  const k = { ...newProduct(), type: "misc", qtyType: "count", qty: "1", sizeText: '38"x60"', brandColor: "KERDI-SHOWER-T Tray", sku: "1509821", priceSqft: "121.91", sellUnit: "EA", schluter: { part: "KST965/1525" } };
+  assert.equal(orderEntryRow(k, settings, "Hall", 70, new Set(), null, null).desc.main, '38"x60" KERDI-SHOWER-T Tray 1509821');
 });
