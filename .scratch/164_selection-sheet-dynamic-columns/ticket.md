@@ -2,7 +2,7 @@
 issue_type: Feature
 summary: Selection sheet — material-column rules only beside a material, columns
   sized to keep each material to two lines, "Mortar" → "Adhesive", tighter cell padding.
-status: needs-triage
+status: done
 labels: [ready-for-human]
 ---
 
@@ -38,4 +38,18 @@ line, the rule runs across all the material columns:
   strip's rule spans every column when any column has a material on either side
 - `compare-A-vs-C.png` — A vs C close-up
 
-Awaiting owner pick (C proposed).
+Owner pick, 2026-10-01: C — build it and merge.
+
+## Built
+- `src/printcols.js` — `COLS` mortar label "Adhesive", job-list group
+  "Adhesive"; `stripRuled`; `fitColumns`/`twoLineWidth`/`FIT` (min 56, max
+  150, strip cap 330px, 4% slack, 7px cell chrome) (printcols.test.js)
+- `src/EstimateColumns.jsx` — canvas `matMeasure` (Manrope 500 7.6px cells,
+  800 caps for header/add-on labels), re-measured after `document.fonts.ready`;
+  strip rule from `stripRuled`; cell padding 1px 3px, stacked materials 2px apart
+
+## Preview proof
+`npx vite --config .scratch/164_selection-sheet-dynamic-columns/proof/vite.config.mjs`
+then `PW=/opt/node22/lib/node_modules/playwright node .scratch/164_selection-sheet-dynamic-columns/proof/shot.mjs`
+(REAL sheet, seed with the live books' long material names) — `proof/full.pdf`,
+`unit`, `none`, `options`, `freight`, `lvp-only`, `single`; `proof/modes.png`.

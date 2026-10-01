@@ -154,9 +154,16 @@ src/
                     # owner pick G3c): `specSize`/`specLine` (tile thickness
                     # never prints, × tightened, SF/ct kept), `qtyCells`/
                     # `priceCells` (ct over SF, $/sf over $/ct), `COLS` +
-                    # `matColumn`/`lineCells`/`columnsUsed` (Grout · Mortar ·
-                    # Underlay · Other — caulk and install items print only in
-                    # the list, and a column no line uses never prints),
+                    # `matColumn`/`lineCells`/`columnsUsed` (Grout · Adhesive ·
+                    # Underlay · Other — mortar reads "Adhesive" in the columns
+                    # and the job list, issue 164; caulk and install items
+                    # print only in the list, and a column no line uses never
+                    # prints), `fitColumns`/`twoLineWidth`/`FIT` (each column
+                    # sized so its materials wrap to two lines, clamped per
+                    # column and capped for the strip — the sheet measures
+                    # with a canvas, issue 164), `stripRuled` (the material
+                    # rule spans the whole strip only when some column has a
+                    # material above or below it),
                     # `needText` (exact, one decimal, the catalog's own unit
                     # word), `gridSpec` (the pricing-mode column set: the
                     # product block's own `left` grid beside the material

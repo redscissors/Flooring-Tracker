@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { normalizeSettings } from "./catalog.js";
 import { newProduct } from "./model.js";
 import { printProduct } from "./print.js";
-import { specSize, specLine, qtyCells, priceCells, COLS, matColumn, lineCells, columnsUsed, needText, gridSpec, jobListGroups, specialCheck, isOneLine, cellParts, loneUnnamedArea } from "./printcols.js";
+import { specSize, specLine, qtyCells, priceCells, COLS, matColumn, lineCells, columnsUsed, needText, gridSpec, jobListGroups, specialCheck, isOneLine, cellParts, loneUnnamedArea, twoLineWidth, fitColumns, stripRuled, FIT } from "./printcols.js";
 
 const s = normalizeSettings();
 const mat = (kind, over = {}) => ({ kind, name: `${kind} item`, spec: "", detail: "", exact: 1, order: 1, unit: "units", price: 10, cost: 10, ...over });
@@ -56,7 +56,7 @@ test("columnsUsed: only columns some line uses, in COLS order; none → []", () 
   assert.deepEqual(columnsUsed([{ mats: [mat("Grout"), mat("Caulk")] }, { mats: [] }]).map((c) => c.key), ["grout"]);
   assert.deepEqual(columnsUsed([{ mats: [mat("Tile Backer")] }, { mats: [mat("Grout")] }]).map((c) => c.key), ["grout", "underlay"]);
   assert.deepEqual(columnsUsed([{ mats: [] }, { mats: [mat("Caulk")] }]), []);
-  assert.deepEqual(COLS.map((c) => [c.label, c.w]), [["Grout", 102], ["Mortar", 74], ["Underlay", 94], ["Other", 90]]);
+  assert.deepEqual(COLS.map((c) => [c.label, c.w]), [["Grout", 102], ["Adhesive", 74], ["Underlay", 94], ["Other", 90]]);
 });
 
 test("needText: one decimal, singular at 1.0, dash when uncomputed", () => {
@@ -95,7 +95,7 @@ test("jobListGroups: order, merged Underlay, blank needed for base/caulk/freight
     mat("Freight", { name: "Vendor — freight", exact: 0, order: 1 }),
   ];
   const g = jobListGroups(rows);
-  assert.deepEqual(g.map((x) => x.label), ["Grout color", "Grout base", "Caulk", "Mortar", "Underlay", "Sealer", "Freight"]);
+  assert.deepEqual(g.map((x) => x.label), ["Grout color", "Grout base", "Caulk", "Adhesive", "Underlay", "Sealer", "Freight"]);
   assert.equal(g[0].rows[0].name, "SpectraLOCK PRO · Bright White");
   assert.equal(g[0].rows[0].needed, "1.6 kits");
   assert.equal(g[0].rows[0].total, 65.78);
@@ -148,4 +148,55 @@ test("jobListGroups: freight keeps its note and a whole sq ft count", () => {
   assert.equal(g[0].rows[0].detail, "order minimum applied");
   assert.equal(g[0].rows[0].order, 148);
   assert.equal(g[0].rows[0].total, 79);
+});
+
+// One unit per character: widths in these tests are character counts.
+const chars = (t) => String(t).length;
+
+test("twoLineWidth: the narrowest width that wraps a name to two lines", () => {
+  assert.equal(twoLineWidth("Custom Prolite Mortar White", chars), 14);
+  assert.equal(twoLineWidth("Ditra Uncoupling Membrane 54 SF", chars), 16);
+  assert.equal(twoLineWidth("ProLite", chars), 7);
+  assert.equal(twoLineWidth("", chars), 0);
+});
+
+test("fitColumns: each column sized to its widest cell at two lines, clamped", () => {
+  const lines = [
+    { mats: [mat("Grout", { name: "SpectraLOCK PRO", spec: "Bright White", detail: '1/8" joint' }), mat("Mortar", { name: "Custom Prolite Mortar White" })] },
+    { mats: [mat("Mortar", { name: "ProLite" })] },
+  ];
+  const cols = fitColumns(COLS.slice(0, 2), lines, chars, 0);
+  const pad = (n) => Math.ceil(n * FIT.slack + FIT.pad);
+  // Grout: name and color · joint one line each → the wider of the two
+  assert.equal(cols[0].w, Math.max(FIT.min, pad('Bright White · 1/8"'.length)));
+  assert.equal(cols[1].w, FIT.min);
+  const wide = fitColumns(COLS.slice(1, 2), [{ mats: [mat("Mortar", { name: "x".repeat(200) })] }], chars, 0);
+  assert.equal(wide[0].w, FIT.max);
+  assert.equal(fitColumns(COLS.slice(1, 2), lines, (t) => t.length * 6, 0)[0].w, pad(14 * 6));
+  assert.equal(fitColumns(COLS.slice(1, 2), lines, (t) => t.length * 6, 21)[0].w, pad(14 * 6 + 21));
+});
+
+test("fitColumns: the header label sets a floor; the strip never passes the total cap", () => {
+  const head = fitColumns(COLS.slice(1, 2), [], (t, kind) => (kind === "head" ? 90 : 1), 0);
+  assert.equal(head[0].w, pad2(90));
+  const big = [{ mats: [mat("Grout", { name: "g".repeat(150) }), mat("Mortar", { name: "m".repeat(150) }), mat("Tile Backer", { name: "u".repeat(150) })] }];
+  const fit = fitColumns(COLS.slice(0, 3), big, chars, 0);
+  assert.ok(fit.reduce((t, c) => t + c.w, 0) <= FIT.total);
+  assert.ok(fit.every((c) => c.w >= FIT.min));
+});
+const pad2 = (n) => Math.ceil(n * FIT.slack + FIT.pad);
+
+test("fitColumns: no measure (no canvas) keeps the fixed widths", () => {
+  assert.deepEqual(fitColumns(COLS.slice(0, 2), [], null, 0), COLS.slice(0, 2));
+});
+
+test("stripRuled: the material rule runs across when any column has a material above or below", () => {
+  const empty = { grout: [], mortar: [], underlay: [], other: [] };
+  const cols = COLS.slice(0, 3);
+  assert.equal(stripRuled(null, { ...empty, grout: [mat("Grout")] }, cols), false);
+  assert.equal(stripRuled(empty, empty, cols), false);
+  assert.equal(stripRuled({ ...empty, grout: [mat("Grout")] }, empty, cols), true);
+  assert.equal(stripRuled(empty, { ...empty, underlay: [mat("Tile Backer")] }, cols), true);
+  // a column that isn't printed doesn't count
+  assert.equal(stripRuled(empty, { ...empty, other: [mat("Sealer", { addon: true })] }, cols), false);
 });

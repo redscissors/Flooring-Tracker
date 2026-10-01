@@ -1,10 +1,10 @@
-import { Fragment } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { normPrintPricing } from "./pricing.js";
 import { wasteVaries } from "./catalog.js";
 import { money, wasteNote, rowBlank } from "./model.js";
 import { TLBL } from "./uiconst.js";
 import { printProduct, printAreaFloor, areaPrintLabel, u1 } from "./print.js";
-import { specLine, qtyCells, priceCells, lineCells, columnsUsed, gridSpec, jobListGroups, specialCheck, isOneLine, cellParts, loneUnnamedArea } from "./printcols.js";
+import { specLine, qtyCells, priceCells, lineCells, columnsUsed, gridSpec, jobListGroups, specialCheck, isOneLine, cellParts, loneUnnamedArea, fitColumns, stripRuled } from "./printcols.js";
 import { SheetHead } from "./sheethead.jsx";
 
 const MUTED = "var(--ft-muted)", FAINT = "var(--ft-faint)", DEEP = "var(--ft-brand-deep)";
@@ -18,6 +18,21 @@ const GUTTER = 6;
 const DIAMOND = "◆";
 const eyebrow = { fontSize: 7.5, fontWeight: 800, letterSpacing: ".14em", textTransform: "uppercase", color: FAINT };
 const kindLabel = { fontSize: 7, fontWeight: 800, letterSpacing: ".12em", textTransform: "uppercase", color: DEEP };
+const MAT_FS = 7.6, MAT_PAD = 3;
+
+let measureCtx;
+// Printed widths for fitColumns, in the cells' own type; null without a canvas.
+function matMeasure() {
+  if (measureCtx === undefined) measureCtx = typeof document === "undefined" ? null : document.createElement("canvas").getContext("2d");
+  const ctx = measureCtx;
+  if (!ctx) return null;
+  return (text, kind) => {
+    const caps = kind !== "cell", px = kind === "head" ? 7.5 : kind === "label" ? 6.5 : MAT_FS;
+    ctx.font = `${caps ? 800 : 500} ${px}px Manrope`;
+    const t = caps ? text.toUpperCase() : text;
+    return ctx.measureText(t).width + (caps ? t.length * px * (kind === "head" ? 0.05 : 0.12) : 0);
+  };
+}
 
 // The material-columns selection sheet (spec 2026-09-30, owner pick "G3c"):
 // products on the left, one column per install material beside them with the
@@ -30,7 +45,10 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
   const liveRows = (cats) => cats.flatMap((a) => a.products.filter((p) => !rowBlank(p)));
   const allRows = [...liveRows(areas), ...(optionPrint ? optionPrint.sections.flatMap((S) => liveRows(S.cats)) : [])];
   const computed = new Map(allRows.map((p) => [p.id, printProduct(p, tSet)]));
-  const cols = columnsUsed([...computed.values()]);
+  // Re-measure once the web font is in; before that the canvas sees a fallback face.
+  const [, setFontsIn] = useState(false);
+  useEffect(() => { document.fonts?.ready.then(() => setFontsIn(true)); }, []);
+  const cols = fitColumns(columnsUsed([...computed.values()]), [...computed.values()], matMeasure(), full ? 21 : 0);
   const g = gridSpec(pMode, cols);
   const { row: specialRow, mat: specialMat } = specialCheck(stockBookIds, stockSkus);
   const anySpecial = allRows.some((p) => specialRow(p) || computed.get(p.id).mats.some(specialMat))
@@ -38,10 +56,10 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
   const noHead = !optionPrint && loneUnnamedArea(areas);
   const areaCount = !optionPrint && !noHead && areas.length > 0 ? `${areas.length} ${areas.length === 1 ? "area" : "areas"} selected` : "";
   const hasShared = !!optionPrint && optionPrint.sharedT.grandTotal > 0;
-  const row = (left, mats, first, last) => (
+  const row = (left, mats, first, last, matRule) => (
     <div style={{ display: "grid", gridTemplateColumns: g.outer, breakInside: "avoid" }}>
       <div style={{ display: "grid", gridTemplateColumns: g.left, columnGap: 6, alignItems: "start", borderTop: first ? "none" : `1px solid ${HAIR}`, paddingRight: GUTTER, paddingBottom: last ? 3 : 0 }}>{left}</div>
-      {cols.length > 0 && <div style={{ display: "flex", borderTop: first ? "none" : MAT_RULE }}>{mats}</div>}
+      {cols.length > 0 && <div style={{ display: "flex", borderTop: first ? "none" : matRule ? MAT_RULE : "0.6px solid transparent" }}>{mats}</div>}
     </div>
   );
 
@@ -49,7 +67,7 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
   const matItem = (m, i) => {
     const t = cellParts(m);
     return (
-      <div key={i} style={{ marginTop: i ? 3 : 0 }}>
+      <div key={i} style={{ marginTop: i ? 2 : 0 }}>
         {t.label && <div style={{ ...kindLabel, fontSize: 6.5 }}>{t.label}</div>}
         <div style={{ display: "grid", gridTemplateColumns: full ? "17px minmax(0,1fr)" : "minmax(0,1fr)", columnGap: 4, alignItems: "baseline" }}>
           {full && <div style={{ textAlign: "right" }}><div style={{ fontWeight: 800 }}>{t.qty}</div>{t.unit && <div style={{ fontSize: 6, color: MUTED, lineHeight: 1.1 }}>{t.unit}</div>}</div>}
@@ -61,7 +79,7 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
       </div>
     );
   };
-  const cellStyle = { flex: "none", borderLeft: MAT_RULE, padding: "2px 4px", fontSize: 7.6, lineHeight: 1.22 };
+  const cellStyle = { flex: "none", borderLeft: MAT_RULE, padding: `1px ${MAT_PAD}px`, fontSize: MAT_FS, lineHeight: 1.2 };
   const moneyCells = (q, pr, c, oneLine) => {
     const cell = { paddingTop: 2, fontSize: 8.8, lineHeight: 1.3, textAlign: "right", whiteSpace: "nowrap" };
     return (
@@ -75,6 +93,7 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
   const productRow = (p, pi, rows) => {
     const c = computed.get(p.id);
     const cells = lineCells(c);
+    const prevCells = pi > 0 ? lineCells(computed.get(rows[pi - 1].id)) : null;
     const q = qtyCells(p, c), pr = priceCells(p, c);
     const oneLine = isOneLine(cells, cols, q, pr);
     const typeLbl = TLBL[p.type] || "";
@@ -95,7 +114,7 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
             </div>
           )}
           {moneyCells(q, pr, c, oneLine)}
-        </>, cols.map((col) => <div key={col.key} style={{ ...cellStyle, width: col.w }}>{cells[col.key].map(matItem)}</div>), pi === 0, pi === rows.length - 1)}
+        </>, cols.map((col) => <div key={col.key} style={{ ...cellStyle, width: col.w }}>{cells[col.key].map(matItem)}</div>), pi === 0, pi === rows.length - 1, stripRuled(prevCells, cells, cols))}
       </Fragment>
     );
   };

@@ -35,7 +35,7 @@ export function priceCells(p, c) {
 
 export const COLS = [
   { key: "grout", label: "Grout", w: 102 },
-  { key: "mortar", label: "Mortar", w: 74 },
+  { key: "mortar", label: "Adhesive", w: 74 },
   { key: "underlay", label: "Underlay", w: 94 },
   { key: "other", label: "Other", w: 90 },
 ];
@@ -54,6 +54,47 @@ export function lineCells(c) {
   const out = { grout: [], mortar: [], underlay: [], other: [] };
   for (const m of c.mats || []) { const k = matColumn(m); if (k) out[k].push(m); }
   return out;
+}
+
+// The rule between two lines runs across the whole material strip when any
+// printed column has a material on either side, and not at all otherwise
+// (owner 2026-10-01, issue 164).
+export const stripRuled = (prev, cells, cols) => !!prev && cols.some((col) => prev[col.key].length > 0 || cells[col.key].length > 0);
+
+// Column widths follow the materials (issue 164): wide enough that every
+// name wraps to two lines at most — grout's name and its color · joint one
+// line each — within a per-column clamp and a cap on the whole strip, so the
+// product names keep their room and an outlier takes a third line instead.
+// `slack` covers canvas measurement vs the printed glyphs; `pad` the cell's
+// side padding and rule.
+export const FIT = { min: 56, max: 150, total: 330, pad: 7, slack: 1.04 };
+
+export function twoLineWidth(text, measure) {
+  const words = String(text || "").split(/\s+/).filter(Boolean);
+  if (words.length < 2) return words.length ? measure(words[0]) : 0;
+  let best = Infinity;
+  for (let k = 1; k < words.length; k++) best = Math.min(best, Math.max(measure(words.slice(0, k).join(" ")), measure(words.slice(k).join(" "))));
+  return best;
+}
+
+// `measure(text, kind)` returns a printed width in px; kind is "cell", "label"
+// (an add-on's kind line) or "head" (the column's header label). `gutter` is
+// the amount column beside each name in full pricing.
+export function fitColumns(cols, lines, measure, gutter = 0) {
+  if (!measure) return cols;
+  const need = (m) => {
+    const t = cellParts(m);
+    const text = t.sub ? Math.max(measure(t.name, "cell"), measure(t.sub, "cell")) : twoLineWidth(t.name, (x) => measure(x, "cell"));
+    return Math.max(text + gutter, t.label ? measure(t.label, "label") : 0);
+  };
+  const ws = cols.map((col) => {
+    let w = measure(col.label, "head");
+    for (const c of lines) for (const m of c.mats || []) if (matColumn(m) === col.key) w = Math.max(w, need(m));
+    return Math.min(FIT.max, Math.max(FIT.min, Math.ceil(w * FIT.slack + FIT.pad)));
+  });
+  const total = ws.reduce((a, b) => a + b, 0);
+  const k = total > FIT.total ? FIT.total / total : 1;
+  return cols.map((col, i) => ({ ...col, w: Math.max(FIT.min, Math.floor(ws[i] * k)) }));
 }
 
 export function columnsUsed(lines) {
@@ -107,9 +148,11 @@ export function loneUnnamedArea(areas) {
   return printed.length === 1 && !(printed[0].name || "").trim();
 }
 
-const GROUP_ORDER = ["Grout color", "Grout base", "Caulk", "Mortar", "Underlay", "Install"];
+const GROUP_ORDER = ["Grout color", "Grout base", "Caulk", "Adhesive", "Underlay", "Install"];
 const groupOf = (m) => {
   if (m.kind === "Grout") return "Grout color";
+  // Mortar is glue for hardwood and vinyl too (owner 2026-10-01).
+  if (m.kind === "Mortar") return "Adhesive";
   if (m.kind === "Tile Backer" || m.kind === "Underlayment") return "Underlay";
   if (m.kind === "Install" || m.kind === "Install materials") return "Install";
   return m.kind;
