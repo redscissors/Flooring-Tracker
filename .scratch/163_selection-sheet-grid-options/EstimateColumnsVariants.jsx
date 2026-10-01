@@ -141,9 +141,12 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
             <div className="uppercase" style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: ".16em", lineHeight: 1, color: "var(--ft-text)" }}>{areaPrintLabel(a, ai)}</div>
             {full && <div className="ft-mono" style={{ fontSize: 9, lineHeight: 1, color: MUTED, whiteSpace: "nowrap" }}>flooring {money(printAreaFloor(a, tSet))}</div>}
           </div>
-        ) : <div className="ft-pband flex justify-between items-center" style={{ gap: 12, background: BAND, borderRadius: "3px 0 0 3px", padding: "1px 10px 1px 16px", marginTop: ai ? 0 : 5, breakAfter: "avoid" }}>
-          <div className="uppercase" style={{ fontSize: 9, fontWeight: 800, letterSpacing: ".22em", color: DEEP }}>{areaPrintLabel(a, ai)}</div>
-          {full && <div className="ft-mono" style={{ fontSize: 9, color: MUTED, whiteSpace: "nowrap" }}>flooring {money(printAreaFloor(a, tSet))}</div>}
+        ) : <div className="ft-pband" style={{ display: "grid", gridTemplateColumns: outer, columnGap: 6, alignItems: "center", background: BAND, borderRadius: "3px 0 0 3px", padding: "1px 0 1px 16px", marginTop: ai ? 0 : 5, breakAfter: "avoid" }}>
+          <div className="flex justify-between items-center" style={{ gap: 12, minWidth: 0 }}>
+            <div className="uppercase" style={{ fontSize: 9, fontWeight: 800, letterSpacing: ".22em", color: DEEP }}>{areaPrintLabel(a, ai)}</div>
+            {full && <div className="ft-mono" style={{ fontSize: 9, color: MUTED, whiteSpace: "nowrap" }}>flooring {money(printAreaFloor(a, tSet))}</div>}
+          </div>
+          {cols.length > 0 && <div />}
         </div>}
         {rows.map((p, pi) => productRow(p, pi, rows))}
       </div>

@@ -56,3 +56,8 @@ underlay 94 (same 270 total) so names stop wrapping:
 - `cell-leadunit` — as lead, the unit tiny under the number
 - `compare-cells.png` — today vs the three, real Manrope (the harness now
   loads .scratch/126's manrope.woff2 — earlier shots used a wider fallback)
+
+Owner picks, 2026-10-01: cell layout 3 (`cell-leadunit` — amount first, unit
+tiny under it). The area band's "flooring $" total now ends at the TOTAL
+column's right edge (it covers the product rows only, not the materials); the
+band still runs full width. Proposed final: `cell-leadunit.pdf`/`.png`.
