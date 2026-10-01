@@ -260,6 +260,10 @@ function classifyCode(item, rawSku) {
     const entry = { ...item, g: "drain", drain: "point" };
     if (/FLK/.test(code)) entry.part = "flange";
     else if (/GRK/.test(code)) entry.part = "grate";
+    const pipe = /^KD[A-Z]*?(\d)/.exec(code);
+    if (pipe) entry.pipe = Number(pipe[1]);
+    entry.material = /PVC/.test(code) ? "PVC" : /ABS/.test(code) ? "ABS"
+      : /(?:FLK|GRK)EB/.test(code) ? "Brushed Stainless" : /(?:FLK|GRK)E/.test(code) ? "Stainless" : "";
     return entry;
   }
 
@@ -285,6 +289,8 @@ function classifyCode(item, rawSku) {
     const entry = { ...item, g: "seam" };
     if (/\/FI/.test(code)) entry.corner = "inside";
     else if (/\/FA/.test(code)) entry.corner = "outside";
+    const ct = /\/F[IA](\d+)/.exec(code);
+    if (ct) entry.ct = Number(ct[1]);
     return entry;
   }
   if (/^KMS/.test(code)) {
@@ -309,7 +315,16 @@ function classifyCode(item, rawSku) {
   // RA the rectangular wall bench. Half-inch rounding because the 11½" bench
   // (292mm) must not read as 11".
   if (/^KB12SN/.test(code)) {
-    return { ...item, g: "extra", extra: "niche" };
+    const entry = { ...item, g: "extra", extra: "niche" };
+    // niche openings use their own mm sizes (12″ × 20″ / 28″), not the tray table
+    const NICHE_MM = { 305: 12, 508: 20, 711: 28 };
+    const mm = /^(\d{3})(\d{3})/.exec(code.replace(/^KB12SN/, ""));
+    const dims = mm ? [NICHE_MM[mm[1]], NICHE_MM[mm[2]]].filter((n) => n !== undefined) : [];
+    if (dims.length === 2) {
+      entry.w = Math.min(...dims); entry.d = Math.max(...dims);
+      entry.size = `${entry.w}"x${entry.d}"`;
+    }
+    return entry;
   }
   if (/^KBSB/.test(code)) {
     const entry = { ...item, g: "extra", extra: "bench" };
