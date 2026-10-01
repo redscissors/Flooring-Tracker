@@ -220,11 +220,11 @@ export function schluterDiag(cfg, cand, benches, drainFit) {
   return {
     pieces: [{
       kind: "pan",
-      item: tray ? { name: tray.name, us: tray.sku } : { name: "Mortar bed + KERDI", us: "" },
+      item: tray ? { name: [tray.size, tray.name].filter(Boolean).join(" "), us: tray.sku } : { name: "Mortar bed + KERDI", us: "" },
       x: troom.x0, y: troom.y0, w: rw, d: rd,
       cut: cut ? { w: tw, d: td } : null,
     }],
     drain, room: { w, d }, warnings,
-    title: tray ? tray.name : "Mortar bed + KERDI",
+    title: tray ? [tray.size, tray.name].filter(Boolean).join(" ") : "Mortar bed + KERDI",
   };
 }

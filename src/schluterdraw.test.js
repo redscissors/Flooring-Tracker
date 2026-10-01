@@ -105,7 +105,7 @@ test("the classified tray feeding the diag is the adapter's shape too", () => {
   // classify() derives for both fixture and adapted live rows
   const tray = classify(FIXTURE_ITEMS.find((i) => i.sku === "KST965/1525"));
   const o = schluterDiag(cfg({}), { tray, cut: 0, deep: false, kind: "exact" });
-  assert.equal(o.title, tray.name);
+  assert.equal(o.title, [tray.size, tray.name].filter(Boolean).join(" "));
 });
 
 test("added walls (cfg.xwalls) ride into dWalls, anchored at their end", () => {

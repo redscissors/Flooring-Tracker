@@ -52,7 +52,7 @@ test("entryView reads the entry's own session (staged fork)", () => {
 test("a Schluter title drops the brand its badge already shows", () => {
   const cat = CAT.map((e) => (e.sku === tray.tray.sku ? { ...e, name: "Schluter " + e.name } : e));
   const sctx = { ...ctx, schluter: { ...ctx.schluter, cat } };
-  assert.match(schluterEntryView(sMarker, {}, sctx.schluter).title, /^Schluter /);
+  assert.match(schluterEntryView(sMarker, {}, sctx.schluter).title, /\bSchluter /);
   const staged = entryView(schluter(null, { snap: sMarker }), sctx);
   const placed = placedView({ rowId: "r", marker: sMarker, brand: "schluter" }, sctx);
   for (const v of [staged, placed]) assert.doesNotMatch(v.title, /Schluter|KERDI/);
