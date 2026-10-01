@@ -135,7 +135,7 @@ test("wedi rows price through the engine's own tier lens, extended by qty", () =
 
 test("wedi's PRO-SET bag files under Setting — no by-others thin-set note", () => {
   const rows = wediCompareRows(wediBuildFor(room60x38()));
-  const ps = rows.filter((r) => /PRO-SET/.test(r.name));
+  const ps = rows.filter((r) => /pro-set/i.test(r.name));
   assert.equal(ps.length, 1);
   assert.deepEqual([ps[0].group, ps[0].qty, ps[0].noteOnly], ["setting", 1, false]);
   assert.equal(rows.some((r) => r.noteOnly), false);

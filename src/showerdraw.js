@@ -34,10 +34,11 @@ export const BENCH_DEPTH = 14;     // default seat depth along a wall (owner, 20
 // 2" pans pair with 1 37/64" extensions, which the shop shims flush with
 // ½" building-panel strips underneath (owner practice 2026-07-30).
 export function panThick(p) {
-  const m = /x\s*(\d+(?:\s+\d+\/\d+)?|\d+\/\d+)"\s*$/.exec((p && p.sizeText) || "");
+  if (p && typeof p.t === "number" && p.t > 0) return p.t;
+  const m = /x\s*(\d+(?:[\s-]\d+\/\d+)?|\d+\/\d+)"\s*$/.exec((p && p.sizeText) || "");
   if (!m) return 0;
   let v = 0;
-  m[1].trim().split(/\s+/).forEach((s) => {
+  m[1].trim().split(/[\s-]+/).forEach((s) => {
     const f = s.split("/");
     v += f.length === 2 ? +f[0] / +f[1] : +s;
   });

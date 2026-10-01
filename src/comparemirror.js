@@ -37,12 +37,13 @@ function boardThick(p) {
 }
 
 const SIZE = {
-  // the niche's interior opening: wedi prints it in the size text
-  // ("interior 12" x 8""), Schluter's SKU codes it in mm (KB12SN305508 = 12″ × 20″)
+  // the niche's interior opening: wedi's entry carries it (`interior`, the
+  // name's own figure or the 4" flange rule), Schluter's SKU codes it in mm
+  // (KB12SN305508 = 12″ × 20″)
   niche: (p) => {
     if (p.brand === "wedi") {
-      const m = new RegExp("interior\\s+" + INCH + '"?\\s*x\\s*' + INCH, "i").exec(p.item.sizeText || "");
-      return m ? { w: inchNum(m[1]), h: inchNum(m[2]) } : null;
+      const i = p.item.interior;
+      return i ? { w: i.w, h: i.d } : null;
     }
     const m = /^KB\d{2}SN(\d{3})(\d{3})/.exec(p.item.sku || "");
     return m ? { w: mmIn(m[1]), h: mmIn(m[2]) } : null;

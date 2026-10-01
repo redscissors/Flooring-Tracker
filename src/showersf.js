@@ -79,8 +79,7 @@ function floorSq(room, r, benches) {
 function wediNicheSq(key) {
   const it = item(key);
   if (!it || it.group !== "niche") return 0;
-  const m = String(it.sizeText || "").match(/interior ([\d.]+)" x ([\d.]+)"/);
-  if (m) return +m[1] * +m[2];
+  if (it.interior) return it.interior.w * it.interior.d;
   return it.w > 4 && it.d > 4 ? (it.w - 4) * (it.d - 4) : null;
 }
 

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { kitFor, round2 } from "./wedi.js";
+import { kitFor, round2, panTitle } from "./wedi.js";
 import { wediEntryView, wediTierOf } from "./wedikitview.js";
 
 const PAN = "US9100001";
@@ -11,7 +11,7 @@ const rowKey = (r) => r.wedi.key || r.wedi.part;
 test("wediEntryView prices a kit marker at retail = sum of lineItems", () => {
   const v = wediEntryView(kitMarker(), {}, ctx);
   const rows = v.lines();
-  assert.equal(v.title, kitFor(PAN, {}).pan.name);
+  assert.equal(v.title, panTitle(kitFor(PAN, {}).pan));
   assert.ok(rows.length > 1);
   assert.equal(v.price, round2(rows.reduce((t, r) => t + +r.priceSqft * +r.qty, 0)));
   assert.equal(v.meta.startsWith(`${rows.length} lines`), true);

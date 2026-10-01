@@ -33,7 +33,7 @@ test("wedi parsing: fractions, inch() and every dimension the two sheets print",
   assert.equal(dims('27-1/2" x 2"')[0], 27.5, "frac 27-1/2 = 27.5");
   assert.ok(inch(1.578125) === "1 37/64" && inch(0.5) === "1/2" && inch(5.75) === "5 3/4" && inch(36) === "36",
     "inch() prints the sheets' fractions");
-  assert.equal(item("US9100004").sizeText, '36" x 60" x 1 37/64"', "pan sizeText matches the pricelist");
+  assert.equal(item("US9100004").sizeText, "3'x5'x1-37/64\"", "pan sizeText reads by the foot with its thickness");
   assert.deepEqual(dims("36 in. x 60 in. x 1 37/64 in."), [36, 60, 1.578125], "dims '36 in. x 60 in. x 1 37/64 in.'");
   assert.deepEqual(dims('wedi® Building Panel 48"x60"x1/2"'), [48, 60, 0.5], 'dims \'48"x60"x1/2"\'');
   assert.deepEqual(dims("16 1/2 in. x 16 1/2 in."), [16.5, 16.5], "dims '16 1/2 in. x 16 1/2 in.'");
@@ -66,22 +66,22 @@ test("wedi catalog: 151 stock + 118 special-order-only entries, nothing in misc"
   assert.ok(cat.every((e) => e.retail > 0 || /sample/i.test(e.name)), "every entry priced");
 });
 
-test("wedi catalog: non-dimensional items keep their contents as sizeText", () => {
+test("wedi catalog: a non-dimensional item's count is its size, the contents its name", () => {
   // The pricelist's size column mixes the contents into prose; a Fastener Kit
   // row that doesn't say 100 ct reads as one screw at the order desk.
-  assert.equal(item(SKU.fastenerKit).sizeText, '100 ct 1 5/8" Screws & 100 ct. Washers with Tabs', "fastener kit shows its counts");
-  assert.equal(item("US5000086").sizeText, "100 ct Tabless washers and screws", "tabless kit count");
-  assert.equal(item("US5000009").sizeText, "1000 ct washers with tabs", "washer master pack count");
-  assert.equal(item("US5000012").sizeText, "1000 ct Screws", "screw master pack count");
-  assert.equal(item(SKU.sealantSausage).sizeText, "20 oz foil sausage", "sausage volume, prose cut");
-  assert.equal(item(SKU.sealantTube).sizeText, "10.5 oz cartridge", "tube volume");
-  assert.equal(item(SKU.sealant620Tube).sizeText, "10.5 oz cartridge", "620 cartridge volume");
+  const t = (key, size, name) => assert.deepEqual([item(key).sizeText, item(key).name], [size, name], key);
+  t(SKU.fastenerKit, "100 ct", "Fastener Kit, Screws & Washers with Tabs");
+  t("US5000086", "100 ct", "Tabless Fastener Kit, washers and screws");
+  assert.equal(item("US5000009").sizeText, "1000 ct", "washer master pack count");
+  assert.equal(item("US5000012").sizeText, "1000 ct", "screw master pack count");
+  t(SKU.sealantSausage, "20 oz", "Joint Sealant Sausage");
+  t(SKU.sealantTube, "10.5 oz", "Joint Sealant Tube");
+  assert.equal(item(SKU.sealant620Tube).sizeText, "10.5 oz", "620 cartridge volume");
   assert.equal(item("US9400001").sizeText, "20 units", "lube kit unit count");
-  assert.equal(item("US5076012").sizeText, "25 lbs. Bag", "Pro-Set bag weight, pallet prose cut");
-  assert.equal(item(SKU.subliner53).sizeText, "53 sft roll", "Subliner roll coverage from the parenthetical");
-  assert.equal(item(SKU.subCornerIn).sizeText, "2 per bag", "corner bag count from details");
-  assert.equal(item("095225053").sizeText, "5 in. x 82'", "mesh tape keeps its real size text");
-  assert.equal(item(SKU.trowel).sizeText, "", "pure prose stays out of the size slot");
+  t("US5076012", "25 lb", "Pro-Set Tile Adhesive");
+  t(SKU.subliner53, "39\"x16'", "Subliner Dry Roll, 53 sf");
+  t(SKU.subCornerIn, "", "Subliner Dry Inside Corner, 2 per bag");
+  assert.equal(item("095225053").sizeText, "5\"x82'", "mesh tape reads width by roll length");
 });
 
 // --- pans ---------------------------------------------------------------------
@@ -183,64 +183,74 @@ test("wedi groups: panels, extensions, curbs, modules, covers and the legacy key
   })(), "S-DRY line is its own group (US9176 bases stay pans)");
 });
 
-test("wedi curbs: plain profile names, full foam → lean → AT order (owner 2026-08-06)", () => {
-  assert.equal(item("47730").name, '60" Full Foam Curb', "SKU 47730 reads by length + profile, no Fundo Shower");
-  assert.equal(item("US3000041").name, '96" Full Foam Curb');
-  assert.equal(item("US3000038").name, '60" Lean Curb');
-  assert.equal(item("US3000040").name, '96" Lean Curb');
-  assert.equal(item("US3000048").name, '60" Full Foam AT Curb');
-  assert.equal(item("US3000049").name, '60" Lean AT Curb');
+test("wedi curbs: profile names, length in the size, full foam → lean → AT order", () => {
+  assert.deepEqual([item("US3000041").sizeText, item("US3000041").name], ['96"', "Full Foam Curb"]);
+  assert.deepEqual([item("US3000040").sizeText, item("US3000040").name], ['96"', "Lean Curb"]);
+  assert.deepEqual([item("US3000048").sizeText, item("US3000048").name], ['60"', "Full Foam AT Curb"]);
+  assert.deepEqual([item("US3000008").sizeText, item("US3000008").name], ['60"', "Curb Cap"]);
   assert.ok(group("curb").every((c) => !/fundo|shower/i.test(c.name)), "no curb says Fundo Shower");
   assert.deepEqual(curbs().map((c) => c.us),
     ["US3000039", "US3000041", "US3000038", "US3000040", "US3000048", "US3000049", "US3000008", "US3000010"],
     "swap order: full foam 60/96, lean 60/96, full AT, lean AT, caps");
-  assert.ok(group("curb").every((c) => c.sizeText === ""),
-    "a curb's second line is just the SKU — the length lives in the name");
+  assert.ok(group("curb").every((c) => /^\d+"$/.test(c.sizeText)), "every curb's size is its length");
 });
 
-test("wedi panels: by-the-foot names, SKU + inches stay on the second line (owner 2026-08-06)", () => {
-  assert.equal(item("US8000014").name, "4'x5'x1/2\" Building Panel");
-  assert.equal(item("US8000017").name, "3'x5'x1/2\" Building Panel");
-  assert.equal(item("US8000015").name, "4'x8'x1/2\" Building Panel");
-  assert.equal(item("US8000006").name, "2'x4'x1/8\" Building Panel");
-  assert.equal(item("US8000032").name, "32\"x4'x1/2\" Building Panel", "an off-foot side stays in inches");
-  assert.equal(item("US8000026").name, "4'x8'x1/2\" Vapor 85 Building Panel");
-  assert.equal(item("US8000014").sizeText, '48" x 60" x 1/2"', "the inches ride the size line");
-  assert.equal(item("US4000001").name, "wedi® Tub & Shower Wall Kit", "panel kits keep their own names");
+test("wedi entry text: size in sizeText, brand-free name, per the 2026-10-01 rule", () => {
+  const t = (key, size, name) => assert.deepEqual([item(key).sizeText, item(key).name], [size, name], key);
+  t("US9100004", "3'x5'x1-37/64\"", "Shower Base");
+  t("US9100005", "3'x6'x2\"", "Shower Base, Offset Drain");
+  t("1504159", "42\"x42\"x1-37/64\"", "Shower Base");
+  t("US9200005", "5'x5'x3/4\"", "Curbless Shower Base");
+  t("US9200007", "3'x5'x1-1/8\"", "Curbless Shower Base, Offset Drain");
+  t("US9310001", "3'x5'x2\"", "Linear Shower Base");
+  t("1518075", "38\"x64\"", "S-Dry Shower Base");
+  t("US8000014", "4'x5'x1/2\"", "Building Panel");
+  t("US8000006", "2'x4'x1/8\"", "Building Panel");
+  t("US8000032", "32\"x48\"x1/2\"", "Building Panel");
+  t("US8000026", "4'x8'x1/2\"", "Vapor 85 Building Panel");
+  t("US4000001", "", "Tub & Shower Wall Kit");
+  t("US3000038", "60\"", "Lean Curb");
+  t("47730", "60\"", "Full Foam Curb");
+  t("US3000049", "60\"", "Lean AT Curb");
+  t("US1000057", "4\"x4\"", "Stainless Drain Cover");
+  t("28796", "4\"x4\"", "Tileable ⅜\" Drain Cover");
+  t("676797048", "27\"", "Stainless Linear Drain Cover");
+  t("1504184", "27\"", "Matte Black Linear Drain Cover");
+  t("1504179", "32\"x5-3/4\"", "Linear Shower Module");
+  t("US9330001", "32\"x66-3/4\"", "Linear Shower Extension");
+  t("073783528", "24\"x48\"", "Shower Extension");
+  t("29356", "16\"x12\"", "Shower Niche");
+  t("US5000070", "100 ct", "Fastener Kit, Screws & Washers with Tabs");
+  t("US5000010", "20 oz", "Joint Sealant Sausage");
+  t("US5000013", "10.5 oz", "Joint Sealant Tube");
+  t("US5076012", "25 lb", "Pro-Set Tile Adhesive");
+  t("US5000000", "", "Subliner Dry Mixing Valve Seal");
+  t("US5000044", "", "Corner Putty Knife");
+  t("US5000001", "39\"x16'", "Subliner Dry Roll, 53 sf");
+  t("US3076001", "72\"", "S-Dry Curb");
+  t("US1076002", "", "S-Dry Stainless Drain Cover");
+  t("US5076009", "50\"x25'", "S-Dry Membrane, 104 sf");
+  t("US5076002", "", "S-Dry 90° Inside Corner, 2 per bag");
+  t("US5076006", "", "S-Dry Pipe Collar");
+  t("US5076011", "", "S-Dry Seal");
+  t("US5076010", "3/16\"x5/32\"", "S-Dry Seal Trowel");
+  assert.ok(catalog().every((e) => !/[®™—]|\bfundo\b|\bwedi\b/i.test(e.name) && typeof e.sizeText === "string"), "no marks, dashes, Fundo or wedi in any name");
+  assert.deepEqual(item("29356").interior, { w: 12, d: 8 }, "a niche keeps its interior for the tile sq ft math");
 });
 
-test("wedi bases: by-the-foot names, inches on the second line, offset drains named (owner 2026-08-06)", () => {
-  assert.equal(item("US9100004").name, "3'x5' Shower Base");
-  assert.equal(item("US9100005").name, "3'x6' Shower Base — Offset Drain");
-  assert.equal(item("1504159").name, "3'6\"x3'6\" Shower Base", "an off-foot side reads feet-and-inches");
-  assert.equal(item("US9200005").name, "5'x5' Curbless Shower Base");
-  assert.equal(item("US9200007").name, "3'x5' Curbless Shower Base — Offset Drain");
-  assert.equal(item("US9310001").name, "3'x5' Linear Shower Base");
-  assert.equal(item("1518075").name, "3'2\"x5'4\" S-Dry Shower Base");
-  assert.equal(item("US9100004").sizeText, '36" x 60" x 1 37/64"', "the full inches (with thickness) stay on the size line");
-  assert.ok(group("pan").every((p) => !/fundo/i.test(p.name)), "no base says Fundo");
-});
-
-test("wedi covers: finish words replace the codes, second line is the SKU alone (owner 2026-08-06)", () => {
-  assert.equal(item("1504181").name, '4"x4" Drain Cover — Stainless');
-  assert.equal(item("28774").name, '4"x4" Drain Cover — Matte Black');
-  assert.equal(item("28796").name, '4"x4" Drain Cover — Tileable ⅜"');
-  assert.equal(item("47814").name, '43" Linear Drain Cover — Stainless');
-  assert.equal(item("1504184").name, '27" Linear Drain Cover — Matte Black');
-  assert.ok(group("cover").every((c) => !c.finish || c.sizeText === ""),
-    "size and finish live in the name — a cover's second line is just the SKU");
+test("wedi covers: finish words replace the codes, size in the size field", () => {
+  assert.deepEqual([item("1504181").sizeText, item("1504181").name], ['4"x4"', "Stainless Drain Cover"]);
+  assert.deepEqual([item("28774").sizeText, item("28774").name], ['4"x4"', "Matte Black Drain Cover"]);
+  assert.deepEqual([item("47814").sizeText, item("47814").name], ['43"', "Stainless Linear Drain Cover"]);
+  assert.ok(group("cover").every((c) => !c.finish || /^[\d"x]+$/.test(c.sizeText)), "a finished cover's size is its size, not its finish");
   assert.ok(group("cover").every((c) => !/fundo/i.test(c.name)), "no cover says Fundo");
 });
 
 test("wedi niches: exterior leads, interior on the second line (owner 2026-08-06)", () => {
-  assert.equal(item("29356").name, '16"x12" Shower Niche');
-  assert.equal(item("29356").sizeText, 'interior 12" x 8"');
-  assert.equal(item("47732").name, '16"x22" Shower Niche');
-  assert.equal(item("47732").sizeText, 'interior 12" x 18"');
-  assert.equal(item("29970").name, '16"x30" Cathedral Shower Niche');
-  assert.equal(item("29970").sizeText, 'interior 12" x 26"');
-  assert.equal(item("29380").name, '16"x8" Shower Niche', "the ERP-only niche reads by its exterior too");
-  assert.equal(item("29380").sizeText, 'interior 12" x 4"', "interior falls back to the 4\" flange rule");
+  assert.deepEqual([item("47732").sizeText, item("47732").name, item("47732").interior], ['16"x22"', "Shower Niche", { w: 12, d: 18 }]);
+  assert.deepEqual([item("29970").sizeText, item("29970").name, item("29970").interior], ['16"x30"', "Cathedral Shower Niche", { w: 12, d: 26 }]);
+  assert.deepEqual([item("29380").sizeText, item("29380").name], ['16"x8"', "Shower Niche"], "the ERP-only niche reads by its exterior too");
+  assert.deepEqual(item("29380").interior, { w: 12, d: 4 }, "interior falls back to the 4\" flange rule");
 });
 
 // --- tiers --------------------------------------------------------------------
@@ -653,7 +663,7 @@ test("wedi drain placement: the pan floats so the drain lands where the plumbing
   assert.ok(s11.length > 0 && s11.every((o) =>
     covers(o, 0, 0) && covers(o, 60, 0) && covers(o, 0, 110) && covers(o, 60, 110)),
     "60×110 center: every option covers all four room corners — no blanks");
-  assert.ok(s11.some((o) => /60" x 84"/.test(o.pan.sizeText)),
+  assert.ok(s11.some((o) => /^5'x7'/.test(o.pan.sizeText)),
     "the 60×84 big pan earns a card: " + s11.map((o) => o.pan.sizeText).join(" | "));
   // Seams run horizontal (owner rule 2026-07-30): the top pick is the 60×72
   // with two full-width 12" extensions per side — the far one cut to 7" —
@@ -661,7 +671,7 @@ test("wedi drain placement: the pan floats so the drain lands where the plumbing
   assert.ok((() => {
     const o = s11[0];
     const ext = o.pieces.slice(1);
-    return /60" x 72"/.test(o.pan.sizeText) && ext.length === 4 &&
+    return /^5'x6'/.test(o.pan.sizeText) && ext.length === 4 &&
       ext.every((p) => p.item.key === "US3000036" && p.w === 60) &&
       ext.filter((p) => p.d === 7).length === 2;
   })(), "60×110 centre: 60×72 + four full-width 12\" extensions, the far pair cut to 7\": "
@@ -670,7 +680,9 @@ test("wedi drain placement: the pan floats so the drain lands where the plumbing
   // the build-up and the kit carries the ½" sheet ripped into strips.
   assert.equal(panThick({ sizeText: '60" x 84" x 2"' }), 2);
   assert.equal(panThick({ sizeText: '36" x 60" x 1 37/64"' }), round2(1 + 37 / 64));
-  const big84 = s11.filter((o) => /60" x 84"/.test(o.pan.sizeText))[0];
+  assert.equal(panThick({ sizeText: "5'x7'x2\"" }), 2, "the 2026-10-01 spelling");
+  assert.equal(panThick({ sizeText: "3'x5'x1-37/64\"", t: 1.578125 }), 1.578125, "a catalog entry's own thickness wins");
+  const big84 = s11.filter((o) => /^5'x7'/.test(o.pan.sizeText))[0];
   assert.ok(big84.warnings.some((w) => /build the extensions up flush/.test(w)),
     "2\" pan + extensions warns about the build-up: " + JSON.stringify(big84.warnings));
   const kit84 = kitFor(big84.pan.key, { option: big84 });
@@ -1019,7 +1031,7 @@ test("wedi benches: suspended premades hang at seat height — the slab is the t
   assert.ok(seatM.t === 4 && seatL.t === 4, 'the corner seats are 4" thick');
   assert.equal(seatM.details, "Suspended Corner Seat", "the seats say what they are");
   assert.equal(san4.details, "Suspended Bench");
-  assert.equal(san4.sizeText, '47 1/4" x 15" x 3 1/8"', "Sanoasa 4 sizes clean — no doubled unit");
+  assert.equal(san4.sizeText, '47-1/4"x15"x3-1/8"', "Sanoasa 4 sizes clean — no doubled unit");
   const corner = benchPremades("corner");
   assert.ok(corner.some((e) => e.key === "US3000001") && corner.some((e) => e.key === "US3000002"),
     "the suspended corner seats place from the corner bench menu");

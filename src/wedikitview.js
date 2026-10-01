@@ -1,7 +1,7 @@
 // Pure per-brand basket pricing for a wedi kit marker — the popup's entryView /
 // applySession / tierOf lifted out so the lazy basket drawer prices a staged
 // wedi entry the same way the popup does. Imports wedi.js only.
-import { tierPrice, lineItems, buildFromMarker, panelFitLines, addedRows, item, wediSlotOf, round2 } from "./wedi.js";
+import { tierPrice, lineItems, buildFromMarker, panelFitLines, addedRows, item, wediSlotOf, round2, panTitle } from "./wedi.js";
 
 const clampPct = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 0; };
 
@@ -46,7 +46,7 @@ export const wediEntryView = (marker, session, { tier, customPct, salePct, bPct,
     qtyOv: s.qtyOv || {}, manual: s.manual || [], panelFit: session ? s.panelFit !== false : panelFit,
   });
   return {
-    title: b.pan ? b.pan.name : "wedi build",
+    title: b.pan ? panTitle(b.pan) : "wedi build",
     meta: `${lines.length} lines${room ? ` · ${round2(room.w)}×${round2(room.d)}"` : ""}`,
     price: round2(lines.reduce((t, l) => t + tierOf(l.item) * l.qty, 0)),
     lines: () => lineItems({ ...b, lines }, { tier, builderPct: bPct }),
