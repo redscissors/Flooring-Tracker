@@ -738,8 +738,10 @@ src/
                     # `switchToSqftPatch`/`switchChipText` — the count-line →
                     # sq ft chip (ADR 0043). `dropOwnCodes` — a stock-kind
                     # pick's line name sheds the item's own manufacturer
-                    # codes (its vendorSkus, exact or behind a 1–3 letter
-                    # tag); the book's stored description is untouched
+                    # codes (its vendorSkus: exact, behind a 1–3 letter
+                    # tag, or spelled out in order inside the word) plus a
+                    # letters-and-digits word closing the name after a dash;
+                    # the book's stored description is untouched
   groutbase.js      # grout base options (ADR 0006 amendment 2026-09-29): a
                     # catalog grout's ★ `base` + `altBases`, a row's pick in
                     # `grout.base` ("" = the ★; an unknown key falls back to

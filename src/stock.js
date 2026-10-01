@@ -218,17 +218,33 @@ export const parseThickness = (t) => {
 // A stock line's name sheds the item's own manufacturer codes (owner
 // 2026-10-01) — only the codes its code columns state, so pack sizes, coverage
 // and weights stay. The ERP columns often carry the code behind a 1–3 letter
-// distributor tag the description doesn't print (SLRRO100AT for RO100AT).
+// distributor tag the description doesn't print (SLRRO100AT for RO100AT), or
+// a shortened spelling of it (MRZTM22415G for TM22RCT415AGL — the column's
+// characters in order inside the printed code). One guess beyond the columns,
+// checked against every stock export (owner 2026-10-01): a letters-and-digits
+// word closing the name after a dash is a code even when no column says so
+// (U4P4E3C2 beside CAEQENS1224R).
 const codeKey = (s) => str(s).toUpperCase().replace(/[^A-Z0-9]/g, "");
+const inOrder = (code, word) => {
+  let j = 0;
+  for (const ch of word) if (ch === code[j]) j++;
+  return j === code.length;
+};
+const UNIT_WORD_RE = /^\d+(?:x\d+)*(?:in|mm|cm|ft|mil|sf|oz|lbs?|gal|pk|pc|yds?|v)?$/i;
+const trailingCode = (w) => /^[A-Za-z0-9]{6,}$/.test(w) && /[a-z]/i.test(w) && /\d/.test(w) && !UNIT_WORD_RE.test(w);
 export const dropOwnCodes = (description, codes) => {
   const desc = str(description);
   const keys = (codes || []).map(codeKey).filter(Boolean);
-  if (!keys.length) return desc;
+  const untagged = keys.flatMap((c) => [c, ...[1, 2, 3].filter((n) => /^[A-Z]+$/.test(c.slice(0, n))).map((n) => c.slice(n))]);
   const own = (w) => {
     const k = codeKey(w);
-    return k.length >= 4 && /\d/.test(k) && keys.some((c) => c === k || (c.endsWith(k) && /^[A-Z]{1,3}$/.test(c.slice(0, -k.length))));
+    if (k.length < 4 || !/\d/.test(k)) return false;
+    return keys.some((c) => c === k || (c.endsWith(k) && /^[A-Z]{1,3}$/.test(c.slice(0, -k.length))))
+      || (k.length >= 5 && untagged.some((c) => c.length >= 5 && c.slice(0, 2) === k.slice(0, 2) && inOrder(c, k)));
   };
   const words = desc.split(/\s+/).filter((w) => w && !own(w));
+  const n = words.length;
+  if (n >= 3 && /^[-–—]+$/.test(words[n - 2]) && trailingCode(words[n - 1])) words.pop();
   while (words.length && /^[-–—]+$/.test(words[words.length - 1])) words.pop();
   while (words.length && /^[-–—]+$/.test(words[0])) words.shift();
   return words.join(" ") || desc;

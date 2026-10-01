@@ -57,6 +57,7 @@ const STOCK_ITEMS = [
   sit({ sku: "1509790", description: "90 Kerdi Kereck F Inside - KERECK/FI10 10/pk", vendorSkus: ["KERECK/FI10"], unit: "PK", cost: 48.61, price: 72.92 }),
   sit({ sku: "1509791", description: "90 Kerdi Kereck F Inside - KERECK/FI2 2/pk", vendorSkus: ["KERECK/FI2"], unit: "PK", cost: 10.21, price: 15.32 }),
   sit({ sku: "1518114", description: "Marazzi Terramater Moss - TM22RCT415AGL", size: "4x15", vendorSkus: ["MRZTM22415G"], type: "tile", unit: "CT", cost: 59.07, price: 102.79, sfPerUnit: 10.29 }),
+  sit({ sku: "1518129", type: "tile", description: "VT Quartz Essence Nest - U4P4E3C2", size: "12x24", vendorSkus: ["CAEQENS1224R"], unit: "CT", cost: 50.85, price: 90.85, sfPerUnit: 13.56 }),
   sit({ sku: "29498", description: "Durock Seam Tape", size: "250'", vendorSkus: ["DURROCKTAPE250"], unit: "RL", cost: 9.5, price: 14.25 }),
 ];
 
