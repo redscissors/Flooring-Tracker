@@ -88,3 +88,10 @@ preview tab shows what prints — reversing issue 085's colored preview, owner
 confirmed "match paper exactly" incl. option bands. Proof: `proof/screen.mjs`
 → `screen-full.png` / `screen-options.png`; the print PDFs are unchanged
 (full.pdf re-rendered: 0 px differ).
+
+## Follow-up 2 (owner 2026-10-01)
+Back to the open grid — no bottom or right edge on the material strip — but a
+product row's rule now runs on to the first material divider (the product
+block's 6px gutter became padding, so Total still lines up). A material with
+no computed amount leaves the amount blank instead of "—". Proof re-shot:
+`proof/*.pdf`, `proof/grid-closeup.png`.

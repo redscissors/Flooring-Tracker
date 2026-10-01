@@ -12,6 +12,9 @@ const RULE = "var(--ft-paper-rule)", HAIR = "var(--ft-border)", BAND = "var(--ft
 // The material strip reads lighter than the products: a thinner rule, regular
 // weight (owner 2026-10-01, issue 163 — still 100% black on paper).
 const MAT_RULE = "0.6px solid var(--ft-border)";
+// The product block keeps its gutter as padding, so a row's rule runs on to
+// the first material divider (owner 2026-10-01).
+const GUTTER = 6;
 const DIAMOND = "◆";
 const eyebrow = { fontSize: 7.5, fontWeight: 800, letterSpacing: ".14em", textTransform: "uppercase", color: FAINT };
 const kindLabel = { fontSize: 7, fontWeight: 800, letterSpacing: ".12em", textTransform: "uppercase", color: DEEP };
@@ -36,9 +39,9 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
   const areaCount = !optionPrint && !noHead && areas.length > 0 ? `${areas.length} ${areas.length === 1 ? "area" : "areas"} selected` : "";
   const hasShared = !!optionPrint && optionPrint.sharedT.grandTotal > 0;
   const row = (left, mats, first, last) => (
-    <div style={{ display: "grid", gridTemplateColumns: g.outer, columnGap: 6, breakInside: "avoid" }}>
-      <div style={{ display: "grid", gridTemplateColumns: g.left, columnGap: 6, alignItems: "start", borderTop: first ? "none" : `1px solid ${HAIR}`, paddingBottom: last ? 3 : 0 }}>{left}</div>
-      {cols.length > 0 && <div style={{ display: "flex", borderTop: first ? "none" : MAT_RULE, borderBottom: last ? MAT_RULE : "none", borderRight: MAT_RULE }}>{mats}</div>}
+    <div style={{ display: "grid", gridTemplateColumns: g.outer, breakInside: "avoid" }}>
+      <div style={{ display: "grid", gridTemplateColumns: g.left, columnGap: 6, alignItems: "start", borderTop: first ? "none" : `1px solid ${HAIR}`, paddingRight: GUTTER, paddingBottom: last ? 3 : 0 }}>{left}</div>
+      {cols.length > 0 && <div style={{ display: "flex", borderTop: first ? "none" : MAT_RULE }}>{mats}</div>}
     </div>
   );
 
@@ -104,8 +107,8 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
     return (
       <div key={a.id}>
         {!noHead && (
-          <div className="ft-pband" style={{ display: "grid", gridTemplateColumns: g.outer, columnGap: 6, alignItems: "center", background: BAND, borderRadius: "3px 0 0 3px", padding: "1px 0 1px 16px", marginTop: ai ? 0 : 5, breakAfter: "avoid" }}>
-            <div className="flex justify-between items-center" style={{ gap: 12, minWidth: 0 }}>
+          <div className="ft-pband" style={{ display: "grid", gridTemplateColumns: g.outer, alignItems: "center", background: BAND, borderRadius: "3px 0 0 3px", padding: "1px 0 1px 16px", marginTop: ai ? 0 : 5, breakAfter: "avoid" }}>
+            <div className="flex justify-between items-center" style={{ gap: 12, minWidth: 0, paddingRight: GUTTER }}>
               <div className="uppercase" style={{ fontSize: 9, fontWeight: 800, letterSpacing: ".22em", color: DEEP }}>{areaPrintLabel(a, ai)}</div>
               {full && rows.length > 1 && <div className="ft-mono" style={{ fontSize: 9, color: MUTED, whiteSpace: "nowrap" }}>Area Total {money(printAreaFloor(a, tSet))}</div>}
             </div>
@@ -117,15 +120,15 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
     );
   };
   const header = (
-    <div style={{ display: "grid", gridTemplateColumns: g.outer, columnGap: 6, borderBottom: "1px solid var(--ft-text)", padding: "8px 0 3px", breakAfter: "avoid" }}>
-      <div style={{ display: "grid", gridTemplateColumns: g.left, columnGap: 6 }}>
+    <div style={{ display: "grid", gridTemplateColumns: g.outer, borderBottom: "1px solid var(--ft-text)", padding: "8px 0 3px", breakAfter: "avoid" }}>
+      <div style={{ display: "grid", gridTemplateColumns: g.left, columnGap: 6, paddingRight: GUTTER }}>
         <div />
         <div style={eyebrow}>Product</div>
         {g.money.qty && <div style={{ ...eyebrow, textAlign: "right", marginRight: "-.14em" }}>Qty</div>}
         {g.money.price && <div style={{ ...eyebrow, textAlign: "right", marginRight: "-.14em" }}>Price</div>}
         {g.money.total && <div style={{ ...eyebrow, textAlign: "right", marginRight: "-.14em" }}>Total</div>}
       </div>
-      {cols.length > 0 && <div style={{ display: "flex", borderRight: MAT_RULE }}>{cols.map((col) => <div key={col.key} style={{ ...eyebrow, flex: "none", width: col.w, letterSpacing: ".05em", paddingLeft: 4, borderLeft: MAT_RULE }}>{col.label}</div>)}</div>}
+      {cols.length > 0 && <div style={{ display: "flex" }}>{cols.map((col) => <div key={col.key} style={{ ...eyebrow, flex: "none", width: col.w, letterSpacing: ".05em", paddingLeft: 4, borderLeft: MAT_RULE }}>{col.label}</div>)}</div>}
     </div>
   );
   const listCols = full ? "72px minmax(0,1fr) 54px 54px 52px 62px" : pMode === "unit" ? "72px minmax(0,1fr) 72px" : "72px minmax(0,1fr)";
