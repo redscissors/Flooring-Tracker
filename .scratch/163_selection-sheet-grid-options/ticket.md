@@ -64,3 +64,8 @@ band still runs full width. Proposed final: `cell-leadunit.pdf`/`.png`.
 Owner, 2026-10-01: tighten Qty/Price/Total — Qty 38→34px, Price 60→50px
 (Total stays 58, it has to hold $13,729.17); the product column takes the
 14px. `money-closeup.png`.
+Owner, 2026-10-01: the band's total reads "Area total $X" and prints only on
+an area with more than one item; a quote with ONE printed area that was never
+named prints no area header at all (option prints keep theirs). The harness
+now aliases its own copy of the fake client (`fakesupabase.js`, + `?single=1`
+— the shower as the job's only, unnamed area). `single-leadunit.pdf`/`.png`.

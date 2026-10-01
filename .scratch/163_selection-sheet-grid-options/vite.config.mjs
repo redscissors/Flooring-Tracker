@@ -9,7 +9,7 @@ export default defineConfig({
   root: join(dir, "../.."),
   plugins: [react()],
   resolve: { alias: [
-    { find: /^\.\/lib\/supabase\.js$/, replacement: join(dir, "../162_selection-sheet-columns/fakesupabase.js") },
+    { find: /^\.\/lib\/supabase\.js$/, replacement: join(dir, "fakesupabase.js") },
     { find: /^\.\/EstimateColumns\.jsx$/, replacement: join(dir, "EstimateColumnsVariants.jsx") },
   ] },
   server: { port: 5198, strictPort: true },

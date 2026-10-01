@@ -132,12 +132,14 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
       </Fragment>
     );
   };
+  const printedAreas = areas.filter((a) => a.products.some((p) => !rowBlank(p)));
+  const loneUnnamed = !optionPrint && printedAreas.length === 1 && !(printedAreas[0].name || "").trim();
   const areaBlock = (a, ai) => {
     const rows = a.products.filter((p) => !rowBlank(p));
     if (!rows.length) return null;
     return (
       <div key={a.id}>
-        {BAND_RULE ? (
+        {loneUnnamed ? null : BAND_RULE ? (
           <div className="flex justify-between items-baseline" style={{ gap: 12, borderBottom: "2px solid var(--ft-text)", padding: `${ai ? 5 : 4}px 4px 0.5px 16px`, breakAfter: "avoid" }}>
             <div className="uppercase" style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: ".16em", lineHeight: 1, color: "var(--ft-text)" }}>{areaPrintLabel(a, ai)}</div>
             {full && <div className="ft-mono" style={{ fontSize: 9, lineHeight: 1, color: MUTED, whiteSpace: "nowrap" }}>flooring {money(printAreaFloor(a, tSet))}</div>}
@@ -145,7 +147,7 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
         ) : <div className="ft-pband" style={{ display: "grid", gridTemplateColumns: outer, columnGap: 6, alignItems: "center", background: BAND, borderRadius: "3px 0 0 3px", padding: "1px 0 1px 16px", marginTop: ai ? 0 : 5, breakAfter: "avoid" }}>
           <div className="flex justify-between items-center" style={{ gap: 12, minWidth: 0 }}>
             <div className="uppercase" style={{ fontSize: 9, fontWeight: 800, letterSpacing: ".22em", color: DEEP }}>{areaPrintLabel(a, ai)}</div>
-            {full && <div className="ft-mono" style={{ fontSize: 9, color: MUTED, whiteSpace: "nowrap" }}>flooring {money(printAreaFloor(a, tSet))}</div>}
+            {full && rows.length > 1 && <div className="ft-mono" style={{ fontSize: 9, color: MUTED, whiteSpace: "nowrap" }}>Area total {money(printAreaFloor(a, tSet))}</div>}
           </div>
           {cols.length > 0 && <div />}
         </div>}
