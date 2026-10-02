@@ -5,11 +5,11 @@
 import { sellOf, TEXTURES, STAIN_COLORS, LIVE_SAWN_SP } from "./sheoga.js";
 
 export const TRIM_PROFILES = [
-  { id: "nose35", name: 'Rabbeted nosing 3½"', label: "Rabbeted nosing", short: 'Nosing 3½"', size: '3½"' },
-  { id: "nose55", name: 'Rabbeted nosing 5½"', label: "Rabbeted nosing", short: 'Nosing 5½"', size: '5½"' },
-  { id: "shoe", name: 'Shoe mold ½" × ¾"', label: "Shoe mold", short: "Shoe mold", size: '½" × ¾"' },
-  { id: "reducer", name: 'Reducer ¾" × 2½"', label: "Reducer", short: "Reducer", size: '¾" × 2½"', fixedLen: 8 },
-  { id: "tmold", name: 'T-mold ¾" × 2½"', label: "T-mold", short: "T-mold", size: '¾" × 2½"', fixedLen: 8 },
+  { id: "nose35", name: 'Stair nose 3½"', label: "Stair nose", short: 'Stair nose 3½"', width: '3½"' },
+  { id: "nose55", name: 'Stair nose 5½"', label: "Stair nose", short: 'Stair nose 5½"', width: '5½"' },
+  { id: "shoe", name: 'Shoe mold ½"×¾"', label: "Shoe mold", short: "Shoe mold", width: '½"×¾"' },
+  { id: "reducer", name: 'Reducer 2½"', label: "Reducer", short: "Reducer", width: '2½"', fixedLen: 8 },
+  { id: "tmold", name: 'T-mold 2½"', label: "T-mold", short: "T-mold", width: '2½"', fixedLen: 8 },
 ];
 export const TRIM_SPECIES = ["Beech", "Cherry", "Maple", "Hickory", "Red Oak", "White Oak", "Walnut", "Q/R White Oak"];
 
@@ -227,13 +227,13 @@ export function calcTrim(cfg, trimBook) {
     if (r.textured) rows.push([`Textured — ${texName}`, "+" + money(r.add) + " /lf"]);
     else if (textured) rows.push(["Smooth — can't be textured", ""]);
     const lenText = len === "rl" ? "random lengths" : `${len}' pcs`;
-    const tail = [lenText, cfg.sp, r.textured ? finishText : baseFinish];
+    const finish = r.textured ? finishText : baseFinish;
     lines.push({
       key: `${id}-${lines.length}`, profile: id, unit: len === "rl" ? "lf" : "pc", qty, len, unitCost, lfCost: r.lfCost,
-      sizeText: profile.size,
+      sizeText: `${profile.width}×${len === "rl" ? "RL" : `${len}'`}`,
       textured: r.textured,
-      desc: [profile.name, ...tail].join(" · "),
-      rest: [profile.label, ...tail].join(" · "),
+      desc: [profile.name, lenText, cfg.sp, finish].join(" · "),
+      rest: [profile.label, cfg.sp, finish].join(" · "),
       qtyText: len === "rl" ? `${qty} lf` : plural(qty, "pc"),
       math: len === "rl" ? `${qty} lf · Sheoga picks lengths` : `${plural(qty, "pc")} × ${len}' = ${qty * len} lf`,
       rows,

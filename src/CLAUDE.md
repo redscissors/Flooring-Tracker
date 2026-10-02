@@ -937,7 +937,7 @@ src/
                     # `trimLineItems` (the kit: anchor `{ mode: "trim", cfg }`
                     # with cfg.match false, companions `{ mode: "trim",
                     # part: true }`, count rows, unit cost rounded then
-                    # sellOf; the vent idiom — `sizeText` the profile size,
+                    # sellOf; the vent idiom — `sizeText` width×length, no spaces (`3½"×8'`, RL at random lengths),
                     # `brandColor` "Sheoga " + the line's size-free `rest`,
                     # while the build card shows `desc` with the sized name), `trimEntryView` (the basket drawer's row; lists
                     # at 0 with no sheet so it can be removed),

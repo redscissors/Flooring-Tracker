@@ -16,11 +16,8 @@ const numCls = "w-14 rounded-md border border-slate-300 px-1.5 py-1 text-right t
 const textCls = "w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500";
 const LEN_OPTS = [...TRIM_LENGTHS.map((l) => ({ v: String(l), label: `${l}' pieces` })), { v: "rl", label: "Random lengths" }];
 const texLabel = (id) => (TEXTURES.find((t) => t.id === id) || TEXTURES[0]).name.replace(" (standard)", "");
-const PIECES_TIP = <>Every piece prices by the lineal foot off Sheoga's accessory sheet. Nosing and shoe mold order as pieces of a length you pick, or random lengths by the foot (Sheoga picks, subject to inventory). Reducer and T-mold come in 8' lengths only. Textured trim: nosing takes the sheet's texture charge; shoe mold, reducer and T-mold can't be textured and ship smooth.</>;
+const PIECES_TIP = <>Every piece prices by the lineal foot off Sheoga's accessory sheet. Stair nose and shoe mold order as pieces of a length you pick, or random lengths by the foot (Sheoga picks, subject to inventory). Reducer and T-mold come in 8' lengths only. Textured trim: stair nose takes the sheet's texture charge; shoe mold, reducer and T-mold can't be textured and ship smooth.</>;
 
-const Tick = ({ on }) => (
-  <span className={`w-4 h-4 rounded flex items-center justify-center text-[10px] font-extrabold text-white shrink-0 ${on ? "bg-indigo-600" : "border-2 border-slate-300"}`}>{on ? "✓" : ""}</span>
-);
 const Sub = ({ children }) => <span className="block text-[10.5px] font-medium text-slate-400 mt-0.5">{children}</span>;
 const SmoothNote = () => <Sub>smooth — can't be textured</Sub>;
 const LfSell = ({ on, sell }) => (
@@ -33,14 +30,13 @@ export const Locked = ({ label, value }) => (
   </div>
 );
 
-// Nosing / shoe mold: one or more "N pcs × L'" runs, or Random lengths in lf.
+// Stair nose / shoe mold: one or more "N pcs × L'" runs, or Random lengths in lf.
 function RunRows({ p, runs, setRuns, lfCost, smooth, tsell }) {
   const on = runs.some((r) => whole(r.n) > 0);
   const upd = (i, patch) => setRuns(runs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   return (
     <div className="px-3 py-2 bg-white border-t first:border-t-0 border-slate-100" data-trim-row={p.id}>
       <div className="flex items-center gap-2.5">
-        <Tick on={on} />
         <span className="flex-1 min-w-0">
           <span className="block text-xs font-semibold text-slate-800">{p.name}</span>
           {p.id !== "shoe" && <Sub>lengths subject to inventory</Sub>}
@@ -48,7 +44,7 @@ function RunRows({ p, runs, setRuns, lfCost, smooth, tsell }) {
         </span>
         <LfSell on={on} sell={tsell(lfCost)} />
       </div>
-      <div className="mt-1.5 ml-[26px] flex flex-col gap-1">
+      <div className="mt-1.5 flex flex-col gap-1">
         {runs.map((r, i) => {
           const n = whole(r.n), rl = r.len === "rl";
           return (
@@ -76,7 +72,6 @@ function PieceRow({ id, label, sub, smooth, unit, qty, onQty, lfSell, unitText }
   const on = whole(qty) > 0;
   return (
     <div className="flex items-center gap-2.5 px-3 py-2 bg-white border-t first:border-t-0 border-slate-100" data-trim-row={id}>
-      <Tick on={on} />
       <span className="flex-1 min-w-0">
         <span className="block text-xs font-semibold text-slate-800">{label}</span>
         {sub && <Sub>{sub}</Sub>}
