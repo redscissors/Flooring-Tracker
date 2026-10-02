@@ -1598,7 +1598,7 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
             ) : (<>
             <div className={`${dockGrid ? "w-[430px]" : "w-[50%] max-w-[500px]"} shrink-0 border-r border-slate-300 overflow-y-auto p-4`} style={{ scrollbarGutter: "stable" }}>{rail}</div>
             <div className="flex-1 min-w-0 overflow-y-auto p-4" style={{ background: "var(--ft-cream)" }}>
-              {trimMode ? (
+              {trimMode ? (trimBuild &&
                 <TrimCard build={trimBuild} matched={!!cfg.match} trimBook={trimBook} markupPct={trimMarkup} tierId={tierId} pct={pct} tierColor={tierColor} tsell={tsell} onAdd={add} onAddBasket={addSingleToBasket} />
               ) : multi && multiOk ? (
                 <MultiWidthCard base={{ mode, cfg }} widths={mwWidths} shares={mwShares} sf={sf} tsell={tsell} tfee={tfee} tierColor={tierColor} onShare={setShare}

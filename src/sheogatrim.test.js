@@ -93,6 +93,25 @@ test("diff: names changed prices", () => {
   assert.deepEqual(diffAccessorySheets(null, next), []);
 });
 
+test("diff: names a slip tongue bundle change", () => {
+  const prev = parseAccessorySheet(load()).sheet;
+  const next = structuredClone(prev);
+  next.slip.bundleLf = 40;
+  assert.deepEqual(diffAccessorySheets(prev, next), [{ label: "Slip tongue bundle", from: 50, to: 40 }]);
+});
+
+test("detect: the title must sit in a sheet's first 15 rows", () => {
+  for (const f of ["sheoga-accessory-20261001.xlsx", "sheoga-accessory-20261001-notexture.xlsx"])
+    assert.equal(isSheogaAccessorySheet(load(f)), true, f);
+  const sheets = load();
+  const rows = sheets[0].rows;
+  const at = rows.findIndex((r) => (r || []).some((v) => typeof v === "string" && /sheoga accessory pricing/i.test(v)));
+  assert.ok(at >= 0 && at < 15);
+  const pushed = [{ ...sheets[0], rows: [...Array.from({ length: 15 }, () => []), ...rows] }];
+  assert.equal(isSheogaAccessorySheet(pushed), false);
+  assert.deepEqual(parseAccessorySheet(pushed).problems, ["Not Sheoga's accessory pricing sheet"]);
+});
+
 test("diff: names texture changes", () => {
   const prev = parseAccessorySheet(load()).sheet;
   const next = structuredClone(prev);
@@ -218,7 +237,7 @@ test("trimLineItems: rows and markers", () => {
   assert.equal(items[0].costSqft, "49.56");
   assert.equal(items[0].markupPct, "100");
   assert.equal(items[0].sizeText, '3½"');
-  assert.equal(items[0].brandColor, 'Sheoga Rabbeted nosing 3½" · 6\' pcs · White Oak · Prefinished Toasted Acorn · 30 sheen');
+  assert.equal(items[0].brandColor, 'Sheoga Rabbeted nosing · 6\' pcs · White Oak · Prefinished Toasted Acorn · 30 sheen');
   assert.equal(items[1].sellUnit, "LF");
   assert.ok(items[1].brandColor.includes("random lengths"));
   assert.equal(items.find((i) => i.sellUnit === "BDL").brandColor, "Sheoga Slip tongue · 50 lf bundle");
@@ -227,9 +246,25 @@ test("trimLineItems: rows and markers", () => {
   assert.ok(items.find((i) => i.brandColor.includes("T-mold")).brandColor.includes("8' pcs"));
 });
 
+test("trimLineItems: every piece's size reads exactly once in size + description", () => {
+  const cfg = { ...wo(), runs: { nose35: [run(1, 6)], nose55: [run(1, 8)], shoe: [run(1, 8)] }, reducer: 1, tmold: 1, slip: 1 };
+  const items = trimLineItems(cfg, book(), 100);
+  const b = calcTrim(cfg, book());
+  assert.equal(items.length, 6);
+  for (const [i, it] of items.entries()) {
+    const p = TRIM_PROFILES.find((x) => x.id === b.lines[i].profile);
+    if (!p) continue;
+    const text = it.sizeText + " " + it.brandColor;
+    assert.equal(text.split(p.size).length - 1, 1, text);
+    assert.ok(it.brandColor.startsWith("Sheoga " + p.label + " · "), it.brandColor);
+  }
+  assert.deepEqual(items.slice(0, 2).map((i) => i.sizeText), ['3½"', '5½"'], "the two nosings differ by size");
+  assert.ok(b.lines[0].desc.startsWith('Rabbeted nosing 3½" · '), "the build card keeps the sized name");
+});
+
 test("trimFromFloor: floor, stocked, finish and non-matches", () => {
   const floor = { mode: "floor", cfg: { sp: "Live Sawn White Oak", tex: "sawcut", finish: "est", stain: "Cattail", sheen: "20" } };
-  assert.deepEqual(trimFromFloor(floor), { sp: "White Oak", prefin: true, stain: "Cattail", stainCustom: false, sheen: "20", tex: "sawcut" });
+  assert.deepEqual(trimFromFloor(floor), { sp: "White Oak", prefin: true, stain: "Cattail", stainCustom: false, sheen: "20", sheenCustom: false, tex: "sawcut" });
   const stocked = trimFromFloor({ mode: "stocked", cfg: { sp: "Hickory", color: "Cattail · Saw Cut", sheen: "20" } });
   assert.equal(stocked.sp, "Hickory");
   assert.equal(stocked.prefin, true);
@@ -244,6 +279,11 @@ test("trimFromFloor: floor, stocked, finish and non-matches", () => {
   assert.equal("sp" in trimFromFloor({ mode: "floor", cfg: { sp: "Exotic", finish: "unf" } }), false);
   assert.equal(trimFromFloor({ mode: "vent", cfg: { sp: "White Oak" } }), null);
   assert.equal(trimFromFloor(null), null);
+  const ownSheen = trimFromFloor({ mode: "floor", cfg: { sp: "Red Oak", finish: "est", stain: "Cattail", sheen: "25", sheenCustom: true } });
+  assert.deepEqual([ownSheen.sheen, ownSheen.sheenCustom], ["25", true]);
+  assert.equal(trimFromFloor(floor).sheenCustom, false);
+  const picked = effectiveTrimCfg({ ...defaultConfig("trim"), match: true }, { mode: "floor", cfg: { sp: "Red Oak", finish: "est", stain: "Cattail", sheen: "25", sheenCustom: true } });
+  assert.deepEqual([picked.sheen, picked.sheenCustom], ["25", true], "Pick my own keeps the custom sheen in the picker");
 });
 
 test("effectiveTrimCfg: match applies the floor patch", () => {

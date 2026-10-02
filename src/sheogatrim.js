@@ -5,11 +5,11 @@
 import { sellOf, TEXTURES, STAIN_COLORS, LIVE_SAWN_SP } from "./sheoga.js";
 
 export const TRIM_PROFILES = [
-  { id: "nose35", name: 'Rabbeted nosing 3½"', short: 'Nosing 3½"', size: '3½"' },
-  { id: "nose55", name: 'Rabbeted nosing 5½"', short: 'Nosing 5½"', size: '5½"' },
-  { id: "shoe", name: 'Shoe mold ½" × ¾"', short: "Shoe mold", size: '½" × ¾"' },
-  { id: "reducer", name: 'Reducer ¾" × 2½"', short: "Reducer", size: '¾" × 2½"', fixedLen: 8 },
-  { id: "tmold", name: 'T-mold ¾" × 2½"', short: "T-mold", size: '¾" × 2½"', fixedLen: 8 },
+  { id: "nose35", name: 'Rabbeted nosing 3½"', label: "Rabbeted nosing", short: 'Nosing 3½"', size: '3½"' },
+  { id: "nose55", name: 'Rabbeted nosing 5½"', label: "Rabbeted nosing", short: 'Nosing 5½"', size: '5½"' },
+  { id: "shoe", name: 'Shoe mold ½" × ¾"', label: "Shoe mold", short: "Shoe mold", size: '½" × ¾"' },
+  { id: "reducer", name: 'Reducer ¾" × 2½"', label: "Reducer", short: "Reducer", size: '¾" × 2½"', fixedLen: 8 },
+  { id: "tmold", name: 'T-mold ¾" × 2½"', label: "T-mold", short: "T-mold", size: '¾" × 2½"', fixedLen: 8 },
 ];
 export const TRIM_SPECIES = ["Beech", "Cherry", "Maple", "Hickory", "Red Oak", "White Oak", "Walnut", "Q/R White Oak"];
 
@@ -34,7 +34,9 @@ const findCell = (rows, test, from = 0) => {
 };
 
 const isTitle = (v) => /sheoga accessory pricing/i.test(text(v));
-const accessoryRows = (sheets) => (sheets.find((s) => findCell(s.rows, isTitle)) || {}).rows || null;
+// The title sits on row ~11; a dropped workbook is never walked past its top.
+const TITLE_ROWS = 15;
+const accessoryRows = (sheets) => (sheets.find((s) => findCell((s.rows || []).slice(0, TITLE_ROWS), isTitle)) || {}).rows || null;
 export const isSheogaAccessorySheet = (sheets) => !!accessoryRows(sheets);
 
 function sheetDateOf(rows) {
@@ -133,6 +135,7 @@ export function diffAccessorySheets(prev, next) {
   for (const p of TRIM_PROFILES) cmp(`Prefinished — ${p.short}`, prev.prefin[p.id], next.prefin[p.id]);
   for (const p of TRIM_PROFILES) cmp(`Textured — ${p.short}`, prev.tex?.[p.id] ?? null, next.tex?.[p.id] ?? null);
   cmp("Slip tongue", prev.slip.perLf, next.slip.perLf);
+  cmp("Slip tongue bundle", prev.slip.bundleLf, next.slip.bundleLf);
   return out;
 }
 
@@ -165,12 +168,12 @@ export function trimFromFloor(snap) {
   if (snap.mode === "stocked") {
     const [color, texName] = String(f.color || "").split(" · ");
     const tex = texName ? TEXTURES.find((t) => norm(t.name) === norm(texName)) : null;
-    return { ...out, prefin: true, stain: color || "", stainCustom: false, sheen, tex: tex ? tex.id : "smooth" };
+    return { ...out, prefin: true, stain: color || "", stainCustom: false, sheen, sheenCustom: !!f.sheenCustom, tex: tex ? tex.id : "smooth" };
   }
   if (snap.mode !== "floor" && snap.mode !== "hb") return null;
   const prefin = !!f.finish && f.finish !== "unf";
   const stain = !prefin ? "" : f.finish === "nat" ? "Natural" : String(f.stain || "").trim();
-  return { ...out, prefin, stain, stainCustom: !!stain && !STAIN_COLORS.includes(stain), sheen, tex: f.tex || "smooth" };
+  return { ...out, prefin, stain, stainCustom: !!stain && !STAIN_COLORS.includes(stain), sheen, sheenCustom: !!f.sheenCustom, tex: f.tex || "smooth" };
 }
 
 export function effectiveTrimCfg(cfg, floorSnap) {
@@ -224,11 +227,13 @@ export function calcTrim(cfg, trimBook) {
     if (r.textured) rows.push([`Textured — ${texName}`, "+" + money(r.add) + " /lf"]);
     else if (textured) rows.push(["Smooth — can't be textured", ""]);
     const lenText = len === "rl" ? "random lengths" : `${len}' pcs`;
+    const tail = [lenText, cfg.sp, r.textured ? finishText : baseFinish];
     lines.push({
       key: `${id}-${lines.length}`, profile: id, unit: len === "rl" ? "lf" : "pc", qty, len, unitCost, lfCost: r.lfCost,
       sizeText: profile.size,
       textured: r.textured,
-      desc: [profile.name, lenText, cfg.sp, r.textured ? finishText : baseFinish].join(" · "),
+      desc: [profile.name, ...tail].join(" · "),
+      rest: [profile.label, ...tail].join(" · "),
       qtyText: len === "rl" ? `${qty} lf` : plural(qty, "pc"),
       math: len === "rl" ? `${qty} lf · Sheoga picks lengths` : `${plural(qty, "pc")} × ${len}' = ${qty * len} lf`,
       rows,
@@ -249,7 +254,7 @@ export function calcTrim(cfg, trimBook) {
     const { lfCost: perLf, bundleLf, unitCost } = rates.slip;
     lines.push({
       key: "slip", profile: "slip", unit: "bdl", qty: bundles, len: null, unitCost, lfCost: perLf, textured: false,
-      sizeText: "", desc: `Slip tongue · ${bundleLf} lf bundle`,
+      sizeText: "", desc: `Slip tongue · ${bundleLf} lf bundle`, rest: `Slip tongue · ${bundleLf} lf bundle`,
       qtyText: plural(bundles, "bundle"),
       math: `${plural(bundles, "bundle")} = ${bundles * bundleLf} lf`,
       rows: [[`${bundleLf} lf bundle`, money(perLf) + " /lf"]],
@@ -272,7 +277,7 @@ export function trimLineItems(cfg, trimBook, markupPct = DEFAULT_TRIM_MARKUP) {
   const b = calcTrim(cfg, trimBook);
   if (!b) return [];
   return b.lines.map((l, i) => ({
-    type: "hardwood", sku: "", sizeText: l.sizeText, brandColor: "Sheoga " + l.desc,
+    type: "hardwood", sku: "", sizeText: l.sizeText, brandColor: "Sheoga " + l.rest,
     qtyType: "count", qty: String(l.qty), sellUnit: SELL_UNIT[l.unit],
     priceSqft: String(sellOf(l.unitCost, markupPct)), costSqft: String(round2(l.unitCost)), markupPct: String(markupPct),
     sheoga: i === 0

@@ -48,7 +48,8 @@ export const normVendorMarkups = (raw) => ({
 export const trimBookOf = (books) => {
   const data = vendorBookFor(books, "sheoga")?.data;
   const sheet = data?.sheets?.accessories;
-  return sheet ? { sheet } : null;
+  const obj = (v) => !!v && typeof v === "object";
+  return obj(sheet) && obj(sheet.species) && obj(sheet.prefin) && obj(sheet.slip) ? { sheet } : null;
 };
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

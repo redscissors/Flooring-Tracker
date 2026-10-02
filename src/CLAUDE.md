@@ -118,7 +118,13 @@ src/
                     # in-this-project list — a stamped bundle's siblings fold
                     # under their anchor, legacy widths list singly)
                     # ; appendKitLines (a kit's lines as fresh rows at the
-                    # end of an area — its own kitId per call) and
+                    # end of an area — its own kitId per call);
+                    # landOrAppendKit (the Sheoga popup's Add/Move landing,
+                    # App.jsx addSheogaLines: a Sheoga trim kit lands in
+                    # place only on a blank row or a trim anchor, and
+                    # appends to the area off any other vendor row — a
+                    # floor's Reconfigure → Trim tab never overwrites the
+                    # floor; every other kit goes through landKitLines) and
                     # moveKitEntries (the basket "Move" landing, ADR 0035
                     # amendment 2026-09-01): staged entries land in ONE pass
                     # over the accumulating categories, a TARGETED entry
@@ -839,6 +845,8 @@ src/
                     # DEFAULT_TRIM_MARKUP (100); `normVendorMarkups` reads the
                     # three, `trimBookOf(books)` returns `{ sheet }` (the
                     # uploaded accessory sheet, texture rates included) or null
+                    # (also when the stored sheet lacks its species/prefin/
+                    # slip objects)
                     # — what the configurator's trim tab prices from — and
                     # `sheetMonth`/`sheetDateMDY` format a sheet's ISO date
                     # (vendorbook.test.js; ADR 0055)
@@ -902,9 +910,10 @@ src/
                     # Textured" or no row), slip tongue, the UPDATED date
                     # (serial or text); any missing price is a named problem
                     # and no sheet. Plugs are never read.
-                    # `isSheogaAccessorySheet` (the title cell; the drop zone's
-                    # router), `diffAccessorySheets` (changed cells for the
-                    # replace review). Pricing: `trimRates` (per-profile
+                    # `isSheogaAccessorySheet` (the title cell, searched in
+                    # each sheet's first 15 rows; the drop zone's router),
+                    # `diffAccessorySheets` (changed cells for the replace
+                    # review, slip tongue price and bundle lf included). Pricing: `trimRates` (per-profile
                     # $/lf: species + prefinish + the texture charge when the
                     # build is textured and the piece takes it; `smoothOnly`
                     # when it can't), `calcTrim(cfg, trimBook)` (null with no
@@ -914,7 +923,9 @@ src/
                     # `trimLineItems` (the kit: anchor `{ mode: "trim", cfg }`
                     # with cfg.match false, companions `{ mode: "trim",
                     # part: true }`, count rows, unit cost rounded then
-                    # sellOf), `trimEntryView` (the basket drawer's row; lists
+                    # sellOf; the vent idiom — `sizeText` the profile size,
+                    # `brandColor` "Sheoga " + the line's size-free `rest`,
+                    # while the build card shows `desc` with the sized name), `trimEntryView` (the basket drawer's row; lists
                     # at 0 with no sheet so it can be removed),
                     # `trimFromFloor`/`effectiveTrimCfg` (Match floor: species
                     # map, a stocked color's texture carried over; live only
@@ -2583,7 +2594,8 @@ src/
                     # SheogaConfigurator over local mock state, no Supabase —
                     # preview proof for the ADR 0035 step 2 drawer; landing/
                     # delete/reconfigure run the real model.js paths over
-                    # local state; not part of the app build. `?tab=trim`
+                    # local state (Add/Move through landOrAppendKit, as App
+                    # does); not part of the app build. `?tab=trim`
                     # opens the trim tab over the real accessory fixture
                     # (`&nosheet=1` / `&nobook=1` for the two empty states);
                     # rows ride `window.__cats`, the last onConfigChange

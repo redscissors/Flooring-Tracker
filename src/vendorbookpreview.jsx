@@ -54,6 +54,7 @@ async function loadSheetCase(mode, setBooks) {
     old.prefin.shoe = 1.75;
     old.tex.nose35 = 1.5;
     old.slip.perLf = 0.38;
+    old.slip.bundleLf = 40;
     setBooks((bs) => bs.map((b) => b.id === "vb1" ? { ...b, data: { ...b.data, sheets: { accessories: { ...old, fileName: "Sheoga_Accessory_Pricing_-_Distributor_-_20260415.xlsx", uploadedAt: Date.UTC(2026, 3, 20, 15), uploadedBy: "Dana" } } } } : b));
   }
   return { fileName: FIXTURE, parsed };

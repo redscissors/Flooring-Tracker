@@ -12,7 +12,7 @@ import { createRoot } from "react-dom/client";
 import "./index.css";
 import SheogaConfigurator from "./SheogaConfigurator.jsx";
 import { AppsWorkspace } from "./AppsWorkspace.jsx";
-import { newProduct, newArea, stampKit, landKitLines, removeKitLines, placedKits, uid } from "./model.js";
+import { newProduct, newArea, stampKit, landOrAppendKit, removeKitLines, placedKits, uid } from "./model.js";
 import { lineItems, multiWidthLineItems, defaultConfig, normBasketEntry } from "./sheoga.js";
 import { readXlsxSheets } from "./fileread.js";
 import { parseAccessorySheet } from "./sheogatrim.js";
@@ -68,8 +68,8 @@ function Harness() {
       placed={placedKits(cats, "sheoga")}
       onOpenPlaced={(k) => setPop((p) => ({ aid: k.areaId, pid: k.rowId, seed: k.marker, n: p.n + 1 }))}
       onDeleteKit={(k) => setCats((c) => removeKitLines(c, k.areaId, k.rowId) || c)}
-      onAdd={(lines) => setCats((c) => landKitLines(c, pop.aid, pop.pid, lines) || c)}
-      onMove={(lines) => setCats((c) => landKitLines(c, pop.aid, pop.pid, lines) || c)}
+      onAdd={(lines) => setCats((c) => landOrAppendKit(c, pop.aid, pop.pid, lines) || c)}
+      onMove={(lines) => setCats((c) => landOrAppendKit(c, pop.aid, pop.pid, lines) || c)}
       onMoveEntries={(lines, nextBasket) => { setCats((c) => c.map((a) => (a.id === pop.aid ? { ...a, products: [...a.products, ...land(lines)] } : a))); setBasket(nextBasket); }}
       onClose={() => console.log("close")}
       onConfigChange={(live) => { window.__live = live; }}

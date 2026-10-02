@@ -56,12 +56,13 @@ function AccTable({ sheet, was = {} }) {
   );
 }
 
-const slipLine = (slip, was) => {
+const slipLine = (slip, was, wasBundle) => {
   if (slip?.perLf == null) return null;
   const price = <>${slip.perLf.toFixed(2)}/lf</>;
+  const bundle = <>{slip.bundleLf} lf</>;
   return (
     <div className="mt-2 text-[11px] text-slate-500">
-      Slip tongue {was ? <span className={`rounded px-0.5 ${changed}`} title={`was ${fm(was.from)}`}>{price}</span> : price} in {slip.bundleLf} lf bundles
+      Slip tongue {was ? <span className={`rounded px-0.5 ${changed}`} title={`was ${fm(was.from)}`}>{price}</span> : price} in {wasBundle ? <span className={`rounded px-0.5 ${changed}`} title={`was ${wasBundle.from} lf`}>{bundle}</span> : bundle} bundles
     </div>
   );
 };
@@ -86,7 +87,7 @@ export function SheetReview({ prev, fileName, parsed, onSave, onCancel }) {
       ) : (<>
         <div className={`mt-1 text-[11.5px] font-semibold ${diff.length ? "text-amber-700" : "text-slate-600"}`}>{summary}</div>
         <AccTable sheet={sheet} was={was} />
-        {slipLine(sheet.slip, diff.find((d) => d.label === "Slip tongue"))}
+        {slipLine(sheet.slip, diff.find((d) => d.label === "Slip tongue"), diff.find((d) => d.label === "Slip tongue bundle"))}
       </>)}
       <div className="mt-3 flex items-center gap-2">
         <button disabled={!sheet} onClick={() => onSave(sheet)} className="rounded-md bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 text-xs font-semibold disabled:opacity-40">Save sheet</button>

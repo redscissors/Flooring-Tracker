@@ -49,13 +49,19 @@ test("sheogaMarkups carries the trim markup: 100 by default, the book's when set
   assert.equal(sheogaMarkups([withTrim], {}).trimMarkupPct, 120);
 });
 
-test("trimBookOf is null without a book or a sheet, else the sheet", () => {
+test("trimBookOf is null without a book or a usable sheet, else the sheet", () => {
   assert.equal(trimBookOf([]), null);
   assert.equal(trimBookOf([BOOKS[0]]), null);
   assert.equal(trimBookOf([SHEOGA]), null);
-  const S = { sheetDate: "2026-10-01", rows: [] };
-  const book = { ...SHEOGA, data: { ...SHEOGA.data, sheets: { accessories: S } } };
-  assert.deepEqual(trimBookOf([book]), { sheet: S });
+  const S = { sheetDate: "2026-10-01", species: {}, prefin: {}, tex: {}, slip: { perLf: 0.4, bundleLf: 50 } };
+  const withSheet = (sheet) => [{ ...SHEOGA, data: { ...SHEOGA.data, sheets: { accessories: sheet } } }];
+  assert.deepEqual(trimBookOf(withSheet(S)), { sheet: S });
+  for (const k of ["species", "prefin", "slip"]) {
+    const { [k]: _, ...missing } = S;
+    assert.equal(trimBookOf(withSheet(missing)), null, `no ${k}`);
+    assert.equal(trimBookOf(withSheet({ ...S, [k]: "junk" })), null, `${k} not an object`);
+  }
+  assert.equal(trimBookOf(withSheet("junk")), null);
 });
 
 test("normTrimTexture is gone: texture comes only from the sheet", () => {
