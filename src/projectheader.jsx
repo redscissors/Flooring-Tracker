@@ -16,7 +16,8 @@ import { erpLabel } from "./erporders.js";
 //                          .scratch/mockups/header-compact-2026-08-14.html)
 //   ProjectHeaderClassic — the print-sheet original it replaced, kept whole so
 //                          the team can flip back without a revert
-//   ProjectHeaderClean   — the customer-first header (2026-09-27, on trial;
+//   ProjectHeaderClean   — the customer-first header (2026-09-27; the default
+//                          since 2026-10-02;
 //                          .scratch/159_clean-editor), tall ("clean") or
 //                          `compact` ("cleancompact", pinned level with the
 //                          rail logo line)

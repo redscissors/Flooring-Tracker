@@ -278,12 +278,12 @@ export default function App({ user, onSignOut }) {
   // in sync when the user changes it. "system" clears both classes and lets the
   // prefers-color-scheme block in index.css decide.
   const [theme, setTheme] = useState(() => { try { return localStorage.getItem("ft-theme") || "system"; } catch { return "system"; } });
-  // Desktop header layout: "bar" (one-bar, 2026-07-21) | "classic" | "clean"
-  // | "cleancompact" (both on trial 2026-09-27). Per user (ui.header, Settings → General) so a person
-  // trying Clean sees it on every device; until they pick, this device's old
-  // per-device choice stands.
+  // Desktop header layout: "clean" (the default since 2026-10-02) |
+  // "cleancompact" | "bar" (one-bar, 2026-07-21) | "classic". Per user
+  // (ui.header, Settings → General) so a pick follows a person to every device;
+  // until they pick, this device's old per-device choice stands.
   const [headerPick, setHeaderPick] = useState(null);
-  const headerLayout = headerPick || appBlobRef.current?.ui?.header || (() => { try { return localStorage.getItem("ft-header") || "bar"; } catch { return "bar"; } })();
+  const headerLayout = headerPick || appBlobRef.current?.ui?.header || (() => { try { return localStorage.getItem("ft-header") || "clean"; } catch { return "clean"; } })();
   const setHeaderLayout = (v) => { setHeaderPick(v); saveUiPref({ header: v }); try { localStorage.setItem("ft-header", v); } catch {} };
   const themedOnce = useRef(false);
   useEffect(() => {

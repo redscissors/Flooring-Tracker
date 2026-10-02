@@ -146,7 +146,7 @@ function Harness() {
               <Suspense fallback={null}>
                 <SettingsWorkspace key={nav.pane.id} section={nav.pane.id} onClose={() => dispatch({ type: "closePane" })} settings={settings} setSettings={(p) => setSettingsState((s) => ({ ...s, ...p }))}
                   gFamilies={[]} ping={noop} exportBackup={noop} importBackup={noop} fileRef={{ current: null }}
-                  inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} theme="system" setTheme={noop} headerLayout="bar" setHeaderLayout={noop}
+                  inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} theme="system" setTheme={noop} headerLayout="clean" setHeaderLayout={noop}
                   profile={{ name: "Dana Whitaker", phone: "(614) 555-0142", email: "dana@example.com" }} saveProfile={noop} user={{ email: "dana@example.com" }}
                   books={[]} addBook={noop} updateBook={noop} confirmBook={noop} delBook={noop} loadBookItems={async () => []} applyBookImport={noop}
                   bookStock={{}} orderBookStock={{}} loadFamilyBook={noop} bookStockReady refreshBookStock={noop}
