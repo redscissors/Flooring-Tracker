@@ -636,7 +636,10 @@ src/
                     # vendorbook.jsx's VendorBookPage instead of BookDetail;
                     # the New-book dialog offers "Sheoga (vendor)" until one
                     # exists, and the library's Sheoga-markup card turns into
-                    # a link to that book while it does
+                    # a link to that book while it does. A Sheoga accessory
+                    # .xlsx dropped on the library routes past the item import
+                    # (ImportRouter's SHEOGA_SHEET target) straight into that
+                    # book's Price sheets review (pendingSheet state)
   SettingsWorkspace.jsx  # the Settings workspace, now a `React.lazy` chunk (ADR 0026);
                     # `MATERIAL_CATEGORIES` lives here. Shrink-to-fit (issue 084,
                     # the wedi popup's rig): drawn at SETTINGS_DESIGN_W (1240)
