@@ -155,14 +155,13 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
     </div>
   );
   const listCols = full ? "72px minmax(0,1fr) 54px 54px 52px 62px" : pMode === "unit" ? "72px minmax(0,1fr) 72px" : "72px minmax(0,1fr)";
-  const jobList = (rows, title, freight) => {
+  const jobList = (rows, freight) => {
     const groups = jobListGroups(rows);
     if (!groups.length) return null;
     const lr = { display: "grid", gridTemplateColumns: listCols, columnGap: 8, fontSize: 9.1, padding: "1.5px 0", alignItems: "baseline", breakInside: "avoid" };
     const subtotal = groups.reduce((t, gr) => t + gr.rows.reduce((u, r) => u + (r.total || 0), 0), 0);
     return (
       <div style={{ marginTop: 8 }}>
-        <div className="uppercase" style={{ fontSize: 9, fontWeight: 800, letterSpacing: ".2em", color: DEEP, marginBottom: 2, breakAfter: "avoid" }}>{title}</div>
         <div style={{ ...lr, borderBottom: "1px solid var(--ft-text)", breakAfter: "avoid" }}>
           <span /><span style={eyebrow}>Item</span>
           {full && <><span style={{ ...eyebrow, textAlign: "right" }}>Needed</span><span style={{ ...eyebrow, textAlign: "right" }}>Order</span></>}
@@ -200,7 +199,7 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
       {header}
       {areas.map(areaBlock)}
       <div style={{ borderTop: "2px solid var(--ft-text)", marginTop: 8 }}>
-        {jobList(pMats, optionPrint ? "Install materials — shared areas" : "Install materials — job order", optionPrint ? optionPrint.sharedT.freightCost : freightCost)}
+        {jobList(pMats, optionPrint ? optionPrint.sharedT.freightCost : freightCost)}
       </div>
       {optionPrint && full && hasShared && (
         <div className="flex justify-end" style={{ fontSize: 10.5, fontWeight: 800, marginTop: 4 }}>Shared areas total&nbsp;<span className="ft-mono">{money(optionPrint.sharedT.grandTotal)}</span></div>
@@ -212,7 +211,7 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
           </div>
           <div style={{ padding: "0 6px 6px" }}>
             {S.cats.map(areaBlock)}
-            {jobList(S.t.pMats, `Install materials — Option ${S.slot}`, S.t.freightCost)}
+            {jobList(S.t.pMats, S.t.freightCost)}
           </div>
           {full && (
             <div className="flex justify-end items-baseline" style={{ padding: "6px 10px", borderTop: `1px solid ${RULE}`, fontSize: 10.5, fontWeight: 800 }}>
