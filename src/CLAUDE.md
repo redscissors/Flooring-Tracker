@@ -350,7 +350,8 @@ src/
                     # the Order entry button carrying the ERP number — green
                     # with a check once erporders.js `erpStatus` says every
                     # line is keyed, an "N left" pill before that. No order
-                    # sheet button in Clean.
+                    # sheet button in Clean. An Email icon sits right after the
+                    # Samples icon (`onEmail`, ADR 0055; Clean only).
                     # Exported `ErpChip` (ADR 0044, `ERP 48213` · `+N`) mounts
                     # in both layouts (opens order entry) and is imported by
                     # mobile.jsx for the band (static there)
@@ -531,6 +532,18 @@ src/
                     # ("SKU n" / the part number), no spec line; every other
                     # row keeps its spec line with the SKU part wrapped
                     # no-wrap. Proof: .scratch/165_shower-line-descriptions
+  emailestimate.jsx # the Email estimate button's work (ADR 0055), a lazy chunk
+                    # (modern-screenshot + jsPDF load on the first click): the
+                    # Print paper rendered in an off-screen root, captured, and
+                    # paged onto letter at the print margins, cut only between
+                    # `break-inside: avoid` blocks. Inlines the Google Fonts
+                    # Manrope files itself — the cross-origin stylesheet can't be
+                    # read, and a fallback face wraps headings over the next line.
+                    # Touch → share sheet (a refused share raises a one-tap Share
+                    # button); else download + `mailto:`
+  estimatemail.js   # what the email fills in: To (the customer's email or blank),
+                    # subject, message signed with the salesperson, and the PDF
+                    # name "Customer - Project Name.pdf" (estimatemail.test.js)
   sheethead.jsx     # `SheetHead` — the selection-sheet masthead + people row +
                     # job notes, shared by the cards and columns sheets
   usetoast.js       # `useToast` — toast/save-flash UI state (`ping`, `flashSaved`)

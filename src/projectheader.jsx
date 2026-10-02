@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { ChevronDown, Building2, Lock, LockOpen, Save, History, ClipboardList, Copy, Printer, Trash2, Check, Truck, X, Layers, FileText, MoreHorizontal, MapPin } from "lucide-react";
+import { ChevronDown, Building2, Lock, LockOpen, Save, History, ClipboardList, Copy, Printer, Trash2, Check, Truck, X, Layers, FileText, MoreHorizontal, MapPin, Mail } from "lucide-react";
 import { SalespersonPop, SegBar, WasteBar, FilesPop, useAnchoredPanel, useEscClose, SearchPop, growBox, PriceLevelMenu, MorphSelect, PopMenu, AddressField } from "./widgets.jsx";
 import { FreightColumn } from "./freightui.jsx";
 import { normPricing } from "./pricing.js";
@@ -538,7 +538,7 @@ function FreightToggle({ on, amount, onSet }) {
   );
 }
 
-export function ProjectHeaderClean({ sel, cust, builderName, profile, freightCost = 0, saveOk, settings, jobWasteUI, updateProject, onOpenCustomer, onPromote, nameRef, nameTabRef, orderEntryRef, focusName, namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion, openAttachment, delAttachment, attRef, addAttachment, setShowVersions, setPrintMode, setConfirm, setShowOrderCopy, samples = null, onOpenSamples, preview = false, onTogglePreview, erp = null, ping, compact = false }) {
+export function ProjectHeaderClean({ sel, cust, builderName, profile, freightCost = 0, saveOk, settings, jobWasteUI, updateProject, onOpenCustomer, onPromote, nameRef, nameTabRef, orderEntryRef, focusName, namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion, openAttachment, delAttachment, attRef, addAttachment, setShowVersions, setPrintMode, setConfirm, setShowOrderCopy, samples = null, onOpenSamples, preview = false, onTogglePreview, erp = null, ping, compact = false, onEmail, emailBusy = false }) {
   const [menu, setMenu] = useState(false);
   const [addrAt, setAddrAt] = useState(null);
   useEscClose(menu, () => setMenu(false));
@@ -611,6 +611,11 @@ export function ProjectHeaderClean({ sel, cust, builderName, profile, freightCos
       <button onClick={onOpenSamples} aria-label="Samples" data-tip="Samples — this job's sample requests, grouped by vendor" className={ICON + " text-slate-500"}>
         <Layers size={16} />
         {samples?.need > 0 && <span className="absolute rounded-full font-bold" style={{ top: -4, right: -4, fontSize: 9.5, lineHeight: "14px", minWidth: 14, padding: "0 3px", background: "#b45309", color: "#fff" }}>{samples.need}</span>}
+      </button>
+    )}
+    {onEmail && (
+      <button onClick={onEmail} disabled={emailBusy} aria-label="Email estimate" data-tip="Email estimate — PDF + a new email to the customer" className={ICON + " text-slate-500 disabled:opacity-50"}>
+        <Mail size={16} />
       </button>
     )}
     <button ref={moreRef} onClick={() => setMenu((m) => !m)} aria-label="More" aria-expanded={menu} data-tip="Project address, versions and delete" className={ICON + " text-slate-500"}><MoreHorizontal size={17} /></button>
