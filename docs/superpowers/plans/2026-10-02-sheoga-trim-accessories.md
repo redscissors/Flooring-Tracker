@@ -424,6 +424,100 @@ Sheoga vendor book, which also carries a third markup (trim, default 100%).
 
 - [ ] **Step 4: Commit** — `git commit -am "price books: drop zone routes the Sheoga accessory sheet"`
 
+### Task 4b: Texture priced from the sheet (owner amendment 2026-10-02)
+
+> Inserted after Tasks 1–5 were built. Sheoga's updated 10/01/26 sheet adds
+> a "Texture Charge" row (spec decision 6). This task reworks the
+> already-built Tasks 1–4 code so texture comes only from the sheet.
+> Untexturable pieces ship smooth with a note, and nothing ever blocks.
+> Where this task contradicts Task 2–4 text above, this task wins.
+
+**Files:**
+- Replace: `src/testdata/sheoga-accessory-20261001.xlsx` with the updated
+  edition
+  (`/root/.claude/uploads/945756a5-7fa9-5119-8764-5caac5140b8e/4f2bc172-Sheoga_Accessory_Pricing_-_Distributor_-_20261001.xlsx`).
+  Keep the first edition as `src/testdata/sheoga-accessory-20261001-notexture.xlsx`
+  (`git mv` the old file first, then copy the new one in).
+- Modify: `src/sheogatrim.js`, `src/sheogatrim.test.js`
+- Modify: `src/vendorbook.js`, `src/vendorbook.test.js` (remove
+  `normTrimTexture` and the `trimTexture` slot)
+- Modify: `src/sheogasheets.jsx`, `src/vendorbook.jsx`,
+  `src/vendorbookpreview.jsx` (remove the Textured input row and its Save;
+  the table's "+ Textured" row reads the sheet)
+
+**Interfaces (changes):**
+- `AccSheet` gains `tex: { nose35, nose55, shoe, reducer, tmold }`, each
+  `number | null`. Null means "Cannot Be Textured", a non-number cell, or no
+  Texture Charge row at all. The row is optional, so its absence is never a
+  problem.
+- `TrimBook` becomes `{ sheet: AccSheet }`; `trimBookOf(books)` returns
+  `{ sheet }` or null. `normTrimTexture` is deleted, and nothing reads
+  `data.trimTexture`.
+- `diffAccessorySheets` also lists texture changes, after prefin and before
+  slip, labeled `"Textured — <short>"`. `from` / `to` may be `null` (shown
+  as "—" / "can't be textured" in the review).
+- `TrimBuild` drops `texBlocked`. Each line gains `textured: boolean` (the
+  texture was applied to this line). `trimLineItems` never returns `[]` for
+  texture reasons.
+
+- [ ] **Step 1: Write the failing tests** (update the existing ones that
+  assert the old behavior; delete the "texture blocks until priced" tests).
+  - **Parser:**
+    - `parse: reads the 10/01/26 sheet` additionally asserts that `tex`
+      deep-equals `{ nose35: 2, nose55: 2, shoe: null, reducer: null, tmold: null }`.
+    - New: `parse: a sheet without a Texture row` — the `-notexture` fixture
+      gives `problems: []` and `tex` all null, with every other price equal to
+      the main fixture's.
+  - **Diff:** `diff: names texture changes` — clone with `tex.nose35 = 2.5` and
+    `tex.shoe = 1` gives `[{ label: 'Textured — Nosing 3½"', from: 2, to: 2.5 }, { label: "Textured — Shoe mold", from: null, to: 1 }]`.
+  - **Pricing** (`book = { sheet: parsed }`, `wo` as in Task 2, `tex: "sawcut"`):
+    - nose35 run `{ n: 2, len: 6 }` → `lfCost: 10.26` (5.86 + 2.40 + 2.00),
+      `unitCost: 61.56`, `textured: true`, a row
+      `["Textured — Saw Cut", "+$2.00/lf"]`.
+    - shoe `{ n: 15, len: 8 }` → `unitCost: 25.68`, `textured: false`, a row
+      `["Smooth — can't be textured", ""]`. Its payload `brandColor` has no
+      "Saw Cut".
+    - tmold 2 and reducer 1 → smooth, the same note.
+    - The nose35 payload `brandColor` ends `" · Saw Cut"`.
+    - Slip with `tex: "sawcut"` → no texture row.
+    - `trimLineItems` returns every line, and `calcTrim(...)` has no
+      `texBlocked` key.
+    - With the `-notexture` fixture, every line is `textured: false` with the
+      note.
+  - **Book:**
+    - `trimBookOf` with `data.sheets.accessories = S` deep-equals `{ sheet: S }`.
+    - `normTrimTexture` is no longer exported:
+      `assert.equal(typeof vb.normTrimTexture, "undefined")` via
+      `import * as vb`.
+
+- [ ] **Step 2: Run `npm test`.** Expected: the new and changed tests FAIL.
+
+- [ ] **Step 3: Implement.**
+  - **Parser:** read the "Texture Charge" row like "Prefinished Charge": in
+    each block's column, a positive number becomes the rate, anything else
+    null. It looks in the rows after "Prefinished Charge" within the block
+    and stops at the next non-blank label.
+  - **Pricing:** `lfCost = round2(species + (prefin ? prefin[p] : 0) + (textured && sheet.tex[p] != null ? sheet.tex[p] : 0))`.
+    `finishText` per line carries the texture only when that line is
+    textured.
+  - **Book page:**
+    - The "+ Textured" row is read-only from `sheet.tex`, with "—" and a
+      `title="can't be textured"` for null, and highlighted in the replace
+      diff.
+    - Remove the inputs, their Save, and the `normTrimTexture` import.
+    - The harness `?sheet=replace` should also change one texture value so
+      the highlight shows.
+
+- [ ] **Step 4: Verify.**
+  - Run `npm test`. Expected: all pass.
+  - Run `VITE_SUPABASE_URL=https://example.supabase.co VITE_SUPABASE_ANON_KEY=x npm run build`.
+    Expected: succeeds.
+  - In the harness `vendor-book-preview.html?book=1&sheet=1`, the review
+    shows the Texture row (2.00 / 2.00 / — / — / —), and no texture inputs
+    remain. Screenshot it to the scratchpad.
+
+- [ ] **Step 5: Commit** — `git commit -am "sheoga trim: texture priced from the sheet; untexturable pieces ship smooth"` (add the moved fixture).
+
 ### Task 6: Configurator Trim & accessories tab
 
 **Files:**
@@ -459,8 +553,10 @@ Sheoga vendor book, which also carries a third markup (trim, default 100%).
   - **Pickers:** Species chips; Finish Seg; Stain (the STAIN_COLORS +
     Custom…); Sheen (SHEENS + Custom…); Texture (TEXTURES). All locked
     while matching.
-  - **Amber blocked note** with **Ship smooth**. Ship smooth sets
-    `match: false` and `tex: "smooth"`, keeping the effective values.
+  - **Texture notes (amended by Task 4b):** when the build is textured,
+    each untexturable piece row shows a muted "smooth — can't be textured".
+    Texturable rows show their sell including the texture charge. There is
+    no blocking and no Ship smooth button.
   - **Pieces box:**
     - three run rows: n input, a length MorphSelect ("3' pieces" … "12'
       pieces", "Random lengths"), "= N lf", a per-piece sell, ×, and
@@ -474,7 +570,7 @@ Sheoga vendor book, which also carries a third markup (trim, default 100%).
   - One block per `TrimBuild.lines` entry.
   - Footer: cost → +markup% → sell, and a line count.
   - Buttons **Add to basket** and **Add N product line(s)**, disabled when
-    `texBlocked` or there are no lines.
+    there are no lines.
   - Add → `onAdd(trimLineItems(effectiveTrimCfg(cfg, lastFloorSnap), trimBook, trimMarkup), snap)`.
   - The basket stages `{ kind: "single", snap: { mode: "trim", cfg: effectiveTrimCfg(...) }, markupPct: trimMarkup, sf: 0 }`.
   - `basketEntryView` for trim prices via `calcTrim(entry.snap.cfg, trimBook)`.
@@ -495,8 +591,8 @@ Sheoga vendor book, which also carries a third markup (trim, default 100%).
   - Harness checks, at `sheoga-preview.html?tab=trim` at 1440×900 and
     390×844:
     - the match state with a textured floor (set the floor tab to Saw Cut
-      first) shows the amber blocked note;
-    - Ship smooth enables Add;
+      first) shows textured nosing (+$2.00/lf) and smooth shoe, reducer and
+      T-mold with the "can't be textured" note;
     - Add lands N rows on the harness area;
     - Reconfigure on the anchor reopens with the same pieces and Match off;
     - Remove deletes all of the kit's rows.
@@ -513,7 +609,7 @@ Sheoga vendor book, which also carries a third markup (trim, default 100%).
   - `docs/adr/README.md` (index line);
   - `docs/adr/0040-vendor-kind-price-book.md` (an "Amended by 0055" line);
   - `.claude/skills/floortrack-data-model/SKILL.md` (vendor-book `data`
-    gains `sheets.accessories`, `trimTexture`, `markups.trim`; Product
+    gains `sheets.accessories` (incl. `tex`), `markups.trim`; Product
     `sheoga` gains `{ mode: "trim", cfg }` anchors and
     `{ mode: "trim", part: true }` companions);
   - `src/CLAUDE.md` (entries for `sheogatrim.js`, `SheogaTrim.jsx`,
@@ -527,14 +623,15 @@ Sheoga vendor book, which also carries a third markup (trim, default 100%).
 
 - [ ] **Step 2: Capture the proof screenshots** with Playwright
   (`/opt/node-tools/node_modules/playwright`) into the issue folder:
-  1. the trim tab, textured floor blocked;
-  2. after Ship smooth;
+  1. the trim tab matching a textured floor (textured nosing, smooth shoe,
+     reducer and T-mold with notes);
+  2. the same tab unfinished / smooth;
   3. Pick my own;
   4. phone width;
   5. the book review with diffs (replace using a fixture clone edited in
      the harness);
   6. a parse failure;
-  7. the stored sheet with the Textured row;
+  7. the stored sheet with the sheet's read-only Textured row;
   8. the Markup tab.
 
 - [ ] **Step 3: Final verification.** Run `npm test` and `npm run build`.

@@ -19,14 +19,25 @@ flooring and vent markups.
    three Sheoga sheets.
 2. **Plugs are left out.** The parser skips the sheet's Plugs block.
 3. The new **Trim & accessories markup starts at 100%**.
-4. **Texture is designed in now, with no price yet.** Sheoga's textured-trim
-   price and availability are unconfirmed. The book holds a blank per-piece
-   textured charge. Until it's filled, a textured build can't be added
-   (Ship smooth or wait). Build now with it blank; don't hold the feature.
+4. **Texture is priced from the sheet** (amended 2026-10-02, see decision 6).
+   ~~The book holds a blank, hand-entered per-piece textured charge; a
+   textured build can't be added until it's filled.~~ Superseded the same
+   day when Sheoga sent the texture prices.
 5. **Nosing and shoe mold order as pieces of a chosen length** (e.g. 5 × 6'),
    not only bare lineal feet. Lengths offered: 3' 4' 5' 6' 7' 8' 9' 10' 12',
    plus **Random lengths** (entered in lf, Sheoga picks). Several lengths per
    piece type are allowed. Reducer and T-mold are 8' only (the sheet says so).
+6. **Texture (owner, 2026-10-02, on Sheoga's updated 10/01/26 sheet).** The
+   sheet's "Texture Charge" row is the only source of texture prices: nosing
+   3½" and 5½" +$2.00/lf; shoe mold, reducer and T-mold "Cannot Be Textured".
+   - When the trim is textured (matched from a textured floor, or picked),
+     texturable pieces carry the charge.
+   - Pieces Sheoga can't texture **ship smooth automatically**, each marked
+     "smooth — can't be textured". Nothing blocks the add.
+   - **The hand-entered Textured row is removed.** The book table shows the
+     sheet's Texture row read-only.
+   - A sheet edition with no Texture Charge row parses fine. Every piece
+     then reads "can't be textured".
 
 ## The sheet (10/01/2026 edition)
 
@@ -38,6 +49,9 @@ All prices are distributor cost **per lineal foot**:
   ¾"×2½" · T-mold ¾"×2½".
 - **Prefinished Charge:** a per-lf adder per profile — $2.40 / $3.75 / $1.85
   / $1.85 / $1.85. It is the same for any stain or sheen.
+- **Texture Charge** (the updated 10/01/26 edition): $2.00 / $2.00 for the
+  two nosings. The shoe mold, reducer and T-mold cells read "Cannot Be
+  Textured" (text, not a price). It is the same for any texture.
 - **Slip tongue:** $0.40/lf, any species, in 50 lf bundles.
 - **Plugs:** skipped.
 - **UPDATED:** an Excel date serial (46296 = 2026-10-01).
@@ -58,14 +72,14 @@ data.sheets.accessories = {
   fileName, sheetDate: "2026-10-01", uploadedAt, uploadedBy,
   species: { "<species>": { nose35, nose55, shoe, reducer, tmold } },   // $/lf
   prefin:  { nose35, nose55, shoe, reducer, tmold },                    // $/lf
+  tex:     { nose35, nose55, shoe, reducer, tmold },   // $/lf, or null = can't be textured
   slip:    { perLf, bundleLf },
 }
-data.trimTexture = { nose35, nose55, shoe, reducer, tmold }   // $/lf or null; hand-entered
 data.markups     = { flooring, vents, trim }                  // trim new, default 100
 ```
 
-- **`trimTexture` sits outside `sheets`** so replacing the sheet never wipes
-  the hand-entered textured charge.
+- **No hand-entered texture slot.** Texture rides the sheet like every other
+  price (decision 6).
 - **Saved estimate lines never reprice** (ADR 0003 snapshot). A new upload
   changes only new picks.
 - **`sheogaMarkups(books, settings)`** gains `trimMarkupPct`:
@@ -88,6 +102,9 @@ data.markups     = { flooring, vents, trim }                  // trim new, defau
   - Finds each profile block by its header text ("Rabbeted Nosing" with the
     3 1/2" / 5 1/2" sub-headers, "Shoe Mold", "Reducer", "T-Mold").
   - Reads the species rows under each block and the "Prefinished Charge" row.
+  - Reads the optional "Texture Charge" row: a positive number is the $/lf
+    charge, and "Cannot Be Textured" (or any non-number, or no row at all)
+    means `null`.
   - Reads "Slip Tongue" with its price and the "50LF" bundle note (default 50
     if the note changes), plus the UPDATED date.
   - Every one of the 8 species × 5 profiles, the 5 prefinish charges and slip
@@ -108,9 +125,9 @@ data.markups     = { flooring, vents, trim }                  // trim new, defau
     a count ("12 prices changed");
   - problems, if any.
 - **Save** writes `sheets.accessories`. **Cancel** discards.
-- Below the table, a **Textured** row of five $/lf inputs with its own Save
-  writes `trimTexture`. It is labeled "not on Sheoga's sheet — enter from
-  Sheoga".
+- The table's **+ Textured** row comes from the sheet and is read-only. A
+  null reads "can't be textured". Texture changes are highlighted in the
+  replace diff like any other price.
 
 **Library "Drop sheets" zone:** `ImportRouter` recognizes the accessory sheet
 (`isSheogaAccessorySheet`) and routes it to the Sheoga vendor book, reading
@@ -166,13 +183,14 @@ look, price-level lens, basket, mobile price bar/sheet).
   same rounding as every Sheoga price.
 - The tier lens is display only. Lines land retail (ADR 0018).
 
-**Texture with no charge set:**
-- The rail shows "Textured trim price not set — ask Sheoga, then enter it on
-  the Sheoga price book" with **Ship smooth**, which sets texture to smooth
-  for this build.
-- The build card lists the textured row as "not set".
-- Add / Add to basket stay disabled while blocked.
-- Slip tongue alone is never blocked.
+**Pieces that can't be textured** (decision 6):
+- When the build is textured, a piece whose sheet texture charge is null
+  prices and orders smooth.
+- Its build-card block and rail row say "smooth — can't be textured", and
+  its order text omits the texture.
+- Texturable pieces show "Textured — {texture} +$X/lf" and carry the
+  texture in the order text.
+- Nothing is ever blocked. Slip tongue never takes texture.
 
 **Build card:**
 - Header: "Sheoga trim — {species}" plus the sheet date ("accessory sheet ·
@@ -205,7 +223,7 @@ prices.
   - `sellUnit` "PC" | "LF" | "BDL";
   - `sizeText` = the profile size;
   - `brandColor` = "Sheoga {profile} · {length} pcs · {species} · {finish} ·
-    {sheen} · {texture}".
+    {sheen} · {texture}" (texture only on pieces that take it).
   - No waste on these count lines. The plan verifies `lineWastePct` leaves
     count rows alone, as for vents.
 - **Order text** example: `T-mold ¾"×2½" · 8' pcs · White Oak · Prefinished
@@ -213,7 +231,7 @@ prices.
   `trim` (like vents), so order entry uses the row text.
 - **Where the sheet comes from:** pricing needs the uploaded sheet, so
   `calcConfig(snap, sf, { trim })` takes it as an option. The configurator
-  gets a `trimBook` prop (sheet + texture rates + markup) from App.jsx /
+  gets a `trimBook` prop (the uploaded sheet, which carries the texture rates) from App.jsx /
   AppsWorkspace beside the existing markup props. Every in-popup caller
   passes it: BuildCard, basket view, placed-kit view, `lineItems`. A trim
   snap priced without a sheet returns null ("sheet not uploaded").
@@ -221,15 +239,18 @@ prices.
 ## 5. Testing and proof
 
 **Unit tests (`sheogatrim.test.js`, node --test):**
-- The parser reads the real 10/01/26 file (committed as a fixture): all 40
-  prices, 5 prefinish charges, slip tongue, the date, and the QR/trailing-space
-  normalization.
+- The parser reads the real 10/01/26 file (the updated edition, committed as
+  the main fixture): all 40 prices, 5 prefinish charges, the Texture row
+  (2/2/null/null/null), slip tongue, the date, and the QR/trailing-space
+  normalization. The first edition (no Texture row) stays as a second
+  fixture and parses with every texture null.
 - A copy with a blanked cell and one with a renamed header each yield the
   named problem and no sheet.
 - Pricing:
   - a 6' nosing run, Random lengths, reducer at 8', a slip bundle;
   - prefinish + markup, matching the sell figures the mockup shows;
-  - texture blocked while null and priced when set.
+  - textured nosing +$2.00/lf; textured shoe/reducer/T-mold price and
+    order smooth with the "can't be textured" note; slip never textured.
 - `lineItems`: anchor/companion markers, row shapes.
 - `normVendorMarkups` / `sheogaMarkups` with and without `trim`.
 - Basket entry round-trip.
@@ -237,8 +258,8 @@ prices.
 **Preview proof (non-negotiable 3):**
 - `sheoga-preview.html` and `vendor-book-preview.html` gain the trim tab and
   the Price sheets tab over local state.
-- Screenshots of: the tab matching a textured floor (blocked), Ship smooth,
-  Pick my own, the book upload review with diffs, a parse failure, and phone
+- Screenshots of: the tab matching a textured floor (textured nosing, smooth
+  shoe/reducer/T-mold with the note), Pick my own, the book upload review with diffs, a parse failure, and phone
   width.
 
 ## Out of scope
@@ -246,5 +267,6 @@ prices.
 - Plugs.
 - Moving the flooring, vent or damper sheets into the book.
 - Storing the original .xlsx file (only the parsed prices are kept).
-- A per-job texture override beyond Ship smooth.
+- A hand-entered texture price, or one that overrides the sheet (owner
+  decision 6).
 - Stair-tread / landing pieces not on this sheet.
