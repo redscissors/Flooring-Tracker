@@ -6,7 +6,7 @@
 
 import { normPricing } from "./pricing.js";
 import { DEFAULT_MARKUP, DEFAULT_VENT_MARKUP } from "./sheoga.js";
-import { DEFAULT_TRIM_MARKUP, TRIM_PROFILES } from "./sheogatrim.js";
+import { DEFAULT_TRIM_MARKUP } from "./sheogatrim.js";
 
 export const VENDOR_ENGINES = { sheoga: { name: "Sheoga Hardwood", brandLabel: "Sheoga Hardwood" } };
 
@@ -45,21 +45,10 @@ export const normVendorMarkups = (raw) => ({
   trim: pct(raw?.trim, DEFAULT_TRIM_MARKUP),
 });
 
-// 0 is a real price: Sheoga may texture a profile at no charge.
-export const normTrimTexture = (raw) => {
-  const out = {};
-  for (const { id } of TRIM_PROFILES) {
-    const v = raw?.[id];
-    const n = Number(v);
-    out[id] = v === "" || v == null || !Number.isFinite(n) || n < 0 ? null : n;
-  }
-  return out;
-};
-
 export const trimBookOf = (books) => {
   const data = vendorBookFor(books, "sheoga")?.data;
   const sheet = data?.sheets?.accessories;
-  return sheet ? { sheet, tex: normTrimTexture(data.trimTexture) } : null;
+  return sheet ? { sheet } : null;
 };
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

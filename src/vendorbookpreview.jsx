@@ -5,7 +5,7 @@
 // the book page alone (the panel is a full-page drawer; the tabs sit under
 // its backdrop otherwise). `?sheet=1` reads the real accessory-sheet fixture
 // and opens its review as a first upload; `?sheet=replace` stores an older
-// copy first (three prices off) so the review shows the diff; `?sheet=bad`
+// copy first (four prices off) so the review shows the diff; `?sheet=bad`
 // breaks the T-mold block and slip tongue so the review shows problems.
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -52,6 +52,7 @@ async function loadSheetCase(mode, setBooks) {
     old.sheetDate = "2026-04-15";
     old.species["White Oak"].tmold = 1.99;
     old.prefin.shoe = 1.75;
+    old.tex.nose35 = 1.5;
     old.slip.perLf = 0.38;
     setBooks((bs) => bs.map((b) => b.id === "vb1" ? { ...b, data: { ...b.data, sheets: { accessories: { ...old, fileName: "Sheoga_Accessory_Pricing_-_Distributor_-_20260415.xlsx", uploadedAt: Date.UTC(2026, 3, 20, 15), uploadedBy: "Dana" } } } } : b));
   }

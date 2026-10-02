@@ -60,6 +60,7 @@ export function parseAccessorySheet(sheets) {
   const problems = [];
   const species = Object.fromEntries(TRIM_SPECIES.map((s) => [s, {}]));
   const prefin = {};
+  const tex = Object.fromEntries(TRIM_PROFILES.map((p) => [p.id, null]));
 
   for (const blk of BLOCKS) {
     const head = findCell(rows, (v) => text(v).toLowerCase() === blk.header);
@@ -94,9 +95,16 @@ export function parseAccessorySheet(sheets) {
       seen.add(sp);
       for (const id of blk.ids) species[sp][id] = price(rows[r][cols[id]]);
     }
-    while (r < rows.length && !text((rows[r] || [])[hc])) r++;
-    if (/^prefinished charge$/i.test(text((rows[r] || [])[hc])))
+    const nextLabel = () => {
+      while (r < rows.length && !text((rows[r] || [])[hc])) r++;
+      return text((rows[r] || [])[hc]);
+    };
+    if (/^prefinished charge$/i.test(nextLabel())) {
       for (const id of blk.ids) prefin[id] = price(rows[r][cols[id]]);
+      r++;
+      if (/^texture charge$/i.test(nextLabel()))
+        for (const id of blk.ids) tex[id] = price(rows[r][cols[id]]);
+    }
     for (const sp of TRIM_SPECIES)
       for (const id of blk.ids)
         if (!seen.has(sp) || species[sp][id] == null) problems.push(`${sp} — ${short(id)} price missing`);
@@ -113,7 +121,7 @@ export function parseAccessorySheet(sheets) {
   if (slip.perLf == null) problems.push("Slip tongue price missing");
 
   if (problems.length) return { sheet: null, problems };
-  return { sheet: { sheetDate: sheetDateOf(rows), species, prefin, slip }, problems: [] };
+  return { sheet: { sheetDate: sheetDateOf(rows), species, prefin, tex, slip }, problems: [] };
 }
 
 export function diffAccessorySheets(prev, next) {
@@ -123,6 +131,7 @@ export function diffAccessorySheets(prev, next) {
   for (const sp of TRIM_SPECIES)
     for (const p of TRIM_PROFILES) cmp(`${sp} — ${p.short}`, prev.species[sp]?.[p.id], next.species[sp]?.[p.id]);
   for (const p of TRIM_PROFILES) cmp(`Prefinished — ${p.short}`, prev.prefin[p.id], next.prefin[p.id]);
+  for (const p of TRIM_PROFILES) cmp(`Textured — ${p.short}`, prev.tex?.[p.id] ?? null, next.tex?.[p.id] ?? null);
   cmp("Slip tongue", prev.slip.perLf, next.slip.perLf);
   return out;
 }
@@ -139,7 +148,6 @@ const FIXED_IDS = ["reducer", "tmold"];
 const norm = (s) => String(s || "").replace(/\s+/g, "").toLowerCase();
 const count = (n) => Math.max(0, Math.floor(Number(n) || 0));
 const runLen = (len) => (len === "rl" ? "rl" : TRIM_LENGTHS.includes(Number(len)) ? Number(len) : 8);
-const texPrice = (v) => (v == null || v === "" || !isFinite(Number(v)) ? null : Number(v));
 
 const TRIM_SP_MAP = { [LIVE_SAWN_SP]: "White Oak" };
 const trimSp = (sp) => {
@@ -178,29 +186,27 @@ export function calcTrim(cfg, trimBook) {
   const texture = TEXTURES.find((t) => t.id === cfg.tex) || TEXTURES[0];
   const textured = texture.id !== "smooth";
   const texName = texture.name.replace(" (standard)", "");
-  const finishText = [
-    cfg.prefin ? `Prefinished${cfg.stain ? " " + cfg.stain : ""} · ${cfg.sheen} sheen` : "Unfinished",
-    ...(textured ? [texName] : []),
-  ].join(" · ");
+  const baseFinish = cfg.prefin ? `Prefinished${cfg.stain ? " " + cfg.stain : ""} · ${cfg.sheen} sheen` : "Unfinished";
+  const finishText = textured ? `${baseFinish} · ${texName}` : baseFinish;
 
   const lines = [];
-  let texBlocked = false;
   const pushLine = (id, qty, len) => {
     const profile = TRIM_PROFILES.find((p) => p.id === id);
-    const add = textured ? texPrice(trimBook.tex?.[id]) : 0;
-    const blocked = textured && add == null;
-    if (blocked) texBlocked = true;
+    const add = textured ? sheet.tex?.[id] ?? null : null;
+    const applied = add != null;
     const charge = cfg.prefin ? sheet.prefin[id] : 0;
     const lfCost = round2(prices[id] + charge + (add || 0));
     const unitCost = len === "rl" ? lfCost : round2(lfCost * len);
     const rows = [[cfg.sp, money(prices[id]) + " /lf"]];
     if (cfg.prefin) rows.push(["Prefinished charge", "+" + money(charge) + " /lf"]);
-    if (textured) rows.push([`Textured — ${texName}`, blocked ? "not set" : "+" + money(add) + " /lf"]);
+    if (applied) rows.push([`Textured — ${texName}`, "+" + money(add) + "/lf"]);
+    else if (textured) rows.push(["Smooth — can't be textured", ""]);
     const lenText = len === "rl" ? "random lengths" : `${len}' pcs`;
     lines.push({
       key: `${id}-${lines.length}`, profile: id, unit: len === "rl" ? "lf" : "pc", qty, len, unitCost, lfCost,
       sizeText: profile.size,
-      desc: [profile.name, lenText, cfg.sp, finishText].join(" · "),
+      textured: applied,
+      desc: [profile.name, lenText, cfg.sp, applied ? finishText : baseFinish].join(" · "),
       qtyText: len === "rl" ? `${qty} lf` : `${qty} pc${qty === 1 ? "" : "s"}`,
       rows,
     });
@@ -220,7 +226,7 @@ export function calcTrim(cfg, trimBook) {
     const { perLf, bundleLf } = sheet.slip;
     const unitCost = round2(perLf * bundleLf);
     lines.push({
-      key: "slip", profile: "slip", unit: "bdl", qty: bundles, len: null, unitCost, lfCost: perLf,
+      key: "slip", profile: "slip", unit: "bdl", qty: bundles, len: null, unitCost, lfCost: perLf, textured: false,
       sizeText: "", desc: `Slip tongue · ${bundleLf} lf bundle`,
       qtyText: `${bundles} bundle${bundles === 1 ? "" : "s"}`,
       rows: [[`${bundleLf} lf bundle`, money(perLf) + " /lf"]],
@@ -228,7 +234,7 @@ export function calcTrim(cfg, trimBook) {
   }
 
   return {
-    sp: cfg.sp, finishText, texName, texBlocked,
+    sp: cfg.sp, finishText, texName,
     costTotal: round2(lines.reduce((t, l) => t + l.unitCost * l.qty, 0)),
     lines,
   };
@@ -238,7 +244,7 @@ const SELL_UNIT = { pc: "PC", lf: "LF", bdl: "BDL" };
 
 export function trimLineItems(cfg, trimBook, markupPct = DEFAULT_TRIM_MARKUP) {
   const b = calcTrim(cfg, trimBook);
-  if (!b || b.texBlocked) return [];
+  if (!b) return [];
   return b.lines.map((l, i) => ({
     type: "hardwood", sku: "", sizeText: l.sizeText, brandColor: "Sheoga " + l.desc,
     qtyType: "count", qty: String(l.qty), sellUnit: SELL_UNIT[l.unit],

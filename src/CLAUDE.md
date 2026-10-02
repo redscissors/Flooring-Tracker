@@ -850,13 +850,13 @@ src/
   sheogasheets.jsx  # the Price sheets tab (spec 2026-10-02):
                     # `AccessorySheetCard` (the uploaded accessory sheet's row —
                     # Upload…/Replace… + drop onto the card — beside the three
-                    # built-in sheets, then the stored table, the hand-entered
-                    # "+ Textured" adders with their own Save, and slip
-                    # tongue) and `SheetReview` (problems → Save disabled;
+                    # built-in sheets, then the stored table — its "+ Textured"
+                    # row read-only from the sheet, "—" for a piece Sheoga
+                    # can't texture — and slip tongue) and `SheetReview` (problems → Save disabled;
                     # else the table with diffAccessorySheets cells amber,
                     # "N prices changed" / "First upload — 40 prices").
-                    # Writes only `data.sheets.accessories` and
-                    # `data.trimTexture` through updateBook's dataPatch
+                    # Writes only `data.sheets.accessories` through
+                    # updateBook's dataPatch
   vendorbookpreview.jsx  # dev-only harness (vendor-book-preview.html): the
                     # REAL VendorBookPage beside the REAL SamplesPanel over
                     # local state — a pre-book name-only Sheoga request and an

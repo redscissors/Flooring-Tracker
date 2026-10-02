@@ -1,12 +1,12 @@
 // The Sheoga book's Price sheets tab: the uploaded accessory sheet (its
-// stored table, the hand-entered textured adders) and the review a new or
-// replacement sheet passes through before it is saved.
+// stored table) and the review a new or replacement sheet passes through
+// before it is saved.
 import { useRef, useState } from "react";
 import { FileSpreadsheet, Upload } from "lucide-react";
 import { HelpTip } from "./widgets.jsx";
 import { readXlsxSheets } from "./fileread.js";
 import { parseAccessorySheet, diffAccessorySheets, TRIM_PROFILES, TRIM_SPECIES } from "./sheogatrim.js";
-import { normTrimTexture, sheetDateMDY } from "./vendorbook.js";
+import { sheetDateMDY } from "./vendorbook.js";
 
 const BUILT_IN = [
   { name: "Flooring & stocked prefinished", src: "Distributor Price List", when: "Jan ’26" },
@@ -24,12 +24,15 @@ export async function readAccessoryFile(file) {
   catch { return { sheet: null, problems: ["Not a spreadsheet this app can open"] }; }
 }
 
-function AccTable({ sheet, was = {}, children }) {
-  const cell = (label, v) => {
+const NO_TEXTURE = "can't be textured";
+
+function AccTable({ sheet, was = {} }) {
+  const cell = (label, v, nullTitle) => {
     const text = v == null ? "—" : v.toFixed(2);
+    const none = v == null ? nullTitle : undefined;
     return label in was
-      ? <td key={label} className={`${td} ${changed}`} title={`was ${fm(was[label])}`}>{text}</td>
-      : <td key={label} className={td}>{text}</td>;
+      ? <td key={label} className={`${td} ${changed}`} title={[`was ${fm(was[label])}`, none].filter(Boolean).join(" · ")}>{text}</td>
+      : <td key={label} className={td} title={none}>{text}</td>;
   };
   return (
     <div className="mt-2 overflow-x-auto rounded-md border border-slate-200">
@@ -44,7 +47,9 @@ function AccTable({ sheet, was = {}, children }) {
           <tr style={{ background: "var(--ft-tint)" }}>
             <td className={td}>+ Prefinished</td>{TRIM_PROFILES.map((p) => cell(`Prefinished — ${p.short}`, sheet.prefin?.[p.id]))}
           </tr>
-          {children}
+          <tr style={{ background: "var(--ft-tint)" }}>
+            <td className={td}>+ Textured</td>{TRIM_PROFILES.map((p) => cell(`Textured — ${p.short}`, sheet.tex?.[p.id], NO_TEXTURE))}
+          </tr>
         </tbody>
       </table>
     </div>
@@ -89,33 +94,6 @@ export function SheetReview({ prev, fileName, parsed, onSave, onCancel }) {
       </div>
     </div>
   );
-}
-
-const texForm = (raw) => Object.fromEntries(Object.entries(normTrimTexture(raw)).map(([k, v]) => [k, v == null ? "" : String(v)]));
-
-function TexturedRow({ book, updateBook }) {
-  const savedRaw = book.data?.trimTexture;
-  const [form, setForm] = useState(() => texForm(savedRaw));
-  const saved = normTrimTexture(savedRaw), next = normTrimTexture(form);
-  const dirty = TRIM_PROFILES.some((p) => saved[p.id] !== next[p.id]);
-  return (<>
-    <tr className="bg-amber-50">
-      <td className={td}>+ Textured <span className="font-medium text-[10px] text-amber-700">not on Sheoga's sheet — enter from Sheoga</span></td>
-      {TRIM_PROFILES.map((p) => (
-        <td key={p.id} className={td}>
-          <input type="number" min="0" step="0.01" placeholder="—" aria-label={`Textured ${p.short}`} value={form[p.id]}
-            onChange={(e) => setForm((f) => ({ ...f, [p.id]: e.target.value }))}
-            className="w-16 rounded border border-amber-300 bg-white px-1 py-0.5 text-right text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500" />
-        </td>
-      ))}
-    </tr>
-    <tr className="bg-amber-50">
-      <td colSpan={TRIM_PROFILES.length + 1} className="px-2 pb-1.5 text-right">
-        {dirty && <button onClick={() => setForm(texForm(savedRaw))} className="mr-2 text-xs text-slate-500 hover:text-slate-700">Reset</button>}
-        <button disabled={!dirty} onClick={() => updateBook(book.id, { dataPatch: { trimTexture: next } })} className="rounded-md bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-0.5 text-xs font-semibold disabled:opacity-40">Save textured</button>
-      </td>
-    </tr>
-  </>);
 }
 
 export function AccessorySheetCard({ book, updateBook, userName, review, onReview, onReviewDone }) {
@@ -177,9 +155,7 @@ export function AccessorySheetCard({ book, updateBook, userName, review, onRevie
       {review ? (
         <SheetReview prev={stored} fileName={review.fileName} parsed={review.parsed} onSave={save} onCancel={onReviewDone} />
       ) : stored && (<>
-        <AccTable sheet={stored}>
-          <TexturedRow key={book.id} book={book} updateBook={updateBook} />
-        </AccTable>
+        <AccTable sheet={stored} />
         {slipLine(stored.slip)}
       </>)}
     </div>

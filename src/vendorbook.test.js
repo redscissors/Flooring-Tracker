@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { vendorBookFor, vendorBookForRow, vendorBookSeed, sheogaMarkups, normVendorMarkups, trimBookOf, normTrimTexture, sheetMonth, sheetDateMDY } from "./vendorbook.js";
+import { vendorBookFor, vendorBookForRow, vendorBookSeed, sheogaMarkups, normVendorMarkups, trimBookOf, sheetMonth, sheetDateMDY } from "./vendorbook.js";
+import * as vb from "./vendorbook.js";
 
 const SHEOGA = { id: "vb1", kind: "vendor", name: "Sheoga Hardwood", data: { engine: "sheoga", markups: { flooring: 45, vents: 55 } } };
 const BOOKS = [{ id: "b1", kind: "order", name: "Glazzio", data: {} }, SHEOGA];
@@ -48,21 +49,17 @@ test("sheogaMarkups carries the trim markup: 100 by default, the book's when set
   assert.equal(sheogaMarkups([withTrim], {}).trimMarkupPct, 120);
 });
 
-test("trimBookOf is null without a book or a sheet, else the sheet plus normalized texture", () => {
+test("trimBookOf is null without a book or a sheet, else the sheet", () => {
   assert.equal(trimBookOf([]), null);
   assert.equal(trimBookOf([BOOKS[0]]), null);
   assert.equal(trimBookOf([SHEOGA]), null);
   const S = { sheetDate: "2026-10-01", rows: [] };
-  const book = { ...SHEOGA, data: { ...SHEOGA.data, sheets: { accessories: S }, trimTexture: { nose35: "1.25", shoe: "" } } };
-  assert.deepEqual(trimBookOf([book]), { sheet: S, tex: { nose35: 1.25, nose55: null, shoe: null, reducer: null, tmold: null } });
+  const book = { ...SHEOGA, data: { ...SHEOGA.data, sheets: { accessories: S } } };
+  assert.deepEqual(trimBookOf([book]), { sheet: S });
 });
 
-test("normTrimTexture keeps 0 as a $0/lf charge; blank, negative and junk become null", () => {
-  assert.deepEqual(normTrimTexture({ tmold: 0 }).tmold, 0);
-  assert.equal(normTrimTexture({ nose35: "-1" }).nose35, null);
-  assert.equal(normTrimTexture({ nose35: -2, nose55: "abc", shoe: null, reducer: undefined }).nose55, null);
-  assert.deepEqual(normTrimTexture(undefined), { nose35: null, nose55: null, shoe: null, reducer: null, tmold: null });
-  assert.equal(normTrimTexture({ shoe: "0" }).shoe, 0);
+test("normTrimTexture is gone: texture comes only from the sheet", () => {
+  assert.equal(typeof vb.normTrimTexture, "undefined");
 });
 
 test("sheetMonth / sheetDateMDY format an accessory sheetDate", () => {

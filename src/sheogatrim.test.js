@@ -8,8 +8,8 @@ import {
 } from "./sheogatrim.js";
 import { defaultConfig, sellOf } from "./sheoga.js";
 
-const load = () => {
-  const wb = XLSX.read(fs.readFileSync(new URL("./testdata/sheoga-accessory-20261001.xlsx", import.meta.url)));
+const load = (file = "sheoga-accessory-20261001.xlsx") => {
+  const wb = XLSX.read(fs.readFileSync(new URL("./testdata/" + file, import.meta.url)));
   return wb.SheetNames.map((name) => ({ name, rows: XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: null }) }));
 };
 const cell = (sheets, text, nth = 0) => {
@@ -35,8 +35,18 @@ test("parse: reads the 10/01/26 sheet", () => {
   assert.equal(sheet.species["Red Oak"].nose35, 3.61);
   assert.deepEqual(sheet.prefin, { nose35: 2.4, nose55: 3.75, shoe: 1.85, reducer: 1.85, tmold: 1.85 });
   assert.deepEqual(sheet.slip, { perLf: 0.4, bundleLf: 50 });
+  assert.deepEqual(sheet.tex, { nose35: 2, nose55: 2, shoe: null, reducer: null, tmold: null });
   assert.deepEqual(Object.keys(sheet.species), TRIM_SPECIES);
   assert.equal("plugs" in sheet, false);
+});
+
+test("parse: a sheet without a Texture row", () => {
+  const { sheet, problems } = parseAccessorySheet(load("sheoga-accessory-20261001-notexture.xlsx"));
+  assert.deepEqual(problems, []);
+  assert.deepEqual(sheet.tex, { nose35: null, nose55: null, shoe: null, reducer: null, tmold: null });
+  const { tex, ...rest } = parseAccessorySheet(load()).sheet;
+  const { tex: none, ...restOld } = sheet;
+  assert.deepEqual(restOld, rest);
 });
 
 test("parse: a blanked price is a named problem", () => {
@@ -82,9 +92,20 @@ test("diff: names changed prices", () => {
   assert.deepEqual(diffAccessorySheets(null, next), []);
 });
 
+test("diff: names texture changes", () => {
+  const prev = parseAccessorySheet(load()).sheet;
+  const next = structuredClone(prev);
+  next.tex.nose35 = 2.5;
+  next.tex.shoe = 1;
+  assert.deepEqual(diffAccessorySheets(prev, next), [
+    { label: 'Textured — Nosing 3½"', from: 2, to: 2.5 },
+    { label: "Textured — Shoe mold", from: null, to: 1 },
+  ]);
+});
+
 // --- pricing engine -----------------------------------------------------------
 
-const book = () => ({ sheet: parseAccessorySheet(load()).sheet, tex: {} });
+const book = (file) => ({ sheet: parseAccessorySheet(load(file)).sheet });
 const wo = () => ({ ...defaultConfig("trim"), sp: "White Oak", prefin: true, stain: "Toasted Acorn", sheen: "30" });
 const run = (n, len) => ({ n, len });
 
@@ -112,7 +133,8 @@ test("calcTrim: White Oak prefinished pieces", () => {
   assert.deepEqual(b.lines.map((l) => sellOf(l.unitCost, 100)), [99.12, 51.36, 6.42, 64.16, 40]);
   assert.equal(b.sp, "White Oak");
   assert.equal(b.finishText, "Prefinished Toasted Acorn · 30 sheen");
-  assert.equal(b.texBlocked, false);
+  assert.equal("texBlocked" in b, false);
+  assert.ok(b.lines.every((l) => l.textured === false));
 });
 
 test("calcTrim: unfinished Red Oak reducer", () => {
@@ -125,21 +147,42 @@ test("calcTrim: unfinished Red Oak reducer", () => {
   assert.ok(!b.lines[0].rows.some(([label]) => /prefinished/i.test(label)));
 });
 
-test("calcTrim: texture blocks until priced", () => {
-  const cfg = { ...wo(), tex: "sawcut", runs: { nose35: [run(1, 8)], nose55: [], shoe: [] } };
-  const bk = book();
-  const b = calcTrim(cfg, bk);
-  assert.equal(b.texBlocked, true);
-  assert.ok(b.lines[0].rows.some((r) => r[0] === "Textured — Saw Cut" && r[1] === "not set"));
-  assert.deepEqual(trimLineItems(cfg, bk, 100), []);
+test("calcTrim: texture is priced from the sheet; untexturable pieces ship smooth", () => {
+  const cfg = {
+    ...wo(), tex: "sawcut",
+    runs: { nose35: [run(2, 6)], nose55: [], shoe: [run(15, 8)] }, tmold: 2, reducer: 1, slip: 1,
+  };
+  const b = calcTrim(cfg, book());
+  assert.equal("texBlocked" in b, false);
+  const [nose, shoe, reducer, tmold, slip] = b.lines;
+  assert.equal(nose.lfCost, 10.26);
+  assert.equal(nose.unitCost, 61.56);
+  assert.equal(nose.textured, true);
+  assert.ok(nose.rows.some((r) => r[0] === "Textured — Saw Cut" && r[1] === "+$2.00/lf"));
+  assert.equal(shoe.unitCost, 25.68);
+  assert.equal(shoe.textured, false);
+  assert.ok(shoe.rows.some((r) => r[0] === "Smooth — can't be textured" && r[1] === ""));
+  for (const l of [reducer, tmold]) {
+    assert.equal(l.textured, false);
+    assert.ok(l.rows.some((r) => r[0] === "Smooth — can't be textured"));
+  }
+  assert.ok(!slip.rows.some((r) => /textured|smooth/i.test(r[0])));
 
-  bk.tex.nose35 = 1;
-  const ok = calcTrim(cfg, bk);
-  assert.equal(ok.texBlocked, false);
-  assert.equal(ok.lines[0].lfCost, 9.26);
+  const items = trimLineItems(cfg, book(), 100);
+  assert.equal(items.length, 5);
+  assert.ok(items[0].brandColor.endsWith(" · Saw Cut"));
+  assert.ok(!items[1].brandColor.includes("Saw Cut"));
+});
 
-  const slipOnly = { ...defaultConfig("trim"), tex: "sawcut", slip: 2 };
-  assert.equal(calcTrim(slipOnly, book()).texBlocked, false);
+test("calcTrim: with no Texture row on the sheet every piece ships smooth", () => {
+  const cfg = { ...wo(), tex: "sawcut", runs: { nose35: [run(1, 8)], nose55: [run(1, 8)], shoe: [run(1, 8)] }, tmold: 1, reducer: 1 };
+  const b = calcTrim(cfg, book("sheoga-accessory-20261001-notexture.xlsx"));
+  assert.equal(b.lines.length, 5);
+  for (const l of b.lines) {
+    assert.equal(l.textured, false);
+    assert.ok(l.rows.some((r) => r[0] === "Smooth — can't be textured"));
+  }
+  assert.equal(trimLineItems(cfg, book("sheoga-accessory-20261001-notexture.xlsx"), 100).length, 5);
 });
 
 test("calcTrim: junk quantities clamp", () => {
@@ -155,7 +198,7 @@ test("calcTrim: junk quantities clamp", () => {
 
 test("calcTrim: no sheet", () => {
   assert.equal(calcTrim(wo(), null), null);
-  assert.equal(calcTrim(wo(), { tex: {} }), null);
+  assert.equal(calcTrim(wo(), {}), null);
 });
 
 test("trimLineItems: rows and markers", () => {
