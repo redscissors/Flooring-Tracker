@@ -835,18 +835,33 @@ src/
                     # (vendorbook.test.js)
   vendorbook.jsx    # `VendorBookPage` — the vendor book's page: name, badge,
                     # "priced by the configurator" meta, Active, delete, and
-                    # the Markup · Freight · Brand · Contacts tabs. No Source
-                    # tab, no items, no import. Reuses pricebooklib's
-                    # FreightCard/BrandCard/ContactsCard (a deliberate import
-                    # cycle — both only touch each other inside render);
-                    # `VendorMarkupCard` is its own — two percent fields with a
-                    # worked cost→sell example off the transcribed tables
+                    # the Markup · Price sheets · Freight · Brand · Contacts
+                    # tabs. No Source tab, no items, no import. Reuses
+                    # pricebooklib's FreightCard/BrandCard/ContactsCard (a
+                    # deliberate import cycle — both only touch each other
+                    # inside render); `VendorMarkupCard` is its own — three
+                    # percent fields (flooring, vents, trim) with a worked
+                    # cost→sell example each. `pendingSheet` ({fileName,
+                    # parsed}) opens Price sheets straight into review;
+                    # `onPendingDone` fires on its Save/Cancel
+  sheogasheets.jsx  # the Price sheets tab (spec 2026-10-02):
+                    # `AccessorySheetCard` (the uploaded accessory sheet's row —
+                    # Upload…/Replace… + drop onto the card — beside the three
+                    # built-in sheets, then the stored table, the hand-entered
+                    # "+ Textured" adders with their own Save, and slip
+                    # tongue) and `SheetReview` (problems → Save disabled;
+                    # else the table with diffAccessorySheets cells amber,
+                    # "N prices changed" / "First upload — 40 prices").
+                    # Writes only `data.sheets.accessories` and
+                    # `data.trimTexture` through updateBook's dataPatch
   vendorbookpreview.jsx  # dev-only harness (vendor-book-preview.html): the
                     # REAL VendorBookPage beside the REAL SamplesPanel over
                     # local state — a pre-book name-only Sheoga request and an
                     # id-keyed one merge under one Email button; `?book=1`
                     # mounts the page alone (the panel's backdrop covers the
-                    # tabs otherwise); not part of the app build
+                    # tabs otherwise); `?sheet=1|replace|bad` reads the real
+                    # accessory fixture into a first-upload / diff / problems
+                    # review; not part of the app build
   sheoga.js         # Sheoga Hardwood vendor configurator engine (issue 023):
                     # Sheoga sells by DESCRIPTION, not SKU. Hand-transcribed
                     # sheet tables (flooring & stocked Jan '26, vents Feb '22,

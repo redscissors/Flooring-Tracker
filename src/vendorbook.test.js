@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { vendorBookFor, vendorBookForRow, vendorBookSeed, sheogaMarkups, normVendorMarkups, trimBookOf, normTrimTexture } from "./vendorbook.js";
+import { vendorBookFor, vendorBookForRow, vendorBookSeed, sheogaMarkups, normVendorMarkups, trimBookOf, normTrimTexture, sheetMonth, sheetDateMDY } from "./vendorbook.js";
 
 const SHEOGA = { id: "vb1", kind: "vendor", name: "Sheoga Hardwood", data: { engine: "sheoga", markups: { flooring: 45, vents: 55 } } };
 const BOOKS = [{ id: "b1", kind: "order", name: "Glazzio", data: {} }, SHEOGA];
@@ -63,4 +63,15 @@ test("normTrimTexture keeps 0 as a $0/lf charge; blank, negative and junk become
   assert.equal(normTrimTexture({ nose35: -2, nose55: "abc", shoe: null, reducer: undefined }).nose55, null);
   assert.deepEqual(normTrimTexture(undefined), { nose35: null, nose55: null, shoe: null, reducer: null, tmold: null });
   assert.equal(normTrimTexture({ shoe: "0" }).shoe, 0);
+});
+
+test("sheetMonth / sheetDateMDY format an accessory sheetDate", () => {
+  assert.equal(sheetMonth("2026-10-01"), "Oct ’26");
+  assert.equal(sheetMonth("2025-01-15"), "Jan ’25");
+  assert.equal(sheetDateMDY("2026-10-01"), "10/1/26");
+  assert.equal(sheetDateMDY("2026-07-22"), "7/22/26");
+  for (const bad of ["", null, undefined, "10/01/2026"]) {
+    assert.equal(sheetMonth(bad), "");
+    assert.equal(sheetDateMDY(bad), "");
+  }
 });

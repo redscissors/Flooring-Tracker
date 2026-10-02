@@ -61,3 +61,8 @@ export const trimBookOf = (books) => {
   const sheet = data?.sheets?.accessories;
   return sheet ? { sheet, tex: normTrimTexture(data.trimTexture) } : null;
 };
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const isoParts = (iso) => /^\d{2}(\d{2})-(\d{2})-(\d{2})$/.exec(typeof iso === "string" ? iso : "");
+export const sheetMonth = (iso) => { const m = isoParts(iso); return m ? `${MONTHS[m[2] - 1]} ’${m[1]}` : ""; };
+export const sheetDateMDY = (iso) => { const m = isoParts(iso); return m ? `${+m[2]}/${+m[3]}/${m[1]}` : ""; };

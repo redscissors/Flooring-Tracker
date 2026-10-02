@@ -416,7 +416,7 @@ function ItemSearchCard({ pcts, setPct }) {
   );
 }
 
-export function PriceBookLibrary({ onClose, note, books, addBook, updateBook, confirmBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setBookItemIssue, addClaudeIssue, settings, setSettings, inp, lbl, types, typeLabels }) {
+export function PriceBookLibrary({ onClose, note, books, addBook, updateBook, confirmBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setBookItemIssue, addClaudeIssue, settings, setSettings, userName, inp, lbl, types, typeLabels }) {
   const [vendorPending, setVendorPending] = useState(() => captureHandoff()); // bookmarklet hand-off (ADR 0019/0020)
   const [vendorSession, setVendorSession] = useState(() => captureHandoffSession()); // bare session grab (ADR 0019): unlock only
   const [sel, setSel] = useState("library"); // "library" | bookId
@@ -620,7 +620,7 @@ export function PriceBookLibrary({ onClose, note, books, addBook, updateBook, co
       {sel === "library" ? (
         <VendorFetchPage vf={vf} books={books} pending={pendingReviews} onReview={reviewOne} onOpenBook={setSel} leadColumn={inHouseCol} inp={inp} />
       ) : selBook?.kind === "vendor" ? (
-        <>{backBtn}<VendorBookPage key={selBook.id} book={selBook} updateBook={updateBook} delBook={delBook} onDeleted={() => setSel("library")} inp={inp} lbl={lbl} /></>
+        <>{backBtn}<VendorBookPage key={selBook.id} book={selBook} updateBook={updateBook} delBook={delBook} onDeleted={() => setSel("library")} userName={userName} pendingSheet={null} inp={inp} lbl={lbl} /></>
       ) : selBook ? (
         <>{backBtn}<BookDetail key={selBook.id} book={selBook} updateBook={updateBook} confirmBook={confirmBook} delBook={delBook} onDeleted={() => setSel("library")} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} setBookItemIssue={setBookItemIssue} addClaudeIssue={addClaudeIssue} hideCosts={hideCosts} staleDays={staleDays} source={sheetsForBook(vf.groups, selBook.id)} sourcePendingOf={sourcePendingOf} sourceLiveOf={sourceLiveOf} onRefreshSheet={(s) => vf.run(Array.isArray(s) ? s : [s])} onReviewSheet={reviewOne} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} /></>
       ) : (

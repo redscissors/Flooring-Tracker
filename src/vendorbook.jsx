@@ -1,19 +1,23 @@
 // The vendor-kind book page (spec 2026-09-05): no items, no import, no Source
 // tab — just the slots a configurator-priced vendor needs. Tabs and cards are
 // the order book's (pricebooklib.jsx), so the two pages stay one idiom.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Trash2 } from "lucide-react";
 import { BookTab, FreightCard, BrandCard, ContactsCard } from "./pricebooklib.jsx";
 import { HelpTip } from "./widgets.jsx";
 import { normFreight } from "./freight.js";
-import { normVendorMarkups } from "./vendorbook.js";
+import { normVendorMarkups, sheetMonth } from "./vendorbook.js";
+import { AccessorySheetCard } from "./sheogasheets.jsx";
 import { sellOf, UNFINISHED, VENT_STD, SHEET_NOTE } from "./sheoga.js";
 
 const ENGINE_META = { sheoga: { app: "Sheoga configurator", sheets: SHEET_NOTE.replace(/^priced from /, "tables from ") } };
 
-export function VendorBookPage({ book, updateBook, delBook, onDeleted, inp, lbl }) {
+export function VendorBookPage({ book, updateBook, delBook, onDeleted, userName, pendingSheet, onPendingDone, inp, lbl }) {
   const [name, setName] = useState(book.name);
-  const [tab, setTab] = useState("markup");
+  const [tab, setTab] = useState(pendingSheet ? "sheets" : "markup");
+  const [review, setReview] = useState(pendingSheet || null);
+  useEffect(() => { if (pendingSheet) { setReview(pendingSheet); setTab("sheets"); } }, [pendingSheet]);
+  const reviewDone = () => { setReview(null); if (pendingSheet) onPendingDone?.(); };
   const [confirmDel, setConfirmDel] = useState(false);
   const m = normVendorMarkups(book.data?.markups);
   const fr = normFreight(book.data?.freight);
@@ -22,6 +26,8 @@ export function VendorBookPage({ book, updateBook, delBook, onDeleted, inp, lbl 
   const rep = book.data?.rep || {}, sampleC = book.data?.sampleContact || {};
   const who = (c) => (c.name || "").trim() || (c.email || "").trim();
   const contactSummary = [who(rep), who(sampleC) && `samples: ${who(sampleC)}`].filter(Boolean).join(" · ") || "none";
+  const acc = book.data?.sheets?.accessories;
+  const sheetsSummary = acc ? `accessories ${sheetMonth(acc.sheetDate) || "uploaded"}` : "accessories — not uploaded";
   const meta = ENGINE_META[book.data?.engine] || { app: "a configurator", sheets: "" };
   const flip = (t) => setTab(tab === t ? null : t);
   return (
@@ -48,7 +54,8 @@ export function VendorBookPage({ book, updateBook, delBook, onDeleted, inp, lbl 
 
       <div className="mt-2">
         <div className="flex items-end gap-1" style={{ borderBottom: "1px solid var(--ft-border)" }}>
-          <BookTab label="Markup" summary={`flooring ${m.flooring}% · vents ${m.vents}%`} active={tab === "markup"} onClick={() => flip("markup")} />
+          <BookTab label="Markup" summary={`flooring ${m.flooring}% · vents ${m.vents}% · trim ${m.trim}%`} active={tab === "markup"} onClick={() => flip("markup")} />
+          <BookTab label="Price sheets" summary={sheetsSummary} tone={acc ? undefined : "attn"} active={tab === "sheets"} onClick={() => flip("sheets")} />
           <BookTab label="Freight" summary={frSummary} active={tab === "freight"} onClick={() => flip("freight")} />
           <BookTab label="Brand" summary={brSummary} active={tab === "brand"} onClick={() => flip("brand")} />
           <BookTab label="Contacts" summary={contactSummary} active={tab === "contacts"} onClick={() => flip("contacts")} />
@@ -56,6 +63,7 @@ export function VendorBookPage({ book, updateBook, delBook, onDeleted, inp, lbl 
         {tab && (
           <div className="rounded-b-md px-4 pb-3" style={{ border: "1px solid var(--ft-border)", borderTop: "none", background: "var(--ft-card)" }}>
             {tab === "markup" && <VendorMarkupCard book={book} onSave={(mk) => updateBook(book.id, { dataPatch: { markups: mk } })} inp={inp} lbl={lbl} />}
+            {tab === "sheets" && <AccessorySheetCard book={book} updateBook={updateBook} userName={userName} review={review} onReview={setReview} onReviewDone={reviewDone} />}
             {tab === "freight" && <FreightCard embedded book={book} onSave={(f) => updateBook(book.id, { dataPatch: { freight: f } })} inp={inp} lbl={lbl} />}
             {tab === "brand" && <BrandCard book={book} items={[]} onSave={(v) => updateBook(book.id, { dataPatch: { brandLabel: v } })} inp={inp} lbl={lbl} />}
             {tab === "contacts" && <ContactsCard book={book} onSave={(patch) => updateBook(book.id, { dataPatch: patch })} inp={inp} lbl={lbl} />}
@@ -66,17 +74,21 @@ export function VendorBookPage({ book, updateBook, delBook, onDeleted, inp, lbl 
   );
 }
 
-// Two default markups over Sheoga's distributor cost, each with a worked
-// example off the transcribed tables so the number reads as a price.
+// Default markups over Sheoga's distributor cost, each with a worked example
+// so the number reads as a price — trim's off the uploaded sheet when there is one.
 const EX_FLOOR = { label: 'White Oak Clear 5¼" solid', cost: UNFINISHED["White Oak"].clear[3] };
 const EX_VENT = { label: "4×10 flush vent, group A", cost: VENT_STD.find((r) => r[0] === "4×10")[1] };
 const fm = (n) => "$" + n.toFixed(2);
+const round2 = (n) => Math.round(n * 100) / 100;
+const exTrim = (sheet) => ({ label: "White Oak T-mold, prefinished", cost: sheet ? round2(sheet.species["White Oak"].tmold + sheet.prefin.tmold) : 4.01 });
+const KEYS = ["flooring", "vents", "trim"];
+const formOf = (m) => Object.fromEntries(KEYS.map((k) => [k, String(m[k])]));
 
 export function VendorMarkupCard({ book, onSave, inp, lbl }) {   // exported for the preview harness
   const saved = normVendorMarkups(book.data?.markups);
-  const [form, setForm] = useState({ flooring: String(saved.flooring), vents: String(saved.vents) });
+  const [form, setForm] = useState(() => formOf(saved));
   const next = normVendorMarkups(form);
-  const dirty = next.flooring !== saved.flooring || next.vents !== saved.vents;
+  const dirty = KEYS.some((k) => next[k] !== saved[k]);
   const field = (k, label, ex, per, tip) => (
     <div>
       <label className={lbl}>{label}{tip && <HelpTip className="align-middle ml-1" w={280} tip={tip} />}</label>
@@ -84,19 +96,20 @@ export function VendorMarkupCard({ book, onSave, inp, lbl }) {   // exported for
         <span className="text-slate-400">+</span>
         <input type="number" min="0" step="5" value={form[k]} onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.value }))} className={`${inp} w-20 text-right`} />
         <span className="text-slate-500">%</span>
-        <span className="text-[11px] text-slate-400 tabular-nums">{ex.label}: {fm(ex.cost)} → {fm(sellOf(ex.cost, next[k]))}{per}</span>
       </div>
+      <div className="mt-1 text-[11px] text-slate-400 tabular-nums">{ex.label}: {fm(ex.cost)} → {fm(sellOf(ex.cost, next[k]))}{per}</div>
     </div>
   );
   return (
-    <div className="pt-3 max-w-xl">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <div className="pt-3 max-w-3xl">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {field("flooring", "Flooring & stocked prefinished", EX_FLOOR, " /sf", <>Applied over Sheoga's distributor cost when a configurator line is added, and adjustable per configuration in the popup. Future picks only - saved estimates keep their price.</>)}
         {field("vents", "Wood vents & dampers", EX_VENT, "")}
+        {field("trim", "Trim & accessories", exTrim(book.data?.sheets?.accessories), " /lf")}
       </div>
       <div className="mt-3 flex items-center gap-2">
         <button disabled={!dirty} onClick={() => onSave(next)} className="rounded-md bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 text-xs font-semibold disabled:opacity-40">Save</button>
-        {dirty && <button onClick={() => setForm({ flooring: String(saved.flooring), vents: String(saved.vents) })} className="text-xs text-slate-500 hover:text-slate-700">Reset</button>}
+        {dirty && <button onClick={() => setForm(formOf(saved))} className="text-xs text-slate-500 hover:text-slate-700">Reset</button>}
       </div>
     </div>
   );
