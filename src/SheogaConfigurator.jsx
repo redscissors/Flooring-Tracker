@@ -21,6 +21,8 @@ import {
   DOCK_GRID_W, canDockGrid,
 } from "./sheoga.js";
 import { stampKit } from "./model.js";
+import { DEFAULT_TRIM_MARKUP, calcTrim, effectiveTrimCfg, trimLineItems, trimSellTotal, trimEntryView } from "./sheogatrim.js";
+import { TrimRail, TrimCard, TrimEmpty } from "./SheogaTrim.jsx";
 import { TIER_COLOR, tierBadgeText } from "./uiconst.js";
 
 const fm = (n) => "$" + n.toFixed(2);
@@ -50,16 +52,19 @@ function Sect({ title, hint, tip, extra, children }) {
 
 // An item may carry `bg` (a light fill applied only when it isn't the selected
 // chip) — used to shade the vent sizes by duct width so groups read at a glance.
-function Chips({ items, cur, onPick }) {
+// `locked` freezes the row on its current pick (the trim tab while it matches
+// the floor) — dimmed, not struck through, since every chip is still offered.
+function Chips({ items, cur, onPick, locked }) {
   return (
     <div className="flex flex-wrap gap-1.5">
       {items.map((it) => {
         const on = it.id === cur;
         const tinted = !on && it.bg;
+        const held = locked && !on;
         return (
-          <button key={String(it.id)} disabled={it.dis} onClick={() => onPick(it.id)}
+          <button key={String(it.id)} disabled={it.dis || held} onClick={() => onPick(it.id)}
             style={tinted ? { background: it.bg } : undefined}
-            className={`rounded-md border px-2.5 py-1.5 text-xs font-bold leading-tight text-center ${on ? "bg-slate-900 border-slate-900 text-white" : tinted ? "border-slate-300 text-slate-800 hover:brightness-95" : "border-slate-300 bg-white text-slate-800 hover:bg-slate-50"} ${it.dis ? "opacity-30 cursor-not-allowed line-through" : ""}`}>
+            className={`rounded-md border px-2.5 py-1.5 text-xs font-bold leading-tight text-center ${on ? "bg-slate-900 border-slate-900 text-white" : tinted ? "border-slate-300 text-slate-800 hover:brightness-95" : "border-slate-300 bg-white text-slate-800 hover:bg-slate-50"} ${it.dis ? "opacity-30 cursor-not-allowed line-through" : held ? "opacity-35 cursor-not-allowed" : ""}`}>
             {it.label}
             {it.sub != null && <span className={`block text-[10px] font-semibold no-underline ${on ? "text-white/70" : "text-slate-500"}`}>{it.sub}</span>}
           </button>
@@ -166,12 +171,12 @@ function WidthRow({ items, cur, multi, selected, onPick, onToggle, onMultiToggle
   </>);
 }
 
-function Seg({ opts, cur, onPick }) {
+function Seg({ opts, cur, onPick, locked }) {
   return (
     <div className="inline-flex rounded-md border border-slate-300 overflow-hidden">
       {opts.map((o) => (
-        <button key={o.id} disabled={o.dis} onClick={() => onPick(o.id)}
-          className={`px-3.5 py-1.5 text-xs font-bold border-l first:border-l-0 border-slate-300 ${o.id === cur ? "bg-slate-900 text-white" : "bg-white text-slate-500 hover:bg-slate-50"} ${o.dis ? "opacity-40" : ""}`}>
+        <button key={o.id} disabled={o.dis || (locked && o.id !== cur)} onClick={() => onPick(o.id)}
+          className={`px-3.5 py-1.5 text-xs font-bold border-l first:border-l-0 border-slate-300 ${o.id === cur ? "bg-slate-900 text-white" : "bg-white text-slate-500 hover:bg-slate-50"} ${o.dis || (locked && o.id !== cur) ? "opacity-40" : ""}`}>
           {o.label}
         </button>
       ))}
@@ -1211,6 +1216,7 @@ function basketEntryView(entry, tierCtx = {}) {
       subs: ok.map((l) => ({ label: `${WIDTH_LABEL[l.w]} · ${l.sf} sf`, amt: Math.round(esell(l.cost) * l.sf) })),
       fees: b.fees.map((x) => ({ label: x.label, amt: efee(x.amt) })), lines: () => multiWidthLineItems(entry.base, entry.widths, entry.sf, entry.markupPct) };
   }
+  if (entry.snap.mode === "trim") return trimEntryView(entry.snap.cfg, tierCtx.trimBook, entry.markupPct, esell);
   const c = calcConfig(entry.snap, entry.sf);
   const isEa = c && c.per === "ea";
   const price = c ? Math.round(esell(c.cost) * (isEa ? (c.qty || 1) : entry.sf)) : 0;
@@ -1280,7 +1286,9 @@ function BasketPanel({ basket, sel, onToggle, onRemove, onSelectAll, onMove, onM
 
 // --- the popup ----------------------------------------------------------------
 
-export default function SheogaConfigurator({ seed, initialSf, markupDefault, ventMarkupDefault, basket, onBasketChange, onMove, onMoveEntries, onAdd, onClose, areaName, embedded = false, onConfigChange, tier, onTierChange, placed, onOpenPlaced, onDeleteKit, escActive = true }) {
+const RAIL_KIT = { Sect, Chips, Seg, SheenPicker, Dropdown };
+
+export default function SheogaConfigurator({ seed, initialSf, markupDefault, ventMarkupDefault, trimBook, sheogaBook = false, trimMarkupDefault, basket, onBasketChange, onMove, onMoveEntries, onAdd, onClose, areaName, embedded = false, onConfigChange, tier, onTierChange, placed, onOpenPlaced, onDeleteKit, escActive = true }) {
   // A bundle marker (sheoga.bundle on the first width line, ADR 0035 step 2)
   // reopens the whole multi-width build, not the anchor's single width.
   const bseed = seed?.bundle;
@@ -1296,9 +1304,11 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
   // The footer's markup box edits whichever applies to the active tab.
   const [markup, setMarkup] = useState(bseed?.markupPct ?? markupDefault ?? DEFAULT_MARKUP);
   const [ventMarkup, setVentMarkup] = useState(ventMarkupDefault ?? DEFAULT_VENT_MARKUP);
+  const [trimMarkup, setTrimMarkup] = useState(trimMarkupDefault ?? DEFAULT_TRIM_MARKUP);
   const ventMode = mode === "vent" || mode === "damper";
-  const activeMarkup = ventMode ? ventMarkup : markup;
-  const setActiveMarkup = ventMode ? setVentMarkup : setMarkup;
+  const trimMode = mode === "trim";
+  const activeMarkup = trimMode ? trimMarkup : ventMode ? ventMarkup : markup;
+  const setActiveMarkup = trimMode ? setTrimMarkup : ventMode ? setVentMarkup : setMarkup;
   // Price level: a lens on the JOB's tier when the popup was opened from one
   // (controlled by App), otherwise a local preview for the Apps-hub instance.
   // Either way nothing added to a product line is repriced — see tierSellOf.
@@ -1334,16 +1344,20 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
 
   const cfg = cfgs[mode];
   const set = (next) => setCfgs((c) => ({ ...c, [mode]: next }));
-  // Report the live { mode, cfg } upward in seed shape, so App's refresh
-  // restore (ft-open-layer) reopens the popup mid-configuration, not on the
-  // seed it was first opened with.
-  useEffect(() => { onConfigChange?.({ mode, cfg: cfgs[mode] }); }, [mode, cfgs]);
   // The vent tab's "Copy floor" pulls from whichever floor tab (unfinished /
   // stocked / herringbone) the user last had open — seeded tab first.
   const [floorSrc, setFloorSrc] = useState(seedMode === "stocked" || seedMode === "hb" ? seedMode : "floor");
   // The herringbone tab copies from a real floor config, so it tracks the last-
   // open unfinished/stocked tab (never hb itself — that would be a no-op).
   const [flatSrc, setFlatSrc] = useState(seedMode === "stocked" ? "stocked" : "floor");
+  // Report the live { mode, cfg } upward in seed shape, so App's refresh
+  // restore (ft-open-layer) reopens the popup mid-configuration, not on the
+  // seed it was first opened with. Trim reports its resolved, unlinked build:
+  // a restore starts the floor tabs at their defaults, and a live link would
+  // silently re-species it.
+  useEffect(() => {
+    onConfigChange?.({ mode, cfg: mode === "trim" ? effectiveTrimCfg(cfgs.trim, { mode: floorSrc, cfg: cfgs[floorSrc] }) : cfgs[mode] });
+  }, [mode, cfgs, floorSrc]);
   const pickMode = (id) => { setMode(id); setMobileGrid(false); if (id === "floor" || id === "stocked" || id === "hb") setFloorSrc(id); if (id === "floor" || id === "stocked") setFlatSrc(id); };
   const copyFloorToVent = () => { const patch = ventFromFloor({ mode: floorSrc, cfg: cfgs[floorSrc] }); if (patch) set({ ...cfg, ...patch }); };
   const copyFloorToHb = () => {
@@ -1389,7 +1403,15 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
   const ctn = c && !isEa ? cartonize(sf, c.cartonSf) : null;
   const feesTot = (c?.fees || []).reduce((a, x) => a + tfee(x.amt), 0);
   const jobTot = c ? (isEa ? sell * qty : sell * (ctn ? ctn.billedSf : sf)) + feesTot : 0;
-  const add = () => { if (c) onAdd(lineItems(snap, { sf, markupPct: activeMarkup }), snap); };
+  // Trim follows the last-open floor tab only while Match floor is on; what is
+  // staged or added is the resolved build, unlinked (match: false).
+  const trimEff = trimMode ? effectiveTrimCfg(cfg, { mode: floorSrc, cfg: cfgs[floorSrc] }) : null;
+  const trimBuild = trimMode ? calcTrim(trimEff, trimBook) : null;
+  const trimLines = trimBuild ? trimBuild.lines.length : 0;
+  const add = () => {
+    if (trimMode) { if (trimLines) onAdd(trimLineItems(trimEff, trimBook, trimMarkup), { mode, cfg: trimEff }); return; }
+    if (c) onAdd(lineItems(snap, { sf, markupPct: activeMarkup }), snap);
+  };
   const addBundleToBasket = () => {
     const entry = { id: undefined, kind: "bundle", addedAt: Date.now(), markupPct: activeMarkup, base: { mode, cfg: JSON.parse(JSON.stringify(cfg)) }, widths: mwWidths.map((w) => ({ w, share: mwShares[w] ?? 0 })), sf };
     onBasketChange([...(basket || []), normBasketEntry(entry)].filter(Boolean));
@@ -1397,7 +1419,7 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
   };
   const moveBundleToLine = () => { onMove(multiWidthLineItems({ mode, cfg }, mwWidths.map((w) => ({ w, share: mwShares[w] ?? 0 })), sf, activeMarkup)); onClose(); };
   const addSingleToBasket = () => {
-    const entry = normBasketEntry({ kind: "single", addedAt: Date.now(), markupPct: activeMarkup, snap: { mode, cfg: JSON.parse(JSON.stringify(cfg)) }, sf });
+    const entry = normBasketEntry({ kind: "single", addedAt: Date.now(), markupPct: activeMarkup, snap: { mode, cfg: JSON.parse(JSON.stringify(trimMode ? trimEff : cfg)) }, sf: trimMode ? 0 : sf });
     if (entry) { onBasketChange([...(basket || []), entry]); setBasketOpen(true); }
   };
   const toggleBasketSel = (id) => setBasketSel((s) => ({ ...s, [id]: !s[id] }));
@@ -1406,8 +1428,12 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
   const moveBasketEntries = (entries) => {
     // Stamped per entry BEFORE flattening: each basket entry is its own kit
     // (ADR 0035), and the landing helper's idempotent restamp keeps these ids.
-    const lines = entries.flatMap((e) => stampKit(basketEntryView(e).lines()));
-    const nextBasket = (basket || []).filter((b) => !entries.includes(b));
+    // An entry that lands nothing (a trim kit with no sheet uploaded) stays.
+    const ready = entries.map((e) => [e, basketEntryView(e, { trimBook }).lines()]).filter(([, l]) => l.length);
+    if (!ready.length) return;
+    const lines = ready.flatMap(([, l]) => stampKit(l));
+    const moved = ready.map(([e]) => e);
+    const nextBasket = (basket || []).filter((b) => !moved.includes(b));
     onMoveEntries(lines, nextBasket);
     setBasketSel({});
   };
@@ -1420,10 +1446,11 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
     const mp = parseFloat(k.markupPct);
     return { ...k, entry: k.marker.bundle
       ? { kind: "bundle", ...k.marker.bundle }
-      : { kind: "single", snap: { mode: k.marker.mode, cfg: k.marker.cfg }, sf: Math.max(1, parseFloat(k.qty) || 1), markupPct: Number.isFinite(mp) ? mp : activeMarkup } };
+      : { kind: "single", snap: { mode: k.marker.mode, cfg: k.marker.cfg }, sf: Math.max(1, parseFloat(k.qty) || 1), markupPct: Number.isFinite(mp) ? mp : k.marker.mode === "trim" ? trimMarkup : activeMarkup } };
   });
 
-  const sfMode = !isEa && mode !== "vent" && mode !== "damper";
+  const sfMode = !isEa && mode !== "vent" && mode !== "damper" && !trimMode;
+  const canSheet = trimMode ? !!trimBuild : !!c || (multi && multiOk);
   // Herringbone with no length typed (and no legacy tier) isn't a dead combo —
   // it's just waiting for the slat length, so prompt for that instead.
   const hbNeedsLen = mode === "hb" && !c && hbSlatLen(cfg) == null && !Number.isFinite(cfg.band);
@@ -1490,11 +1517,12 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
       {mode === "vent" && <VentRail v={cfg} set={set} tsell={tsell} onGrid={() => setGrid(true)}
         onCopyFloor={copyFloorToVent} copySrc={MODES.find((m) => m.id === floorSrc).label} />}
       {mode === "damper" && <DamperRail d={cfg} set={set} tsell={tsell} />}
+      {trimMode && (trimBook ? <TrimRail cfg={cfg} eff={trimEff} set={set} srcLabel={MODES.find((m) => m.id === floorSrc).label} trimBook={trimBook} tsell={tsell} kit={RAIL_KIT} /> : <TrimEmpty hasBook={sheogaBook} />)}
     </>
   );
   const markupInput = (
     <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
-      {ventMode ? "Vent markup" : "Markup"} <input type="number" min="0" step="5" value={activeMarkup} onChange={(e) => setActiveMarkup(Math.max(0, Number(e.target.value) || 0))}
+      {trimMode ? "Trim markup" : ventMode ? "Vent markup" : "Markup"} <input type="number" min="0" step="5" value={activeMarkup} onChange={(e) => setActiveMarkup(Math.max(0, Number(e.target.value) || 0))}
         className="w-16 rounded-md border border-slate-300 px-2 py-1 text-center text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500" data-sheoga-markup /> %
     </label>
   );
@@ -1565,9 +1593,14 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
             {dockGrid && (
               <GridPanel width={DOCK_GRID_W[mode]} title={gridTitle} controls={gridControls} sub={gridSub}>{gridTable}</GridPanel>
             )}
+            {trimMode && !trimBook ? (
+              <div className="flex-1 min-w-0 overflow-y-auto p-4" style={{ background: "var(--ft-cream)" }}><div className="max-w-[560px] mx-auto mt-6"><TrimEmpty hasBook={sheogaBook} /></div></div>
+            ) : (<>
             <div className={`${dockGrid ? "w-[430px]" : "w-[50%] max-w-[500px]"} shrink-0 border-r border-slate-300 overflow-y-auto p-4`} style={{ scrollbarGutter: "stable" }}>{rail}</div>
             <div className="flex-1 min-w-0 overflow-y-auto p-4" style={{ background: "var(--ft-cream)" }}>
-              {multi && multiOk ? (
+              {trimMode ? (trimBuild &&
+                <TrimCard build={trimBuild} matched={!!cfg.match} trimBook={trimBook} markupPct={trimMarkup} tierId={tierId} pct={pct} tierColor={tierColor} tsell={tsell} onAdd={add} onAddBasket={addSingleToBasket} />
+              ) : multi && multiOk ? (
                 <MultiWidthCard base={{ mode, cfg }} widths={mwWidths} shares={mwShares} sf={sf} tsell={tsell} tfee={tfee} tierColor={tierColor} onShare={setShare}
                   onAddBasket={addBundleToBasket} onMove={moveBundleToLine} />
               ) : (!c ? (
@@ -1576,6 +1609,7 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
                 <BuildCard c={c} sell={sell} activeMarkup={activeMarkup} tierId={tierId} pct={pct} tierColor={tierColor} tfee={tfee} isEa={isEa} qty={qty} ctn={ctn} feesTot={feesTot} jobTot={jobTot} sf={sf} onGrid={dockGrid ? null : () => setGrid(true)} onAdd={add} onAddBasket={addSingleToBasket} />
               ))}
             </div>
+            </>)}
           </div>
           <div className="flex items-center gap-5 px-4 py-2.5 border-t border-slate-300" style={{ background: "var(--ft-cream)" }}>
             {markupInput}
@@ -1595,9 +1629,23 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
                   <Grid3X3 size={13} /> Grid
                 </button>
               )}
-              <button type="button" onClick={() => (c || (multi && multiOk)) && setSheetUp(true)} disabled={!c && !(multi && multiOk)}
+              <button type="button" onClick={() => canSheet && setSheetUp(true)} disabled={!canSheet}
                 className="flex-1 min-w-0 text-left">
-                {!c ? (
+                {trimMode ? (!trimBuild ? (
+                  <div className="text-center text-xs font-semibold text-slate-400 py-1">{sheogaBook ? "Upload the accessory sheet to price trim" : "Create the Sheoga vendor book first"}</div>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[13px] font-extrabold truncate">{trimLines} trim line{trimLines === 1 ? "" : "s"} · {trimBuild.sp}</div>
+                      <div className="text-[10.5px] text-slate-500 font-semibold truncate">{trimBuild.finishText}</div>
+                    </div>
+                    <div className="text-right leading-none">
+                      <div className="text-lg font-extrabold tabular-nums" style={{ color: tierColor || "var(--ft-brand-deep)" }} data-sheoga-sell>{fm(trimSellTotal(trimBuild, tsell))}</div>
+                      <div className="text-[9px] font-bold uppercase tracking-wide text-slate-400 mt-1">total · sell</div>
+                    </div>
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0" style={{ background: "var(--ft-text)" }}><ChevronUp size={16} /></div>
+                  </div>
+                )) : !c ? (
                   <div className="text-center text-xs font-semibold text-slate-400 py-1">{hbNeedsLen ? "Enter a slat length to see the price" : "Pick an available option to see the price"}</div>
                 ) : (
                   <div className="flex items-center gap-3">
@@ -1615,8 +1663,11 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
               </button>
             </div>
           </div>
-          <MobileBuildSheet open={sheetUp && (!!c || (multi && multiOk))} onClose={() => setSheetUp(false)}
-            footer={(multi && multiOk) ? (<>
+          <MobileBuildSheet open={sheetUp && canSheet} onClose={() => setSheetUp(false)}
+            footer={trimMode ? (trimBuild && <>
+              <button onClick={addSingleToBasket} disabled={!trimLines} className="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-xs font-bold text-slate-600 flex items-center gap-1.5 disabled:opacity-40"><Plus size={14} /> Basket</button>
+              <button onClick={add} disabled={!trimLines} className="flex-1 rounded-lg text-white px-4 py-2.5 text-sm font-extrabold flex items-center justify-center gap-1.5 disabled:opacity-40" style={{ background: "var(--ft-brand)" }} data-sheoga-add><Plus size={15} /> Add {trimLines} line{trimLines === 1 ? "" : "s"}</button>
+            </>) : (multi && multiOk) ? (<>
               <button onClick={addBundleToBasket} className="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-xs font-bold text-slate-600 flex items-center gap-1.5"><Plus size={14} /> Basket</button>
               <button onClick={moveBundleToLine} className="flex-1 rounded-lg text-white px-4 py-2.5 text-sm font-extrabold flex items-center justify-center gap-1.5" style={{ background: "var(--ft-brand)" }}><Plus size={15} /> Add lines</button>
             </>) : c && (<>
@@ -1624,7 +1675,8 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
               <button onClick={addSingleToBasket} className="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-xs font-bold text-slate-600 flex items-center gap-1.5"><Plus size={14} /> Basket</button>
               <button onClick={add} className="flex-1 rounded-lg text-white px-4 py-2.5 text-sm font-extrabold flex items-center justify-center gap-1.5" style={{ background: "var(--ft-brand)" }} data-sheoga-add><Plus size={15} /> Add to product line{(c.fees || []).length ? "s" : ""}</button>
             </>)}>
-            {multi && multiOk ? (
+            {trimMode ? (trimBuild && <TrimCard build={trimBuild} matched={!!cfg.match} trimBook={trimBook} markupPct={trimMarkup} tierId={tierId} pct={pct} tierColor={tierColor} tsell={tsell} showActions={false} />
+            ) : multi && multiOk ? (
               <MultiWidthCard base={{ mode, cfg }} widths={mwWidths} shares={mwShares} sf={sf} tsell={tsell} tfee={tfee} tierColor={tierColor} onShare={setShare}
                 onAddBasket={addBundleToBasket} onMove={moveBundleToLine} showActions={false} />
             ) : (c && <BuildCard c={c} sell={sell} activeMarkup={activeMarkup} tierId={tierId} pct={pct} tierColor={tierColor} tfee={tfee} isEa={isEa} qty={qty} ctn={ctn} feesTot={feesTot} jobTot={jobTot} sf={sf} showActions={false} />)}
@@ -1646,13 +1698,13 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
         {isWide && (<>
           <div className={`absolute inset-0 z-[55] transition-opacity ${basketOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`} style={{ background: "rgba(20,15,10,.4)" }} onClick={() => setBasketOpen(false)} />
           <div className={`absolute top-0 right-0 bottom-0 z-[56] w-[400px] bg-white border-l border-slate-300 shadow-2xl transition-transform ${basketOpen ? "translate-x-0" : "translate-x-full"}`}>
-            <BasketPanel basket={basket || []} sel={basketSel} onToggle={toggleBasketSel} onRemove={removeBasketEntry} onSelectAll={selectAllBasket} onMove={moveSelectedBasket} onMoveAll={moveAllBasket} areaName={areaName} tierCtx={{ tier: tierId, pct }} tierColor={tierColor} onClose={() => setBasketOpen(false)} isWide
+            <BasketPanel basket={basket || []} sel={basketSel} onToggle={toggleBasketSel} onRemove={removeBasketEntry} onSelectAll={selectAllBasket} onMove={moveSelectedBasket} onMoveAll={moveAllBasket} areaName={areaName} tierCtx={{ tier: tierId, pct, trimBook }} tierColor={tierColor} onClose={() => setBasketOpen(false)} isWide
               placed={placedView} onEditPlaced={(k) => onOpenPlaced?.(k)} onDeletePlaced={(k) => onDeleteKit?.(k)} />
           </div>
         </>)}
         {!isWide && (
           <MobileBuildSheet open={basketOpen} onClose={() => setBasketOpen(false)}>
-            <BasketPanel basket={basket || []} sel={basketSel} onToggle={toggleBasketSel} onRemove={removeBasketEntry} onSelectAll={selectAllBasket} onMove={moveSelectedBasket} onMoveAll={moveAllBasket} areaName={areaName} tierCtx={{ tier: tierId, pct }} tierColor={tierColor} onClose={() => setBasketOpen(false)} isWide={false}
+            <BasketPanel basket={basket || []} sel={basketSel} onToggle={toggleBasketSel} onRemove={removeBasketEntry} onSelectAll={selectAllBasket} onMove={moveSelectedBasket} onMoveAll={moveAllBasket} areaName={areaName} tierCtx={{ tier: tierId, pct, trimBook }} tierColor={tierColor} onClose={() => setBasketOpen(false)} isWide={false}
               placed={placedView} onEditPlaced={(k) => onOpenPlaced?.(k)} onDeletePlaced={(k) => onDeleteKit?.(k)} />
           </MobileBuildSheet>
         )}

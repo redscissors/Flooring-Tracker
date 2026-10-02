@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { wasteNote, wasteMeta, normP, normA, normC, rowBlank, newProduct, newArea, newProject, newPerson, areaLabel, money, catSig, quickAutoName, isQuickAutoName, isRealProjectName, QUICK_DEFAULT_NAME, stampKit, landKitLines, removeKitLines, kitRows, placedKits, normKitBasketEntry, appendKitLines, moveKitEntries } from "./model.js";
+import { wasteNote, wasteMeta, normP, normA, normC, rowBlank, newProduct, newArea, newProject, newPerson, areaLabel, money, catSig, quickAutoName, isQuickAutoName, isRealProjectName, QUICK_DEFAULT_NAME, stampKit, landKitLines, removeKitLines, kitRows, placedKits, normKitBasketEntry, appendKitLines, moveKitEntries, landOrAppendKit } from "./model.js";
 
 test("normP fills every field a grid row reads from a bare object", () => {
   const p = normP({ id: "x" });
@@ -279,6 +279,57 @@ test("landKitLines: a bundle's own anchor replaces the whole group, siblings inc
   const cats = [{ ...newArea(), products: [w1, w2, fee, other] }];
   const next = landKitLines(cats, cats[0].id, w1.id, [{ brandColor: "Sheoga — 5in", sheoga: { mode: "floor", cfg: { w: 5 } } }]);
   assert.deepEqual(next[0].products.map((p) => p.brandColor), ["Sheoga — 5in", "Tile"], "re-emitting the bundle replaces every width and the pooled fee");
+});
+
+const trimLines = (sp = "White Oak") => [
+  { brandColor: `Sheoga Rabbeted nosing · ${sp}`, sheoga: { mode: "trim", cfg: { sp } } },
+  { brandColor: "Sheoga Shoe mold", sheoga: { mode: "trim", part: true } },
+];
+
+test("landOrAppendKit: a trim kit fills a blank row in place", () => {
+  const anchor = newProduct();
+  const other = { ...newProduct(), brandColor: "Tile", priceSqft: "4" };
+  const cats = [{ ...newArea(), products: [anchor, other] }];
+  const ps = landOrAppendKit(cats, cats[0].id, anchor.id, trimLines())[0].products;
+  assert.deepEqual(ps.map((p) => p.brandColor), ["Sheoga Rabbeted nosing · White Oak", "Sheoga Shoe mold", "Tile"]);
+  assert.equal(ps[0].id, anchor.id);
+});
+
+test("landOrAppendKit: a trim kit's own anchor is replaced, kit only", () => {
+  const floor = { ...newProduct(), brandColor: "Sheoga floor", kitId: "F", sheoga: { mode: "floor", cfg: { sp: "White Oak" } } };
+  const anchor = { ...newProduct(), brandColor: "old nosing", kitId: "T", sheoga: { mode: "trim", cfg: { sp: "Maple" } } };
+  const part = { ...newProduct(), brandColor: "old shoe", kitId: "T", sheoga: { mode: "trim", part: true } };
+  const cats = [{ ...newArea(), products: [floor, anchor, part] }];
+  const ps = landOrAppendKit(cats, cats[0].id, anchor.id, trimLines("Hickory"))[0].products;
+  assert.deepEqual(ps.map((p) => p.brandColor), ["Sheoga floor", "Sheoga Rabbeted nosing · Hickory", "Sheoga Shoe mold"]);
+  assert.equal(ps[1].id, anchor.id);
+  assert.equal(ps[2].kitId, ps[1].kitId);
+  assert.notEqual(ps[1].kitId, "T");
+});
+
+test("landOrAppendKit: trim opened off a floor kit appends; the floor and its fee stand", () => {
+  const floor = { ...newProduct(), brandColor: "Sheoga floor", kitId: "F", sheoga: { mode: "floor", cfg: { sp: "White Oak" } } };
+  const fee = { ...newProduct(), brandColor: "Sheoga fee", kitId: "F", sheoga: { fee: true } };
+  const tile = { ...newProduct(), brandColor: "Tile", priceSqft: "4" };
+  const cats = [{ ...newArea(), products: [floor, fee, tile] }];
+  const ps = landOrAppendKit(cats, cats[0].id, floor.id, trimLines())[0].products;
+  assert.deepEqual(ps.slice(0, 3), [floor, fee, tile], "floor row, its companion and the area's other rows are untouched");
+  assert.deepEqual(ps.slice(3).map((p) => p.brandColor), ["Sheoga Rabbeted nosing · White Oak", "Sheoga Shoe mold"]);
+  assert.ok(ps[3].kitId && ps[3].kitId === ps[4].kitId && ps[3].kitId !== "F", "one fresh shared kitId");
+});
+
+test("landOrAppendKit: trim never lands on another vendor's kit row; non-trim kits land as before", () => {
+  const wedi = wediAnchor({ kitId: "W" });
+  const cats = [{ ...newArea(), products: [wedi] }];
+  const ps = landOrAppendKit(cats, cats[0].id, wedi.id, trimLines())[0].products;
+  assert.equal(ps[0], wedi);
+  assert.equal(ps.length, 3);
+  const floor = { ...newProduct(), brandColor: "Sheoga floor", sheoga: { mode: "floor", cfg: { sp: "White Oak" } } };
+  const c2 = [{ ...newArea(), products: [floor] }];
+  const lines = [{ brandColor: "Sheoga — Hickory", sheoga: { mode: "floor", cfg: { sp: "Hickory" } } }];
+  const landed = landOrAppendKit(c2, c2[0].id, floor.id, lines)[0].products;
+  assert.deepEqual(landed.map((p) => [p.id, p.brandColor]), [[floor.id, "Sheoga — Hickory"]], "a floor kit still lands on its own row");
+  assert.equal(landOrAppendKit(cats, cats[0].id, wedi.id, []), null);
 });
 
 test("removeKitLines: removes the anchor and its companions, across areas", () => {

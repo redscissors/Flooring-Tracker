@@ -9,7 +9,7 @@ import { pricedItem, orderPatch, orderDrift, rowCostSqft, skuKeys } from "./orde
 import { isSpecialOrder, isSpecialMat, nameBudget, orderQty } from "./orderentry.js";
 import { SamplesPanel } from "./samples.jsx";
 import { requestFrom, sampleCounts, projectSampleTally, sampleContactFor, sampleBookFor, SAMPLE_LABEL, SAMPLE_COLOR } from "./samples.js";
-import { sheogaMarkups } from "./vendorbook.js";
+import { sheogaMarkups, trimBookOf, vendorBookFor } from "./vendorbook.js";
 import { baseKey, groutBases, resolveGroutBase, baseLabel, baseOptionLabel, tickGroutChoice, pickGroutProductChoice, pickGroutBaseChoice } from "./groutbase.js";
 import { useSamples } from "./usesamples.js";
 import { tierView, tierUnitPrice, employeeNoCost, normPricing } from "./pricing.js";
@@ -26,7 +26,7 @@ import { seedFromQuery as wediSeed } from "./wediquery.js";
 // engine, adapter, and popup all stay inside the lazy chunk (ADR 0026/0032).
 import { seedFromQuery as schluterSeed } from "./schluterquery.js";
 import { STOCK_LOADING_MSG, TYPES, TLBL, underlayLabel, TYPE_ACCENT, ROW_WASH, TOTAL_WASH, JOINTS, colorsFor, ATT_BUCKET, TIER_COLOR, tierBadgeText, PROJECT_NAME_MAX, AUTO_KEEP, QUICK_SWEEP_DAYS, skuSearchable } from "./uiconst.js";
-import { uid, money, sf1, miscQty, blobToDataURL, dataURLToBlob, wasteNote, newProduct, newArea, areaLabel, rowBlank, catSig, newProject, newPerson, newBuilder, normC, personData, quickAutoName, isRealProjectName, QUICK_DEFAULT_NAME, stampKit, landKitLines, appendKitLines, moveKitEntries, placedKits, removeKitLines, kitRows } from "./model.js";
+import { uid, money, sf1, miscQty, blobToDataURL, dataURLToBlob, wasteNote, newProduct, newArea, areaLabel, rowBlank, catSig, newProject, newPerson, newBuilder, normC, personData, quickAutoName, isRealProjectName, QUICK_DEFAULT_NAME, stampKit, appendKitLines, moveKitEntries, landOrAppendKit, placedKits, removeKitLines, kitRows } from "./model.js";
 import { lineTotal, printProduct, printAreaFloor, KSHORT, u1, orderEntryRow, matOrderRow } from "./print.js";
 import { jobTotals } from "./jobtotals.js";
 import { OPTION_SLOTS, OPTION_COLOR, optionsUsed, bucketCats, scopedCats, optionTitle, optionShort, duplicateInto, compareOptionsPatch, lettersLeft } from "./options.js";
@@ -887,12 +887,13 @@ export default function App({ user, onSignOut }) {
   // it, the whole emission stamped with one kitId; a reconfigure Add replaces
   // the old kit's companion rows instead of stranding them (ADR 0035 — the
   // rules, including the legacy fallback and the bundle-sibling guard, live in
-  // model.js landKitLines). Payloads come from each engine's lineItems() —
+  // model.js landKitLines; a Sheoga trim kit opened off a non-trim row appends
+  // instead — landOrAppendKit). Payloads come from each engine's lineItems() —
   // snapshot rule, nothing reprices later (ADR 0003). One updateProject with
   // the whole categories patch: group cleanup can reach other areas, and
   // usedirectory's setter is non-functional.
   const addSheogaLines = (aid, pid, lines) => {
-    const next = landKitLines(sel.categories, aid, pid, lines);
+    const next = landOrAppendKit(sel.categories, aid, pid, lines);
     if (next) updateProject(sel.id, { categories: next });
   };
   const addWediLines = (aid, pid, lines) => addSheogaLines(aid, pid, lines);
@@ -2878,6 +2879,9 @@ export default function App({ user, onSignOut }) {
                 sheoga={{
                   markupDefault: sheogaMarkups(books, settings).markupPct,
                   ventMarkupDefault: sheogaMarkups(books, settings).ventMarkupPct,
+                  trimMarkupDefault: sheogaMarkups(books, settings).trimMarkupPct,
+                  trimBook: trimBookOf(books),
+                  sheogaBook: !!vendorBookFor(books, "sheoga"),
                   currentName: sel?._full ? (sel.name || "Untitled project") : null,
                   addToCurrent: (lines) => { if (!lines?.length || !sel) return; updateProject(sel.id, { categories: applySheogaToFirstArea(sel.categories, lines) }); railDispatch({ type: "closePane" }); },
                   addToNew: (lines) => { if (!lines?.length) return; createQuickWithSheoga(lines); railDispatch({ type: "closePane" }); },
@@ -3071,6 +3075,9 @@ export default function App({ user, onSignOut }) {
             initialSf={num(row.qty) > 0 && row.qtyType === "sqft" ? num(row.qty) : 0}
             markupDefault={sheogaMarkups(books, settings).markupPct}
             ventMarkupDefault={sheogaMarkups(books, settings).ventMarkupPct}
+            trimMarkupDefault={sheogaMarkups(books, settings).trimMarkupPct}
+            trimBook={trimBookOf(books)}
+            sheogaBook={!!vendorBookFor(books, "sheoga")}
             basket={sel.sheogaBasket || []}
             onBasketChange={(next) => updateProject(sel.id, { sheogaBasket: next })}
             tier={{ tier: sel.priceTier || "retail", customPct: sel.customPct, builderPct: normPricing(settings.pricing).builderPct, salePct: normPricing(settings.pricing).salePct }}

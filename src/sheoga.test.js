@@ -513,14 +513,16 @@ test("calcDamper: loose dampers at the sheet's distributor cost", () => {
 // --- calcConfig / defaults ----------------------------------------------------
 
 test("calcConfig dispatches on mode; defaults are priceable", () => {
-  assert.equal(MODES.length, 5);
+  assert.equal(MODES.length, 6);
   for (const { id } of MODES) {
+    if (id === "trim") continue;
     // Herringbone deliberately has no price until a slat length is entered.
     const cfg = id === "hb" ? { ...defaultConfig(id), slatLen: "24" } : defaultConfig(id);
     const c = calcConfig({ mode: id, cfg }, 1000);
     assert.ok(c && c.cost > 0, id);
   }
   assert.equal(calcConfig({ mode: "hb", cfg: defaultConfig("hb") }, 1000), null);
+  assert.equal(calcConfig({ mode: "trim", cfg: defaultConfig("trim") }, 1000), null);
   assert.equal(calcConfig(null, 1000), null);
   assert.equal(calcConfig({ mode: "nope", cfg: {} }, 1000), null);
 });

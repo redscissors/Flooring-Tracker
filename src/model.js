@@ -261,6 +261,17 @@ export const appendKitLines = (categories, aid, lines) => {
     ? { ...a, products: [...a.products, ...stamped.map((patch) => ({ ...newProduct(), ...patch }))] }
     : a));
 };
+// The popup's Add/Move landing. A Sheoga trim kit lands in place only on a
+// blank row or a trim kit's own anchor; opened off any other vendor row (a
+// floor's Reconfigure → Trim tab) it appends to the area instead, so adding
+// trim never overwrites the floor it was meant to go with.
+export const landOrAppendKit = (categories, aid, pid, lines) => {
+  if (!(lines || []).length) return null;
+  const anchor = (categories || []).find((x) => x.id === aid)?.products.find((p) => p.id === pid);
+  const trimAnchor = anchor?.sheoga?.cfg && anchor.sheoga.mode === "trim";
+  if (lines[0]?.sheoga?.mode === "trim" && vendorOf(anchor) && !trimAnchor) return appendKitLines(categories, aid, lines);
+  return landKitLines(categories, aid, pid, lines);
+};
 // Land staged basket entries in ONE pass over the accumulating categories (the
 // caller writes a single patch — usedirectory's setter is non-functional, so
 // two updateProject calls in a tick clobber each other).

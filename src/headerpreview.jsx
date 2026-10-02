@@ -8,6 +8,7 @@ import { ProjectHeaderBar, ProjectHeaderClassic, ProjectHeaderClean } from "./pr
 import { MobileProjectBand } from "./mobile.jsx";
 import { PriceBookLibrary } from "./pricebooklib.jsx";
 import { normOrderItem } from "./orderbook.js";
+import { vendorBookSeed } from "./vendorbook.js";
 import { TYPES, TLBL } from "./uiconst.js";
 
 const inp = "ft-field w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent";
@@ -89,6 +90,9 @@ const BOOKS = [
   // Past the 120-day default, so the stale flag + the Confirm-current card
   // (Source drawer) can be exercised live.
   { id: "old", kind: "order", name: "Emser — West", active: true, data: { markups: { default: 45 }, lastImport: { at: Date.now() - 140 * DAY, by: "Sam", count: 96 } } },
+  // The Sheoga vendor book, so a dropped accessory sheet routes to it;
+  // ?nosheoga=1 leaves it out to show the "create the book first" row.
+  ...(new URLSearchParams(location.search).has("nosheoga") ? [] : [{ id: "sheoga", kind: "vendor", active: true, ...vendorBookSeed("sheoga", {}) }]),
 ];
 
 const GLZ_ITEMS = [

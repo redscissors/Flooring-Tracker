@@ -29,6 +29,7 @@ import { PaneTitleBar } from "./raildrawer.jsx";
 import { InHouseColumn, PasteSignInPopover, FLAG_SEMANTICS, useVendorFetch, VendorFetchPage } from "./vendorpanel.jsx";
 import { VendorBookPage } from "./vendorbook.jsx";
 import { vendorBookFor, vendorBookSeed, sheogaMarkups } from "./vendorbook.js";
+import { isSheogaAccessorySheet, parseAccessorySheet } from "./sheogatrim.js";
 
 // --- Price book library (ADR 0009, Phase 1) ---------------------------------
 //
@@ -55,6 +56,9 @@ const bookFieldOptions = [
 // A routing choice, not a book id: resolved into a real (freshly created) book
 // when the user commits to reviewing, so canceling the route step makes nothing.
 const NEW_BOOK = "__new__";
+// The Sheoga accessory sheet isn't an item import: it bypasses the queue and
+// opens the Sheoga vendor book's own sheet review.
+const SHEOGA_SHEET = "__sheoga_acc__";
 
 // Claude's starburst mark, drawn inline (lucide has no Claude icon) — the book
 // table's issue-bucket button. Inherits currentColor like its lucide neighbours.
@@ -120,7 +124,7 @@ function GateGap({ book, have, total, missing, onAdd, inp }) {
   );
 }
 
-export function ImportRouter({ files, preferTarget, targets, sourceKeys, linkedSlots, onFileDone, books, addBook, applyBookImport, updateBook, loadBookItems, onClose, types, typeLabels, inp, lbl, hideCosts, addClaudeIssue }) {
+export function ImportRouter({ files, preferTarget, targets, sourceKeys, linkedSlots, onFileDone, onSheogaSheet, books, addBook, applyBookImport, updateBook, loadBookItems, onClose, types, typeLabels, inp, lbl, hideCosts, addClaudeIssue }) {
   const [rows, setRows] = useState(null); // [{ file, isPdf, sheets, pages, error, target, candidates, reason }]
   const [phase, setPhase] = useState("route"); // "route" | "run"
   const [qi, setQi] = useState(0); // index into the runnable queue
@@ -133,6 +137,11 @@ export function ImportRouter({ files, preferTarget, targets, sourceKeys, linkedS
     const isPdf = /\.pdf$/i.test(file.name) || file.type === "application/pdf" || (await looksPdf(file));
     try {
       const parsed = isPdf ? { pages: await readPdfPages(file), isPdf: true } : { sheets: await readXlsxSheets(file) };
+      if (!isPdf && isSheogaAccessorySheet(parsed.sheets)) {
+        return vendorBookFor(books, "sheoga")
+          ? { file, sheoga: parseAccessorySheet(parsed.sheets), target: SHEOGA_SHEET, reason: "Sheoga accessory sheet → Sheoga Hardwood" }
+          : { file, error: "Sheoga accessory sheet — create the Sheoga vendor book first" };
+      }
       // The filename rides along for formats whose sibling files it alone tells
       // apart (the ERP stock exports — one identical template per supplier).
       const fp = computeFingerprint({ ...parsed, name: file.name });
@@ -171,7 +180,7 @@ export function ImportRouter({ files, preferTarget, targets, sourceKeys, linkedS
     const added = [];
     for (const f of picked) {
       const r = await readRow(f);
-      added.push(r.error ? r : { ...r, target: to, reason: "added here to complete this book" });
+      added.push(r.error || r.target === SHEOGA_SHEET ? r : { ...r, target: to, reason: "added here to complete this book" });
     }
     setRows((rs) => [...(rs || []), ...added]);
   };
@@ -180,7 +189,7 @@ export function ImportRouter({ files, preferTarget, targets, sourceKeys, linkedS
   // "New book from this file" rows count as one bundle EACH (a pseudo-target
   // per row) until startRun materializes their books — grouping them under the
   // shared marker would read seven new-book files as one seven-file bundle.
-  const flat = (rows || []).filter((r) => !r.error && r.target && r.target !== "skip")
+  const flat = (rows || []).filter((r) => !r.error && r.target && r.target !== "skip" && r.target !== SHEOGA_SHEET)
     .map((r, i) => (r.target === NEW_BOOK ? { ...r, target: `${NEW_BOOK}:${i}` } : r));
   // Several files can name the same book (ADR 0025): a vendor that splits its
   // price list, or a batch download of a book's sheets. Importing them one after
@@ -189,6 +198,9 @@ export function ImportRouter({ files, preferTarget, targets, sourceKeys, linkedS
   // walked as one bundle: each step maps its own file, but the items accumulate
   // and only the LAST step diffs and applies. One import, one retire decision.
   const runnable = bundleByBook(flat);
+  // The book page reviews one sheet at a time, so of several the last one wins.
+  const sheogaRow = (rows || []).filter((r) => !r.error && r.target === SHEOGA_SHEET).at(-1) || null;
+  const runCount = runnable.length + (sheogaRow ? 1 : 0);
   const advance = () => setQi((i) => i + 1);
   // Items collected from the earlier files of the current book's bundle, and
   // the Claude-flagged SKUs those steps' reviews queued (only the last file's
@@ -227,6 +239,7 @@ export function ImportRouter({ files, preferTarget, targets, sourceKeys, linkedS
       made.set(i, await addBook({ kind: bookKindFor(r.format), name }));
     }
     if (made.size) setRows((cur) => cur.map((r, i) => (made.has(i) ? { ...r, target: made.get(i), reason: "new book from this file" } : r)));
+    if (sheogaRow) onSheogaSheet?.(sheogaRow.file, sheogaRow.sheoga);
     setQi(0); setPhase("run");
   };
 
@@ -271,7 +284,7 @@ export function ImportRouter({ files, preferTarget, targets, sourceKeys, linkedS
                     <div className="truncate">{r.file.name}</div>
                     <div className={`text-[11px] ${r.error ? "text-red-500" : r.target && r.target !== "skip" ? "text-slate-400" : "text-amber-600"}`}>{r.error || r.reason}</div>
                   </div>
-                  {r.error ? <span className="text-[11px] text-red-500 shrink-0">Skipped</span> : (
+                  {r.error ? <span className="text-[11px] text-red-500 shrink-0">Skipped</span> : r.target === SHEOGA_SHEET ? null : (
                     // !w-auto: inp carries w-full, which outranks a plain w-auto
                     // in the generated CSS and squeezes the filename to nothing.
                     <FitSelect sm value={r.target || "skip"} onChange={(e) => setTarget(i, e.target.value)}>
@@ -288,10 +301,10 @@ export function ImportRouter({ files, preferTarget, targets, sourceKeys, linkedS
 
           <div className="flex justify-between items-center pt-4">
             <button onClick={onClose} className="text-sm rounded-lg border border-slate-200 px-4 py-2 hover:bg-slate-50">Cancel</button>
-            <button onClick={startRun} disabled={!runnable.length} className={"text-sm rounded-lg text-white px-4 py-2 disabled:opacity-50 " + (gaps.length ? "bg-amber-600 hover:bg-amber-700" : "bg-indigo-600 hover:bg-indigo-700")}>
+            <button onClick={startRun} disabled={!runCount} className={"text-sm rounded-lg text-white px-4 py-2 disabled:opacity-50 " + (gaps.length ? "bg-amber-600 hover:bg-amber-700" : "bg-indigo-600 hover:bg-indigo-700")}>
               {gaps.length
                 ? `Review anyway — ${gaps.reduce((n, g) => n + g.missing.length, 0)} file${gaps.reduce((n, g) => n + g.missing.length, 0) === 1 ? "" : "s"} short →`
-                : `Review ${runnable.length} file${runnable.length === 1 ? "" : "s"} →`}
+                : `Review ${runCount} file${runCount === 1 ? "" : "s"} →`}
             </button>
           </div>
         </div>
@@ -416,7 +429,7 @@ function ItemSearchCard({ pcts, setPct }) {
   );
 }
 
-export function PriceBookLibrary({ onClose, note, books, addBook, updateBook, confirmBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setBookItemIssue, addClaudeIssue, settings, setSettings, inp, lbl, types, typeLabels }) {
+export function PriceBookLibrary({ onClose, note, books, addBook, updateBook, confirmBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setBookItemIssue, addClaudeIssue, settings, setSettings, userName, inp, lbl, types, typeLabels }) {
   const [vendorPending, setVendorPending] = useState(() => captureHandoff()); // bookmarklet hand-off (ADR 0019/0020)
   const [vendorSession, setVendorSession] = useState(() => captureHandoffSession()); // bare session grab (ADR 0019): unlock only
   const [sel, setSel] = useState("library"); // "library" | bookId
@@ -426,6 +439,7 @@ export function PriceBookLibrary({ onClose, note, books, addBook, updateBook, co
   const [hideCosts, setHideCosts] = useState(false);
   const [setupOpen, setSetupOpen] = useState(false); // "Set up bookmark" toggle inside PasteSignInPopover
   const [dropped, setDropped] = useState(null); // File[] handed to the multi-file drop router
+  const [pendingSheet, setPendingSheet] = useState(null); // { fileName, parsed } — a dropped Sheoga accessory sheet awaiting the book page's review
   const [dragOver, setDragOver] = useState(false);
   // Review-when-ready (mockup 2026-07-19): fetched sheets park here instead of
   // opening import review. Session-only — File bytes can't persist, a reload
@@ -482,6 +496,11 @@ export function PriceBookLibrary({ onClose, note, books, addBook, updateBook, co
   const setStaleDays = (v) => { const n = Math.round(Number(v)); setSettings({ ops: { ...(settings.ops || {}), staleDays: n > 0 ? n : null } }); };
 
   const sheogaBook = vendorBookFor(books, "sheoga");
+  const takeSheogaSheet = (file, parsed) => {
+    if (!sheogaBook) return;
+    setSel(sheogaBook.id);
+    setPendingSheet({ fileName: file.name, parsed });
+  };
   const create = async () => {
     if (newKind === "vendor") {
       const seed = vendorBookSeed("sheoga", settings);
@@ -495,7 +514,7 @@ export function PriceBookLibrary({ onClose, note, books, addBook, updateBook, co
   };
 
   const backBtn = (
-    <button onClick={() => setSel("library")} className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 -ml-1 mb-2">
+    <button onClick={() => { setSel("library"); setPendingSheet(null); }} className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 -ml-1 mb-2">
       <ChevronRight size={13} className="rotate-180" /> All price books
     </button>
   );
@@ -620,14 +639,14 @@ export function PriceBookLibrary({ onClose, note, books, addBook, updateBook, co
       {sel === "library" ? (
         <VendorFetchPage vf={vf} books={books} pending={pendingReviews} onReview={reviewOne} onOpenBook={setSel} leadColumn={inHouseCol} inp={inp} />
       ) : selBook?.kind === "vendor" ? (
-        <>{backBtn}<VendorBookPage key={selBook.id} book={selBook} updateBook={updateBook} delBook={delBook} onDeleted={() => setSel("library")} inp={inp} lbl={lbl} /></>
+        <>{backBtn}<VendorBookPage key={selBook.id} book={selBook} updateBook={updateBook} delBook={delBook} onDeleted={() => setSel("library")} userName={userName} pendingSheet={pendingSheet} onPendingDone={() => setPendingSheet(null)} inp={inp} lbl={lbl} /></>
       ) : selBook ? (
         <>{backBtn}<BookDetail key={selBook.id} book={selBook} updateBook={updateBook} confirmBook={confirmBook} delBook={delBook} onDeleted={() => setSel("library")} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} setBookItemIssue={setBookItemIssue} addClaudeIssue={addClaudeIssue} hideCosts={hideCosts} staleDays={staleDays} source={sheetsForBook(vf.groups, selBook.id)} sourcePendingOf={sourcePendingOf} sourceLiveOf={sourceLiveOf} onRefreshSheet={(s) => vf.run(Array.isArray(s) ? s : [s])} onReviewSheet={reviewOne} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} /></>
       ) : (
         <>{backBtn}<p className="text-xs text-slate-400 mt-3">This book is gone.</p></>
       )}
 
-      {dropped && <ImportRouter files={dropped.files} preferTarget={dropped.prefer} targets={dropped.targets} sourceKeys={dropped.sourceKeys} linkedSlots={bookFetchSlots} onFileDone={fileDone} books={books} addBook={addBook} applyBookImport={applyBookImport} updateBook={updateBook} loadBookItems={loadBookItems} onClose={() => setDropped(null)} types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} addClaudeIssue={addClaudeIssue} />}
+      {dropped && <ImportRouter files={dropped.files} preferTarget={dropped.prefer} targets={dropped.targets} sourceKeys={dropped.sourceKeys} linkedSlots={bookFetchSlots} onFileDone={fileDone} onSheogaSheet={takeSheogaSheet} books={books} addBook={addBook} applyBookImport={applyBookImport} updateBook={updateBook} loadBookItems={loadBookItems} onClose={() => setDropped(null)} types={types} typeLabels={typeLabels} inp={inp} lbl={lbl} hideCosts={hideCosts} addClaudeIssue={addClaudeIssue} />}
 
       {pendingReviews.length > 0 && !dropped && (
         <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 rounded-xl border border-slate-200 bg-white shadow-xl pl-4 pr-2 py-2">
