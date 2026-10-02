@@ -26,7 +26,7 @@ const SmoothNote = () => <Sub>smooth — can't be textured</Sub>;
 const LfSell = ({ on, sell }) => (
   <span className={`text-[11.5px] font-bold tabular-nums ${on ? "text-indigo-700" : "text-slate-500"}`}>{fm(sell)}<span className="text-[9.5px] font-semibold text-slate-400">/lf</span></span>
 );
-const Locked = ({ label, value }) => (
+export const Locked = ({ label, value }) => (
   <div>
     <div className="ft-eyebrow text-[10px] mb-1">{label}</div>
     <div className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-bold text-slate-600 truncate">{value || "—"}</div>

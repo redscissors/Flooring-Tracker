@@ -4,7 +4,7 @@
 // "Add to product line" hands the lineItems() payloads back to the caller; the
 // row keeps the raw configuration (product.sheoga) so Reconfigure reopens here.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { X, Grid3X3, Plus, ChevronUp } from "lucide-react";
+import { X, Grid3X3, Plus, ChevronUp, Link2, Unlink } from "lucide-react";
 import { useEscClose, HelpTip, PriceLevelMenu, BasketButton, MorphSelect } from "./widgets.jsx";
 import { PaneBack, PaneClose } from "./raildrawer.jsx";
 import {
@@ -15,14 +15,14 @@ import {
   STOCKED, STOCKED_WIDTHS, stockedItem, HERRINGBONE, CHEVRON_ADD,
   hbBandForLen, hbSlatLen,
   STAIN_COLORS, SHEENS, SHEEN_ADD, standardSheen, sheenChange,
-  VENT_GROUP, VENT_CATS, VENT_PREFIN, VENT_TEX, VENT_CUBED, DAMPER_ATTACH, DAMPERS, ventFromFloor, hbFromFloor, ventScrape, ventDims,
+  VENT_GROUP, VENT_CATS, VENT_PREFIN, VENT_TEX, VENT_CUBED, DAMPER_ATTACH, DAMPERS, effectiveVentCfg, hbFromFloor, ventScrape, ventDims,
   DEFAULT_MARKUP, DEFAULT_VENT_MARKUP, tierSellOf, tierFeeOf, cartonize, lineItems, frameLineal, SHEET_NOTE,
   redistributeShares, multiWidthBuild, multiWidthLineItems, normBasketEntry,
   DOCK_GRID_W, canDockGrid,
 } from "./sheoga.js";
 import { stampKit } from "./model.js";
 import { DEFAULT_TRIM_MARKUP, calcTrim, effectiveTrimCfg, trimLineItems, trimSellTotal, trimEntryView } from "./sheogatrim.js";
-import { TrimRail, TrimCard, TrimEmpty } from "./SheogaTrim.jsx";
+import { TrimRail, TrimCard, TrimEmpty, Locked } from "./SheogaTrim.jsx";
 import { TIER_COLOR, tierBadgeText } from "./uiconst.js";
 
 const fm = (n) => "$" + n.toFixed(2);
@@ -207,9 +207,9 @@ function RadioList({ items, cur, onPick }) {
   );
 }
 
-function Toggle({ label, on, onClick, add }) {
+function Toggle({ label, on, onClick, add, locked }) {
   return (
-    <button onClick={onClick} className="w-full flex items-center gap-2.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-left text-xs font-semibold text-slate-800 hover:bg-slate-50 mt-1.5 first:mt-0">
+    <button onClick={onClick} disabled={locked} className={`w-full flex items-center gap-2.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-left text-xs font-semibold text-slate-800 mt-1.5 first:mt-0 ${locked ? "opacity-60 cursor-not-allowed" : "hover:bg-slate-50"}`}>
       <span className={`w-4 h-4 rounded flex items-center justify-center text-[10px] font-extrabold text-white shrink-0 ${on ? "bg-indigo-600" : "border-2 border-slate-300"}`}>{on ? "✓" : ""}</span>
       <span className="flex-1">{label}</span>
       {add && <span className="text-[11.5px] font-bold text-slate-500 tabular-nums">{add}</span>}
@@ -602,21 +602,39 @@ function HbRail({ h, set, tsell, onGrid, onCopyFloor, copySrc }) {
 const VENT_W_TINT = { 2.25: "#eff5e6", 4: "#e6f0d5", 6: "#dcebc7", 8: "#d3e6ba", 10: "#cbe1ae", 12: "#c2dca1" };
 const ventWidthTint = (size) => VENT_W_TINT[ventDims(size)[0]] || undefined;
 
-function VentRail({ v, set, tsell, onGrid, onCopyFloor, copySrc }) {
+// `v` is the tab's own state; `eff` the build it prices (the floor's species,
+// finish and texture while Match floor is on). Those pickers lock while matching.
+function VentRail({ v, eff, set, tsell, onGrid, srcLabel }) {
+  const match = !!v.match;
   const cat = VENT_CATS.find((c) => c.id === v.cat);
   const snapSize = (next) => {
     const c2 = VENT_CATS.find((c) => c.id === next.cat);
     return c2.list().some((r) => r[0] === next.size) ? next : { ...next, size: c2.list()[0][0] };
   };
+  const scrapeName = (id) => TEXTURES.find((t) => t.id === id)?.name || "Textured (unspecified)";
   return (<>
-    {onCopyFloor && (
-      <div className="mb-4 flex items-center gap-2.5 rounded-lg p-2.5" style={{ border: "1px dashed var(--ft-brand)", background: "var(--ft-tint)" }}>
-        <span className="flex-1 text-[11px] font-medium text-slate-600 leading-snug">Vents usually match the floor — copy species, scrape &amp; stain from the <b>{copySrc}</b> tab.</span>
-        <button onClick={onCopyFloor} className="shrink-0 rounded-md border bg-white px-3 py-1.5 text-xs font-bold text-[color:var(--ft-brand-deep)] hover:bg-slate-50" style={{ borderColor: "var(--ft-brand)" }}>⤺ Copy floor</button>
+    <div className="mb-4 rounded-lg p-2.5" style={{ border: `1px ${match ? "solid" : "dashed"} var(--ft-brand)`, background: "var(--ft-tint)" }} data-vent-match={match ? "on" : "off"}>
+      <div className="flex items-center gap-2.5">
+        <span className="flex-1 text-[11px] font-medium text-slate-600 leading-snug">
+          {match
+            ? <>Matching the floor on the <b>{srcLabel}</b> tab — species, finish and texture follow it.</>
+            : <>Vents usually match the floor — link them to the <b>{srcLabel}</b> tab.</>}
+        </span>
+        <button onClick={() => set(match ? eff : { ...v, match: true })} data-vent-matchbtn
+          className="shrink-0 rounded-md border bg-white px-3 py-1.5 text-xs font-bold text-[color:var(--ft-brand-deep)] hover:bg-slate-50 inline-flex items-center gap-1.5" style={{ borderColor: "var(--ft-brand)" }}>
+          {match ? <><Unlink size={12} /> Pick my own</> : <><Link2 size={12} /> Match floor</>}
+        </button>
       </div>
-    )}
-    <Sect title="Species" hint="A: cherry/hickory/beech/red oak">
-      <Chips cur={v.sp} onPick={(sp) => set({ ...v, sp })}
+      {match && (
+        <div className="mt-2 flex flex-wrap gap-1.5 text-[10.5px] font-bold">
+          {[eff.sp, eff.prefin ? `Prefinished${eff.stain ? " " + eff.stain : ""}` : "Unfinished", eff.tex ? scrapeName(ventScrape(eff) ? eff.scrape : "") : "Smooth"].map((t) => (
+            <span key={t} className="rounded bg-white border border-slate-200 px-1.5 py-0.5 text-slate-700">{t}</span>
+          ))}
+        </div>
+      )}
+    </div>
+    <Sect title="Species" hint={match ? "from the floor" : "A: cherry/hickory/beech/red oak"}>
+      <Chips locked={match} cur={eff.sp} onPick={(sp) => set({ ...v, sp })}
         items={Object.keys(VENT_GROUP).map((sp) => ({ id: sp, label: sp, sub: "group " + VENT_GROUP[sp] }))} />
     </Sect>
     <Sect title="Vent type">
@@ -625,12 +643,12 @@ function VentRail({ v, set, tsell, onGrid, onCopyFloor, copySrc }) {
     </Sect>
     <Sect title="Size (duct W × L)" hint="shaded by duct width" extra={<button onClick={onGrid} className="text-[11px] font-bold text-indigo-700 underline underline-offset-2">full grid →</button>}>
       <Chips cur={v.size} onPick={(size) => set({ ...v, size })}
-        items={cat.list().map((row) => { const c = calcVent({ ...v, size: row[0] }); return { id: row[0], label: row[0] + '"', sub: c ? fm(tsell(c.cost)) : "—", bg: ventWidthTint(row[0]) }; })} />
+        items={cat.list().map((row) => { const c = calcVent({ ...eff, size: row[0] }); return { id: row[0], label: row[0] + '"', sub: c ? fm(tsell(c.cost)) : "—", bg: ventWidthTint(row[0]) }; })} />
     </Sect>
     <Sect title="Options">
       {cat.cubed && <Toggle label="Cubed grille" on={v.cubed} onClick={() => set({ ...v, cubed: !v.cubed })} add={`+${fm(tsell(VENT_CUBED))}`} />}
-      <Toggle label="Prefinished" on={v.prefin} onClick={() => set({ ...v, prefin: !v.prefin })} add={`+${fm(tsell(VENT_PREFIN))}`} />
-      {v.prefin && (
+      <Toggle label="Prefinished" locked={match} on={eff.prefin} onClick={() => set({ ...v, prefin: !v.prefin })} add={`+${fm(tsell(VENT_PREFIN))}`} />
+      {eff.prefin && (match ? <div className="mt-1.5 mb-1.5 ml-[26px]"><Locked label="Stain color" value={eff.stain} /></div> : (
         <div className="mt-1.5 mb-1.5 ml-[26px]">
           <div className="flex items-baseline gap-1.5 mb-1"><span className="ft-eyebrow text-[10px]">Stain color</span><span className="text-[9.5px] text-slate-400 font-medium">included in the prefinish charge</span></div>
           <MorphSelect full bold placeholder="Pick color…" value={v.stainCustom ? "__c" : (STAIN_COLORS.includes(v.stain) ? v.stain : "")}
@@ -638,15 +656,15 @@ function VentRail({ v, set, tsell, onGrid, onCopyFloor, copySrc }) {
             options={[...STAIN_COLORS.map((c) => ({ v: c, label: c })), { v: "__c", label: "Custom…" }]} />
           {v.stainCustom && <input value={v.stain} onChange={(e) => set({ ...v, stain: e.target.value })} placeholder="Custom color name" className={textCls + " mt-1.5"} />}
         </div>
-      )}
-      <Toggle label="Textured" on={v.tex} onClick={() => set({ ...v, tex: !v.tex })} add={`+${fm(tsell(VENT_TEX))}`} />
-      {v.tex && (
+      ))}
+      <Toggle label="Textured" locked={match} on={eff.tex} onClick={() => set({ ...v, tex: !v.tex })} add={`+${fm(tsell(VENT_TEX))}`} />
+      {eff.tex && (match ? <div className="mt-1.5 mb-1.5 ml-[26px]"><Locked label="Scrape / texture" value={scrapeName(ventScrape(eff) ? eff.scrape : "")} /></div> : (
         <div className="mt-1.5 mb-1.5 ml-[26px]">
           <div className="flex items-baseline gap-1.5 mb-1"><span className="ft-eyebrow text-[10px]">Scrape / texture</span><span className="text-[9.5px] text-slate-400 font-medium">any scrape, same flat charge</span></div>
           <MorphSelect full bold value={ventScrape(v) ? v.scrape : ""} onChange={(scrape) => set({ ...v, scrape })}
             options={[{ v: "", label: "Textured (unspecified)" }, ...TEXTURES.filter((t) => t.id !== "smooth").map((t) => ({ v: t.id, label: t.name }))]} />
         </div>
-      )}
+      ))}
       {DAMPERS[v.size] && <Toggle label="Attach damper" on={v.damper} onClick={() => set({ ...v, damper: !v.damper })} add={`+${fm(tsell(DAMPERS[v.size] + DAMPER_ATTACH))}`} />}
       {cat.frame && <Toggle label="Add frame ($0.40 / lineal inch)" on={v.frame} onClick={() => set({ ...v, frame: !v.frame })} add={`+${fm(tsell(0.4 * frameLineal(v.size)))}`} />}
     </Sect>
@@ -1297,7 +1315,7 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
   const [cfgs, setCfgs] = useState(() => {
     const base = Object.fromEntries(MODES.map((m) => [m.id, defaultConfig(m.id)]));
     if (bseed?.base?.mode && bseed.base.cfg) base[bseed.base.mode] = { ...base[bseed.base.mode], ...bseed.base.cfg };
-    else if (seed?.mode && seed?.cfg) base[seed.mode] = { ...base[seed.mode], ...seed.cfg };
+    else if (seed?.mode && seed?.cfg) base[seed.mode] = { ...base[seed.mode], ...(seed.mode === "vent" ? { match: false } : {}), ...seed.cfg };
     return base;
   });
   // Flooring and vents/dampers carry separate markups (Settings → Price book).
@@ -1344,22 +1362,22 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
 
   const cfg = cfgs[mode];
   const set = (next) => setCfgs((c) => ({ ...c, [mode]: next }));
-  // The vent tab's "Copy floor" pulls from whichever floor tab (unfinished /
-  // stocked / herringbone) the user last had open — seeded tab first.
+  // Vents and trim match whichever floor tab (unfinished / stocked /
+  // herringbone) the user last had open — seeded tab first.
   const [floorSrc, setFloorSrc] = useState(seedMode === "stocked" || seedMode === "hb" ? seedMode : "floor");
   // The herringbone tab copies from a real floor config, so it tracks the last-
   // open unfinished/stocked tab (never hb itself — that would be a no-op).
   const [flatSrc, setFlatSrc] = useState(seedMode === "stocked" ? "stocked" : "floor");
   // Report the live { mode, cfg } upward in seed shape, so App's refresh
   // restore (ft-open-layer) reopens the popup mid-configuration, not on the
-  // seed it was first opened with. Trim reports its resolved, unlinked build:
-  // a restore starts the floor tabs at their defaults, and a live link would
-  // silently re-species it.
+  // seed it was first opened with. Trim and vents report their resolved,
+  // unlinked build: a restore starts the floor tabs at their defaults, and a
+  // live link would silently re-species it.
   useEffect(() => {
-    onConfigChange?.({ mode, cfg: mode === "trim" ? effectiveTrimCfg(cfgs.trim, { mode: floorSrc, cfg: cfgs[floorSrc] }) : cfgs[mode] });
+    const floorSnap = { mode: floorSrc, cfg: cfgs[floorSrc] };
+    onConfigChange?.({ mode, cfg: mode === "trim" ? effectiveTrimCfg(cfgs.trim, floorSnap) : mode === "vent" ? effectiveVentCfg(cfgs.vent, floorSnap) : cfgs[mode] });
   }, [mode, cfgs, floorSrc]);
   const pickMode = (id) => { setMode(id); setMobileGrid(false); if (id === "floor" || id === "stocked" || id === "hb") setFloorSrc(id); if (id === "floor" || id === "stocked") setFlatSrc(id); };
-  const copyFloorToVent = () => { const patch = ventFromFloor({ mode: floorSrc, cfg: cfgs[floorSrc] }); if (patch) set({ ...cfg, ...patch }); };
   const copyFloorToHb = () => {
     const patch = hbFromFloor({ mode: flatSrc, cfg: cfgs[flatSrc] });
     if (!patch) return;
@@ -1395,8 +1413,9 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [multi, multiOk, mode, cfg.sp, cfg.grade, cfg.cons]);
 
-  const snap = { mode, cfg };
-  const c = useMemo(() => calcConfig(snap, sf), [mode, cfg, sf]);
+  const ventEff = mode === "vent" ? effectiveVentCfg(cfg, { mode: floorSrc, cfg: cfgs[floorSrc] }) : null;
+  const snap = { mode, cfg: ventEff || cfg };
+  const c = useMemo(() => calcConfig(snap, sf), [mode, cfgs, floorSrc, sf]);
   const sell = c ? tsell(c.cost) : 0;
   const isEa = c?.per === "ea";
   const qty = c?.qty || 1;
@@ -1419,7 +1438,7 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
   };
   const moveBundleToLine = () => { onMove(multiWidthLineItems({ mode, cfg }, mwWidths.map((w) => ({ w, share: mwShares[w] ?? 0 })), sf, activeMarkup)); onClose(); };
   const addSingleToBasket = () => {
-    const entry = normBasketEntry({ kind: "single", addedAt: Date.now(), markupPct: activeMarkup, snap: { mode, cfg: JSON.parse(JSON.stringify(trimMode ? trimEff : cfg)) }, sf: trimMode ? 0 : sf });
+    const entry = normBasketEntry({ kind: "single", addedAt: Date.now(), markupPct: activeMarkup, snap: { mode, cfg: JSON.parse(JSON.stringify(trimMode ? trimEff : snap.cfg)) }, sf: trimMode ? 0 : sf });
     if (entry) { onBasketChange([...(basket || []), entry]); setBasketOpen(true); }
   };
   const toggleBasketSel = (id) => setBasketSel((s) => ({ ...s, [id]: !s[id] }));
@@ -1514,8 +1533,8 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
         <HbRail h={cfg} set={set} tsell={tsell} onGrid={() => setGrid(true)}
           onCopyFloor={copyFloorToHb} copySrc={MODES.find((m) => m.id === flatSrc).label} />
       </>}
-      {mode === "vent" && <VentRail v={cfg} set={set} tsell={tsell} onGrid={() => setGrid(true)}
-        onCopyFloor={copyFloorToVent} copySrc={MODES.find((m) => m.id === floorSrc).label} />}
+      {mode === "vent" && <VentRail v={cfg} eff={ventEff} set={set} tsell={tsell} onGrid={() => setGrid(true)}
+        srcLabel={MODES.find((m) => m.id === floorSrc).label} />}
       {mode === "damper" && <DamperRail d={cfg} set={set} tsell={tsell} />}
       {trimMode && (trimBook ? <TrimRail cfg={cfg} eff={trimEff} set={set} srcLabel={MODES.find((m) => m.id === floorSrc).label} trimBook={trimBook} tsell={tsell} kit={RAIL_KIT} /> : <TrimEmpty hasBook={sheogaBook} />)}
     </>
@@ -1709,7 +1728,7 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
           </MobileBuildSheet>
         )}
       </div>
-      {grid && <GridModal mode={mode} cfg={cfg} onClose={() => setGrid(false)} onPick={(patch) => { set({ ...cfg, ...patch }); setGrid(false); }} />}
+      {grid && <GridModal mode={mode} cfg={snap.cfg} onClose={() => setGrid(false)} onPick={(patch) => { set({ ...cfg, ...patch }); setGrid(false); }} />}
     </div>
   );
 }
