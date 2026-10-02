@@ -73,7 +73,7 @@ function CleanHeaderDemo({ id, compact = false, patch = {}, cust = { name: "Kath
     <div id={id} className="max-w-4xl">
       <div className={compact ? "mb-4 border-b border-slate-100" : undefined} style={compact ? { height: 73 } : undefined}>
         <ProjectHeaderClean {...props} sel={sel} tv={tv} cust={cust} builderName={builderName} updateProject={updateProject} freightCost={214} ping={noop}
-          preview={preview} onTogglePreview={() => setPreview((v) => !v)} erp={erp} compact={compact} />
+          preview={preview} onTogglePreview={() => setPreview((v) => !v)} erp={erp} compact={compact} onEmail={noop} />
       </div>
       <div className="rounded-lg border border-dashed border-slate-300 text-center text-[12px] text-slate-400 py-6">{preview ? "Estimate paper shows here" : "Areas show here"}</div>
     </div>

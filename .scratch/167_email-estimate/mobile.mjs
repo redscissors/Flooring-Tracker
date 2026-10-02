@@ -1,0 +1,12 @@
+import { createRequire } from "node:module";
+const { chromium } = createRequire(import.meta.url)(process.env.PW || "/opt/node22/lib/node_modules/playwright");
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+const dir = dirname(fileURLToPath(import.meta.url));
+const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium", args: ["--no-sandbox"] });
+const page = await browser.newPage({ viewport: { width: 375, height: 700 }, deviceScaleFactor: 2 });
+page.on("pageerror", (e) => console.log("[pageerror]", e.message));
+await page.goto("http://localhost:5199/.scratch/167_email-estimate/mobile.html", { waitUntil: "networkidle" });
+await page.waitForTimeout(800);
+await page.screenshot({ path: join(dir, "mobile-sheet.png") });
+await browser.close();
