@@ -863,7 +863,7 @@ src/
                     # slip objects)
                     # — what the configurator's trim tab prices from — and
                     # `sheetMonth`/`sheetDateMDY` format a sheet's ISO date
-                    # (vendorbook.test.js; ADR 0055)
+                    # (vendorbook.test.js; ADR 0056)
   vendorbook.jsx    # `VendorBookPage` — the vendor book's page: name, badge,
                     # "priced by the configurator" meta, Active, delete, and
                     # the Markup · Price sheets · Freight · Brand · Contacts
@@ -914,7 +914,7 @@ src/
                     # $600/$300 under-500-sf rule all three build paths use —
                     # Prefinished Natural is exempt (owner rule 2026-07-28).
                     # A sheet update is a re-transcription of this one file
-  sheogatrim.js     # Sheoga trim & accessories engine (ADR 0055, spec
+  sheogatrim.js     # Sheoga trim & accessories engine (ADR 0056, spec
                     # 2026-10-02), pure: `parseAccessorySheet(sheets)` reads
                     # Sheoga's distributor accessory .xlsx by scanning for
                     # block headers (the five profile blocks sit side by side)

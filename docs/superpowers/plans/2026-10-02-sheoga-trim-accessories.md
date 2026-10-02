@@ -602,12 +602,12 @@ Sheoga vendor book, which also carries a third markup (trim, default 100%).
 ### Task 7: Records, proof, and PR
 
 **Files:**
-- Create: `docs/adr/0055-sheoga-book-holds-uploaded-accessory-sheet.md`
+- Create: `docs/adr/0056-sheoga-book-holds-uploaded-accessory-sheet.md`
   (amends ADR 0040's "never imports"; records owner decisions 1–5 from the
   spec)
 - Modify:
   - `docs/adr/README.md` (index line);
-  - `docs/adr/0040-vendor-kind-price-book.md` (an "Amended by 0055" line);
+  - `docs/adr/0040-vendor-kind-price-book.md` (an "Amended by 0056" line);
   - `.claude/skills/floortrack-data-model/SKILL.md` (vendor-book `data`
     gains `sheets.accessories` (incl. `tex`), `markups.trim`; Product
     `sheoga` gains `{ mode: "trim", cfg }` anchors and

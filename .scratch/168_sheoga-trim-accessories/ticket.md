@@ -15,7 +15,7 @@ replaced when Sheoga sends a new edition; markup set on the book.
 
 Spec `docs/superpowers/specs/2026-10-02-sheoga-trim-accessories-design.md`,
 plan `docs/superpowers/plans/2026-10-02-sheoga-trim-accessories.md`,
-ADR `docs/adr/0055-sheoga-book-holds-uploaded-accessory-sheet.md` (amends
+ADR `docs/adr/0056-sheoga-book-holds-uploaded-accessory-sheet.md` (amends
 0040's "a vendor book never imports").
 
 ## What landed

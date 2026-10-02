@@ -250,7 +250,7 @@ Product  { id, type:"tile|hardwood|vinyl|laminate|carpet|underlayment|misc",
            // "Reconfigure" reopens the popup pre-filled (src/sheoga.js
            // calcConfig/lineItems). Display/reopen attribute only — the row's
            // price stays the ADR 0003 snapshot; nothing reprices from it.
-           // mode "trim" (ADR 0055): the kit's anchor carries { mode: "trim", cfg }
+           // mode "trim" (ADR 0056): the kit's anchor carries { mode: "trim", cfg }
            // (cfg.match false); its companions carry { mode: "trim", part: true }.
            // wedi = the same marker for the wedi configurator (issue 066), on
            // the ANCHOR line only (the pan): { mode, cfg } re-lands the whole
@@ -431,14 +431,14 @@ brandLabel, rep { name, email, phone }, sampleContact { name, email },
 freight, markups: { flooring, vents, trim }, sheets: { accessories } }` — the
 markups are the configurator's defaults and win over
 `settings.pricing.sheogaMarkupPct`/`sheogaVentMarkupPct` while the book exists
-(`sheogaMarkups`, vendorbook.js); `trim` (ADR 0055) defaults to 100 and has no
+(`sheogaMarkups`, vendorbook.js); `trim` (ADR 0056) defaults to 100 and has no
 Settings fallback. A configurator row
 never gets a `bookId`; `vendorBookForRow` resolves its `sheoga` marker to the
 book for sample requests and freight. `rep.phone` is new on every kind
 (display only). `supabase/pricebook-vendor.sql` widens the check on older
 installs.
 
-**Sheoga accessory sheet** (ADR 0055, spec 2026-10-02). The vendor book's
+**Sheoga accessory sheet** (ADR 0056, spec 2026-10-02). The vendor book's
 `data.sheets.accessories` is the parsed distributor accessory sheet the team
 uploads (written only by `updateBook`'s `dataPatch`; the .xlsx is not kept):
 `{ fileName, sheetDate "YYYY-MM-DD", uploadedAt, uploadedBy, species: {
