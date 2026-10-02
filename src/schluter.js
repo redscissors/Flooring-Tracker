@@ -33,7 +33,7 @@ const THICK_IN = { 3: '1/8"', 5: '3/16"', 9: '3/8"', 12: '1/2"', 19: '3/4"', 25:
 
 // Roll-size fallback table (used only when the sheet's "= N sf" text is
 // missing) — 5M/7M/10M/12M/20M rolls, "plain" = the unsuffixed full roll.
-const ROLL_SF = { 5: 54, 7: 75, 10: 108, 12: 128, 20: 215 };
+const ROLL_SF = { 5: 54, 7: 75, 10: 108, 12: 128, 15: 323, 20: 215 };
 const PLAIN_SF = 323;
 
 // KERDI-BAND seam-band roll lengths by /<n>M suffix; no suffix = full roll.
@@ -98,14 +98,14 @@ function membraneSf(item, code) {
   const text = item.size || item.name || item.description || "";
   const explicit = /=\s*([\d.]+)\s*sf/i.exec(text) || /\(\s*([\d.]+)\s*sf\s*\)/i.exec(text);
   if (explicit) return parseFloat(explicit[1]);
-  const suffix = /\/(\d+)M/.exec(code);
+  const suffix = /^(?:SLR)?KERDI200(?:200)?\/?(\d+)M$/.exec(code);
   if (suffix && ROLL_SF[suffix[1]] !== undefined) return ROLL_SF[suffix[1]];
   return PLAIN_SF;
 }
 
 // A roll's length code off its SKU ("10M"); an unsuffixed roll is the full
 // 30 m one. KERDI membrane and KERDI-BAND share the /<n>M grammar.
-const rollCode = (code) => { const m = /\/(\d+)M$/.exec(code); return m ? m[1] + "M" : "30M"; };
+const rollCode = (code) => { const m = /^(?:SLR)?(?:KERDI200(?:200)?|KEBA\d+\/\d+)\/?(\d+)M$/.exec(code); return m ? m[1] + "M" : "30M"; };
 
 function bandLf(code) {
   const suffix = /\/(\d+)M$/.exec(code);
@@ -260,6 +260,10 @@ function classifyCode(item, rawSku) {
     const entry = { ...item, g: "drain", drain: "point" };
     if (/FLK/.test(code)) entry.part = "flange";
     else if (/GRK/.test(code)) entry.part = "grate";
+    const pipe = /^KD[A-Z]*?(\d)/.exec(code);
+    if (pipe) entry.pipe = Number(pipe[1]);
+    entry.material = /PVC/.test(code) ? "PVC" : /ABS/.test(code) ? "ABS"
+      : /(?:FLK|GRK)EB/.test(code) ? "Brushed Stainless" : /(?:FLK|GRK)E/.test(code) ? "Stainless" : "";
     return entry;
   }
 
@@ -285,6 +289,8 @@ function classifyCode(item, rawSku) {
     const entry = { ...item, g: "seam" };
     if (/\/FI/.test(code)) entry.corner = "inside";
     else if (/\/FA/.test(code)) entry.corner = "outside";
+    const ct = /\/F[IA](\d+)/.exec(code);
+    if (ct) entry.ct = Number(ct[1]);
     return entry;
   }
   if (/^KMS/.test(code)) {
@@ -309,7 +315,16 @@ function classifyCode(item, rawSku) {
   // RA the rectangular wall bench. Half-inch rounding because the 11½" bench
   // (292mm) must not read as 11".
   if (/^KB12SN/.test(code)) {
-    return { ...item, g: "extra", extra: "niche" };
+    const entry = { ...item, g: "extra", extra: "niche" };
+    // niche openings use their own mm sizes (12″ × 20″ / 28″), not the tray table
+    const NICHE_MM = { 305: 12, 508: 20, 711: 28 };
+    const mm = /^(\d{3})(\d{3})/.exec(code.replace(/^KB12SN/, ""));
+    const dims = mm ? [NICHE_MM[mm[1]], NICHE_MM[mm[2]]].filter((n) => n !== undefined) : [];
+    if (dims.length === 2) {
+      entry.w = Math.min(...dims); entry.d = Math.max(...dims);
+      entry.size = `${entry.w}"x${entry.d}"`;
+    }
+    return entry;
   }
   if (/^KBSB/.test(code)) {
     const entry = { ...item, g: "extra", extra: "bench" };
@@ -390,7 +405,120 @@ function classifyCode(item, rawSku) {
  * non-shower rows (classify() -> null) dropped.
  */
 export function catalogOf(items) {
-  return items.map(classify).filter(Boolean);
+  return items.map(classify).filter(Boolean).map((e) => {
+    const t = partText(e);
+    return { ...e, desc: e.name || "", name: t.name, size: t.size };
+  });
+}
+
+// --- the Size field and the Product text of one classified entry ----------
+// (ADR 0054) Derived from the part code wherever the grammar reads it, so the
+// same tray reads the same from the stock export and the EFT sheet; the book's
+// own words fill only what the code does not carry. No brand word: KERDI and
+// ALL-SET say whose they are (owner 2026-10-01).
+
+// mixed numbers hyphenated, to the nearest 1/16 — "4-1/2", "24-1/2"
+function inchText(n) {
+  const whole = Math.floor(n + 1e-9);
+  let num = Math.round((n - whole) * 16), den = 16;
+  if (num === 16) return String(whole + 1);
+  if (num === 0) return String(whole);
+  while (num % 2 === 0) { num /= 2; den /= 2; }
+  return (whole ? whole + "-" : "") + num + "/" + den;
+}
+const ftIn = (n) => {
+  const ft = Math.floor(n / 12 + 1e-9), r = n - ft * 12;
+  return ft + "'" + (r > 1e-6 ? inchText(r) + '"' : "");
+};
+// roll lengths as the sheet prints them (10 m reads 33', not 32'10")
+const ROLL_LEN = { 5: "16'5\"", 7: "23'", 10: "33'", 12: "39'5\"", 15: "49'3\"", 20: "65'7\"", 30: "98'5\"" };
+const ROLL_W_IN = { narrow: 39, wide: 79 };
+const words = (s) => String(s || "").replace(/\b([a-z])/g, (m) => m.toUpperCase());
+function cleanBookName(e) {
+  const codes = [e.sku, e.erp].filter(Boolean).map((c) => String(c).toUpperCase().replace(/^SLR/, ""));
+  return String(e.name || "").split(/\s+/)
+    .filter((w) => w && !codes.includes(w.toUpperCase().replace(/^SLR/, "")))
+    .join(" ")
+    .replace(/\bschluter\b\s*®?\s*/gi, " ").replace(/[®™]/g, "")
+    .replace(/\s+[—–-]\s+/g, " ").replace(/\s{2,}/g, " ").replace(/^[\s—–,-]+|[\s—–,-]+$/g, "");
+}
+
+export function partText(e) {
+  const g = e.g;
+  let size = "", name = "", qual = "";
+  if (g === "tray") {
+    size = e.w && e.d ? `${inchText(Math.min(e.w, e.d))}"x${inchText(Math.max(e.w, e.d))}"` : "";
+    if (e.drain === "linear") { name = "KERDI-SHOWER-LTS Tray"; if (e.w) qual = `Linear Drain on ${inchText(e.w)}" Side`; }
+    else if (e.thin) { name = "KERDI-SHOWER-TT Tray"; qual = "Curbless"; }
+    else if (e.drain === "offset") { name = "KERDI-SHOWER-TS Tray"; qual = "Offset Drain"; }
+    else name = "KERDI-SHOWER-T Tray";
+  } else if (g === "drain" && e.drain === "point") {
+    size = e.pipe ? `${e.pipe}"` : "";
+    name = "KERDI-DRAIN " + (e.part === "grate" ? "Grate" : "Flange Kit");
+    // a grate's style rides the code: …CS tileable, …D<n> a Vario design
+    const code = String(e.sku || "").replace(/^SLR/, "");
+    const style = e.part === "grate" ? (/CS$/.test(code) ? "Tileable" : VARIO_DESIGN[(/D(\d+)$/.exec(code) || [])[1]] || "") : "";
+    qual = [style, e.material].filter(Boolean).join(", ");
+  } else if (g === "drain") {
+    if (e.part === "flange") { size = '2"'; name = "KERDI-LINE-VARIO Flange Kit"; }
+    else {
+      size = e.len ? ftIn(e.len) : "";
+      name = "KERDI-LINE-VARIO Channel";
+      qual = [VARIO_DESIGN[e.design], e.finish && words(FINISH_LABEL[e.finish] || "")].filter(Boolean).join(", ");
+    }
+  } else if (g === "line") {
+    size = e.len ? `${e.len}"` : "";
+    name = e.part === "body" ? "KERDI-LINE Channel" : e.part === "grate" ? "KERDI-LINE Grate" : cleanBookName(e);
+    if (e.part === "grate") qual = [STYLE_WORD[e.style], e.frameless ? "Frameless" : e.frame ? e.frame + " Frame" : "", words(FINISH_LABEL[e.finish] || "")].filter(Boolean).join(", ");
+  } else if (g === "membrane") {
+    const len = ROLL_LEN[String(e.roll || "").replace("M", "")] || ROLL_LEN[30];
+    size = `${ftIn(ROLL_W_IN[e.wide ? "wide" : "narrow"])}x${len}`;
+    name = "KERDI Membrane";
+    if (e.sf) qual = `${e.sf} sf`;
+  } else if (g === "seam" && e.corner) {
+    size = e.ct ? `${e.ct} ct` : "";
+    name = "KERDI-KERECK-F " + (e.corner === "inside" ? "Inside" : "Outside") + " Corner";
+  } else if (g === "seam" && e.seal) {
+    name = e.seal === "valve" ? "KERDI-SEAL-MV Valve Seal" : "KERDI-SEAL-PS Pipe Seal";
+  } else if (g === "seam") {
+    const w = e.width ? Math.round((Number(e.width) / 25.4) * 4) / 4 : 0;
+    size = [w ? inchText(w) + '"' : "", e.lf ? ftIn(e.lf * 12) : ""].filter(Boolean).join("x");
+    name = "KERDI-BAND";
+  } else if (g === "curb") {
+    if (e.ramp) {
+      const mm = mmExactTokens(String(e.sku || "").replace(/^SLR?KSR/, "").replace(/\D.*$/, ""));
+      size = mm.length === 2 ? `${inchText(Math.min(...mm))}"x${inchText(Math.max(...mm))}"` : String(e.size || "");
+      name = "KERDI-SHOWER-R Ramp";
+    } else {
+      const m = /^KBSC(\d{3})(\d{3})/.exec(String(e.sku || "").replace(/^SLR/, ""));
+      const halfIn = (mm) => Math.round((Number(mm) / 25.4) * 2) / 2;
+      const prof = m ? `x${inchText(halfIn(m[2]))}"x${inchText(halfIn(m[1]))}"` : "";
+      size = e.len ? `${inchText(e.len)}"${prof}` : "";
+      name = "KERDI-BOARD-SC Curb";
+    }
+  } else if (g === "board" && e.fastener) {
+    size = e.ct ? `${e.ct} ct` : "";
+    name = "KERDI-BOARD Screws & Washers";
+  } else if (g === "board") {
+    const th = THICK_IN[e.thickMm] || "";
+    size = e.bw && e.bl ? `${inchText(e.bw)}"x${inchText(e.bl)}"${th ? "x" + th : ""}` : String(e.size || "");
+    name = "KERDI-BOARD Panel";
+  } else if (g === "extra" && e.extra === "niche") {
+    const lit = /^(?:SLR)?KB12SNLT/.test(String(e.sku || ""));
+    size = !lit && /\d/.test(String(e.size || "")) ? e.size : "";
+    name = lit ? "KERDI-BOARD-SN-LT Lighted Niche" : "KERDI-BOARD-SN Niche";
+  } else if (g === "extra" && e.extra === "bench" && e.bench) {
+    const b = e.bench;
+    size = b.corner ? `${inchText(b.a)}"x${inchText(b.a)}"x${BENCH_H}"` : b.len ? `${inchText(b.d)}"x${inchText(b.len)}"x${BENCH_H}"` : "";
+    name = "KERDI-BOARD-SB Bench"; qual = b.corner ? "Triangular" : "Rectangular";
+  } else if (g === "set") {
+    const lb = /(\d+)\s*lb/i.exec(String(e.size || "") + " " + String(e.name || ""));
+    size = lb ? `${lb[1]} lb` : "";
+    name = e.adhesive ? "KERDI-FIX Adhesive" : "ALL-SET Thin-set";
+  } else {
+    size = String(e.size || ""); name = cleanBookName(e);
+  }
+  return { size, name: qual ? `${name}, ${qual}` : name };
 }
 
 // ============================================================================
@@ -1256,7 +1384,7 @@ export function drainAddOptions(choice, cat, { source } = {}) {
 
 /** A point grate's chip label — size, design and finish ("4″ floral, brushed"), not the row's "kit 4" floral brushed SS". */
 export function pointGrateLabel(e) {
-  const s = String((e && e.name) || "").replace(/^schluter\s+(?:—\s*)?/i, "").replace(/^kerdi-drain\s+/i, "")
+  const s = String((e && (e.desc || e.name)) || "").replace(/^schluter\s+(?:—\s*)?/i, "").replace(/^kerdi-drain\s+/i, "")
     .replace(/\b(grate|kit)\b/gi, "").replace(/\s+(brushed|polished)\s+(ss|stainless(\s+steel)?)\b/i, ", $1")
     .replace(/"/g, "″").replace(/\s{2,}/g, " ").trim();
   return s || (e && e.sku) || "";
@@ -1474,8 +1602,6 @@ export function tierPrice(entry, tier, { builderPct } = {}) {
 // The wedi lead idiom: a classified entry whose name doesn't already say a
 // Schluter family word gets the vendor in front. A non-classified item (the
 // Settings mortar pick) is not necessarily Schluter goods, so it never leads.
-const SCHLUTER_LEAD = /^\s*(schluter|kerdi|kereck|kers|all.?set)/i;
-const brandName = (e) => (e.g && !SCHLUTER_LEAD.test(e.name || "") ? "Schluter — " : "") + (e.name || "");
 
 /**
  * "Copy for order entry" (round 8, the wedi rule): stocked lines key as the
@@ -1487,7 +1613,7 @@ export function orderCopyLines(lines) {
   return (lines || []).filter((l) => !l.noteOnly).map((l) =>
     l.item.stock
       ? (l.item.erp || l.item.sku || "") + "\t" + l.qty
-      : (l.item.sku ? l.item.sku + " — " : "") + brandName(l.item) + " × " + l.qty);
+      : (l.item.sku ? l.item.sku + " — " : "") + [l.item.size, l.item.name].filter(Boolean).join(" ") + " × " + l.qty);
 }
 
 /**
@@ -1514,7 +1640,7 @@ export function lineItems(build, opts) {
       // live registry rows are not fixture-shaped — a stock row may carry its shop number in sku with no erp field
       sku: e.stock ? e.erp || e.sku || "" : "",
       sizeText: e.size || "",
-      brandColor: brandName(e),
+      brandColor: e.name || "",
       qtyType: "count",
       qty: String(l.qty),
       priceSqft: String(tierPrice(e, "retail", {})),

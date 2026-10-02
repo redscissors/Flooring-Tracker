@@ -11,9 +11,27 @@ const tighten = (t) => String(t || "").trim().replace(/(\d["”']?)\s*[x×]\s*(?
 // Tile thickness never prints on this sheet (owner 2026-09-30).
 export const specSize = (p) => (p.type === "tile" ? (p.sizeText ? tighten(p.sizeText) : p.L && p.W ? `${p.L}"×${p.W}"` : "") : tighten(p.sizeText));
 
-export function specLine(p, c) {
+export function specParts(p, c) {
   const cov = c.C ? `${sf1(c.C.sf)} SF/${c.C.unit}` : c.PC ? `${c.PC.per} PC/${String(c.PC.unit).toUpperCase()}` : "";
-  return [specSize(p), cov, p.sku ? `SKU ${p.sku}` : ""].filter(Boolean).join(" · ");
+  return [specSize(p), cov, p.sku ? `SKU ${p.sku}` : ""].filter(Boolean);
+}
+export const specLine = (p, c) => specParts(p, c).join(" · ");
+
+// A row a wedi or Schluter configurator landed (ADR 0054): one dark line, the
+// Size field verbatim then the name, and a muted tail — the shop SKU, or the
+// vendor part number off the marker for a special-order line. Null for any
+// other row, however wedi-looking its text.
+// A row landed before ADR 0054 carries the old text (a dash lead, a brand
+// mark, a spaced "36\" x 60\"" size, the book's "= 108 sf") — the standard
+// treatment still fits it; the new one would print its size twice.
+const LEGACY_TEXT = /[—®™×=]|\s[xX-]\s|^wedi US\d|^Schluter\s/;
+export function brandRow(p) {
+  const m = (p && (p.wedi || p.schluter)) || null;
+  if (!m || typeof m !== "object") return null;
+  if (LEGACY_TEXT.test(String(p.brandColor || "")) || LEGACY_TEXT.test(String(p.sizeText || ""))) return null;
+  const lead = [p.sizeText, p.brandColor].map((x) => String(x || "").trim()).filter(Boolean).join(" ");
+  const part = typeof m.key === "string" ? m.key : typeof m.part === "string" ? m.part : "";
+  return { lead, tail: p.sku ? `SKU ${p.sku}` : part };
 }
 
 export function qtyCells(p, c) {

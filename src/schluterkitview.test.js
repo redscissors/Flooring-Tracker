@@ -22,7 +22,7 @@ test("schluterEntryView prices a tray marker", () => {
   const v = schluterEntryView(marker, {}, ctx);
   const of = schluterTierOf(ctx);
   const rows = v.lines();
-  assert.equal(v.title, tray.tray.name);
+  assert.equal(v.title, [tray.tray.size, tray.tray.name].filter(Boolean).join(" "));
   assert.ok(rows.length > 1);
   assert.equal(v.price, round2(rows.reduce((t, r) => t + +r.priceSqft * +r.qty, 0)));
   assert.equal(v.meta, `${rows.length} lines · 60×38"`);

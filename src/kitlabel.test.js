@@ -95,3 +95,13 @@ test("a count of packs is not a size, and a garbled measure stops at its last cl
   assert.equal(kitLabel("Wedi S-Dry DCSS", '3 3/4" x 3/3/4" x 3/16"').size, "3¾″");
 });
 
+
+test("a size-free entry name labels from its size hint (2026-10-01 entries)", () => {
+  const pick = ({ size, name }) => ({ size, name });
+  assert.deepEqual(pick(kitLabel("Building Panel", "3'x5'x1/2\"")), { size: "36×60×½″", name: "Building Panel" });
+  assert.deepEqual(pick(kitLabel("Shower Base, Offset Drain", "3'x5'x1-37/64\"")), { size: "36×60×1 37/64″", name: "Shower Base, Offset Drain" });
+  assert.deepEqual(pick(kitLabel("KERDI-SHOWER-T Tray", '38"x60"')), { size: "38×60″", name: "Shower tray" });
+  assert.deepEqual(pick(kitLabel("Lean Curb", '60"')), { size: "60″", name: "Lean Curb" });
+  assert.deepEqual(pick(kitLabel("KERDI Membrane, 108 sf", "3'3\"x33'")), { size: "3′3″×33′", name: "Membrane, 108 sf" });
+  assert.deepEqual(pick(kitLabel("Joint Sealant Sausage", "20 oz")), { size: "20 oz", name: "Joint Sealant Sausage" });
+});

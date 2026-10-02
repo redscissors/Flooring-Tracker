@@ -5,8 +5,8 @@ import { sizeOf, sizeDistance, rankParts, nearest, matchQty } from "./comparemir
 const W = (slot, item, cov = null) => ({ brand: "wedi", slot, item, cov, id: item.key, retail: item.retail || 0 });
 const S = (slot, item, cov = null) => ({ brand: "schluter", slot, item, cov, id: item.sku, retail: item.price || 0 });
 
-test("niche: wedi reads the interior off the size text, Schluter off the SKU's mm code", () => {
-  assert.deepEqual(sizeOf(W("niche", { key: "a", sizeText: 'interior 12" x 38 1/4"' })), { w: 12, h: 38.25 });
+test("niche: wedi reads the interior off the entry, Schluter off the SKU's mm code", () => {
+  assert.deepEqual(sizeOf(W("niche", { key: "a", sizeText: '16"x42"', interior: { w: 12, d: 38.25 } })), { w: 12, h: 38.25 });
   assert.deepEqual(sizeOf(S("niche", { sku: "KB12SN305508A1" })), { w: 12, h: 20 });
   assert.equal(sizeOf(S("niche", { sku: "KB12SNLT2WW", name: 'lighted niche 12"×20"' })), null, "no mm code, no size");
   assert.equal(sizeOf(W("niche", { key: "shelf", sizeText: '11 7/8" x 3 1/2" x 3/8"' })), null, "a glass shelf has no opening");

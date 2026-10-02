@@ -5,6 +5,8 @@ import { FINISH_LABEL, flangePipe, ovKey, rowItemEntry, sessionFromRows, classif
   resolveMembrane, membraneOptions, resolveBand, bandOptions, bandWidthLabel,
   addedGroup, addedLines, setAddedQty, ADD_PARTS, addParts, addPartOf, addRollOptions, drainAddOptions, applyBoardPlan, applyQtyOv } from "./schluter.js";
 import { isSlot, groupOf } from "./slots.js";
+import { normOrderItem } from "./orderbook.js";
+import { adaptBookRows } from "./schluteradapter.js";
 
 const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 
@@ -469,16 +471,84 @@ test("lineItems: wedi-shaped (build, opts) with build.mode and the vendor lead",
   assert.equal(rows[0].schluter.key, build.lines[0].item.sku);
   // mode defaults to custom when the build doesn't carry one
   assert.equal(lineItems({ lines: build.lines, cfg: c }, {})[0].schluter.mode, "custom");
-  // fixture names already lead with a Schluter family word — no doubled lead
-  assert.ok(rows.every((r) => !/^Schluter — (Schluter|KERDI|KERECK|KERS)/i.test(r.brandColor)));
-  // a classified entry whose name doesn't say the brand gets the lead
-  const grate = { ...CAT.find((e) => e.part === "grate"), name: '4" grate kit floral brushed SS' };
-  const led = lineItems({ lines: [{ item: grate, qty: 1 }], cfg: c }, {});
-  assert.equal(led[0].brandColor, 'Schluter — 4" grate kit floral brushed SS');
-  // …but a Settings mortar line (no classifier g) never wears the vendor lead
+  // no brand word, no dash lead — the Product field is the derived part text (2026-10-01)
+  assert.ok(rows.every((r) => !/schluter|—/i.test(r.brandColor)), rows.map((r) => r.brandColor).join(" | "));
+  const grate = rows.find((r) => r.schluter.part === "KD4GRKE");
+  assert.deepEqual([grate.sizeText, grate.brandColor], ['4"', "KERDI-DRAIN Grate, Stainless"]);
+  // a Settings mortar line (no classifier g) lands its own name untouched
   const mortar = { name: "60 lb deck mud", price: 12, cost: 12, stock: true, sfPerBagAt15: 8 };
   const mrows = lineItems({ lines: [{ item: mortar, qty: 4 }], cfg: c }, {});
   assert.equal(mrows[0].brandColor, "60 lb deck mud");
+});
+
+test("Schluter landed rows: Size field + brand-free name, the 2026-10-01 table", () => {
+  const row = (sku, description, size = "", vendorSkus) => normOrderItem({ bookId: "bk", sku, description, size, vendorSkus, price: 10, cost: 7 });
+  const stock = [
+    row("1509821", "KERDI-SHOWER-T TRAY 38 X 60 PVC", "", ["KST965/1525"]),
+    row("1509762", "KERDI-DRAIN flange kit 2\" PVC", "", ["KD2FLKPVC"]),
+    row("1509800", "Kerdi Drain Flange Kit - KD3FLKE Stainless", "", ["KD3FLKE"]),
+    row("1509763", "KERDI-DRAIN grate 4\" stainless", "", ["KD4GRKE"]),
+    row("1509783", "KERDI MEMBRANE ROLL", "3'3\"×33' = 108 sf", ["KERDI200/10M"]),
+    row("1509779", "KERDI-BAND 5\" seam band", "32'10\" roll", ["KEBA100/125/10M"]),
+    row("1509790", "90 Kerdi Kereck F Inside - KERECK/FI10 10/pk", "", ["KERECK/FI10"]),
+    row("1509757", "KERDI-BOARD-SC curb 60\"", "6\"×4½\"×60\"", ["KBSC1151501524"]),
+    row("1509749", "KERDI-BOARD 1/2\" panel", "48\"×96\" = 32 sf", ["KB1212202440"]),
+    row("1509759", "KERDI-BOARD screws + washers", "100 ct", ["KBZS35GT32Z100"]),
+    row("1509751", "", "", ["KB12SN305711A1"]),
+    row("23051", "Schluter ALL-SET modified thin-set", "50 lb bag", ["SLRSETA50W"]),
+    row("1509803", "KERDI-LINE-VARIO 4' floral, brushed SS", "cut to length", ["KLVRID5EB122"]),
+    row("1510357", "KERDI-LINE-VARIO flange kit 2\"", "", ["KLVR2FLK"]),
+    row("1509811", "KERDI-SEAL-MV mixing-valve seal", "", ["KMSMV235/114"]),
+  ];
+  const eft = [
+    row("SLRKSLT9151830S", "KERDI-SHOWER-LTS TRAY 36X72 PERIMETER DRAIN 36 INCH SIDE"),
+    row("SLRKST965BF", "Schluter Kerdi-Shower-TT Tray Center Drain Placement", "38x38"),
+    row("SLRKST9651525S", "KERDI-SHOWER-TS TRAY 38 X 60 OFFSET"),
+    row("SLRKBSB410TA", "Schluter Kerdi-Board-SB Bench Triangular", "16\"x16\"x20\""),
+    row("SLRKERDI2007M", "KERDI 3 FT 3 X 23 FT (75 SF)"),
+  ];
+  const cat = catalogOf([...adaptBookRows(stock, { stock: true }), ...adaptBookRows(eft, { stock: false })]);
+  const t = (code, size, name) => { const e = cat.find((x) => x.sku === code); assert.ok(e, code); assert.deepEqual([e.size, e.name], [size, name], code); };
+  t("KST965/1525", '38"x60"', "KERDI-SHOWER-T Tray");
+  t("SLRKSLT9151830S", '36"x72"', 'KERDI-SHOWER-LTS Tray, Linear Drain on 36" Side');
+  t("SLRKST965BF", '38"x38"', "KERDI-SHOWER-TT Tray, Curbless");
+  t("SLRKST9651525S", '38"x60"', "KERDI-SHOWER-TS Tray, Offset Drain");
+  t("KD2FLKPVC", '2"', "KERDI-DRAIN Flange Kit, PVC");
+  t("KD3FLKE", '3"', "KERDI-DRAIN Flange Kit, Stainless");
+  t("KD4GRKE", '4"', "KERDI-DRAIN Grate, Stainless");
+  t("KLVRID5EB122", "4'", "KERDI-LINE-VARIO Channel, Floral, Brushed Stainless");
+  t("KLVR2FLK", '2"', "KERDI-LINE-VARIO Flange Kit");
+  t("KERDI200/10M", "3'3\"x33'", "KERDI Membrane, 108 sf");
+  t("SLRKERDI2007M", "3'3\"x23'", "KERDI Membrane, 75 sf");
+  t("KEBA100/125/10M", "5\"x33'", "KERDI-BAND");
+  t("KERECK/FI10", "10 ct", "KERDI-KERECK-F Inside Corner");
+  t("KMSMV235/114", "", "KERDI-SEAL-MV Valve Seal");
+  t("KBSC1151501524", '60"x6"x4-1/2"', "KERDI-BOARD-SC Curb");
+  t("KB1212202440", '48"x96"x1/2"', "KERDI-BOARD Panel");
+  t("KBZS35GT32Z100", "100 ct", "KERDI-BOARD Screws & Washers");
+  t("KB12SN305711A1", '12"x28"', "KERDI-BOARD-SN Niche");
+  t("SLRKBSB410TA", '16"x16"x20"', "KERDI-BOARD-SB Bench, Triangular");
+  t("SLRSETA50W", "50 lb", "ALL-SET Thin-set");
+  // review fixes (2026-10-01): grate styles stay distinct, the lighted niche keeps its identity, the wide 15 m roll has a length
+  const more = catalogOf(adaptBookRows([
+    row("1509764", "KERDI-DRAIN grate 4\" tileable", "", ["KD4GRKECS"]),
+    row("1509768", "KERDI-DRAIN grate kit 4\" floral brushed SS", "", ["KDIF4GRKEBD5"]),
+    row("1509752", "KERDI-BOARD-SN-LT lighted niche 12\"×20\"", "warm white", ["KB12SNLT2WW"]),
+    row("1509786", "KERDI 200 wide roll", "6'7\"x49'3\" = 323 sf", ["KERDI200200/15M"]),
+    row("1509740", "KERDI-SHOWER-R ramp", "12\"x48\"", ["KSR3051220"]),
+  ], { stock: true }));
+  const m = (code, size, name) => { const e = more.find((x) => x.sku === code); assert.ok(e, code); assert.deepEqual([e.size, e.name], [size, name], code); };
+  m("KD4GRKECS", '4"', "KERDI-DRAIN Grate, Tileable, Stainless");
+  m("KDIF4GRKEBD5", '4"', "KERDI-DRAIN Grate, Floral, Brushed Stainless");
+  m("KB12SNLT2WW", "", "KERDI-BOARD-SN-LT Lighted Niche");
+  m("KERDI200200/15M", "6'7\"x49'3\"", "KERDI Membrane, 323 sf");
+  m("KSR3051220", '12"x48"', "KERDI-SHOWER-R Ramp");
+  assert.ok(cat.every((e) => !/schluter|—|®/i.test(e.name) && typeof e.desc === "string"), "no brand word, dash or mark; the book text kept on desc");
+  // landed: brandColor is the name, sizeText the size
+  const c = { w: 60, d: 38, curbed: true, drain: "point", wallSys: "membrane", walls: [{ on: true, len: 60, h: 84 }, { on: true, len: 38, h: 84 }, { on: true, len: 38, h: 84 }] };
+  const rows = lineItems({ ...buildKit(c, cat, { source: "all" }), mode: "kit", cfg: c }, {});
+  const tray = rows.find((r) => r.sku === "1509821");
+  assert.deepEqual([tray.sizeText, tray.brandColor], ['38"x60"', "KERDI-SHOWER-T Tray"]);
 });
 
 // --- extra walls (cfg.xwalls) + the entry opening -------------------------

@@ -272,10 +272,10 @@ test("Compare: a Membrane wedi build carries one backer note row, a Building Pan
 
 test("S-DRY drain covers read by color, not wedi's finish codes", () => {
   const want = {
-    US1076002: "S-Dry Drain Cover — Stainless", US1076006: "S-Dry Drain Cover — Chrome",
-    US1076001: "S-Dry Drain Cover — Oil-Rubbed Bronze", US1076003: "S-Dry Drain Cover — Matte Black",
-    US1076005: "S-Dry Drain Cover — Gold", US1076007: "S-Dry Drain Cover — Brass",
-    US1076004: "S-Dry Drain Cover — Tileable", US1076008: "S-Dry Drain Cover — Stainless Commercial (screw-down)",
+    US1076002: "S-Dry Stainless Drain Cover", US1076006: "S-Dry Chrome Drain Cover",
+    US1076001: "S-Dry Oil-Rubbed Bronze Drain Cover", US1076003: "S-Dry Matte Black Drain Cover",
+    US1076005: "S-Dry Gold Drain Cover", US1076007: "S-Dry Brass Drain Cover",
+    US1076004: "S-Dry Tileable Drain Cover", US1076008: "S-Dry Stainless Commercial (screw-down) Drain Cover",
   };
   const names = () => Object.fromEntries(Object.keys(want).map((k) => [k, item(k).name]));
   assert.deepEqual(names(), want);
@@ -283,5 +283,5 @@ test("S-DRY drain covers read by color, not wedi's finish codes", () => {
   setSoSource(Object.keys(want).map((us) => ({ us, name: "wedi® S-DRY™ DC", size: "", details: "", retail: 99, net: 50, section: "S-DRY", erp: "" })));
   try { assert.deepEqual(names(), want); } finally { clearSoSource(); }
   setSoSource([{ us: "US1076099", name: "wedi® S-DRY™ DCX", size: "", details: "", retail: 99, net: 50, section: "S-DRY", erp: "" }]);
-  try { assert.equal(item("US1076099").name, "wedi® S-DRY™ DCX", "an unknown SKU keeps the vendor name"); } finally { clearSoSource(); }
+  try { assert.equal(item("US1076099").name, "S-DRY DCX", "an unknown SKU keeps the vendor name, marks dropped"); } finally { clearSoSource(); }
 });

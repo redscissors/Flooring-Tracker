@@ -3972,6 +3972,46 @@ function sizeTextOf(w, d, t) {
   return inch(w) + '" x ' + inch(d) + '"' + (t != null ? " x " + inch(t) + '"' : "");
 }
 
+// The Size field (ADR 0054): pans and panels read by the foot when both
+// sides are whole feet (3'x5'), everything else in inches; a roll is its
+// width in inches by its length in feet; thickness is always inches, last.
+const measure = (n) => inch(n).replace(" ", "-");
+const wholeFt = (n) => n >= 12 && Math.abs(n / 12 - Math.round(n / 12)) < 1e-9;
+const ftIn = (n) => (wholeFt(n) ? Math.round(n / 12) + "'" : measure(n) + '"');
+export function sizeOf(w, d, t, opts) {
+  if (w == null || d == null) return "";
+  const feet = !!(opts && opts.feet) && wholeFt(w) && wholeFt(d);
+  const side = (n) => (feet ? ftIn(n) : measure(n) + '"');
+  return side(w) + "x" + side(d) + (t != null ? "x" + measure(t) + '"' : "");
+}
+// a roll's length reads feet-and-inches to the inch (32.8' → 32'10")
+const rollSize = (w, len) => {
+  const ft = Math.floor(len / 12 + 1e-9), r = Math.round(len - ft * 12);
+  return measure(w) + '"x' + (r >= 12 ? ft + 1 + "'" : ft + "'" + (r ? r + '"' : ""));
+};
+const BARE_DIMS_RE = /\b\d+(?:\.\d+)?\s*[x×]\s*\d+(?:\.\d+)?\b/i;
+
+const NUMTOK = "(?:\\d+[ -]\\d+\\/\\d+|\\d+\\/\\d+|\\d+(?:\\.\\d+)?)";
+const DIMTOK = NUMTOK + "\\s*(?:\"|″|in\\.?|')";
+const DIMS_RE = new RegExp("\\s*" + DIMTOK + "(?:\\s*[x×]\\s*" + DIMTOK + ")*\\s*", "gi");
+const QTY_RE = /(\d+(?:\.\d+)?)\s*(oz|lbs?|ct|units?)\b\.?/i;
+const SF_RE = /\s*\b(\d+(?:\.\d+)?)\s*(?:sft|sf|ft2)\b\s*(?:roll)?/i;
+const stripDims = (s) => String(s || "").replace(DIMS_RE, " ");
+function qtyOf(s) {
+  const m = QTY_RE.exec(String(s || ""));
+  if (!m) return "";
+  const u = m[2].toLowerCase();
+  return m[1] + " " + (u.startsWith("lb") ? "lb" : u.startsWith("unit") ? "units" : u);
+}
+function cleanName(s) {
+  return String(s || "")
+    .replace(/\bwedi\b\s*[®™]*\s*/gi, " ").replace(/[®™]/g, "").replace(/\bFundo\b\s*/g, "")
+    .replace(/\bPRO-SET\b/g, "Pro-Set")
+    .replace(/\s+[—–-]\s+/g, " ")
+    .replace(/\s*(\d+)\s*per\s*\/\s*bg\b/gi, ", $1 per bag")
+    .replace(/\s{2,}/g, " ").replace(/\s+,/g, ",").replace(/^[\s,]+|[\s,]+$/g, "");
+}
+
 // 36 → 3', 38 → 3'2" — how the trade says a base size (owner 2026-08-06),
 // matching the Kits tab's foot-led cards (issue 075).
 function ftLbl(n) {
@@ -4230,18 +4270,6 @@ function makeEntry(stockRow, soRow) {
       e.channel = chv == null ? null : round2(chv);
     }
     e.drain = drainOf(e, text);
-    e.sizeText = sizeTextOf(e.w, e.d, e.t);
-    // Bases read size-first BY THE FOOT, inches on the second line (owner
-    // asks 2026-08-06); an offset drain is named because two same-size bases
-    // can differ only there. Derived, so a pricelist re-transcription keeps
-    // the treatment.
-    if (e.w && e.d) {
-      const fam = e.sub === "curbless" ? "Curbless Shower Base"
-        : e.sub === "linear" ? "Linear Shower Base"
-          : e.sub === "sdry" ? "S-Dry Shower Base" : "Shower Base";
-      e.name = ftLbl(e.w) + "x" + ftLbl(e.d) + " " + fam
-        + (e.drain && e.drain.type === "offset" ? " — Offset Drain" : "");
-    }
   } else if (e.group === "module") {
     e.len = Math.max(e.w || 0, e.d || 0) || null;
     if (e.sub !== "discreto") { e.w = e.len; e.d = MODULE_DEPTH; e.channel = MODULE_CHANNEL[e.len] || null; }
@@ -4250,53 +4278,29 @@ function makeEntry(stockRow, soRow) {
       e.channel = dc ? +dc[1] : null;
     }
     e.drain = moduleDrain(e);
-    e.sizeText = sizeTextOf(e.w, e.d, null);
   } else if (e.group === "modExt") {
     // Every module extension is 66¾" deep, so the module length is the other
     // number whichever way round the sheet printed it.
     e.len = Math.min(e.w || 0, e.d || 0) || null;
     e.w = e.len; e.d = MODEXT_DEPTH;
-    e.sizeText = sizeTextOf(e.w, e.d, null);
   } else if (e.group === "extension" || e.group === "cornerExt" || e.group === "ramp") {
     // The two sheets print these both ways round ("48 x 24", "12 x 60"), so
     // normalize: w is the run, d the depth it adds.
     const lo = Math.min(e.w, e.d), hi = Math.max(e.w, e.d);
     e.w = hi; e.d = lo; e.len = hi;
-    e.sizeText = sizeTextOf(e.w, e.d, e.t);
   } else if (e.group === "curb") {
     const all = (vals || []).slice().sort((a, c) => c - a);
     e.len = all[0] || null;
     e.w = all[1] != null ? all[1] : null;   // profile height
     e.d = all[2] != null ? all[2] : null;   // profile width
-    // The length lives in the display name, so the size line stays empty and
-    // a curb's second line reads as just the SKU (owner ask 2026-08-06).
-    e.sizeText = "";
     if (CURB_NAMES[e.us]) e.name = CURB_NAMES[e.us];
   } else if (e.group === "panel") {
     if (e.w && e.d) e.sf = round2(e.w * e.d / 144);
-    e.sizeText = sizeTextOf(e.w, e.d, e.t);
-    // Panels read by the foot — 4'x5'x1/2" Building Panel — with the SKU and
-    // the inches on the second line (owner ask 2026-08-06). Derived from the
-    // parsed dims, so a pricelist re-transcription keeps the treatment.
-    if (e.sub !== "kit" && e.w && e.d && e.t) {
-      const ft = (n) => (n % 12 === 0 ? n / 12 + "'" : inch(n) + '"');
-      e.name = ft(Math.min(e.w, e.d)) + "x" + ft(Math.max(e.w, e.d)) + "x" + inch(e.t) + '" '
-        + (e.sub === "vapor" ? "Vapor 85 Building Panel" : "Building Panel");
-    }
   } else if (e.group === "cover" || e.group === "coverFrame") {
     const f = finishOf(name, e.desc);
     e.finish = f.finish;
     if (e.sub === "linear") { e.len = f.len; e.channel = f.len; }
-    e.sizeText = e.sub === "linear" ? (e.len ? e.len + '" channel' : "") : '4" x 4"';
-    // Covers drop the vendor's finish CODES (SS/MB/T38) for words (owner ask
-    // 2026-08-06). Size and finish both live in the name, so the size line
-    // stays empty and a cover's second line is just the SKU — the fuller
-    // finish text survives as the swatch dot's tooltip.
-    if (e.group === "cover" && e.finish) {
-      e.name = (e.sub === "linear" ? (e.len ? e.len + '" ' : "") + "Linear Drain Cover" : '4"x4" Drain Cover')
-        + " — " + (FIN_SHORT[e.finish] || FINISHES[e.finish] || e.finish);
-      e.sizeText = "";
-    }
+
   } else if (e.group === "niche") {
     // The pricelist names a niche by its INTERIOR and sizes it by the
     // EXTERIOR with nothing saying which is which. The exterior leads the
@@ -4304,28 +4308,84 @@ function makeEntry(stockRow, soRow) {
     // second line (owner ask 2026-08-06). Interior parses off the vendor
     // name, falling back to the 4" flange rule the whole line follows.
     if (e.w && e.d) {
+      // the tiled back is the interior: the name's own figure, else the 4" flange rule
       const im = String(name).match(/(\d+)\s*"\s*x\s*(\d+)\s*"/);
       const iw = im ? +im[1] : e.w - 4, id = im ? +im[2] : e.d - 4;
-      e.name = inch(e.w) + '"x' + inch(e.d) + '" '
-        + (/cathedral|"CAT/i.test(name + " " + e.desc) ? "Cathedral Shower Niche" : "Shower Niche");
-      e.sizeText = iw > 0 && id > 0 ? "interior " + inch(iw) + '" x ' + inch(id) + '"' : "";
-    } else {
-      e.sizeText = contentOf(e.size) || contentOf(e.details);
+      if (iw > 0 && id > 0) e.interior = { w: iw, d: id };
     }
   } else if (e.group === "kit") {
-    e.sizeText = sizeTextOf(e.w, e.d, null);
     e.drain = { type: /offset/i.test(text) ? "offset" : /linear|module/i.test(text) ? "linear" : "center" };
     e.sub = /nojs/i.test(name) ? "nojs" : "complete";
     e.family = /curbless/i.test(text) ? "curbless" : /linear/i.test(text) ? "linear" : "fundo";
   } else if (e.group === "subliner") {
     const sfm = String(text).match(/(\d+)\s*(?:sft|sf|ft2)\b/i);
     if (sfm) e.sf = +sfm[1];
-    e.sizeText = contentOf(e.size) || contentOf(e.details);
-  } else {
-    e.sizeText = e.w && e.d ? sizeTextOf(e.w, e.d, e.t) : (contentOf(e.size) || contentOf(e.details));
   }
-  if (SDRY_COVER_NAMES[e.us]) e.name = "S-Dry Drain Cover — " + SDRY_COVER_NAMES[e.us];
+  entryText(e, name, soRow);
   return e;
+}
+
+// The Size field and the brand-free Product text of one entry (ADR 0054):
+// derived from the parsed part, so the popup, Compare, the basket and the
+// landed row all read the same words. `name` is the raw pricelist/ERP name.
+function entryText(e, name, soRow) {
+  const content = soRow ? contentOf(e.size) || contentOf(e.details) : name;
+  const finish = e.finish ? (FIN_SHORT[e.finish] || FINISHES[e.finish] || e.finish) : "";
+  const g = e.group;
+  let size = "", out = "", qual = "";
+  if (g === "pan" || g === "kit") {
+    size = sizeOf(e.w, e.d, g === "pan" ? e.t : null, { feet: true });
+    out = g === "kit" ? cleanName(stripDims(name).replace(BARE_DIMS_RE, " "))
+      : e.sub === "curbless" ? "Curbless Shower Base" : e.sub === "linear" ? "Linear Shower Base"
+        : e.sub === "sdry" ? "S-Dry Shower Base" : "Shower Base";
+    if (g === "pan" && e.drain && e.drain.type === "offset") qual = "Offset Drain";
+  } else if (g === "panel" && e.sub !== "kit" && e.w && e.d) {
+    size = sizeOf(Math.min(e.w, e.d), Math.max(e.w, e.d), e.t, { feet: true });
+    out = e.sub === "vapor" ? "Vapor 85 Building Panel" : "Building Panel";
+  } else if (g === "panel") {
+    out = cleanName(stripDims(name));
+  } else if (g === "module") {
+    size = sizeOf(e.w, e.d, null); out = cleanName(stripDims(name));
+  } else if (g === "modExt" || g === "extension" || g === "cornerExt" || g === "ramp") {
+    size = e.w && e.d ? sizeOf(Math.min(e.w, e.d), Math.max(e.w, e.d), null) : "";
+    out = cleanName(stripDims(name));
+  } else if (g === "curb") {
+    size = e.len ? measure(e.len) + '"' : ""; out = cleanName(stripDims(e.name));
+  } else if (g === "cover" || g === "coverFrame") {
+    size = e.sub === "linear" ? (e.len ? measure(e.len) + '"' : "") : '4"x4"';
+    out = g === "cover" && finish ? finish + (e.sub === "linear" ? " Linear" : "") + " Drain Cover" : cleanName(stripDims(name));
+  } else if (g === "niche" && e.w && e.d) {
+    size = sizeOf(e.w, e.d, null);
+    out = /cathedral|"CAT/i.test(name + " " + e.desc) ? "Cathedral Shower Niche" : "Shower Niche";
+  } else if (SDRY_COVER_NAMES[e.us]) {
+    out = "S-Dry " + SDRY_COVER_NAMES[e.us] + " Drain Cover";
+  } else {
+    const roll = g === "subliner" || /membrane|tape|\bmat\b/i.test(name);
+    const lead = /^\s*(\d+(?:[ -]\d+\/\d+)?|\d+\/\d+)\s*["″]/.exec(name);
+    if (e.w && e.d) size = roll && e.d > 96 ? rollSize(e.w, e.d) : sizeOf(e.w, e.d, e.t);
+    else if (e.w && !e.d) size = measure(e.w) + '"';
+    else if (e.len) size = measure(e.len) + '"';
+    else if (lead) size = lead[1].replace(" ", "-") + '"';
+    else size = qtyOf(content);
+    const sf = SF_RE.exec(name) || SF_RE.exec(content);
+    let body = stripDims(name).replace(SF_RE, " ");
+    if (e.w && e.d) body = body.replace(BARE_DIMS_RE, " ");
+    if (size && qtyOf(body) === size) body = body.replace(QTY_RE, " ");
+    if (g === "sdry") body = body.replace(/\bShower Pipe Collar\b/, "Pipe Collar").replace(/\s+Full\s*$/, "");
+    out = cleanName(body);
+    if (roll && e.w && e.d && !/roll|membrane|tape|\bmat\b/i.test(out)) out += " Roll";
+    const per = /(\d+)\s*per\s*bag/i.exec(content);
+    if (sf) qual = sf[1] + " sf";
+    else if (per && !/per bag/i.test(out)) qual = per[1] + " per bag";
+    else if (g === "fastener" && soRow) {
+      const said = new Set(out.toLowerCase().split(/\s+/));
+      const rest = cleanName(stripDims(String(e.size || "")).replace(/\b\d+\s*ct\.?/gi, " ").replace(/\s*&\s*/g, " & "))
+        .split(/\s+/).filter((w) => !said.has(w.toLowerCase())).join(" ");
+      if (rest && !/^per\b/i.test(rest)) qual = rest;
+    }
+  }
+  e.sizeText = size;
+  e.name = qual ? out + ", " + qual : out;
 }
 
 function buildCatalog() {
@@ -4358,6 +4418,8 @@ function buildCatalog() {
   rows.forEach((row) => { if (row.us && !INDEX[row.us] && INDEX[row.erp]) INDEX[row.us] = INDEX[row.erp]; });
   return out;
 }
+
+export const panTitle = (e) => [e && e.sizeText, e && e.name].filter(Boolean).join(" ");
 
 export function catalog() {
   if (!CAT) CAT = buildCatalog();
@@ -5928,7 +5990,7 @@ function exactOption(input, list) {
   const pieces = [{ kind: "pan", item: best.pan, x: 0, y: 0, w: best.o.w, d: best.o.d, cut: null }];
   const lines = aggregate(pieces);
   return {
-    id: "exact", kind: "exact", title: best.pan.name,
+    id: "exact", kind: "exact", title: panTitle(best.pan),
     badges: ["Perfect fit — no cutting"], pieces: pieces,
     drain: mapDrain(best.pan, best.o.rot, 0, 0), warnings: [],
     floorLines: lines, floorPrice: priceOf(lines), input: input,
@@ -6231,7 +6293,7 @@ function linearOption(input) {
   const pieces = [{ kind: "pan", item: base.pan, x: 0, y: 0, w: base.o.w, d: base.o.d, cut: null }];
   const lines = aggregate(pieces);
   return {
-    id: "linear", kind: "linear", title: base.pan.name,
+    id: "linear", kind: "linear", title: panTitle(base.pan),
     badges: ["Drain at wall", "Perfect fit — no cutting"], pieces: pieces,
     drain: mapDrain(base.pan, base.o.rot, 0, 0), warnings: [],
     floorLines: lines, floorPrice: priceOf(lines), input: input,
@@ -6522,12 +6584,11 @@ export function lineItems(build, opts) {
   return build.lines.map((l, i) => {
     const e = l.item;
     const anchor = i === 0;
-    const lead = e.stock ? (/^\s*wedi/i.test(e.name) ? "" : "wedi — ") : "wedi " + e.us + " — ";
     return {
       type: "misc",
       sku: e.stock ? e.erp || "" : "",
       sizeText: e.sizeText || "",
-      brandColor: lead + e.name,
+      brandColor: "wedi " + e.name,
       qtyType: "count",
       qty: String(l.qty),
       priceSqft: String(round2(e.retail)),

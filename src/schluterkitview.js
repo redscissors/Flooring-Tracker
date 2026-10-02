@@ -39,7 +39,7 @@ export const schluterEntryView = (marker, session, { cat, catReady, tier, custom
   lines = applyQtyOv(lines, s.qtyOv || {});
   const bill = lines.filter((l) => !l.noteOnly);
   return {
-    title: b.pick && b.pick.tray ? b.pick.tray.name : "Mortar-bed build",
+    title: b.pick && b.pick.tray ? [b.pick.tray.size, b.pick.tray.name].filter(Boolean).join(" ") : "Mortar-bed build",
     meta: `${bill.length} lines · ${round2(c2.w)}×${round2(c2.d)}"`,
     price: round2(bill.reduce((t, l) => t + tierOf(l.item) * l.qty, 0)),
     lines: () => lineItems({ ...b, lines, mode: marker.mode || "custom", cfg: c2 }, { builderPct: bPct }),

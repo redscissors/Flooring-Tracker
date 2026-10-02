@@ -122,3 +122,16 @@ test("mortarItemFrom maps a Settings mortars entry into cfg.mortarItem", () => {
   assert.equal(mortarItemFrom("Nope", mortars), null);
   assert.equal(mortarItemFrom("", mortars), null);
 });
+
+test("grammar additions (2026-10-01): point-drain pipe + material, corner count, niche size", () => {
+  const c = (sku) => classify({ sku, name: "" });
+  assert.deepEqual([c("KD2FLKPVC").pipe, c("KD2FLKPVC").material], [2, "PVC"]);
+  assert.deepEqual([c("KD3FLKE").pipe, c("KD3FLKE").material], [3, "Stainless"]);
+  assert.deepEqual([c("KD4GRKE").pipe, c("KD4GRKE").material, c("KD4GRKE").part], [4, "Stainless", "grate"]);
+  assert.equal(c("KDIF4GRKEBD5").material, "Brushed Stainless");
+  assert.equal(c("KD2ABSEKIT").material, "ABS");
+  assert.equal(c("KERECK/FI10").ct, 10);
+  assert.equal(c("KERECK/FA2").ct, 2);
+  assert.deepEqual([c("KB12SN305711A1").w, c("KB12SN305711A1").d, c("KB12SN305711A1").size], [12, 28, '12"x28"']);
+  assert.equal(c("KB12SNLT2WW").size, undefined, "a lighted niche has no mm pair");
+});
