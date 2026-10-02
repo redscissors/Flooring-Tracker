@@ -965,8 +965,11 @@ src/
                     # → sell) and `TrimEmpty` (no accessory sheet). The rail
                     # primitives arrive as a `kit` prop — SheogaConfigurator
                     # imports this file, so importing them back would cycle.
-                    # What stages or lands is the resolved cfg, match:false,
-                    # so a placed kit reopens unlinked
+                    # What stages, lands or is reported for refresh restore
+                    # is the resolved cfg, match:false, so a placed or
+                    # restored kit reopens unlinked. `TrimEmpty` says to
+                    # create the Sheoga book first when there is none
+                    # (the `sheogaBook` flag), else to upload the sheet
   wedi.js           # wedi shower-system configurator engine (issue 066): the
                     # opposite of Sheoga on both axes — every piece has a part
                     # number and wedi publishes retail, so nothing is marked up
@@ -2530,8 +2533,9 @@ src/
                     # delete/reconfigure run the real model.js paths over
                     # local state; not part of the app build. `?tab=trim`
                     # opens the trim tab over the real accessory fixture
-                    # (`&nosheet=1` for the empty state); rows ride
-                    # `window.__cats` for proof scripts
+                    # (`&nosheet=1` / `&nobook=1` for the two empty states);
+                    # rows ride `window.__cats`, the last onConfigChange
+                    # report `window.__live`, for proof scripts
   comparekit.js     # one room priced in BOTH shower systems (phase 5,
                     # ADR 0034) — where the Compare tab's engine reads live
                     # (the 1d mirror included): it owns the mapping and nothing

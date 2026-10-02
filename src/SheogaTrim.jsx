@@ -219,11 +219,16 @@ export function TrimCard({ build, matched, trimBook, markupPct, tierId, pct, tie
   );
 }
 
-export function TrimEmpty() {
+export function TrimEmpty({ hasBook }) {
   return (
-    <div className="rounded-lg border border-slate-300 bg-white p-5 text-sm text-slate-500 leading-relaxed" data-trim-empty>
-      <div className="font-bold text-slate-800 mb-1">No accessory sheet yet</div>
-      Upload Sheoga's accessory sheet on the Sheoga price book (Price books → Sheoga Hardwood → Price sheets).
+    <div className="rounded-lg border border-slate-300 bg-white p-5 text-sm text-slate-500 leading-relaxed" data-trim-empty={hasBook ? "sheet" : "book"}>
+      {hasBook ? <>
+        <div className="font-bold text-slate-800 mb-1">No accessory sheet yet</div>
+        Upload Sheoga's accessory sheet on the Sheoga price book (Price books → Sheoga Hardwood → Price sheets).
+      </> : <>
+        <div className="font-bold text-slate-800 mb-1">No Sheoga price book yet</div>
+        Create the Sheoga vendor book first (Price books → New book → Sheoga (vendor)), then upload Sheoga's accessory sheet on its Price sheets tab.
+      </>}
     </div>
   );
 }

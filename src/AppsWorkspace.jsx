@@ -130,6 +130,7 @@ export function AppsWorkspace({ app, visible = true, onClose, resume = false, on
                 ventMarkupDefault={sheoga.ventMarkupDefault}
                 trimMarkupDefault={sheoga.trimMarkupDefault}
                 trimBook={sheoga.trimBook}
+                sheogaBook={sheoga.sheogaBook}
                 basket={sheogaBasket}
                 onBasketChange={setSheogaBasket}
                 areaName={sheoga.currentName || "a new quick price"}

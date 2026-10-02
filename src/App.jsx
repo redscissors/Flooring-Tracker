@@ -9,7 +9,7 @@ import { pricedItem, orderPatch, orderDrift, rowCostSqft, skuKeys } from "./orde
 import { isSpecialOrder, isSpecialMat, nameBudget, orderQty } from "./orderentry.js";
 import { SamplesPanel } from "./samples.jsx";
 import { requestFrom, sampleCounts, projectSampleTally, sampleContactFor, sampleBookFor, SAMPLE_LABEL, SAMPLE_COLOR } from "./samples.js";
-import { sheogaMarkups, trimBookOf } from "./vendorbook.js";
+import { sheogaMarkups, trimBookOf, vendorBookFor } from "./vendorbook.js";
 import { baseKey, groutBases, resolveGroutBase, baseLabel, baseOptionLabel, tickGroutChoice, pickGroutProductChoice, pickGroutBaseChoice } from "./groutbase.js";
 import { useSamples } from "./usesamples.js";
 import { tierView, tierUnitPrice, employeeNoCost, normPricing } from "./pricing.js";
@@ -2857,6 +2857,7 @@ export default function App({ user, onSignOut }) {
                   ventMarkupDefault: sheogaMarkups(books, settings).ventMarkupPct,
                   trimMarkupDefault: sheogaMarkups(books, settings).trimMarkupPct,
                   trimBook: trimBookOf(books),
+                  sheogaBook: !!vendorBookFor(books, "sheoga"),
                   currentName: sel?._full ? (sel.name || "Untitled project") : null,
                   addToCurrent: (lines) => { if (!lines?.length || !sel) return; updateProject(sel.id, { categories: applySheogaToFirstArea(sel.categories, lines) }); railDispatch({ type: "closePane" }); },
                   addToNew: (lines) => { if (!lines?.length) return; createQuickWithSheoga(lines); railDispatch({ type: "closePane" }); },
@@ -3052,6 +3053,7 @@ export default function App({ user, onSignOut }) {
             ventMarkupDefault={sheogaMarkups(books, settings).ventMarkupPct}
             trimMarkupDefault={sheogaMarkups(books, settings).trimMarkupPct}
             trimBook={trimBookOf(books)}
+            sheogaBook={!!vendorBookFor(books, "sheoga")}
             basket={sel.sheogaBasket || []}
             onBasketChange={(next) => updateProject(sel.id, { sheogaBasket: next })}
             tier={{ tier: sel.priceTier || "retail", customPct: sel.customPct, builderPct: normPricing(settings.pricing).builderPct, salePct: normPricing(settings.pricing).salePct }}

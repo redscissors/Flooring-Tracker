@@ -5,7 +5,8 @@
 // exercise production behavior end to end. Not part of the app build.
 // `?tab=trim` opens on Trim & accessories (Match floor on, a few pieces typed)
 // priced off the real accessory-sheet fixture; `&nosheet=1` leaves the sheet
-// out for the empty state. The area's rows ride `window.__cats` for scripts.
+// out for the empty state, `&nobook=1` the whole Sheoga book. The area's rows
+// ride `window.__cats` and the last onConfigChange report `window.__live`.
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
@@ -27,7 +28,8 @@ const staged = [normBasketEntry({ id: uid(), kind: "single", addedAt: Date.now()
 const Q = new URLSearchParams(location.search);
 const HUB = Q.get("hub") === "1";
 const TRIM = Q.get("tab") === "trim";
-const NO_SHEET = Q.get("nosheet") === "1";
+const NO_BOOK = Q.get("nobook") === "1";
+const NO_SHEET = NO_BOOK || Q.get("nosheet") === "1";
 const trimSeed = TRIM ? { mode: "trim", cfg: { ...defaultConfig("trim"), runs: { nose35: [{ n: 2, len: 6 }], nose55: [{ n: 0, len: 8 }], shoe: [{ n: 15, len: 8 }, { n: 5, len: 6 }] }, reducer: 1, tmold: 2 } } : null;
 
 function useTrimBook() {
@@ -47,7 +49,7 @@ function Hub() {
     <div style={{ height: "100vh" }}>
       <AppsWorkspace app="sheoga" onClose={() => console.log("close")} onResume={() => {}} progressRef={{ current: () => false }}
         stock={[]} labels={[]} presets={[]} onAddLabel={() => {}} onAddLabelsBulk={() => {}} onUpdateLabel={() => {}} onDeleteLabel={() => {}} onSavePreset={() => {}}
-        sheoga={{ markupDefault: 40, ventMarkupDefault: 50, trimMarkupDefault: 100, trimBook, currentName: "", addToCurrent: () => {}, addToNew: (l) => console.log("add", l) }} />
+        sheoga={{ markupDefault: 40, ventMarkupDefault: 50, trimMarkupDefault: 100, trimBook, sheogaBook: !NO_BOOK, currentName: "", addToCurrent: () => {}, addToNew: (l) => console.log("add", l) }} />
     </div>
   );
 }
@@ -60,7 +62,7 @@ function Harness() {
   useEffect(() => { window.__cats = cats; }, [cats]);
   return (
     <SheogaConfigurator key={pop.pid + ":" + pop.n}
-      seed={pop.seed} initialSf={200} markupDefault={40} ventMarkupDefault={50} trimMarkupDefault={100} trimBook={trimBook}
+      seed={pop.seed} initialSf={200} markupDefault={40} ventMarkupDefault={50} trimMarkupDefault={100} trimBook={trimBook} sheogaBook={!NO_BOOK}
       basket={basket} onBasketChange={setBasket}
       areaName="Great room"
       placed={placedKits(cats, "sheoga")}
@@ -70,7 +72,7 @@ function Harness() {
       onMove={(lines) => setCats((c) => landKitLines(c, pop.aid, pop.pid, lines) || c)}
       onMoveEntries={(lines, nextBasket) => { setCats((c) => c.map((a) => (a.id === pop.aid ? { ...a, products: [...a.products, ...land(lines)] } : a))); setBasket(nextBasket); }}
       onClose={() => console.log("close")}
-      onConfigChange={() => {}}
+      onConfigChange={(live) => { window.__live = live; }}
     />
   );
 }

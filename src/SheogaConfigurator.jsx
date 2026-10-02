@@ -1288,7 +1288,7 @@ function BasketPanel({ basket, sel, onToggle, onRemove, onSelectAll, onMove, onM
 
 const RAIL_KIT = { Sect, Chips, Seg, SheenPicker, Dropdown };
 
-export default function SheogaConfigurator({ seed, initialSf, markupDefault, ventMarkupDefault, trimBook, trimMarkupDefault, basket, onBasketChange, onMove, onMoveEntries, onAdd, onClose, areaName, embedded = false, onConfigChange, tier, onTierChange, placed, onOpenPlaced, onDeleteKit, escActive = true }) {
+export default function SheogaConfigurator({ seed, initialSf, markupDefault, ventMarkupDefault, trimBook, sheogaBook = false, trimMarkupDefault, basket, onBasketChange, onMove, onMoveEntries, onAdd, onClose, areaName, embedded = false, onConfigChange, tier, onTierChange, placed, onOpenPlaced, onDeleteKit, escActive = true }) {
   // A bundle marker (sheoga.bundle on the first width line, ADR 0035 step 2)
   // reopens the whole multi-width build, not the anchor's single width.
   const bseed = seed?.bundle;
@@ -1344,16 +1344,20 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
 
   const cfg = cfgs[mode];
   const set = (next) => setCfgs((c) => ({ ...c, [mode]: next }));
-  // Report the live { mode, cfg } upward in seed shape, so App's refresh
-  // restore (ft-open-layer) reopens the popup mid-configuration, not on the
-  // seed it was first opened with.
-  useEffect(() => { onConfigChange?.({ mode, cfg: cfgs[mode] }); }, [mode, cfgs]);
   // The vent tab's "Copy floor" pulls from whichever floor tab (unfinished /
   // stocked / herringbone) the user last had open — seeded tab first.
   const [floorSrc, setFloorSrc] = useState(seedMode === "stocked" || seedMode === "hb" ? seedMode : "floor");
   // The herringbone tab copies from a real floor config, so it tracks the last-
   // open unfinished/stocked tab (never hb itself — that would be a no-op).
   const [flatSrc, setFlatSrc] = useState(seedMode === "stocked" ? "stocked" : "floor");
+  // Report the live { mode, cfg } upward in seed shape, so App's refresh
+  // restore (ft-open-layer) reopens the popup mid-configuration, not on the
+  // seed it was first opened with. Trim reports its resolved, unlinked build:
+  // a restore starts the floor tabs at their defaults, and a live link would
+  // silently re-species it.
+  useEffect(() => {
+    onConfigChange?.({ mode, cfg: mode === "trim" ? effectiveTrimCfg(cfgs.trim, { mode: floorSrc, cfg: cfgs[floorSrc] }) : cfgs[mode] });
+  }, [mode, cfgs, floorSrc]);
   const pickMode = (id) => { setMode(id); setMobileGrid(false); if (id === "floor" || id === "stocked" || id === "hb") setFloorSrc(id); if (id === "floor" || id === "stocked") setFlatSrc(id); };
   const copyFloorToVent = () => { const patch = ventFromFloor({ mode: floorSrc, cfg: cfgs[floorSrc] }); if (patch) set({ ...cfg, ...patch }); };
   const copyFloorToHb = () => {
@@ -1513,7 +1517,7 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
       {mode === "vent" && <VentRail v={cfg} set={set} tsell={tsell} onGrid={() => setGrid(true)}
         onCopyFloor={copyFloorToVent} copySrc={MODES.find((m) => m.id === floorSrc).label} />}
       {mode === "damper" && <DamperRail d={cfg} set={set} tsell={tsell} />}
-      {trimMode && (trimBook ? <TrimRail cfg={cfg} eff={trimEff} set={set} srcLabel={MODES.find((m) => m.id === floorSrc).label} trimBook={trimBook} tsell={tsell} kit={RAIL_KIT} /> : <TrimEmpty />)}
+      {trimMode && (trimBook ? <TrimRail cfg={cfg} eff={trimEff} set={set} srcLabel={MODES.find((m) => m.id === floorSrc).label} trimBook={trimBook} tsell={tsell} kit={RAIL_KIT} /> : <TrimEmpty hasBook={sheogaBook} />)}
     </>
   );
   const markupInput = (
@@ -1590,7 +1594,7 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
               <GridPanel width={DOCK_GRID_W[mode]} title={gridTitle} controls={gridControls} sub={gridSub}>{gridTable}</GridPanel>
             )}
             {trimMode && !trimBook ? (
-              <div className="flex-1 min-w-0 overflow-y-auto p-4" style={{ background: "var(--ft-cream)" }}><div className="max-w-[560px] mx-auto mt-6"><TrimEmpty /></div></div>
+              <div className="flex-1 min-w-0 overflow-y-auto p-4" style={{ background: "var(--ft-cream)" }}><div className="max-w-[560px] mx-auto mt-6"><TrimEmpty hasBook={sheogaBook} /></div></div>
             ) : (<>
             <div className={`${dockGrid ? "w-[430px]" : "w-[50%] max-w-[500px]"} shrink-0 border-r border-slate-300 overflow-y-auto p-4`} style={{ scrollbarGutter: "stable" }}>{rail}</div>
             <div className="flex-1 min-w-0 overflow-y-auto p-4" style={{ background: "var(--ft-cream)" }}>
@@ -1628,7 +1632,7 @@ export default function SheogaConfigurator({ seed, initialSf, markupDefault, ven
               <button type="button" onClick={() => canSheet && setSheetUp(true)} disabled={!canSheet}
                 className="flex-1 min-w-0 text-left">
                 {trimMode ? (!trimBuild ? (
-                  <div className="text-center text-xs font-semibold text-slate-400 py-1">Upload the accessory sheet to price trim</div>
+                  <div className="text-center text-xs font-semibold text-slate-400 py-1">{sheogaBook ? "Upload the accessory sheet to price trim" : "Create the Sheoga vendor book first"}</div>
                 ) : (
                   <div className="flex items-center gap-3">
                     <div className="flex-1 min-w-0">
