@@ -332,7 +332,8 @@ src/
                     # picks): `ProjectHeaderBar` (the 2026-07-21 one-bar),
                     # `ProjectHeaderClassic` (the print-sheet original, kept
                     # whole so the team can flip back without a revert) and
-                    # `ProjectHeaderClean` (on trial 2026-09-27,
+                    # `ProjectHeaderClean` (2026-09-27, the default
+                    # since 2026-10-02 for anyone who hasn't picked,
                     # .scratch/159_clean-editor), two choices: "clean" (tall:
                     # 30px customer headline over the project line, then the
                     # bar) and "cleancompact" (`compact`: two rows sized to the
