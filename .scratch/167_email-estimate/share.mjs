@@ -21,7 +21,7 @@ for (const refuseFirst of [false, true]) {
   await page.goto("http://localhost:5199/.scratch/167_email-estimate/preview.html?share=1", { waitUntil: "networkidle" });
   await page.click("#go");
   if (refuseFirst) {
-    const btn = page.getByRole("button", { name: "Share estimate PDF" });
+    const btn = page.getByRole("button", { name: "Share selections PDF" });
     await btn.waitFor({ timeout: 30000 });
     await page.screenshot({ path: join(dir, "share-retry.png"), clip: { x: 0, y: 980, width: 820, height: 200 } });
     await btn.click();

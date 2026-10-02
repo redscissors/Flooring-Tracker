@@ -14,14 +14,14 @@ for (const id of ["proj-header-clean", "proj-header-clean-compact", "proj-header
   await el.screenshot({ path: join(dir, `${id}.png`) });
   console.log("shot", id);
 }
-const btn = page.locator('#proj-header-clean [aria-label="Email estimate"]');
+const btn = page.locator('#proj-header-clean [aria-label="Email selections"]');
 await btn.hover();
 await page.waitForTimeout(600);
 const box = await btn.boundingBox();
 await page.screenshot({ path: join(dir, "clean-hover.png"), clip: { x: box.x - 220, y: box.y - 20, width: 440, height: 130 } });
 const widths = await page.evaluate(() => {
   const root = document.querySelector("#proj-header-clean");
-  const mail = root.querySelector('[aria-label="Email estimate"]').getBoundingClientRect().width;
+  const mail = root.querySelector('[aria-label="Email selections"]').getBoundingClientRect().width;
   const print = [...root.querySelectorAll("button")].find((b) => b.textContent.trim() === "Print").getBoundingClientRect().width;
   return { mail, print };
 });

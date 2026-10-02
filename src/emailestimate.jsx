@@ -97,7 +97,8 @@ async function renderPdf(paper) {
 
 export function mailtoUrl(to, subject, body) {
   const enc = encodeURIComponent;
-  return `mailto:${enc(to).replace(/%40/g, "@")}?subject=${enc(subject)}&body=${enc(body.replace(/\n/g, "\r\n"))}`;
+  const q = [`subject=${enc(subject)}`, ...(body ? [`body=${enc(body.replace(/\n/g, "\r\n"))}`] : [])].join("&");
+  return `mailto:${enc(to).replace(/%40/g, "@")}?${q}`;
 }
 
 // Safari drops the click's user activation while the PDF builds, so the first
@@ -105,7 +106,7 @@ export function mailtoUrl(to, subject, body) {
 function shareButton(data) {
   return new Promise((resolve) => {
     const btn = document.createElement("button");
-    btn.textContent = "Share estimate PDF";
+    btn.textContent = "Share selections PDF";
     btn.className = "fixed left-1/2 -translate-x-1/2 bottom-6 z-[100] rounded-full bg-indigo-600 text-white text-sm font-bold px-5 py-2.5 shadow-lg";
     const done = (r) => { btn.remove(); clearTimeout(t); resolve(r); };
     const t = setTimeout(() => done("cancelled"), 20000);
@@ -120,7 +121,7 @@ function shareButton(data) {
 export async function emailEstimate({ paper, to, subject, body, filename, share }) {
   const blob = await renderPdf(paper);
   const file = new File([blob], filename, { type: "application/pdf" });
-  const data = { files: [file], title: subject, text: body };
+  const data = { files: [file], title: subject, ...(body ? { text: body } : {}) };
   if (share && navigator.canShare?.({ files: [file] })) {
     try {
       await navigator.share(data);

@@ -614,7 +614,7 @@ export function ProjectHeaderClean({ sel, cust, builderName, profile, freightCos
       </button>
     )}
     {onEmail && (
-      <button onClick={onEmail} disabled={emailBusy} aria-label="Email estimate" data-tip="Email estimate — PDF + a new email to the customer" className={ICON + " text-slate-500 disabled:opacity-50"}>
+      <button onClick={onEmail} disabled={emailBusy} aria-label="Email selections" data-tip="Email selections — PDF + a new email to the customer" className={ICON + " text-slate-500 disabled:opacity-50"}>
         <Mail size={16} />
       </button>
     )}
