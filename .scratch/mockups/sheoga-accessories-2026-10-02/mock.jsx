@@ -21,7 +21,6 @@ const PROFILES = [
   { id: "tmold", name: 'T-mold ¾" × 2½"', short: "T-mold", unit: "pc", len: 8, prefin: 1.85, note: "8' lengths only", p: [1.28, 1.63, 1.67, 1.45, 1.16, 2.16, 2.59, 2.81] },
 ];
 const SLIP = { price: 0.40, bundle: 50 };
-const PLUGS = [['3/8" × 1/2"', 0.10], ['3/8" × 5/8"', 0.15], ['3/8" × 3/4"', 0.20], ['3/8" × 7/8"', 0.25]];
 const STAINS = ["Natural", "Cattail", "Caramel", "Fresh Cut", "Toasted Acorn", "Nutmeg", "Buckeye", "Hickory Nut", "Frost", "Breeze", "Camo", "Dawn", "Drift", "Mist", "Prestige", "Silk"];
 
 const fm = (n) => "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -74,47 +73,93 @@ function Seg({ opts, cur, onPick, locked }) {
   );
 }
 
-// One accessory line in the rail: a qty box that turns the row on.
-function PieceRow({ label, sub, unit, per = "lf", qty, onQty, cost, sellOf, extra }) {
+// Flexible-length pieces (nosing, shoe): one or more "N pcs × L'" runs, or a
+// "Random lengths" run entered in lineal feet.
+const LENGTHS = [3, 4, 5, 6, 7, 8, 9, 10, 12];
+const runLf = (r) => (r.len === "rl" ? r.n : r.n * r.len);
+
+function RunRows({ pr, runs, setRuns, cost, sellOf }) {
+  const on = runs.some((r) => r.n > 0);
+  const upd = (i, patch) => setRuns(runs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  return (
+    <div className="px-3 py-2 bg-white border-t first:border-t-0 border-slate-100">
+      <div className="flex items-center gap-2.5">
+        <span className={`w-4 h-4 rounded flex items-center justify-center text-[10px] font-extrabold text-white shrink-0 ${on ? "bg-indigo-600" : "border-2 border-slate-300"}`}>{on ? "✓" : ""}</span>
+        <span className="flex-1 min-w-0">
+          <span className="block text-xs font-semibold text-slate-800">{pr.name}</span>
+          <span className="block text-[10.5px] font-medium text-slate-400 mt-0.5">{pr.note}</span>
+        </span>
+        <span className={`text-right text-[11.5px] font-bold tabular-nums ${on ? "text-indigo-700" : "text-slate-500"}`}>{fm(sellOf(cost))}<span className="text-[9.5px] font-semibold text-slate-400">/lf</span></span>
+      </div>
+      <div className="mt-1.5 ml-[26px] flex flex-col gap-1">
+        {runs.map((r, i) => (
+          <div key={i} className="flex items-center gap-1.5">
+            <input type="number" min="0" value={r.n || ""} placeholder="0" onChange={(e) => upd(i, { n: Math.max(0, Math.round(Number(e.target.value) || 0)) })}
+              className="w-14 rounded-md border border-slate-300 px-1.5 py-1 text-right text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            <span className="text-[10.5px] font-bold text-slate-500 w-[26px]">{r.len === "rl" ? "lf" : "pcs"}</span>
+            {r.len !== "rl" && <span className="text-[10.5px] font-bold text-slate-400">×</span>}
+            <div className="w-[118px]">
+              <MorphSelect size="sm" full bold value={String(r.len)} onChange={(v) => upd(i, { len: v === "rl" ? "rl" : Number(v) })}
+                options={[...LENGTHS.map((l) => ({ v: String(l), label: `${l}' pieces` })), { v: "rl", label: "Random lengths" }]} />
+            </div>
+            <span className="text-[10.5px] text-slate-400 tabular-nums">{r.len === "rl" ? "Sheoga picks lengths" : `= ${runLf(r)} lf`}</span>
+            {r.n > 0 && <span className="ml-auto text-[11px] font-bold tabular-nums text-slate-600">{r.len === "rl" ? "" : `${fm(sellOf(cost) * r.len)}/pc`}</span>}
+            {runs.length > 1 && <button onClick={() => setRuns(runs.filter((_, j) => j !== i))} className={`${r.n > 0 ? "" : "ml-auto"} text-slate-300 hover:text-slate-500`}><X size={13} /></button>}
+          </div>
+        ))}
+        <button onClick={() => setRuns([...runs, { n: 0, len: 8 }])} className="self-start text-[10.5px] font-bold text-indigo-700 underline underline-offset-2">+ another length</button>
+      </div>
+    </div>
+  );
+}
+
+// Fixed-length / bundled pieces: one count box.
+function PieceRow({ label, sub, unit, qty, onQty, cost, sellOf, unitPrice }) {
   const on = qty > 0;
   return (
-    <div className={`flex items-center gap-2.5 px-3 py-2 bg-white border-t first:border-t-0 border-slate-100 ${on ? "" : ""}`}>
+    <div className="flex items-center gap-2.5 px-3 py-2 bg-white border-t first:border-t-0 border-slate-100">
       <span className={`w-4 h-4 rounded flex items-center justify-center text-[10px] font-extrabold text-white shrink-0 ${on ? "bg-indigo-600" : "border-2 border-slate-300"}`}>{on ? "✓" : ""}</span>
       <span className="flex-1 min-w-0">
         <span className="block text-xs font-semibold text-slate-800">{label}</span>
         {sub && <span className="block text-[10.5px] font-medium text-slate-400 mt-0.5">{sub}</span>}
       </span>
-      {extra}
       <input type="number" min="0" value={qty || ""} placeholder="0" onChange={(e) => onQty(Math.max(0, Math.round(Number(e.target.value) || 0)))}
         className="w-14 rounded-md border border-slate-300 px-1.5 py-1 text-right text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500" />
       <span className="w-6 text-[10.5px] font-bold text-slate-500">{unit}</span>
-      <span className={`w-[62px] text-right text-[11.5px] font-bold tabular-nums ${on ? "text-indigo-700" : "text-slate-500"}`}>{fm(sellOf(cost))}<span className="text-[9.5px] font-semibold text-slate-400">/{per}</span></span>
+      <span className={`w-[92px] text-right text-[11.5px] font-bold tabular-nums ${on ? "text-indigo-700" : "text-slate-500"}`}>{fm(sellOf(cost))}<span className="text-[9.5px] font-semibold text-slate-400">/lf</span>
+        <span className="block text-[9.5px] font-semibold text-slate-400">{unitPrice(sellOf(cost))}</span></span>
     </div>
   );
 }
 
+const TEXTURES = ["Smooth", "Wire brushed", "Hand scraped", "Sawcut"];
+
 // --- the tab ------------------------------------------------------------------
 function AccessoryTab() {
   const [match, setMatch] = useState(view !== "own");
-  const [own, setOwn] = useState({ sp: "Red Oak", prefin: false, stain: "", sheen: "30" });
-  const [markup, setMarkup] = useState(50);
-  const [qty, setQty] = useState({ nose35: 12, nose55: 0, shoe: 180, reducer: 1, tmold: 2, slip: 0, plug: 0 });
-  const [plug, setPlug] = useState(0);
-  const f = match ? { sp: FLOOR.sp, prefin: FLOOR.prefin, stain: FLOOR.stain, sheen: FLOOR.sheen } : own;
+  const [own, setOwn] = useState({ sp: "Red Oak", prefin: false, stain: "", sheen: "30", tex: "Smooth" });
+  const [smoothOverride, setSmoothOverride] = useState(false);
+  const [markup, setMarkup] = useState(100);
+  const [runs, setRunsAll] = useState({ nose35: [{ n: 2, len: 6 }], nose55: [{ n: 0, len: 8 }], shoe: [{ n: 15, len: 8 }, { n: 5, len: 6 }] });
+  const [qty, setQty] = useState({ reducer: 1, tmold: 2, slip: 0 });
+  const f = match ? { sp: FLOOR.sp, prefin: FLOOR.prefin, stain: FLOOR.stain, sheen: FLOOR.sheen, tex: smoothOverride ? "Smooth" : FLOOR.tex } : own;
   const set = (patch) => setOwn((o) => ({ ...o, ...patch }));
   const si = SPECIES.indexOf(f.sp);
   const sellOf = (c) => r2(c * (1 + markup / 100));
   const costLf = (pr) => pr.p[si] + (f.prefin ? pr.prefin : 0);
-  const finishTxt = f.prefin ? `Prefinished ${f.stain}${f.sheen ? ` · ${f.sheen} sheen` : ""}` : "Unfinished";
+  const finishTxt = (f.prefin ? `Prefinished ${f.stain}${f.sheen ? ` · ${f.sheen} sheen` : ""}` : "Unfinished") + (f.tex !== "Smooth" ? ` · ${f.tex}` : "");
+  const texBlocked = f.tex !== "Smooth"; // the book's Textured row is still blank
 
+  const rowsFor = (pr) => [[`${pr.short} — ${f.sp}`, fm(pr.p[si]) + "/lf"], ...(f.prefin ? [["Prefinished charge", `+${fm(pr.prefin)}/lf`]] : []), ...(texBlocked ? [[`Textured — ${f.tex}`, "not set"]] : [])];
   const lines = [
-    ...PROFILES.filter((pr) => qty[pr.id] > 0).map((pr) => {
-      const lf = pr.unit === "pc" ? qty[pr.id] * pr.len : qty[pr.id];
-      return { desc: `${pr.name} · ${f.sp} · ${finishTxt}`, qtyTxt: pr.unit === "pc" ? `${qty[pr.id]} × 8' = ${lf} lf` : `${lf} lf`, cost: costLf(pr), per: "lf", n: lf,
-        rows: [[`${pr.short} — ${f.sp}`, fm(pr.p[si]) + "/lf"], ...(f.prefin ? [["Prefinished charge", `+${fm(pr.prefin)}/lf`]] : [])] };
-    }),
-    ...(qty.slip > 0 ? [{ desc: "Slip tongue · 50 lf bundle", qtyTxt: `${qty.slip} bdl = ${qty.slip * SLIP.bundle} lf`, cost: SLIP.price, per: "lf", n: qty.slip * SLIP.bundle, rows: [["Slip tongue — any species", fm(SLIP.price) + "/lf"]] }] : []),
-    ...(qty.plug > 0 ? [{ desc: `Plugs ${PLUGS[plug][0]} · ${f.sp}`, qtyTxt: `${qty.plug} ea`, cost: PLUGS[plug][1], per: "ea", n: qty.plug, rows: [[`Plug ${PLUGS[plug][0]}`, fm(PLUGS[plug][1]) + " ea"]] }] : []),
+    ...PROFILES.filter((pr) => runs[pr.id]).flatMap((pr) => runs[pr.id].filter((r) => r.n > 0).map((r) => (
+      r.len === "rl"
+        ? { desc: `${pr.name} · random lengths · ${f.sp} · ${finishTxt}`, qtyTxt: `${r.n} lf`, cost: costLf(pr), per: "lf", n: r.n, rows: rowsFor(pr) }
+        : { desc: `${pr.name} · ${r.len}' pcs · ${f.sp} · ${finishTxt}`, qtyTxt: `${r.n} pcs × ${r.len}' = ${r.n * r.len} lf`, cost: costLf(pr) * r.len, per: "pc", n: r.n, rows: rowsFor(pr) }
+    ))),
+    ...PROFILES.filter((pr) => pr.unit === "pc" && qty[pr.id] > 0).map((pr) => (
+      { desc: `${pr.name} · 8' pcs · ${f.sp} · ${finishTxt}`, qtyTxt: `${qty[pr.id]} pcs × 8' = ${qty[pr.id] * 8} lf`, cost: costLf(pr) * 8, per: "pc", n: qty[pr.id], rows: rowsFor(pr) })),
+    ...(qty.slip > 0 ? [{ desc: "Slip tongue · 50 lf bundle", qtyTxt: `${qty.slip} bdl = ${qty.slip * SLIP.bundle} lf`, cost: SLIP.price * SLIP.bundle, per: "bdl", n: qty.slip, rows: [["Slip tongue — any species", fm(SLIP.price) + "/lf"]] }] : []),
   ];
   const costTot = lines.reduce((a, l) => a + l.cost * l.n, 0);
   const sellTot = lines.reduce((a, l) => a + sellOf(l.cost) * l.n, 0);
@@ -124,7 +169,7 @@ function AccessoryTab() {
       <div className="flex items-center gap-2.5">
         <span className="flex-1 text-[11px] font-medium text-slate-600 leading-snug">
           {match
-            ? <>Matching the floor on the <b>{FLOOR.tab}</b> tab — species and finish follow it.</>
+            ? <>Matching the floor on the <b>{FLOOR.tab}</b> tab — species, finish and texture follow it.</>
             : <>Trim usually matches the floor — link it to the <b>{FLOOR.tab}</b> tab.</>}
         </span>
         <button onClick={() => setMatch(!match)} className="shrink-0 rounded-md border bg-white px-3 py-1.5 text-xs font-bold text-[color:var(--ft-brand-deep)] hover:bg-slate-50 inline-flex items-center gap-1.5" style={{ borderColor: "var(--ft-brand)" }}>
@@ -133,44 +178,46 @@ function AccessoryTab() {
       </div>
       {match && (
         <div className="mt-2 flex flex-wrap gap-1.5 text-[10.5px] font-bold">
-          {[FLOOR.sp, `Prefinished ${FLOOR.stain}`, `${FLOOR.sheen} sheen`].map((t) => <span key={t} className="rounded bg-white border border-slate-200 px-1.5 py-0.5 text-slate-700">{t}</span>)}
-          <span className="rounded px-1.5 py-0.5 text-amber-700 bg-amber-50 border border-amber-200">{FLOOR.tex} — trim ships smooth (no textured trim on the sheet)</span>
+          {[FLOOR.sp, `Prefinished ${FLOOR.stain}`, `${FLOOR.sheen} sheen`, f.tex].map((t) => <span key={t} className="rounded bg-white border border-slate-200 px-1.5 py-0.5 text-slate-700">{t}</span>)}
         </div>
       )}
     </div>
-    <Sect title="Species" hint={match ? "from the floor" : "Maple · Live Sawn → White Oak"}>
+    <Sect title="Species" hint={match ? "from the floor" : "Live Sawn → White Oak"}>
       <Chips locked={match} cur={f.sp} onPick={(sp) => set({ sp })} items={SPECIES.map((sp) => ({ id: sp, label: sp }))} />
     </Sect>
     <Sect title="Finish" hint={f.prefin ? "flat charge per lf, any color" : ""}>
       <Seg locked={match} cur={f.prefin ? "pre" : "unf"} onPick={(id) => set({ prefin: id === "pre", stain: id === "pre" ? (own.stain || "Natural") : "" })}
         opts={[{ id: "unf", label: "Unfinished" }, { id: "pre", label: "Prefinished" }]} />
-      {f.prefin && (
-        <div className="mt-2 grid grid-cols-2 gap-2">
-          <div>
-            <div className="ft-eyebrow text-[10px] mb-1">Stain color</div>
-            {match ? <div className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-bold text-slate-600">{f.stain}</div>
-              : <MorphSelect full bold value={f.stain} onChange={(stain) => set({ stain })} options={STAINS.map((c) => ({ v: c, label: c }))} />}
-          </div>
-          <div>
-            <div className="ft-eyebrow text-[10px] mb-1">Sheen</div>
-            {match ? <div className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-bold text-slate-600">{f.sheen}</div>
-              : <MorphSelect full bold value={f.sheen} onChange={(sheen) => set({ sheen })} options={["30", "20", "15", "10", "5"].map((s) => ({ v: s, label: s }))} />}
-          </div>
+      <div className="mt-2 grid grid-cols-3 gap-2">
+        {f.prefin && <div>
+          <div className="ft-eyebrow text-[10px] mb-1">Stain color</div>
+          {match ? <div className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-bold text-slate-600">{f.stain}</div>
+            : <MorphSelect full bold value={f.stain} onChange={(stain) => set({ stain })} options={STAINS.map((c) => ({ v: c, label: c }))} />}
+        </div>}
+        {f.prefin && <div>
+          <div className="ft-eyebrow text-[10px] mb-1">Sheen</div>
+          {match ? <div className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-bold text-slate-600">{f.sheen}</div>
+            : <MorphSelect full bold value={f.sheen} onChange={(sheen) => set({ sheen })} options={["30", "20", "15", "10", "5"].map((s) => ({ v: s, label: s }))} />}
+        </div>}
+        <div>
+          <div className="ft-eyebrow text-[10px] mb-1">Texture</div>
+          {match ? <div className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-bold text-slate-600">{f.tex}</div>
+            : <MorphSelect full bold value={f.tex} onChange={(tex) => set({ tex })} options={TEXTURES.map((t) => ({ v: t, label: t }))} />}
+        </div>
+      </div>
+      {texBlocked && (
+        <div className="mt-2 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5">
+          <span className="flex-1 text-[11px] font-semibold text-amber-800">Textured trim price not set — ask Sheoga, then enter it on the Sheoga price book.</span>
+          {match && <button onClick={() => setSmoothOverride(true)} className="shrink-0 rounded-md border border-amber-300 bg-white px-2 py-1 text-[11px] font-bold text-amber-800">Ship smooth</button>}
         </div>
       )}
     </Sect>
-    <Sect title="Pieces" hint="sell price per lineal foot" tip={<>Every piece prices by the lineal foot off Sheoga's accessory sheet. Reducer and T-mold come in 8' lengths only, so they order by the piece. Nosing lengths depend on Sheoga's inventory.</>}>
+    <Sect title="Pieces" hint="sell price per lineal foot" tip={<>Every piece prices by the lineal foot off Sheoga's accessory sheet. Nosing and shoe mold order as pieces of a length you pick (or random lengths by the foot — lengths depend on Sheoga's inventory). Reducer and T-mold come in 8' lengths only.</>}>
       <div className="flex flex-col rounded-lg border border-slate-300 overflow-hidden">
-        {PROFILES.map((pr) => (
-          <PieceRow key={pr.id} label={pr.name} sub={pr.note} unit={pr.unit === "pc" ? "pcs" : "lf"} qty={qty[pr.id]} onQty={(n) => setQty((q) => ({ ...q, [pr.id]: n }))} cost={costLf(pr)} sellOf={sellOf} />
-        ))}
-      </div>
-    </Sect>
-    <Sect title="Also on the sheet">
-      <div className="flex flex-col rounded-lg border border-slate-300 overflow-hidden">
-        <PieceRow label="Slip tongue" sub="any species · 50 lf bundles · not prefinished" unit="bdl" qty={qty.slip} onQty={(n) => setQty((q) => ({ ...q, slip: n }))} cost={SLIP.price} sellOf={(c) => sellOf(c)} />
-        <PieceRow label="Plugs" sub="species matches the trim" unit="ea" per="ea" qty={qty.plug} onQty={(n) => setQty((q) => ({ ...q, plug: n }))} cost={PLUGS[plug][1]} sellOf={sellOf}
-          extra={<MorphSelect size="sm" value={String(plug)} onChange={(v) => setPlug(Number(v))} options={PLUGS.map(([s], i) => ({ v: String(i), label: s }))} />} />
+        {PROFILES.map((pr) => runs[pr.id]
+          ? <RunRows key={pr.id} pr={pr} runs={runs[pr.id]} setRuns={(rs) => setRunsAll((a) => ({ ...a, [pr.id]: rs }))} cost={costLf(pr)} sellOf={sellOf} />
+          : <PieceRow key={pr.id} label={pr.name} sub={pr.note} unit="pcs" qty={qty[pr.id]} onQty={(n) => setQty((q) => ({ ...q, [pr.id]: n }))} cost={costLf(pr)} sellOf={sellOf} unitPrice={(s) => `${fm(s * 8)}/8' pc`} />)}
+        <PieceRow label="Slip tongue" sub="any species · 50 lf bundles · not prefinished" unit="bdl" qty={qty.slip} onQty={(n) => setQty((q) => ({ ...q, slip: n }))} cost={SLIP.price} sellOf={sellOf} unitPrice={(s) => `${fm(s * 50)}/bdl`} />
       </div>
     </Sect>
   </>);
@@ -208,8 +255,8 @@ function AccessoryTab() {
         <div className="ml-auto text-right leading-tight"><div className="ft-eyebrow text-[8.5px]">{lines.length} line{lines.length === 1 ? "" : "s"}</div><div className="text-base font-extrabold tabular-nums">{fmInt(sellTot)}</div></div>
       </div>
       <div className="flex gap-2 px-3.5 py-2.5 border-t border-slate-200">
-        <button className="ml-auto rounded-md border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-1.5"><Plus size={13} /> Add to basket</button>
-        <button className="rounded-md bg-indigo-600 text-white px-3.5 py-1.5 text-xs font-bold hover:bg-indigo-700 flex items-center gap-1.5"><Plus size={13} /> Add {lines.length} product line{lines.length === 1 ? "" : "s"}</button>
+        {texBlocked && <span className="self-center text-[11px] font-semibold text-amber-700">Textured price not set</span>}<button disabled={texBlocked} className="ml-auto rounded-md border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-1.5 disabled:opacity-40"><Plus size={13} /> Add to basket</button>
+        <button disabled={texBlocked} className="rounded-md bg-indigo-600 text-white px-3.5 py-1.5 text-xs font-bold hover:bg-indigo-700 flex items-center gap-1.5 disabled:opacity-40"><Plus size={13} /> Add {lines.length} product line{lines.length === 1 ? "" : "s"}</button>
       </div>
     </div>
   );
@@ -258,7 +305,7 @@ const lbl = "block text-[11px] font-medium text-slate-500 mb-1";
 
 function BookPage({ initialTab }) {
   const [tab, setTab] = useState(initialTab);
-  const [mk, setMk] = useState({ flooring: "40", vents: "50", trim: "50" });
+  const [mk, setMk] = useState({ flooring: "40", vents: "50", trim: "100" });
   const flip = (t) => setTab(tab === t ? null : t);
   const field = (k, label, ex, cost, per) => (
     <div>
@@ -342,7 +389,7 @@ function SheetsCard() {
         {row("Dampers", "Damper sheet", "Jul ’26", false)}
       </div>
       <div className="mt-3 flex items-center gap-2 text-[11.5px] font-semibold" style={{ color: "var(--ft-brand-deep)" }}>
-        <Check size={14} /> Read 40 species prices, 4 prefinish charges, slip tongue and 4 plug sizes — nothing missing.
+        <Check size={14} /> Read 40 species prices, 5 prefinish charges and slip tongue — nothing missing. Plugs on the sheet are skipped.
       </div>
       <div className="mt-2 overflow-x-auto rounded-md border border-slate-200">
         <table className="w-full">
@@ -356,10 +403,14 @@ function SheetsCard() {
             <tr style={{ background: "var(--ft-tint)" }}>
               <td className={td}>+ Prefinished</td>{PROFILES.map((p) => <td key={p.id} className={td}>{p.prefin.toFixed(2)}</td>)}
             </tr>
+            <tr className="bg-amber-50">
+              <td className={td}>+ Textured <span className="font-medium text-[10px] text-amber-700">not on the sheet — enter from Sheoga</span></td>
+              {PROFILES.map((p) => <td key={p.id} className={td}><input placeholder="—" className="w-14 rounded border border-amber-300 bg-white px-1 py-0.5 text-right text-xs" /></td>)}
+            </tr>
           </tbody>
         </table>
       </div>
-      <div className="mt-2 text-[11px] text-slate-500">Slip tongue $0.40/lf in 50 lf bundles · Plugs {PLUGS.map(([s, p]) => `${s} $${p.toFixed(2)}`).join(" · ")}</div>
+      <div className="mt-2 text-[11px] text-slate-500">Slip tongue $0.40/lf in 50 lf bundles</div>
     </div>
   );
 }
