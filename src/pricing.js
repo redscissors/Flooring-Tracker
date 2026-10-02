@@ -154,12 +154,12 @@ export function tierView(proj, settings) {
   return { proj: mapped, settings: s, tier, pct };
 }
 
-// The printed sheet's tier label — two prints with different numbers must say
-// why. Retail (and a 0% custom, which prints retail numbers) stays untagged.
+// The printed sheet's tier label (owner 2026-10-02): Retail is untagged, every
+// other tier prints its name, and only the shop's own discounts — Sale and
+// Custom — add the percent. A 0% discount drops the percent rather than print
+// "0% off".
 export function tierTag(tier, pct) {
-  if (tier === "builder") return `Builder pricing — ${pct}% off retail`;
-  if (tier === "sale") return `Sale pricing — ${pct}% off retail`;
-  if (tier === "custom") return pct > 0 ? `Custom pricing — ${pct}% off retail` : "";
-  if (tier === "employee") return "Employee pricing";
-  return "";
+  const name = { builder: "Builder", employee: "Employee", sale: "Sale", custom: "Custom" }[normTier(tier)];
+  if (!name) return "";
+  return (tier === "sale" || tier === "custom") && pct > 0 ? `${name} pricing — ${pct}% off retail` : `${name} pricing`;
 }
