@@ -2202,6 +2202,7 @@ export default function App({ user, onSignOut }) {
                             onDelete={() => delProduct(a.id, p.id)}
                             onFlag={() => setFlagCtx({ source: jobSource(sel, { name: areaLabel(a, ai) }, p) })}
                             onClose={() => setRowSheet(null)}
+                            onSearchDone={() => setRowSheet((r) => (r?.search ? { ...r, search: false } : r))}
                             qtyRef={(el) => { if (el) qtyRefs.current[p.id] = el; }} />
                         ) : null;
                         // The blank trailing adder never shows in the phone list (the add

@@ -256,8 +256,11 @@ export function MobileProductRow({ p, settings, tv, onOpen, onPointerDown }) {
 // editors can't drift on write paths. The SKU field opens MobileSearchSheet
 // (full-screen, per the keyboard plan); picks flow through onPickStock, the
 // caller's addStockProducts, exactly like a grid SKU pick.
-export function MobileRowSheet({ p, groutMemory, areaName, canDelete, settings, stock, groutStock, stockReady, bookStockReady, isBookFam, gFamilies, stockBookIds, searchOrder, bookName, tv, markups = MARKUP_PRESETS, showers, onPatch, onPickStock, onOpenVendor, onDelete, sample, onSample, onFlag, onClose, qtyRef, notify, strictness, fallback, initialSearch = false }) {
+export function MobileRowSheet({ p, groutMemory, areaName, canDelete, settings, stock, groutStock, stockReady, bookStockReady, isBookFam, gFamilies, stockBookIds, searchOrder, bookName, tv, markups = MARKUP_PRESETS, showers, onPatch, onPickStock, onOpenVendor, onDelete, sample, onSample, onFlag, onClose, qtyRef, notify, strictness, fallback, initialSearch = false, onSearchDone }) {
   const [searching, setSearching] = useState(initialSearch);
+  // initialSearch is a one-shot: a pick turns the blank adder into a real row,
+  // which remounts this sheet, and a still-set flag would reopen the search.
+  const endSearch = () => { setSearching(false); onSearchDone?.(); };
   const [confirmDel, setConfirmDel] = useState(false);
   const [insExpanded, setInsExpanded] = useState(false);
   const [sfOpen, setSfOpen] = useState(false);
@@ -676,11 +679,11 @@ export function MobileRowSheet({ p, groutMemory, areaName, canDelete, settings, 
       <div style={{ height: 6 }} />
       {searching && (
         <MobileSearchSheet stock={stock} stockReady={stockReady} searchOrder={searchOrder} bookName={bookName} initial={p.sku || ""} strictness={strictness} fallback={fallback}
-          onPick={(it) => { setSearching(false); onPickStock([it]); }}
-          onPickMany={(items) => { setSearching(false); onPickStock(items); }}
-          onManual={(t) => { setSearching(false); if (t && !p.brandColor) onPatch({ brandColor: t }); }}
-          onVendor={onOpenVendor ? (query, which) => { setSearching(false); onOpenVendor(query, which); } : undefined}
-          onClose={() => setSearching(false)} />
+          onPick={(it) => { endSearch(); onPickStock([it]); }}
+          onPickMany={(items) => { endSearch(); onPickStock(items); }}
+          onManual={(t) => { endSearch(); if (t && !p.brandColor) onPatch({ brandColor: t }); }}
+          onVendor={onOpenVendor ? (query, which) => { endSearch(); onOpenVendor(query, which); } : undefined}
+          onClose={endSearch} />
       )}
       {sfOpen && <SfPartsMenu product={p} showers={showers} onPatch={onPatch} onClose={() => setSfOpen(false)} />}
     </MobileSheet>
