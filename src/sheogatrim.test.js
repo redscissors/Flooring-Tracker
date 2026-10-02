@@ -5,6 +5,7 @@ import * as XLSX from "xlsx";
 import {
   TRIM_PROFILES, TRIM_SPECIES, isSheogaAccessorySheet, parseAccessorySheet, diffAccessorySheets,
   TRIM_LENGTHS, DEFAULT_TRIM_MARKUP, trimFromFloor, effectiveTrimCfg, calcTrim, trimLineItems,
+  trimRates, trimUnitCost, trimSellTotal, trimEntryView,
 } from "./sheogatrim.js";
 import { defaultConfig, sellOf } from "./sheoga.js";
 
@@ -158,7 +159,7 @@ test("calcTrim: texture is priced from the sheet; untexturable pieces ship smoot
   assert.equal(nose.lfCost, 10.26);
   assert.equal(nose.unitCost, 61.56);
   assert.equal(nose.textured, true);
-  assert.ok(nose.rows.some((r) => r[0] === "Textured — Saw Cut" && r[1] === "+$2.00/lf"));
+  assert.ok(nose.rows.some((r) => r[0] === "Textured — Saw Cut" && r[1] === "+$2.00 /lf"));
   assert.equal(shoe.unitCost, 25.68);
   assert.equal(shoe.textured, false);
   assert.ok(shoe.rows.some((r) => r[0] === "Smooth — can't be textured" && r[1] === ""));
@@ -253,4 +254,48 @@ test("effectiveTrimCfg: match applies the floor patch", () => {
   const off = effectiveTrimCfg({ ...defaultConfig("trim"), sp: "Maple", match: false }, floor);
   assert.equal(off.sp, "Maple");
   assert.equal(off.match, false);
+});
+
+test("trimRates: per-lf cost before any quantity, matching calcTrim", () => {
+  const cfg = { ...wo(), tex: "sawcut" };
+  const r = trimRates(cfg, book());
+  assert.equal(r.nose35.lfCost, 10.26);
+  assert.deepEqual([r.nose35.textured, r.nose35.smoothOnly], [true, false]);
+  assert.deepEqual([r.shoe.textured, r.shoe.smoothOnly], [false, true]);
+  assert.equal(r.tmold.lfCost, 4.01);
+  assert.deepEqual(r.slip, { lfCost: 0.4, bundleLf: 50, unitCost: 20 });
+  const smooth = trimRates(wo(), book());
+  assert.equal(smooth.nose35.smoothOnly, false);
+  assert.equal(smooth.shoe.smoothOnly, false);
+  assert.equal(trimRates(wo(), null), null);
+  assert.equal(trimRates({ ...wo(), sp: "Teak" }, book()), null);
+});
+
+test("trimUnitCost: a run's piece cost, random lengths per lf, junk length as 8'", () => {
+  assert.equal(trimUnitCost(8.26, 6), 49.56);
+  assert.equal(trimUnitCost(8.26, "rl"), 8.26);
+  assert.equal(trimUnitCost(8.26, 11), 66.08);
+});
+
+test("calcTrim: qty math per unit", () => {
+  const cfg = { ...wo(), runs: { nose35: [run(1, 6)], nose55: [], shoe: [run(15, 8), run(30, "rl")] }, tmold: 2, slip: 2 };
+  assert.deepEqual(calcTrim(cfg, book()).lines.map((l) => l.math), [
+    "1 pc × 6' = 6 lf", "15 pcs × 8' = 120 lf", "30 lf · Sheoga picks lengths", "2 pcs × 8' = 16 lf", "2 bundles = 100 lf",
+  ]);
+});
+
+test("trimSellTotal / trimEntryView: priced through the given sell, lines retail", () => {
+  const cfg = { ...wo(), runs: { nose35: [run(2, 6)], nose55: [], shoe: [run(15, 8)] }, tmold: 2, slip: 1 };
+  const b = calcTrim(cfg, book());
+  assert.equal(trimSellTotal(b, (c) => sellOf(c, 100)), 99.12 * 2 + 51.36 * 15 + 64.16 * 2 + 40);
+  const v = trimEntryView(cfg, book(), 100);
+  assert.equal(v.title, "Sheoga trim — White Oak");
+  assert.equal(v.meta, "4 lines");
+  assert.equal(v.price, trimSellTotal(b, (c) => sellOf(c, 100)));
+  assert.equal(v.lines().length, 4);
+  const half = trimEntryView(cfg, book(), 100, (c) => sellOf(c, 100) / 2);
+  assert.equal(half.lines()[0].priceSqft, "99.12");
+  assert.ok(half.price < v.price);
+  const none = trimEntryView(cfg, null, 100);
+  assert.deepEqual([none.title, none.meta, none.price, none.lines().length], ["Sheoga trim — White Oak", "Sheet not uploaded", 0, 0]);
 });

@@ -178,12 +178,37 @@ export function effectiveTrimCfg(cfg, floorSnap) {
   return { ...cfg, ...(patch || {}), match: false };
 }
 
-export function calcTrim(cfg, trimBook) {
+const textureOf = (cfg) => TEXTURES.find((t) => t.id === cfg.tex) || TEXTURES[0];
+
+// Per-lf cost of every profile for one trim cfg, plus slip tongue — what the
+// rail shows before any quantity is typed, and what calcTrim prices lines from.
+export function trimRates(cfg, trimBook) {
   const sheet = trimBook?.sheet;
-  if (!sheet || !cfg) return null;
-  const prices = sheet.species[cfg.sp];
+  const prices = sheet && cfg ? sheet.species[cfg.sp] : null;
   if (!prices) return null;
-  const texture = TEXTURES.find((t) => t.id === cfg.tex) || TEXTURES[0];
+  const textured = textureOf(cfg).id !== "smooth";
+  const out = {};
+  for (const { id } of TRIM_PROFILES) {
+    const add = textured ? sheet.tex?.[id] ?? null : null;
+    const charge = cfg.prefin ? sheet.prefin[id] : 0;
+    out[id] = { base: prices[id], charge, add, lfCost: round2(prices[id] + charge + (add || 0)), textured: add != null, smoothOnly: textured && add == null };
+  }
+  const { perLf, bundleLf } = sheet.slip;
+  out.slip = { lfCost: perLf, bundleLf, unitCost: round2(perLf * bundleLf) };
+  return out;
+}
+
+export const trimUnitCost = (lfCost, len) => {
+  const l = runLen(len);
+  return l === "rl" ? lfCost : round2(lfCost * l);
+};
+
+const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+export function calcTrim(cfg, trimBook) {
+  const rates = trimRates(cfg, trimBook);
+  if (!rates) return null;
+  const texture = textureOf(cfg);
   const textured = texture.id !== "smooth";
   const texName = texture.name.replace(" (standard)", "");
   const baseFinish = cfg.prefin ? `Prefinished${cfg.stain ? " " + cfg.stain : ""} · ${cfg.sheen} sheen` : "Unfinished";
@@ -192,22 +217,20 @@ export function calcTrim(cfg, trimBook) {
   const lines = [];
   const pushLine = (id, qty, len) => {
     const profile = TRIM_PROFILES.find((p) => p.id === id);
-    const add = textured ? sheet.tex?.[id] ?? null : null;
-    const applied = add != null;
-    const charge = cfg.prefin ? sheet.prefin[id] : 0;
-    const lfCost = round2(prices[id] + charge + (add || 0));
-    const unitCost = len === "rl" ? lfCost : round2(lfCost * len);
-    const rows = [[cfg.sp, money(prices[id]) + " /lf"]];
-    if (cfg.prefin) rows.push(["Prefinished charge", "+" + money(charge) + " /lf"]);
-    if (applied) rows.push([`Textured — ${texName}`, "+" + money(add) + "/lf"]);
+    const r = rates[id];
+    const unitCost = trimUnitCost(r.lfCost, len);
+    const rows = [[cfg.sp, money(r.base) + " /lf"]];
+    if (cfg.prefin) rows.push(["Prefinished charge", "+" + money(r.charge) + " /lf"]);
+    if (r.textured) rows.push([`Textured — ${texName}`, "+" + money(r.add) + " /lf"]);
     else if (textured) rows.push(["Smooth — can't be textured", ""]);
     const lenText = len === "rl" ? "random lengths" : `${len}' pcs`;
     lines.push({
-      key: `${id}-${lines.length}`, profile: id, unit: len === "rl" ? "lf" : "pc", qty, len, unitCost, lfCost,
+      key: `${id}-${lines.length}`, profile: id, unit: len === "rl" ? "lf" : "pc", qty, len, unitCost, lfCost: r.lfCost,
       sizeText: profile.size,
-      textured: applied,
-      desc: [profile.name, lenText, cfg.sp, applied ? finishText : baseFinish].join(" · "),
-      qtyText: len === "rl" ? `${qty} lf` : `${qty} pc${qty === 1 ? "" : "s"}`,
+      textured: r.textured,
+      desc: [profile.name, lenText, cfg.sp, r.textured ? finishText : baseFinish].join(" · "),
+      qtyText: len === "rl" ? `${qty} lf` : plural(qty, "pc"),
+      math: len === "rl" ? `${qty} lf · Sheoga picks lengths` : `${plural(qty, "pc")} × ${len}' = ${qty * len} lf`,
       rows,
     });
   };
@@ -223,12 +246,12 @@ export function calcTrim(cfg, trimBook) {
 
   const bundles = count(cfg.slip);
   if (bundles) {
-    const { perLf, bundleLf } = sheet.slip;
-    const unitCost = round2(perLf * bundleLf);
+    const { lfCost: perLf, bundleLf, unitCost } = rates.slip;
     lines.push({
       key: "slip", profile: "slip", unit: "bdl", qty: bundles, len: null, unitCost, lfCost: perLf, textured: false,
       sizeText: "", desc: `Slip tongue · ${bundleLf} lf bundle`,
-      qtyText: `${bundles} bundle${bundles === 1 ? "" : "s"}`,
+      qtyText: plural(bundles, "bundle"),
+      math: `${plural(bundles, "bundle")} = ${bundles * bundleLf} lf`,
       rows: [[`${bundleLf} lf bundle`, money(perLf) + " /lf"]],
     });
   }
@@ -239,6 +262,9 @@ export function calcTrim(cfg, trimBook) {
     lines,
   };
 }
+
+// Total sell of a build through a per-unit sell function (the tier lens).
+export const trimSellTotal = (build, sellFn) => round2((build?.lines || []).reduce((t, l) => t + sellFn(l.unitCost) * l.qty, 0));
 
 const SELL_UNIT = { pc: "PC", lf: "LF", bdl: "BDL" };
 
@@ -253,4 +279,13 @@ export function trimLineItems(cfg, trimBook, markupPct = DEFAULT_TRIM_MARKUP) {
       ? { mode: "trim", cfg: JSON.parse(JSON.stringify({ ...cfg, match: false })) }
       : { mode: "trim", part: true },
   }));
+}
+
+// A staged or placed trim kit as the basket drawer lists it. Priced off the
+// sheet uploaded now; with no sheet it still lists, at 0, so it can be removed.
+export function trimEntryView(cfg, trimBook, markupPct, sellFn = (c) => sellOf(c, markupPct)) {
+  const title = `Sheoga trim — ${cfg?.sp || ""}`;
+  const b = calcTrim(cfg, trimBook);
+  if (!b) return { title, meta: "Sheet not uploaded", price: 0, subs: [], fees: [], lines: () => [] };
+  return { title, meta: plural(b.lines.length, "line"), price: trimSellTotal(b, sellFn), subs: [], fees: [], lines: () => trimLineItems(cfg, trimBook, markupPct) };
 }
