@@ -408,7 +408,7 @@ export const MODES = [
 export function defaultConfig(mode) {
   if (mode === "stocked") return { sp: "White Oak", color: "Natural", grade: "char", w: 5.25, sheen: "30", sheenCustom: false };
   if (mode === "hb") return { sp: "White Oak", cons: "solid", grade: "char", w: 4.25, band: null, slatLen: "", chevron: false, tex: "smooth", edge: "square", finish: "unf", stain: "", stainCustom: false, sheen: "30", sheenCustom: false, sample: false };
-  if (mode === "vent") return { sp: "White Oak", cat: "std-fl", size: "4×12", cubed: false, prefin: false, stain: "", stainCustom: false, tex: false, scrape: "", damper: false, frame: false, qty: 1 };
+  if (mode === "vent") return { match: true, sp: "White Oak", cat: "std-fl", size: "4×12", cubed: false, prefin: false, stain: "", stainCustom: false, tex: false, scrape: "", damper: false, frame: false, qty: 1 };
   if (mode === "damper") return { size: "4×10", qty: 1 };
   if (mode === "trim") return { match: true, sp: "White Oak", prefin: false, stain: "", stainCustom: false, sheen: "30", sheenCustom: false, tex: "smooth", runs: { nose35: [{ n: 0, len: 8 }], nose55: [{ n: 0, len: 8 }], shoe: [{ n: 0, len: 8 }] }, reducer: 0, tmold: 0, slip: 0 };
   return { sp: "White Oak", grade: "char", cons: "solid", w: 5.25, tex: "smooth", edge: "square", len: "1-8", noSap: false, finish: "unf", stain: "", stainCustom: false, sheen: "30", sheenCustom: false, sample: false };
@@ -691,7 +691,7 @@ export function calcDamper(d) {
   };
 }
 
-// "Copy floor" — the vent options that make a grille match the floor being
+// "Match floor" — the vent options that make a grille match the floor being
 // quoted (species, scrape, prefinish stain), mapped from a floor / stocked /
 // herringbone configuration. The vent sheet sells eight species: Maple is
 // listed as Hard Maple and Live Sawn is plain White Oak; a species with no
@@ -715,6 +715,13 @@ export function ventFromFloor(snap) {
   const prefin = !!f.finish && f.finish !== "unf";
   const stain = !prefin ? "" : f.finish === "nat" ? "Natural" : String(f.stain || "").trim();
   return { ...out, prefin, stain, stainCustom: !!stain && !STAIN_COLORS.includes(stain), tex: scraped, scrape: scraped ? f.tex : "" };
+}
+
+// While `match` is on the vent's species, finish and texture follow the floor;
+// what is priced, staged or added is always the resolved build, unlinked.
+export function effectiveVentCfg(cfg, floorSnap) {
+  const patch = cfg.match ? ventFromFloor(floorSnap) : null;
+  return { ...cfg, ...(patch || {}), match: false };
 }
 
 // "Copy floor" for the herringbone tab — mirror the vent copy, but land on the
@@ -1029,7 +1036,7 @@ export function seedFromQuery(q) {
   const p = parseQuery(q);
   if (p.mode === "vent") {
     const cfg = defaultConfig("vent");
-    if (p.sp && VENT_GROUP[p.sp]) cfg.sp = p.sp;
+    if (p.sp && VENT_GROUP[p.sp]) Object.assign(cfg, { sp: p.sp, match: false });
     return { mode: "vent", cfg };
   }
   if (p.mode === "damper") return { mode: "damper", cfg: defaultConfig("damper") };

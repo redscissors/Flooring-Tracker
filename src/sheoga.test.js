@@ -8,7 +8,7 @@ import {
   calcFloor, calcStocked, calcHerringbone, calcVent, calcDamper, calcConfig, smallOrderFee,
   STAIN_COLORS, COLOR_SHEEN, SHEEN_ADD, standardSheen,
   DEFAULT_MARKUP, DEFAULT_VENT_MARKUP, sellOf, tierSellOf, tierFeeOf, cartonize, lineItems,
-  parseQuery, queryHit, querySummary, seedFromQuery, frameLineal, ventFromFloor, hbFromFloor,
+  parseQuery, queryHit, querySummary, seedFromQuery, frameLineal, ventFromFloor, effectiveVentCfg, hbFromFloor,
   redistributeShares, multiWidthBuild, multiWidthLineItems,
   normBasketEntry,
   PREFIN_SHEET, PREFIN_WS, prefinCost, prefinGreen, prefinRowFor, prefinRowForStocked,
@@ -488,6 +488,26 @@ test("ventFromFloor copies species/scrape/stain from a floor, stocked or herring
   assert.deepEqual(ventFromFloor({ mode: "hb", cfg: { ...defaultConfig("hb"), sp: "Maple", tex: "sawcut", finish: "est", stain: "Cattail" } }),
     { sp: "Hard Maple", prefin: true, stain: "Cattail", stainCustom: false, tex: true, scrape: "sawcut" });
   assert.equal(ventFromFloor(null), null);
+});
+
+test("effectiveVentCfg follows the floor while matched and always resolves unlinked", () => {
+  const v = { ...defaultConfig("vent"), size: "6×12", qty: 3, damper: true };
+  assert.equal(v.match, true, "a fresh vent starts linked to the floor");
+  const src = { mode: "floor", cfg: floor({ sp: "Maple", tex: "sawcut", finish: "est", stain: "Cattail" }) };
+  assert.deepEqual(effectiveVentCfg(v, src),
+    { ...v, sp: "Hard Maple", prefin: true, stain: "Cattail", stainCustom: false, tex: true, scrape: "sawcut", match: false });
+  // Pick my own: the vent's own picks stand, whatever the floor says.
+  const own = { ...v, match: false, sp: "Walnut", prefin: false };
+  assert.deepEqual(effectiveVentCfg(own, src), own);
+  // A floor species with no vent twin leaves the vent's species alone.
+  assert.equal(effectiveVentCfg(v, { mode: "floor", cfg: floor({ sp: "Ash" }) }).sp, v.sp);
+  assert.deepEqual(effectiveVentCfg(v, null), { ...v, match: false });
+});
+
+test("seedFromQuery: a vent search naming a species opens unlinked on it", () => {
+  assert.equal(seedFromQuery("sheoga vent").cfg.match, true);
+  const s = seedFromQuery("sheoga vent cherry");
+  assert.deepEqual([s.cfg.sp, s.cfg.match], ["Cherry", false]);
 });
 
 test("calcVent: cubed/frame only where the category offers them; damper only on stocked sizes", () => {

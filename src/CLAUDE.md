@@ -977,10 +977,14 @@ src/
                     # minimum edge (floorEdge — Square greys in the picker).
                     # Vent tab: the Prefinished/Textured toggles reveal stain-color
                     # and scrape pickers (order text only — the sheet's adders are
-                    # flat), and a "Copy floor" button maps the last-open floor/
-                    # stocked/herringbone tab's config onto the vent
-                    # (ventFromFloor in sheoga.js: Maple -> Hard Maple, Live Sawn
-                    # -> White Oak, finish -> prefin+stain, texture -> scrape).
+                    # flat). Like trim, a fresh vent is linked to the floor
+                    # (`match: true`): species, prefin+stain and texture+scrape
+                    # follow the last-open floor/stocked/herringbone tab live and
+                    # their pickers lock until "Pick my own" (effectiveVentCfg /
+                    # ventFromFloor in sheoga.js: Maple -> Hard Maple, Live Sawn
+                    # -> White Oak). Priced, staged, added and reported builds
+                    # are the resolved one, unlinked; a saved vent row (or a
+                    # search naming a species) reopens unlinked.
                     # Herringbone tab (hidden while HB_RETIRED — shows only when
                     # a saved hb row's Reconfigure opens on it, with a custom-
                     # quote banner): the same Texture/scrape + Finishing + Edge
