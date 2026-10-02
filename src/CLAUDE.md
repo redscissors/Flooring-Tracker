@@ -954,6 +954,19 @@ src/
                     # `escActive` (default true) gates its Escape handler —
                     # the Apps pane passes false while it is hidden (ADR
                     # 0047).
+  SheogaTrim.jsx    # the configurator's Trim & accessories tab (spec
+                    # 2026-10-02 §3): `TrimRail` (Match floor banner — the
+                    # last-open floor tab's values via effectiveTrimCfg,
+                    # pickers locked while matching; Pick my own unlinks onto
+                    # those values; the Pieces box prices each row through
+                    # the tier lens off sheogatrim.js `trimRates`, an
+                    # untexturable piece muted "smooth — can't be textured"),
+                    # `TrimCard` (one block per calcTrim line, cost → markup
+                    # → sell) and `TrimEmpty` (no accessory sheet). The rail
+                    # primitives arrive as a `kit` prop — SheogaConfigurator
+                    # imports this file, so importing them back would cycle.
+                    # What stages or lands is the resolved cfg, match:false,
+                    # so a placed kit reopens unlinked
   wedi.js           # wedi shower-system configurator engine (issue 066): the
                     # opposite of Sheoga on both axes — every piece has a part
                     # number and wedi publishes retail, so nothing is marked up
@@ -2515,7 +2528,10 @@ src/
                     # SheogaConfigurator over local mock state, no Supabase —
                     # preview proof for the ADR 0035 step 2 drawer; landing/
                     # delete/reconfigure run the real model.js paths over
-                    # local state; not part of the app build
+                    # local state; not part of the app build. `?tab=trim`
+                    # opens the trim tab over the real accessory fixture
+                    # (`&nosheet=1` for the empty state); rows ride
+                    # `window.__cats` for proof scripts
   comparekit.js     # one room priced in BOTH shower systems (phase 5,
                     # ADR 0034) — where the Compare tab's engine reads live
                     # (the 1d mirror included): it owns the mapping and nothing
