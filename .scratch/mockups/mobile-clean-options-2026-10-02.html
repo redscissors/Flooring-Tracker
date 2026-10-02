@@ -52,9 +52,9 @@ section>.lede{font-size:13.5px;color:var(--muted);line-height:1.55;max-width:760
 .iconbtn.box{border:1px solid var(--line);background:var(--card)}
 .caret{display:inline-flex;align-items:center;gap:3px;font-weight:700;font-size:12.5px;white-space:nowrap}
 .caret .ic{width:12px;height:12px;color:var(--fnt)}
-.bar{display:flex;align-items:center;gap:10px;height:38px;padding:0 6px 0 12px;border-top:1px solid var(--line)}
+.bar{display:flex;align-items:center;gap:8px;height:38px;padding:0 4px 0 12px;border-top:1px solid var(--line)}
 .bar .sp{flex:1}
-.bar .iconbtn{width:26px;height:28px}
+.bar .iconbtn{width:24px;height:28px}
 .badge{position:absolute;top:1px;right:0;min-width:14px;height:14px;border-radius:7px;background:var(--ambers);color:var(--amber);font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 3px}
 .rel{position:relative}
 .cust{font-size:20px;font-weight:800;letter-spacing:-.015em;line-height:1.1}
@@ -112,6 +112,13 @@ section>.lede{font-size:13.5px;color:var(--muted);line-height:1.55;max-width:760
 .r3 .prow{display:flex;gap:9px;padding:9px 12px;border-top:1px solid var(--rowl);margin-left:0}
 .r3 .prow:first-child{border-top:0}
 .r3 .empty{background:var(--card);border-top:0}
+/* R3 thin (owner 2026-10-02: area titles about half as tall) */
+.r3.thin .ahead{padding:4px 12px 3px;gap:6px}
+.r3.thin .ahead.stuck{padding:3px 12px}
+.r3.thin .aname{font-size:9px;line-height:1.1}
+.r3.thin .atot{font-size:10px;line-height:1.1}
+.r3.thin .ahead .iconbtn{height:14px!important}
+.r3.thin .opt{font-size:8px;font-weight:800;letter-spacing:.06em;padding:0 4px;border-radius:3px;color:var(--mossd);background:var(--mosss);line-height:13px}
 
 /* bottom bars */
 .bot{flex:none;padding:8px 10px 12px;border-top:1px solid var(--line);background:#EFEBE0;display:flex;gap:8px;align-items:center}
@@ -144,6 +151,19 @@ section>.lede{font-size:13.5px;color:var(--muted);line-height:1.55;max-width:760
     <h2>Today</h2>
     <p class="lede">What's live now on the phone: a title bar, then the boxed band (Customer and Salesperson boxes, project, price level and Total, then All $ · Samples · Freight), then the areas.</p>
     <div class="row"><div class="col"><div class="cap"><span class="k">0</span><b>Current phone</b></div><div id="p-today"></div></div></div>
+  </section>
+
+  <section>
+    <h2>Your pick: A + R3 + today's bar, thinner area titles</h2>
+    <p class="lede">Header A, the R3 flat list and today's three-button bar, with each area title cut to about half its height (about 16px instead of about 30px). The ⋯ keeps a full-size tap area even though the row is thin.</p>
+    <div class="row">
+      <div class="col"><div class="cap"><span class="k">✓</span><b>Top of the job</b></div><div id="p-pick"></div>
+        <ul class="notes"><li>Each title is one thin line: area name in small caps, subtotal, ⋯. A quote-option area shows its letter chip in the same line.</li></ul></div>
+      <div class="col"><div class="cap"><span class="k">✓</span><b>Scrolled into Hall bath</b></div><div id="p-pick2"></div>
+        <ul class="notes"><li>The area you're in sticks under the header as a thin band, and the Price book button names it.</li></ul></div>
+      <div class="col"><div class="cap"><span class="k">R3</span><b>Before (the first R3)</b></div><div id="p-pick3"></div>
+        <ul class="notes"><li>For comparison: the first version's taller titles.</li></ul></div>
+    </div>
   </section>
 
   <section>
@@ -230,7 +250,7 @@ const AREAS = [
     {t:'misc',L:'✕',name:'Schluter Jolly ⅜″ Satin',sub:'J100AE · 4 EA · @ $18.50',tot:'$74.00',tags:[],mats:''}]},
   {name:'Mudroom', meta:'1 item · 80 SF', tot:'$316.00', rows:[{t:'tile',L:'T',name:'Mohawk Slate Grey',sub:'MHSLGR · 12×24 · 80 SF · @ $3.95',tot:'$316.00',tags:['G'],mats:'+ Grout'}]},
   {name:'Laundry', meta:'Empty', tot:'', rows:[]},
-  {name:'Powder room', meta:'1 item · 22 SF', tot:'$165.00', rows:[{t:'tile',L:'T',name:'Zellige Bianco 4×4',sub:'ZB44 · 4×4 · 22 SF · @ $7.50',tot:'$165.00',tags:['G'],mats:'+ Grout'}]},
+  {name:'Powder room', opt:'OPTION A', meta:'1 item · 22 SF', tot:'$165.00', rows:[{t:'tile',L:'T',name:'Zellige Bianco 4×4',sub:'ZB44 · 4×4 · 22 SF · @ $7.50',tot:'$165.00',tags:['G'],mats:'+ Grout'}]},
 ];
 const tagsHtml = (r) => r.tags.length ? `<span style="display:flex;gap:2px;margin-left:auto">${r.tags.map(t=>`<i class="tag" style="font-style:normal">${t}</i>`).join('')}</span>` : '';
 
@@ -240,8 +260,8 @@ function body(style, opt){
   const from = opt.from || 0;
   const list = AREAS.slice(from);
   if (style === 'r3'){
-    return `<div class="areas r3">${list.map((a,i)=>`
-      <div class="ahead ${opt.stuck && i===0 ? 'stuck':''}"><span class="aname">${a.name}</span><span class="atot money">${a.tot}</span><span class="iconbtn" style="width:22px;height:22px;color:var(--fnt)">${ic('more',14)}</span></div>
+    return `<div class="areas r3 ${opt.thin ? 'thin' : ''}">${list.map((a,i)=>`
+      <div class="ahead ${opt.stuck && i===0 ? 'stuck':''}"><span class="aname">${a.name}</span>${opt.thin && a.opt ? `<span class="opt">${a.opt}</span>` : ''}<span class="atot money">${a.tot}</span><span class="iconbtn" style="width:22px;height:22px;color:var(--fnt)">${ic('more',14)}</span></div>
       <div class="list">${a.rows.length ? a.rows.map(r=>`
         <div class="prow"><span class="tdot" style="background:${TC[r.t]}"></span><div class="trunc" style="flex:1"><div style="display:flex;gap:8px;align-items:baseline"><span class="pname trunc" style="flex:1">${r.name}</span><span class="ptot">${r.tot}</span></div><div class="psub trunc">${r.sub}</div></div></div>`).join('') : `<div class="empty">No products yet. Tap Price book below.</div>`}</div>`).join('')}</div>`;
   }
@@ -288,7 +308,7 @@ function hdrToday(){
     </div>
   </div>`;
 }
-const carets = (waste) => `<span class="caret">Retail ${ic('down')}</span><span class="caret">All prices ${ic('down')}</span>${waste ? `<span class="caret" style="color:var(--mut)">10% · 5% ${ic('down')}</span>` : ''}`;
+const carets = (waste) => `<span class="caret">Retail ${ic('down')}</span><span class="caret">All prices ${ic('down')}</span>${waste ? `<span class="caret" style="color:var(--mut)">10/5% ${ic('down')}</span>` : ''}`;
 const iconsR = `<span class="iconbtn">${ic('truck',16)}</span><span class="iconbtn rel">${ic('layers',16)}<span class="badge">2</span></span><span class="iconbtn">${ic('more',16)}</span>`;
 function hdrA(){
   return `<div style="background:#EFEBE0;border-bottom:1px solid var(--line)">
@@ -333,6 +353,9 @@ function dockD(){
 function phone(id, parts, short){
   document.getElementById(id).innerHTML = `<div class="phone ${short ? 'short' : ''}">${SB}${parts.head}<div class="scroll">${parts.body}${parts.over || ''}</div>${parts.foot || ''}</div>`;
 }
+phone('p-pick', {head: hdrA(), body: body('r3', {thin: true}), foot: bottom('p1')});
+phone('p-pick2', {head: hdrA(), body: body('r3', {thin: true, from: 1, stuck: true}), foot: bottom('p1', 1)});
+phone('p-pick3', {head: hdrA(), body: body('r3'), foot: bottom('p1')});
 phone('p-today', {head: hdrToday(), body: body('today'), foot: bottom('p1')});
 phone('p-A', {head: hdrA(), body: body('r1'), foot: bottom('p1')});
 phone('p-B', {head: hdrB(false), body: body('r1'), foot: bottom('p1')});
