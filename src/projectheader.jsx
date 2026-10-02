@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { ChevronDown, Building2, Lock, LockOpen, Save, History, ClipboardList, Copy, Printer, Trash2, Check, Truck, X, Layers, FileText, MoreHorizontal, MapPin } from "lucide-react";
+import { ChevronDown, Building2, Lock, LockOpen, Save, History, ClipboardList, Copy, Printer, Trash2, Check, Truck, X, Layers, FileText, MoreHorizontal, MapPin, Mail } from "lucide-react";
 import { SalespersonPop, SegBar, WasteBar, FilesPop, useAnchoredPanel, useEscClose, SearchPop, growBox, PriceLevelMenu, MorphSelect, PopMenu, AddressField } from "./widgets.jsx";
 import { FreightColumn } from "./freightui.jsx";
 import { normPricing } from "./pricing.js";
@@ -538,7 +538,7 @@ function FreightToggle({ on, amount, onSet }) {
   );
 }
 
-export function ProjectHeaderClean({ sel, cust, builderName, profile, freightCost = 0, saveOk, settings, jobWasteUI, updateProject, onOpenCustomer, onPromote, nameRef, nameTabRef, orderEntryRef, focusName, namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion, openAttachment, delAttachment, attRef, addAttachment, setShowVersions, setPrintMode, setConfirm, setShowOrderCopy, samples = null, onOpenSamples, preview = false, onTogglePreview, erp = null, ping, compact = false }) {
+export function ProjectHeaderClean({ sel, cust, builderName, profile, freightCost = 0, saveOk, settings, jobWasteUI, updateProject, onOpenCustomer, onPromote, nameRef, nameTabRef, orderEntryRef, focusName, namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion, openAttachment, delAttachment, attRef, addAttachment, setShowVersions, setPrintMode, setConfirm, setShowOrderCopy, samples = null, onOpenSamples, preview = false, onTogglePreview, erp = null, ping, compact = false, onEmail, emailBusy = false }) {
   const [menu, setMenu] = useState(false);
   const [addrAt, setAddrAt] = useState(null);
   useEscClose(menu, () => setMenu(false));
@@ -640,6 +640,13 @@ export function ProjectHeaderClean({ sel, cust, builderName, profile, freightCos
       <span className="ft-mono">{nos.length ? erpLabel(nos) : "Order entry"}</span>
       {nos.length > 0 && !done && left > 0 && <span className="rounded-full px-1.5 text-[11px] font-bold" style={{ background: "var(--ft-sand)", color: "var(--ft-muted)" }}>{left} left</span>}
     </button>
+    {onEmail && (
+      <button onClick={onEmail} disabled={emailBusy} aria-label="Email estimate" data-tip="Email estimate — PDF + a new email to the customer"
+        className="ft-tip relative shrink-0 mr-1.5 inline-flex items-center justify-center rounded-md border hover:bg-[color:var(--ft-hover)] disabled:opacity-50"
+        style={{ height: h, width: h, borderColor: "var(--ft-border-strong)", color: "var(--ft-text)" }}>
+        <Mail size={14} />
+      </button>
+    )}
     <button data-flow-end="1" onClick={() => setPrintMode("estimate")} className="shrink-0 inline-flex items-center gap-1.5 rounded-md px-4 text-[13px] font-extrabold text-white bg-indigo-600 hover:bg-indigo-700 whitespace-nowrap" style={{ height: h, ...tierFill }}>
       <Printer size={14} /> Print
     </button>

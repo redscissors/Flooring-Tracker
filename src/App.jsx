@@ -36,6 +36,7 @@ import { TypeSelect, GRID_COLS, GridPriceCell, GridSizeInput, GridProductBox, Gr
 import { MobileSheet, MobileProductRow, MobileRowSheet, MobileProjectBand } from "./mobile.jsx";
 import { TeamTodos } from "./TeamTodos.jsx";
 import { EstimatePaper, PRINT_DASH } from "./EstimatePrint.jsx";
+import { estimateMail } from "./estimatemail.js";
 import { useToast } from "./usetoast.js";
 import { ProjectHeaderBar, ProjectHeaderClassic, ProjectHeaderClean } from "./projectheader.jsx";
 import { useDirectory, attPath, normProfile, vMeta } from "./usedirectory.js";
@@ -246,6 +247,7 @@ export default function App({ user, onSignOut }) {
   };
   // Which print layout the buttons chose; null (e.g. browser-menu Ctrl+P) prints the estimate.
   const [printMode, setPrintMode] = useState(null);
+  const [emailBusy, setEmailBusy] = useState(false);
   useEffect(() => { if (!printMode) return; window.print(); const wasOrder = printMode === "order"; setPrintMode(null); if (wasOrder) setOrderScope(null); if (!isWide) setPreviewScope("all"); }, [printMode]);
   const [focusArea, setFocusArea] = useState(null);
   // Keyboard-flow focus targets (product id): after Add product, land on the
@@ -1418,7 +1420,7 @@ export default function App({ user, onSignOut }) {
     };
     if (headerLayout === "classic") return <ProjectHeaderClassic {...hp} />;
     if (!cleanHead) return <ProjectHeaderBar {...hp} />;
-    return <ProjectHeaderClean {...hp} ping={ping} compact={headerLayout === "cleancompact"} preview={viewTab === "preview"} onTogglePreview={() => setViewTab((t) => (t === "preview" ? "edit" : "preview"))}
+    return <ProjectHeaderClean {...hp} ping={ping} onEmail={emailEstimate} emailBusy={emailBusy} compact={headerLayout === "cleancompact"} preview={viewTab === "preview"} onTogglePreview={() => setViewTab((t) => (t === "preview" ? "edit" : "preview"))}
       erp={sel.erpOrders?.length ? erpStatus(sel.erpOrders, sel.erpKeyed, erpLines()) : null} />;
   };
   // Order entry + order sheet ask which option is being ordered when the job
@@ -1449,6 +1451,26 @@ export default function App({ user, onSignOut }) {
     : optionPrint
     ? { sel, people: data.people, profile, tv, jobWaste, pMats: buckets.shared.pMats, tSet, materialsCost: buckets.shared.materialsCost, freightCost: buckets.shared.freightCost, flooringPrice: buckets.shared.flooringPrice, miscCost: buckets.shared.miscCost, totalSqft: buckets.shared.totalSqft, orderedSqft: buckets.shared.orderedSqft, grandTotal: buckets.shared.grandTotal, optionPrint }
     : { sel, people: data.people, profile, tv, jobWaste, pMats, tSet, materialsCost, freightCost, flooringPrice, miscCost, totalSqft, orderedSqft, grandTotal, optionPrint: null }) };
+
+  // Email estimate: the same paper Print renders, as a PDF — shared on touch
+  // devices, saved + a pre-addressed email on computers (emailestimate.jsx).
+  const emailEstimate = () => {
+    if (emailBusy || !sel?._full) return;
+    const m = estimateMail({ cust: data.people.find((c) => c.id === sel.customerId), project: sel, salesperson: sel.salesperson || profile });
+    const share = !isWide || window.matchMedia?.("(pointer: coarse)")?.matches;
+    // Copied up front, while the click still counts as a user gesture.
+    if (share && m.to) navigator.clipboard?.writeText(m.to).catch(() => {});
+    setEmailBusy(true);
+    ping("Building the estimate PDF…");
+    import("./emailestimate.jsx")
+      .then((mod) => mod.emailEstimate({ ...m, paper: <EstimatePaper {...paperProps} />, share }))
+      .then((r) => {
+        if (r === "saved") ping("PDF saved to Downloads — drag it into the email");
+        else if (r === "shared" && m.to) ping("Customer's email was copied — paste it into To");
+      })
+      .catch(() => ping("Couldn't build the estimate PDF"))
+      .finally(() => setEmailBusy(false));
+  };
 
   // The sidebar is two-level: Customers (people), each expandable to their
   // Projects, plus an "Unassigned projects" group for jobs with no customer.
@@ -1762,6 +1784,7 @@ export default function App({ user, onSignOut }) {
                             <div className="ft-mono text-[17px] font-bold" style={{ color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{money(grandTotal)}</div>
                           )}
                         </div>
+                        <button onClick={() => { setProjSheet(false); emailEstimate(); }} disabled={emailBusy} aria-label="Email estimate" title="Email estimate as a PDF" className="h-[38px] w-[40px] shrink-0 flex items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 disabled:opacity-50"><Mail size={16} /></button>
                         <button onClick={() => { setProjSheet(false); setPrintMode("estimate"); }} style={TIER_COLOR[sel.priceTier] ? { background: TIER_COLOR[sel.priceTier].main } : undefined} className="h-[38px] shrink-0 flex items-center justify-center gap-1.5 text-[13px] font-bold rounded-md bg-indigo-600 hover:bg-indigo-700 text-white px-7"><Printer size={15} /> Print</button>
                       </>}>
                       <div className="space-y-3">
