@@ -402,6 +402,7 @@ export const MODES = [
   { id: "hb", label: "Herringbone" },
   { id: "vent", label: "Wood vents" },
   { id: "damper", label: "Dampers" },
+  { id: "trim", label: "Trim & accessories" },
 ];
 
 export function defaultConfig(mode) {
@@ -409,6 +410,7 @@ export function defaultConfig(mode) {
   if (mode === "hb") return { sp: "White Oak", cons: "solid", grade: "char", w: 4.25, band: null, slatLen: "", chevron: false, tex: "smooth", edge: "square", finish: "unf", stain: "", stainCustom: false, sheen: "30", sheenCustom: false, sample: false };
   if (mode === "vent") return { sp: "White Oak", cat: "std-fl", size: "4×12", cubed: false, prefin: false, stain: "", stainCustom: false, tex: false, scrape: "", damper: false, frame: false, qty: 1 };
   if (mode === "damper") return { size: "4×10", qty: 1 };
+  if (mode === "trim") return { match: true, sp: "White Oak", prefin: false, stain: "", stainCustom: false, sheen: "30", sheenCustom: false, tex: "smooth", runs: { nose35: [{ n: 0, len: 8 }], nose55: [{ n: 0, len: 8 }], shoe: [{ n: 0, len: 8 }] }, reducer: 0, tmold: 0, slip: 0 };
   return { sp: "White Oak", grade: "char", cons: "solid", w: 5.25, tex: "smooth", edge: "square", len: "1-8", noSap: false, finish: "unf", stain: "", stainCustom: false, sheen: "30", sheenCustom: false, sample: false };
 }
 

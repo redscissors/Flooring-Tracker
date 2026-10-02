@@ -4,7 +4,9 @@ import fs from "node:fs";
 import * as XLSX from "xlsx";
 import {
   TRIM_PROFILES, TRIM_SPECIES, isSheogaAccessorySheet, parseAccessorySheet, diffAccessorySheets,
+  TRIM_LENGTHS, DEFAULT_TRIM_MARKUP, trimFromFloor, effectiveTrimCfg, calcTrim, trimLineItems,
 } from "./sheogatrim.js";
+import { defaultConfig, sellOf } from "./sheoga.js";
 
 const load = () => {
   const wb = XLSX.read(fs.readFileSync(new URL("./testdata/sheoga-accessory-20261001.xlsx", import.meta.url)));
@@ -78,4 +80,134 @@ test("diff: names changed prices", () => {
     { label: "Prefinished — Shoe mold", from: 1.85, to: 1.95 },
   ]);
   assert.deepEqual(diffAccessorySheets(null, next), []);
+});
+
+// --- pricing engine -----------------------------------------------------------
+
+const book = () => ({ sheet: parseAccessorySheet(load()).sheet, tex: {} });
+const wo = () => ({ ...defaultConfig("trim"), sp: "White Oak", prefin: true, stain: "Toasted Acorn", sheen: "30" });
+const run = (n, len) => ({ n, len });
+
+test("trim: constants and default config", () => {
+  assert.deepEqual(TRIM_LENGTHS, [3, 4, 5, 6, 7, 8, 9, 10, 12]);
+  assert.equal(DEFAULT_TRIM_MARKUP, 100);
+  assert.deepEqual(defaultConfig("trim"), {
+    match: true, sp: "White Oak", prefin: false, stain: "", stainCustom: false,
+    sheen: "30", sheenCustom: false, tex: "smooth",
+    runs: { nose35: [{ n: 0, len: 8 }], nose55: [{ n: 0, len: 8 }], shoe: [{ n: 0, len: 8 }] },
+    reducer: 0, tmold: 0, slip: 0,
+  });
+});
+
+test("calcTrim: White Oak prefinished pieces", () => {
+  const cfg = { ...wo(), runs: { nose35: [run(2, 6)], nose55: [run(0, 8)], shoe: [run(15, 8), run(30, "rl")] }, tmold: 2, slip: 1 };
+  const b = calcTrim(cfg, book());
+  assert.deepEqual(b.lines.map((l) => [l.profile, l.unit, l.qty, l.unitCost]), [
+    ["nose35", "pc", 2, 49.56],
+    ["shoe", "pc", 15, 25.68],
+    ["shoe", "lf", 30, 3.21],
+    ["tmold", "pc", 2, 32.08],
+    ["slip", "bdl", 1, 20],
+  ]);
+  assert.deepEqual(b.lines.map((l) => sellOf(l.unitCost, 100)), [99.12, 51.36, 6.42, 64.16, 40]);
+  assert.equal(b.sp, "White Oak");
+  assert.equal(b.finishText, "Prefinished Toasted Acorn · 30 sheen");
+  assert.equal(b.texBlocked, false);
+});
+
+test("calcTrim: unfinished Red Oak reducer", () => {
+  const cfg = { ...defaultConfig("trim"), sp: "Red Oak", reducer: 1 };
+  const b = calcTrim(cfg, book());
+  assert.equal(b.lines.length, 1);
+  assert.equal(b.lines[0].unitCost, 13.36);
+  assert.equal(b.lines[0].len, 8);
+  assert.equal(b.finishText, "Unfinished");
+  assert.ok(!b.lines[0].rows.some(([label]) => /prefinished/i.test(label)));
+});
+
+test("calcTrim: texture blocks until priced", () => {
+  const cfg = { ...wo(), tex: "sawcut", runs: { nose35: [run(1, 8)], nose55: [], shoe: [] } };
+  const bk = book();
+  const b = calcTrim(cfg, bk);
+  assert.equal(b.texBlocked, true);
+  assert.ok(b.lines[0].rows.some((r) => r[0] === "Textured — Saw Cut" && r[1] === "not set"));
+  assert.deepEqual(trimLineItems(cfg, bk, 100), []);
+
+  bk.tex.nose35 = 1;
+  const ok = calcTrim(cfg, bk);
+  assert.equal(ok.texBlocked, false);
+  assert.equal(ok.lines[0].lfCost, 9.26);
+
+  const slipOnly = { ...defaultConfig("trim"), tex: "sawcut", slip: 2 };
+  assert.equal(calcTrim(slipOnly, book()).texBlocked, false);
+});
+
+test("calcTrim: junk quantities clamp", () => {
+  const cfg = { ...wo(), runs: { nose35: [run(-3, 6), run(2.7, 11), run("", 8)], nose55: [], shoe: [] } };
+  const b = calcTrim(cfg, book());
+  assert.equal(b.lines.length, 1);
+  assert.equal(b.lines[0].qty, 2);
+  assert.equal(b.lines[0].len, 8);
+  const json = JSON.stringify(b);
+  assert.ok(!json.includes("NaN"));
+  assert.ok(!json.includes('"unitCost":null'));
+});
+
+test("calcTrim: no sheet", () => {
+  assert.equal(calcTrim(wo(), null), null);
+  assert.equal(calcTrim(wo(), { tex: {} }), null);
+});
+
+test("trimLineItems: rows and markers", () => {
+  const cfg = { ...wo(), runs: { nose35: [run(2, 6)], nose55: [], shoe: [run(30, "rl")] }, tmold: 2, slip: 1 };
+  const items = trimLineItems(cfg, book(), 100);
+  assert.deepEqual(items[0].sheoga, { mode: "trim", cfg: { ...cfg, match: false } });
+  assert.deepEqual(items[1].sheoga, { mode: "trim", part: true });
+  for (const it of items) {
+    assert.equal(it.type, "hardwood");
+    assert.equal(it.qtyType, "count");
+    assert.equal(it.sku, "");
+  }
+  assert.equal(items[0].sellUnit, "PC");
+  assert.equal(items[0].qty, "2");
+  assert.equal(items[0].priceSqft, "99.12");
+  assert.equal(items[0].costSqft, "49.56");
+  assert.equal(items[0].markupPct, "100");
+  assert.equal(items[0].sizeText, '3½"');
+  assert.equal(items[0].brandColor, 'Sheoga Rabbeted nosing 3½" · 6\' pcs · White Oak · Prefinished Toasted Acorn · 30 sheen');
+  assert.equal(items[1].sellUnit, "LF");
+  assert.ok(items[1].brandColor.includes("random lengths"));
+  assert.equal(items.find((i) => i.sellUnit === "BDL").brandColor, "Sheoga Slip tongue · 50 lf bundle");
+  assert.equal(items.find((i) => i.sellUnit === "BDL").sizeText, "");
+  assert.ok(items.find((i) => i.sellUnit === "BDL" ).sheoga.part);
+  assert.ok(items.find((i) => i.brandColor.includes("T-mold")).brandColor.includes("8' pcs"));
+});
+
+test("trimFromFloor: floor, stocked, finish and non-matches", () => {
+  const floor = { mode: "floor", cfg: { sp: "Live Sawn White Oak", tex: "sawcut", finish: "est", stain: "Cattail", sheen: "20" } };
+  assert.deepEqual(trimFromFloor(floor), { sp: "White Oak", prefin: true, stain: "Cattail", stainCustom: false, sheen: "20", tex: "sawcut" });
+  const stocked = trimFromFloor({ mode: "stocked", cfg: { sp: "Hickory", color: "Cattail · Saw Cut", sheen: "20" } });
+  assert.equal(stocked.sp, "Hickory");
+  assert.equal(stocked.prefin, true);
+  assert.equal(stocked.stain, "Cattail");
+  assert.equal(stocked.tex, "sawcut");
+  const unf = trimFromFloor({ mode: "floor", cfg: { sp: "Red Oak", tex: "smooth", finish: "unf", stain: "Cattail", sheen: "30" } });
+  assert.equal(unf.prefin, false);
+  assert.equal(unf.stain, "");
+  assert.equal(trimFromFloor({ mode: "floor", cfg: { sp: "Red Oak", finish: "nat" } }).stain, "Natural");
+  const custom = trimFromFloor({ mode: "floor", cfg: { sp: "Red Oak", finish: "t1", stain: "My Gray" } });
+  assert.deepEqual([custom.prefin, custom.stain, custom.stainCustom], [true, "My Gray", true]);
+  assert.equal("sp" in trimFromFloor({ mode: "floor", cfg: { sp: "Exotic", finish: "unf" } }), false);
+  assert.equal(trimFromFloor({ mode: "vent", cfg: { sp: "White Oak" } }), null);
+  assert.equal(trimFromFloor(null), null);
+});
+
+test("effectiveTrimCfg: match applies the floor patch", () => {
+  const floor = { mode: "floor", cfg: { sp: "Live Sawn White Oak", tex: "sawcut", finish: "est", stain: "Cattail", sheen: "20" } };
+  const on = effectiveTrimCfg({ ...defaultConfig("trim"), sp: "Maple", match: true }, floor);
+  assert.equal(on.sp, "White Oak");
+  assert.equal(on.match, false);
+  const off = effectiveTrimCfg({ ...defaultConfig("trim"), sp: "Maple", match: false }, floor);
+  assert.equal(off.sp, "Maple");
+  assert.equal(off.match, false);
 });
