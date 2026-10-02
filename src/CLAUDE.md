@@ -350,8 +350,8 @@ src/
                     # the Order entry button carrying the ERP number — green
                     # with a check once erporders.js `erpStatus` says every
                     # line is keyed, an "N left" pill before that. No order
-                    # sheet button in Clean. A small Email button sits between
-                    # Order entry and Print (`onEmail`, ADR 0055; Clean only).
+                    # sheet button in Clean. An Email icon sits right after the
+                    # Samples icon (`onEmail`, ADR 0055; Clean only).
                     # Exported `ErpChip` (ADR 0044, `ERP 48213` · `+N`) mounts
                     # in both layouts (opens order entry) and is imported by
                     # mobile.jsx for the band (static there)

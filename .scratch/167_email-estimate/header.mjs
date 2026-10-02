@@ -17,8 +17,8 @@ for (const id of ["proj-header-clean", "proj-header-clean-compact", "proj-header
 const btn = page.locator('#proj-header-clean [aria-label="Email estimate"]');
 await btn.hover();
 await page.waitForTimeout(600);
-const box = await page.locator("#proj-header-clean").boundingBox();
-await page.screenshot({ path: join(dir, "clean-hover.png"), clip: { x: box.x + box.width - 520, y: box.y + 40, width: 520, height: 120 } });
+const box = await btn.boundingBox();
+await page.screenshot({ path: join(dir, "clean-hover.png"), clip: { x: box.x - 220, y: box.y - 20, width: 440, height: 130 } });
 const widths = await page.evaluate(() => {
   const root = document.querySelector("#proj-header-clean");
   const mail = root.querySelector('[aria-label="Email estimate"]').getBoundingClientRect().width;

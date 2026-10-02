@@ -11,7 +11,8 @@ labels: [ready-for-human]
 Owner, 2026-10-02: a button about ⅓ the width of Print, between Order entry and Print,
 that opens an email with the project attached as a PDF, To filled with the customer's
 email (blank when none). Only on the Clean header and the phone layout. PDFs named
-"Customer - Project Name".
+"Customer - Project Name". Same day: moved to a plain icon right after the Samples
+icon in the Clean header (the phone sheet keeps it beside Print).
 
 Browsers can't attach a file to a `mailto:` email, so (owner picked after the options
 were laid out; the team sends from Windows new Outlook/webmail and iPads/phones):
@@ -31,7 +32,7 @@ Decision record: ADR 0055.
 - `share.mjs` — the touch path with `navigator.share` mocked: accepted, and refused
   once (Safari) → `share-retry.png`, the one-tap Share button.
 - `proj-header-clean*.png`, `clean-hover.png` — the button in the Clean layouts
-  (header-preview.html); 32px wide beside Print's 88px.
+  (header-preview.html); the icon after Samples, with its hover tip.
 - `mobile-sheet.png` — the phone ⋯ sheet footer (real MobileSheet, App's footer markup).
 
 Not testable here: a real iOS/Android share sheet and Safari's SVG rendering of the

@@ -613,6 +613,11 @@ export function ProjectHeaderClean({ sel, cust, builderName, profile, freightCos
         {samples?.need > 0 && <span className="absolute rounded-full font-bold" style={{ top: -4, right: -4, fontSize: 9.5, lineHeight: "14px", minWidth: 14, padding: "0 3px", background: "#b45309", color: "#fff" }}>{samples.need}</span>}
       </button>
     )}
+    {onEmail && (
+      <button onClick={onEmail} disabled={emailBusy} aria-label="Email estimate" data-tip="Email estimate — PDF + a new email to the customer" className={ICON + " text-slate-500 disabled:opacity-50"}>
+        <Mail size={16} />
+      </button>
+    )}
     <button ref={moreRef} onClick={() => setMenu((m) => !m)} aria-label="More" aria-expanded={menu} data-tip="Project address, versions and delete" className={ICON + " text-slate-500"}><MoreHorizontal size={17} /></button>
     {menu && moreRef.current && <PopMenu at={{ anchor: moreRef.current }} width={264} onClose={() => setMenu(false)} bg="var(--ft-cream)" className="py-1 text-sm whitespace-nowrap">
       <button onClick={() => { setMenu(false); setAddrAt(moreRef); }} className="w-full flex items-center gap-2.5 px-3 py-1.5 text-left font-semibold hover:bg-[color:var(--ft-hover)]">
@@ -640,13 +645,6 @@ export function ProjectHeaderClean({ sel, cust, builderName, profile, freightCos
       <span className="ft-mono">{nos.length ? erpLabel(nos) : "Order entry"}</span>
       {nos.length > 0 && !done && left > 0 && <span className="rounded-full px-1.5 text-[11px] font-bold" style={{ background: "var(--ft-sand)", color: "var(--ft-muted)" }}>{left} left</span>}
     </button>
-    {onEmail && (
-      <button onClick={onEmail} disabled={emailBusy} aria-label="Email estimate" data-tip="Email estimate — PDF + a new email to the customer"
-        className="ft-tip relative shrink-0 mr-1.5 inline-flex items-center justify-center rounded-md border hover:bg-[color:var(--ft-hover)] disabled:opacity-50"
-        style={{ height: h, width: h, borderColor: "var(--ft-border-strong)", color: "var(--ft-text)" }}>
-        <Mail size={14} />
-      </button>
-    )}
     <button data-flow-end="1" onClick={() => setPrintMode("estimate")} className="shrink-0 inline-flex items-center gap-1.5 rounded-md px-4 text-[13px] font-extrabold text-white bg-indigo-600 hover:bg-indigo-700 whitespace-nowrap" style={{ height: h, ...tierFill }}>
       <Printer size={14} /> Print
     </button>

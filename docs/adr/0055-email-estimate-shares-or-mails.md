@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-10-02
-- **Scope:** Clean header + the phone ⋯ sheet (the one-bar and classic headers don't carry it, owner)
+- **Scope:** Clean header (an icon after Samples) + the phone ⋯ sheet (beside Print); the one-bar and classic headers don't carry it (owner)
 - **Related:** `src/emailestimate.jsx`, `src/estimatemail.js`; proof `.scratch/167_email-estimate`
 
 The owner asked for a button that opens an email with the estimate attached as a PDF and
