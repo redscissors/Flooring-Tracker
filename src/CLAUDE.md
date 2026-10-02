@@ -542,8 +542,9 @@ src/
                     # Touch → share sheet (a refused share raises a one-tap Share
                     # button); else download + `mailto:`
   estimatemail.js   # what the email fills in: To (the customer's email or blank),
-                    # subject, message signed with the salesperson, and the PDF
-                    # name "Customer - Project Name.pdf" (estimatemail.test.js)
+                    # subject "Selections - Customer - Project" (selection sheets
+                    # with pricing, not estimates — owner), an EMPTY body, and the
+                    # PDF name "Customer - Project Name.pdf" (estimatemail.test.js)
   sheethead.jsx     # `SheetHead` — the selection-sheet masthead + people row +
                     # job notes, shared by the cards and columns sheets
   usetoast.js       # `useToast` — toast/save-flash UI state (`ping`, `flashSaved`)

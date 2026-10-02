@@ -12,15 +12,17 @@ Owner, 2026-10-02: a button about ⅓ the width of Print, between Order entry an
 that opens an email with the project attached as a PDF, To filled with the customer's
 email (blank when none). Only on the Clean header and the phone layout. PDFs named
 "Customer - Project Name". Same day: moved to a plain icon right after the Samples
-icon in the Clean header (the phone sheet keeps it beside Print).
+icon in the Clean header (the phone sheet keeps it beside Print). Then: these are
+selection sheets with pricing, not quotes or estimates — subject "Selections -
+Customer - Project", body empty; wording on the button/tips follows.
 
 Browsers can't attach a file to a `mailto:` email, so (owner picked after the options
 were laid out; the team sends from Windows new Outlook/webmail and iPads/phones):
 
 - **Phone / iPad** — the system share sheet with the PDF attached; the customer's email
   is copied first (the share sheet has no recipient slot).
-- **Computer** — the PDF saves to Downloads and a pre-addressed email opens (subject,
-  message signed with the salesperson); drag the PDF in.
+- **Computer** — the PDF saves to Downloads and a pre-addressed email opens (subject
+  "Selections - Customer - Project", empty body); drag the PDF in.
 
 Decision record: ADR 0055.
 

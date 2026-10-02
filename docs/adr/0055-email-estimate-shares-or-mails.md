@@ -11,7 +11,9 @@ the button splits by device. Phones and iPads (`!isWide` or a coarse pointer) ha
 to the system share sheet: the file is attached, but the sheet has no recipient slot, so the
 customer's email is copied to the clipboard first. Computers save the PDF to Downloads as
 `Customer - Project Name.pdf` and open a `mailto:` addressed to the customer with the subject
-and message filled in; the salesperson drags the PDF in. The team sends from Windows with
+`Selections - Customer - Project` and an empty body; the salesperson drags the PDF in. (The
+sheets are selection sheets with pricing, not quotes or estimates — owner, 2026-10-02; the
+first version's "Estimate – Project" subject and signed message were dropped the same day.) The team sends from Windows with
 the new Outlook or webmail, and the Windows share window can't reach Outlook on the web or
 Gmail in a tab, while a `mailto:` works with any default mail app.
 
@@ -40,4 +42,4 @@ load on the first click (ADR 0026).
   would draw a wider fallback face over a layout measured in Manrope; `emailestimate.jsx`
   fetches that stylesheet itself and inlines the latin Manrope files.
 - Safari can drop the click's user activation while the PDF builds; a refused share
-  raises a one-tap "Share estimate PDF" button that carries a fresh gesture.
+  raises a one-tap "Share selections PDF" button that carries a fresh gesture.

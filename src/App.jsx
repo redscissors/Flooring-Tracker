@@ -1456,19 +1456,19 @@ export default function App({ user, onSignOut }) {
   // devices, saved + a pre-addressed email on computers (emailestimate.jsx).
   const emailEstimate = () => {
     if (emailBusy || !sel?._full) return;
-    const m = estimateMail({ cust: data.people.find((c) => c.id === sel.customerId), project: sel, salesperson: sel.salesperson || profile });
+    const m = estimateMail({ cust: data.people.find((c) => c.id === sel.customerId), project: sel });
     const share = !isWide || window.matchMedia?.("(pointer: coarse)")?.matches;
     // Copied up front, while the click still counts as a user gesture.
     if (share && m.to) navigator.clipboard?.writeText(m.to).catch(() => {});
     setEmailBusy(true);
-    ping("Building the estimate PDF…");
+    ping("Building the selection sheet PDF…");
     import("./emailestimate.jsx")
       .then((mod) => mod.emailEstimate({ ...m, paper: <EstimatePaper {...paperProps} />, share }))
       .then((r) => {
         if (r === "saved") ping("PDF saved to Downloads — drag it into the email");
         else if (r === "shared" && m.to) ping("Customer's email was copied — paste it into To");
       })
-      .catch(() => ping("Couldn't build the estimate PDF"))
+      .catch(() => ping("Couldn't build the selection sheet PDF"))
       .finally(() => setEmailBusy(false));
   };
 
@@ -1784,7 +1784,7 @@ export default function App({ user, onSignOut }) {
                             <div className="ft-mono text-[17px] font-bold" style={{ color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{money(grandTotal)}</div>
                           )}
                         </div>
-                        <button onClick={() => { setProjSheet(false); emailEstimate(); }} disabled={emailBusy} aria-label="Email estimate" title="Email estimate as a PDF" className="h-[38px] w-[40px] shrink-0 flex items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 disabled:opacity-50"><Mail size={16} /></button>
+                        <button onClick={() => { setProjSheet(false); emailEstimate(); }} disabled={emailBusy} aria-label="Email selections" title="Email the selection sheet as a PDF" className="h-[38px] w-[40px] shrink-0 flex items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 disabled:opacity-50"><Mail size={16} /></button>
                         <button onClick={() => { setProjSheet(false); setPrintMode("estimate"); }} style={TIER_COLOR[sel.priceTier] ? { background: TIER_COLOR[sel.priceTier].main } : undefined} className="h-[38px] shrink-0 flex items-center justify-center gap-1.5 text-[13px] font-bold rounded-md bg-indigo-600 hover:bg-indigo-700 text-white px-7"><Printer size={15} /> Print</button>
                       </>}>
                       <div className="space-y-3">
