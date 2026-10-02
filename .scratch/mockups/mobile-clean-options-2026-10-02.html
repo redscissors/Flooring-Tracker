@@ -1,0 +1,352 @@
+<title>Ned Phone Clean Options</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap">
+<style>
+/* Layout: a review board of 344px Fold 5 cover-screen frames, grouped Header → Body → Bottom bar.
+   The board follows the viewer's theme; the phones always show Ned's light Moss kit. */
+:root{
+  --bg:#E4E0D3; --fg:#1C1A17; --muted:#57534C; --rule:rgba(28,26,23,.14); --pick:#40542A; --pick-ink:#F6F3EC; --frame:rgba(28,26,23,.22);
+  --ui:"Manrope",-apple-system,"Segoe UI",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#1C1A17;--fg:#F6F3EC;--muted:#A8A29A;--rule:rgba(246,243,236,.14);--pick:#93B56A;--pick-ink:#1C1A17;--frame:rgba(246,243,236,.2);color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#1C1A17;--fg:#F6F3EC;--muted:#A8A29A;--rule:rgba(246,243,236,.14);--pick:#93B56A;--pick-ink:#1C1A17;--frame:rgba(246,243,236,.2);color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--ui);font-variant-numeric:tabular-nums;margin:0}
+.page{max-width:1560px;margin:0 auto;padding-block:28px 80px;padding-inline:16px}
+.intro{max-width:720px;margin-bottom:34px}
+.intro h1{font-size:26px;font-weight:800;letter-spacing:-.015em;margin:0 0 10px;text-wrap:balance}
+.intro p{font-size:14px;line-height:1.6;color:var(--muted);margin:0 0 10px}
+.intro b{color:var(--fg)}
+section{border-top:1px solid var(--rule);padding-top:22px;margin-top:34px}
+section>h2{font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;margin:0 0 4px}
+section>.lede{font-size:13.5px;color:var(--muted);line-height:1.55;max-width:760px;margin:0 0 22px}
+.row{display:flex;flex-wrap:wrap;gap:36px 40px;align-items:flex-start}
+.col{width:344px;max-width:100%;display:flex;flex-direction:column;gap:10px}
+.cap{display:flex;align-items:baseline;gap:8px}
+.cap .k{flex:none;min-width:24px;height:22px;padding:0 6px;border-radius:5px;background:var(--pick);color:var(--pick-ink);font-size:12px;font-weight:800;display:inline-flex;align-items:center;justify-content:center}
+.cap b{font-size:15px;font-weight:800}
+.notes{font-size:12.5px;line-height:1.55;color:var(--muted);margin:0;padding-left:16px}
+.notes li{margin-bottom:5px}
+.notes b{color:var(--fg)}
+.bug{max-width:760px;font-size:13.5px;line-height:1.6;color:var(--muted)}
+.bug b{color:var(--fg)}
+.bug code{font-size:12px;background:var(--rule);padding:1px 5px;border-radius:4px}
+
+/* ---------- the phone (fixed Ned light kit) ---------- */
+.phone{--paper:#F6F3EC;--card:#FFFFFF;--ink:#1C1A17;--mut:#57534C;--fnt:#8A8378;--moss:#57703A;--mossd:#40542A;--mosss:rgba(87,112,58,.13);
+  --band:#E7E3D6;--line:rgba(28,26,23,.10);--lines:rgba(28,26,23,.25);--rowl:#ECE8DC;--amber:#b45309;--ambers:#fef6e2;
+  width:344px;max-width:100%;height:740px;background:var(--paper);color:var(--ink);border-radius:22px;border:1px solid var(--frame);
+  box-shadow:0 18px 50px rgba(0,0,0,.28);overflow:hidden;position:relative;display:flex;flex-direction:column;font-size:12px}
+.phone.short{height:430px}
+.sb{height:22px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 16px;font-size:10.5px;font-weight:700;color:var(--ink)}
+.scroll{flex:1;min-height:0;overflow:hidden;position:relative}
+.ic{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;display:block}
+.btn0{appearance:none;border:0;background:none;padding:0;color:inherit;font:inherit;cursor:pointer}
+.eb{font-size:8px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--fnt)}
+.money{font-weight:800;letter-spacing:-.01em}
+.trunc{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.dot{color:var(--lines)}
+
+/* header pieces */
+.topbar{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--line);background:#EFEBE0}
+.iconbtn{width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--mut);flex:none}
+.iconbtn.box{border:1px solid var(--line);background:var(--card)}
+.caret{display:inline-flex;align-items:center;gap:3px;font-weight:700;font-size:12.5px;white-space:nowrap}
+.caret .ic{width:12px;height:12px;color:var(--fnt)}
+.bar{display:flex;align-items:center;gap:10px;height:38px;padding:0 6px 0 12px;border-top:1px solid var(--line)}
+.bar .sp{flex:1}
+.bar .iconbtn{width:26px;height:28px}
+.badge{position:absolute;top:1px;right:0;min-width:14px;height:14px;border-radius:7px;background:var(--ambers);color:var(--amber);font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;padding:0 3px}
+.rel{position:relative}
+.cust{font-size:20px;font-weight:800;letter-spacing:-.015em;line-height:1.1}
+.projline{font-size:11.5px;color:var(--mut);display:flex;gap:5px;align-items:center;min-width:0}
+.projline b{color:var(--ink);font-weight:700}
+.nno{color:var(--fnt);font-weight:700;font-size:10.5px}
+.sales{font-size:12px;font-weight:800}
+.tierpill{display:inline-flex;align-items:center;gap:3px;height:24px;padding:0 8px;border-radius:12px;font-size:11px;font-weight:800;background:var(--mosss);color:var(--mossd)}
+.tierpill .ic{width:11px;height:11px}
+.saved{font-size:9.5px;color:var(--moss);font-weight:700}
+
+/* dropdown panel (the .ft-pop look) */
+.scrim{position:absolute;inset:0;background:rgba(28,26,23,.28);z-index:2}
+.pop{position:absolute;left:8px;right:8px;z-index:3;background:var(--card);border:1.5px solid var(--ink);border-radius:12px;box-shadow:0 14px 34px rgba(28,26,23,.25);padding:6px 0;font-size:12.5px}
+.pop .pr{display:flex;align-items:center;gap:10px;padding:0 14px;height:40px;border-bottom:1px solid var(--rowl)}
+.pop .pr:last-of-type{border-bottom:0}
+.pop .pr .l{color:var(--mut);font-weight:600;flex:1}
+.pop .pr .v{font-weight:800;display:flex;align-items:center;gap:4px}
+.pop .pr .v .ic{width:12px;height:12px;color:var(--fnt)}
+.pop .acts{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:8px 10px 4px;border-top:1px solid var(--line);margin-top:2px}
+.pop .act{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 0;border-radius:8px;background:#F3F0E7;font-size:10px;font-weight:700;color:var(--mut)}
+
+/* body: areas & rows — three styles */
+.areas{padding:8px 8px 0}
+/* R1 tightened band */
+.r1 .area{border:1px solid #E2DED2;border-radius:8px;background:var(--card);margin-bottom:8px;overflow:hidden}
+.r1 .ahead{display:flex;align-items:center;gap:8px;background:var(--band);padding:7px 6px 7px 11px}
+.r1 .ahead.on{box-shadow:inset 3px 0 0 var(--moss)}
+.r1 .aname{font-size:15px;font-weight:800;flex:1}
+.r1 .atot{font-size:11px;font-weight:800}
+.r1 .prow{display:flex;gap:8px;padding:7px 10px;border-top:1px solid var(--rowl);background:var(--paper)}
+.chip{width:19px;height:19px;border-radius:4px;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none;margin-top:1px}
+.pname{font-size:13px;font-weight:700}
+.psub{font-size:10.5px;color:var(--fnt);margin-top:1px}
+.ptot{font-size:12px;font-weight:800;flex:none}
+.tag{font-size:8.5px;font-weight:800;padding:1px 4px;border-radius:3px;color:var(--mossd);background:var(--mosss)}
+.empty{padding:10px 12px;font-size:11.5px;color:var(--fnt);border-top:1px solid var(--rowl);background:var(--paper)}
+/* R2 clean cards */
+.r2 .area{border:1px solid var(--line);border-radius:12px;background:var(--card);margin-bottom:10px;overflow:hidden}
+.r2 .ahead{display:flex;align-items:center;gap:8px;padding:10px 6px 8px 12px}
+.r2 .aname{font-size:14.5px;font-weight:800}
+.r2 .ameta{font-size:10.5px;color:var(--fnt);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.r2 .atot{font-size:12px;font-weight:800}
+.r2 .prow{display:flex;gap:9px;padding:8px 12px 9px;border-top:1px solid var(--rowl)}
+.tdot{width:8px;height:8px;border-radius:50%;flex:none;margin-top:5px}
+.r2 .mats{font-size:10px;color:var(--mossd);font-weight:700;margin-top:2px}
+.r2 .area.on{border-color:rgba(87,112,58,.55);box-shadow:0 0 0 1px rgba(87,112,58,.35)}
+/* R3 flat sections */
+.r3.areas{padding:0}
+.r3 .ahead{position:relative;display:flex;align-items:center;gap:8px;padding:12px 12px 5px;background:var(--paper)}
+.r3 .ahead.stuck{background:#EFEBE0;border-bottom:1px solid var(--line);padding-top:7px;padding-bottom:7px}
+.r3 .aname{font-size:9.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--mossd);flex:1}
+.r3 .atot{font-size:11px;font-weight:800;color:var(--mut)}
+.r3 .list{background:var(--card);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.r3 .prow{display:flex;gap:9px;padding:9px 12px;border-top:1px solid var(--rowl);margin-left:0}
+.r3 .prow:first-child{border-top:0}
+.r3 .empty{background:var(--card);border-top:0}
+
+/* bottom bars */
+.bot{flex:none;padding:8px 10px 12px;border-top:1px solid var(--line);background:#EFEBE0;display:flex;gap:8px;align-items:center}
+.ob{height:36px;display:flex;align-items:center;justify-content:center;gap:4px;border:1px solid var(--lines);background:var(--card);border-radius:7px;padding:0 11px;font-size:12.5px;font-weight:700;flex:none}
+.pb{height:36px;flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:7px;background:var(--ink);color:var(--paper);font-weight:700}
+.pb .t{display:flex;align-items:center;gap:4px;font-size:12.5px;line-height:1}
+.pb .a{font-size:9px;opacity:.75;margin-top:3px;line-height:1}
+.searchbar{flex:1;min-width:0;height:40px;display:flex;align-items:center;gap:8px;border-radius:20px;background:var(--ink);color:var(--paper);padding:0 14px;font-size:13px;font-weight:700}
+.searchbar .area{margin-left:auto;font-size:10.5px;font-weight:700;opacity:.7;white-space:nowrap}
+.plus{width:40px;height:40px;border-radius:20px;border:1px solid var(--lines);background:var(--card);display:flex;align-items:center;justify-content:center;flex:none}
+.dock{flex:none;border-top:1px solid var(--line);background:#EFEBE0}
+.dock .set{display:flex;align-items:center;gap:12px;height:36px;padding:0 12px;border-bottom:1px solid var(--line)}
+.dock .set .sp{flex:1}
+.mini{display:flex;flex-direction:column;align-items:flex-end;line-height:1.05}
+.mini .eb{font-size:7px}
+.minipop{position:absolute;left:10px;bottom:62px;z-index:3;background:var(--card);border:1.5px solid var(--ink);border-radius:12px;box-shadow:0 14px 34px rgba(28,26,23,.25);padding:4px 0;width:190px}
+.minipop div{display:flex;align-items:center;gap:9px;height:38px;padding:0 12px;font-size:12.5px;font-weight:700;border-bottom:1px solid var(--rowl)}
+.minipop div:last-child{border-bottom:0}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+
+<div class="page">
+  <div class="intro">
+    <h1>Ned on the Fold 5 cover screen: Clean options</h1>
+    <p>Every frame is 344px wide, the Galaxy Z Fold 5's narrow front screen. The sample job is the desktop Clean screenshot's job (Tom Marsh, N214) so you can compare them side by side.</p>
+    <p>Pick one from each group. <b>Headers A–D</b> work with any <b>body R1–R3</b> and any <b>bottom bar</b>. Every phone keeps the Price book button at the bottom that follows the area you're scrolled to.</p>
+  </div>
+
+  <section>
+    <h2>Today</h2>
+    <p class="lede">What's live now on the phone: a title bar, then the boxed band (Customer and Salesperson boxes, project, price level and Total, then All $ · Samples · Freight), then the areas.</p>
+    <div class="row"><div class="col"><div class="cap"><span class="k">0</span><b>Current phone</b></div><div id="p-today"></div></div></div>
+  </section>
+
+  <section>
+    <h2>Header options</h2>
+    <p class="lede">Each one uses the desktop Clean words: the customer is the headline, the project is a small line under it, and settings are plain text with carets instead of boxes. The dropdowns are the same Clean dropdowns as desktop.</p>
+    <div class="row">
+      <div class="col"><div class="cap"><span class="k">A</span><b>Clean stack</b></div><div id="p-A"></div>
+        <ul class="notes"><li>The closest match to desktop Clean: customer, project line, then the bar with the carets.</li><li>Truck, Samples and ⋯ are icons on the right. Email, Print, Versions and Files live in ⋯.</li><li>Like desktop, there's no money in the header. The Total moves to the ⋯ sheet and the Order summary. <b>About 118px tall.</b></li></ul></div>
+      <div class="col"><div class="cap"><span class="k">B</span><b>One bar, drops down</b></div><div id="p-B"></div>
+        <ul class="notes"><li>One 52px row: customer and project, the price level as a coloured pill, and the Total.</li><li>Tap the title and every setting drops down in one Clean panel (next frame). <b>The smallest header</b>, so it leaves the most room for areas.</li></ul></div>
+      <div class="col"><div class="cap"><span class="k">B</span><b>…title tapped</b></div><div id="p-B2"></div>
+        <ul class="notes"><li>Each row opens its own dropdown, the same as desktop. Print, Email, Files and Versions sit along the bottom.</li><li>Tap outside or swipe up to close it.</li></ul></div>
+    </div>
+    <div class="row" style="margin-top:36px">
+      <div class="col"><div class="cap"><span class="k">C</span><b>Big title, folds on scroll</b></div><div id="p-C"></div>
+        <ul class="notes"><li>At the top of a job it shows A's full header.</li></ul></div>
+      <div class="col"><div class="cap"><span class="k">C</span><b>…scrolled down</b></div><div id="p-C2"></div>
+        <ul class="notes"><li>Once you scroll into the areas it folds to one line, and the price level stays visible. Scroll back up or tap the name to unfold it.</li><li>It's the same pattern as iPhone/Android large-title screens.</li></ul></div>
+      <div class="col"><div class="cap"><span class="k">D</span><b>Thumb bar</b></div><div id="p-D"></div>
+        <ul class="notes"><li>The top is only the name. The settings bar moves to the bottom, right above Price book, so everything is in reach of your thumb.</li><li>Tradeoff: two rows at the bottom, and the bar hides while the row editor is open.</li></ul></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Body options: areas and product lines</h2>
+    <p class="lede">Shown under header A. Product lines still open the same row editor sheet on tap, and a long-press still drags. The moss mark shows which area the Price book button will add to.</p>
+    <div class="row">
+      <div class="col"><div class="cap"><span class="k">R1</span><b>Today, tightened</b></div><div id="p-R1"></div>
+        <ul class="notes"><li>Keeps today's tan area band and two-line rows.</li><li>The area name switches to the sans font and gets smaller. The grip and trash become one ⋯ (long-press still drags). The subtotal stays.</li></ul></div>
+      <div class="col"><div class="cap"><span class="k">R2</span><b>Clean cards</b></div><div id="p-R2"></div>
+        <ul class="notes"><li>Desktop Clean's white area cards: name · “2 items · 60 SF” · subtotal · ⋯.</li><li>The square type chip shrinks to a coloured dot, and the materials read as words (“+ Grout · Mortar”). The area you're in gets a moss outline.</li></ul></div>
+      <div class="col"><div class="cap"><span class="k">R3</span><b>Flat list, sticky area titles</b></div><div id="p-R3"></div>
+        <ul class="notes"><li>No cards. Each area is a small caps title that sticks to the top while you scroll its lines, so you always see which area the Price book button will add to.</li><li><b>The most lines per screen.</b></li></ul></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Bottom bar options</h2>
+    <p class="lede">The Price book button follows the area you're scrolled to in both.</p>
+    <div class="row">
+      <div class="col"><div class="cap"><span class="k">P1</span><b>Today's three buttons</b></div><div id="p-P1"></div>
+        <ul class="notes"><li>+ Area · + Product · Price book with the area name under it. Kept exactly as it is.</li></ul></div>
+      <div class="col"><div class="cap"><span class="k">P2</span><b>Search pill</b></div><div id="p-P2"></div>
+        <ul class="notes"><li>A wide pill that looks like a search box, with the area at its end. One tap opens the full-screen search.</li><li>The round + opens a small menu: Product by hand · New area (next frame).</li></ul></div>
+      <div class="col"><div class="cap"><span class="k">P2</span><b>…+ tapped</b></div><div id="p-P3"></div>
+        <ul class="notes"><li>The two less-used adds share one button, so the search pill gets the width.</li></ul></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>The double-tap bug</h2>
+    <div class="bug">
+      <p><b>What happens:</b> you open Price book from the bottom bar and tap a product. It fills the line, but then the search screen opens again with that SKU already typed, and you have to tap the product again or hit Cancel.</p>
+      <p><b>Why:</b> the blank line you're adding to is drawn differently from a filled line. When the pick fills it, the row editor is thrown away and rebuilt, and the rebuilt editor still remembers “open in search mode” from the Price book tap. So the search opens a second time. It only happens through the bottom bar's Price book button, because that's the only way in that starts in search mode.</p>
+      <p><b>Fix:</b> clear the “open in search” flag once a pick lands, and keep the line from being rebuilt, so one tap adds the product and drops you on its square-footage field. This is separate from the design work and doesn't depend on which options you pick.</p>
+    </div>
+  </section>
+</div>
+
+<script>
+(function(){
+const P = {
+  menu:'<path d="M4 6h16M4 12h16M4 18h16"/>',
+  more:'<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>',
+  down:'<path d="m6 9 6 6 6-6"/>', up:'<path d="m18 15-6-6-6 6"/>',
+  truck:'<path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/>',
+  layers:'<path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/>',
+  mail:'<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>',
+  print:'<path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect x="6" y="14" width="12" height="8" rx="1"/>',
+  search:'<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  plus:'<path d="M5 12h14M12 5v14"/>',
+  clip:'<path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>',
+  hist:'<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>',
+  grip:'<path d="M3 9h18M3 15h18"/>', trash:'<path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+  pen:'<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>', square:'<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8M8 12h8"/>'
+};
+const ic = (n, s, extra) => `<svg class="ic" viewBox="0 0 24 24" style="${s ? `width:${s}px;height:${s}px;` : ''}${extra || ''}">${P[n]}</svg>`;
+const NED = '<svg viewBox="0 0 30 22" style="width:28px;height:21px;flex:none"><text x="0" y="17" font-family="Manrope" font-weight="800" font-size="19" fill="#1C1A17">ned</text></svg>';
+const TC = {tile:'#2A3A1B', hard:'#40542A', vinyl:'#57703A', carpet:'#6E8A4C', misc:'#A4BC84'};
+const AREAS = [
+  {name:'Kitchen', meta:'1 item · 95 SF', tot:'$513.30', rows:[{t:'vinyl',L:'V',name:'COREtec Blond Oak',sub:'VV012 · 7×48 · 5 ct × 23.6 SF · @ $4.35',tot:'$513.30',tags:['U'],mats:'+ Underlayment'}]},
+  {name:'Hall bath — stone', meta:'2 items · 60 SF', tot:'$458.00', rows:[
+    {t:'tile',L:'T',name:'Daltile Keystones White',sub:'DKEYWH · 2×2×3/8 · 60 SF · @ $6.40',tot:'$384.00',tags:['G','M'],mats:'+ Grout · Mortar'},
+    {t:'misc',L:'✕',name:'Schluter Jolly ⅜″ Satin',sub:'J100AE · 4 EA · @ $18.50',tot:'$74.00',tags:[],mats:''}]},
+  {name:'Mudroom', meta:'1 item · 80 SF', tot:'$316.00', rows:[{t:'tile',L:'T',name:'Mohawk Slate Grey',sub:'MHSLGR · 12×24 · 80 SF · @ $3.95',tot:'$316.00',tags:['G'],mats:'+ Grout'}]},
+  {name:'Laundry', meta:'Empty', tot:'', rows:[]},
+  {name:'Powder room', meta:'1 item · 22 SF', tot:'$165.00', rows:[{t:'tile',L:'T',name:'Zellige Bianco 4×4',sub:'ZB44 · 4×4 · 22 SF · @ $7.50',tot:'$165.00',tags:['G'],mats:'+ Grout'}]},
+];
+const tagsHtml = (r) => r.tags.length ? `<span style="display:flex;gap:2px;margin-left:auto">${r.tags.map(t=>`<i class="tag" style="font-style:normal">${t}</i>`).join('')}</span>` : '';
+
+function body(style, opt){
+  opt = opt || {};
+  const active = opt.active ?? 0;
+  const from = opt.from || 0;
+  const list = AREAS.slice(from);
+  if (style === 'r3'){
+    return `<div class="areas r3">${list.map((a,i)=>`
+      <div class="ahead ${opt.stuck && i===0 ? 'stuck':''}"><span class="aname">${a.name}</span><span class="atot money">${a.tot}</span><span class="iconbtn" style="width:22px;height:22px;color:var(--fnt)">${ic('more',14)}</span></div>
+      <div class="list">${a.rows.length ? a.rows.map(r=>`
+        <div class="prow"><span class="tdot" style="background:${TC[r.t]}"></span><div class="trunc" style="flex:1"><div style="display:flex;gap:8px;align-items:baseline"><span class="pname trunc" style="flex:1">${r.name}</span><span class="ptot">${r.tot}</span></div><div class="psub trunc">${r.sub}</div></div></div>`).join('') : `<div class="empty">No products yet. Tap Price book below.</div>`}</div>`).join('')}</div>`;
+  }
+  if (style === 'r2'){
+    return `<div class="areas r2">${list.map((a,i)=>`
+      <div class="area ${i===active?'on':''}"><div class="ahead"><span class="aname">${a.name}</span><span class="ameta">${a.meta}</span><span class="atot">${a.tot}</span><span class="iconbtn" style="width:24px;height:24px;color:var(--fnt)">${ic('more',15)}</span></div>
+      ${a.rows.map(r=>`<div class="prow"><span class="tdot" style="background:${TC[r.t]}"></span><div class="trunc" style="flex:1"><div style="display:flex;gap:8px;align-items:baseline"><span class="pname trunc" style="flex:1">${r.name}</span><span class="ptot">${r.tot}</span></div><div class="psub trunc">${r.sub}</div>${r.mats?`<div class="mats">${r.mats}</div>`:''}</div></div>`).join('')}
+      </div>`).join('')}</div>`;
+  }
+  if (style === 'today'){
+    return `<div class="areas r1">${list.map((a,i)=>`
+      <div class="area"><div class="ahead ${i===active?'on':''}" style="padding:6px 10px 6px 11px"><span style="font-family:Georgia,serif;font-size:18px;flex:1">${a.name}</span><span class="atot" style="font-weight:600;font-size:10.5px">${a.tot}</span><span style="color:var(--fnt)">${ic('grip',14)}</span><span style="color:var(--fnt)">${ic('trash',14)}</span></div>
+      ${rowsR1(a)}</div>`).join('')}</div>`;
+  }
+  return `<div class="areas r1">${list.map((a,i)=>`
+    <div class="area"><div class="ahead ${i===active?'on':''}"><span class="aname">${a.name}</span><span class="atot">${a.tot}</span><span class="iconbtn" style="width:22px;height:22px;color:var(--fnt)">${ic('more',15)}</span></div>
+    ${rowsR1(a)}</div>`).join('')}</div>`;
+}
+function rowsR1(a){
+  return a.rows.length ? a.rows.map(r=>`<div class="prow"><span class="chip" style="background:${TC[r.t]}">${r.L}</span><div class="trunc" style="flex:1"><div style="display:flex;gap:8px;align-items:baseline"><span class="pname trunc" style="flex:1">${r.name}</span><span class="ptot">${r.tot}</span></div><div class="psub" style="display:flex;gap:6px"><span class="trunc">${r.sub}</span>${tagsHtml(r)}</div></div></div>`).join('') : `<div class="empty">Empty</div>`;
+}
+
+const areaName = (i) => AREAS[i].name;
+function bottom(kind, i){
+  i = i || 0;
+  if (kind === 'p2') return `<div class="bot"><span class="plus">${ic('plus',18)}</span><span class="searchbar">${ic('search',16)} Price book<span class="area">${areaName(i)}</span></span></div>`;
+  return `<div class="bot"><span class="ob">${ic('plus',14)} Area</span><span class="ob">${ic('plus',14)} Product</span><span class="pb"><span class="t">${ic('search',14)} Price book</span><span class="a">${areaName(i)}</span></span></div>`;
+}
+
+const SB = '<div class="sb"><span>9:41</span><span>5G ▮▮▮ 82%</span></div>';
+function hdrToday(){
+  const box = 'border:1px solid var(--lines);border-radius:6px;padding:2px 7px 3px;display:flex;flex-direction:column;justify-content:center;min-width:0';
+  const mini = 'height:22px;display:flex;align-items:center;justify-content:center;gap:4px;border:1px solid var(--lines);border-radius:6px;padding:0 6px;font-size:10px;font-weight:700;color:var(--mut);flex:1 1 auto;white-space:nowrap';
+  return `<div class="topbar"><span class="iconbtn">${ic('menu',19)}</span>${NED}<span class="trunc" style="flex:1;font-family:Georgia,serif;font-size:15px"><span style="color:var(--fnt)">Tom Marsh › </span>Marsh — whole first floor</span><span class="iconbtn box">${ic('more',15)}</span></div>
+  <div style="margin:8px 8px 0;border:1px solid var(--line);border-radius:8px;background:var(--band);padding:4px;display:flex;gap:4px">
+    <div style="width:106px;display:flex;flex-direction:column;gap:3px;flex:none">
+      <div style="${box};flex:1"><span class="eb">Customer</span><span style="color:#4f46e5;font-weight:800;font-size:12px">Tom Marsh ▾</span></div>
+      <div style="${box};flex:1"><span class="eb">Salesperson</span><span style="font-weight:700;font-size:11px">Sam ▾</span><span style="font-size:9.5px;color:var(--mut)">330-555-0142</span></div>
+    </div>
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px">
+      <div style="${box};padding:3px 7px 4px"><div style="display:flex;justify-content:space-between"><span class="eb">Project</span><span class="eb">N214</span></div><span style="font-size:14px;font-weight:800" class="trunc">Marsh — whole first floor</span><span style="font-size:10px;color:var(--mut)">44 Beech Ln</span></div>
+      <div style="display:flex;gap:3px"><span style="height:24px;flex:1;border-radius:6px;background:#1C1A17;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;padding:0 6px">Retail ▾</span><span style="${box};height:24px;width:86px;flex:none;align-items:flex-end;padding:0 6px"><span class="eb" style="font-size:7px">Total ✓</span><span class="money" style="font-size:12.5px;color:var(--mossd)">$1,412.85</span></span></div>
+      <div style="display:flex;gap:3px"><span style="${mini}">All $ ▾</span><span style="${mini}">${ic('layers',11)} Samples <b style="background:var(--ambers);color:var(--amber);border-radius:3px;padding:0 3px">2</b></span><span style="${mini}">${ic('truck',11)} $185</span></div>
+    </div>
+  </div>`;
+}
+const carets = (waste) => `<span class="caret">Retail ${ic('down')}</span><span class="caret">All prices ${ic('down')}</span>${waste ? `<span class="caret" style="color:var(--mut)">10% · 5% ${ic('down')}</span>` : ''}`;
+const iconsR = `<span class="iconbtn">${ic('truck',16)}</span><span class="iconbtn rel">${ic('layers',16)}<span class="badge">2</span></span><span class="iconbtn">${ic('more',16)}</span>`;
+function hdrA(){
+  return `<div style="background:#EFEBE0;border-bottom:1px solid var(--line)">
+    <div style="display:flex;align-items:center;gap:6px;padding:6px 10px 0 4px"><span class="iconbtn">${ic('menu',19)}</span><span class="cust trunc" style="flex:1">Tom Marsh</span><div style="text-align:right;line-height:1.1"><div class="saved">Saved ✓</div><div class="sales">Sam</div></div></div>
+    <div class="projline" style="padding:2px 12px 8px"><b class="trunc">Marsh — whole first floor</b><span class="nno">N214</span><span class="dot">·</span><span class="trunc">44 Beech Ln</span></div>
+    <div class="bar">${carets(true)}<span class="sp"></span>${iconsR}</div></div>`;
+}
+function hdrB(open){
+  return `<div style="background:#EFEBE0;border-bottom:1px solid var(--line);position:relative;z-index:4">
+    <div style="display:flex;align-items:center;gap:6px;height:52px;padding:0 8px 0 4px"><span class="iconbtn">${ic('menu',19)}</span>
+      <div class="trunc" style="flex:1"><div style="display:flex;align-items:center;gap:3px"><span style="font-size:16px;font-weight:800;letter-spacing:-.01em" class="trunc">Tom Marsh</span>${ic(open?'up':'down',13,'color:var(--fnt)')}</div><div class="projline trunc" style="font-size:11px"><span class="trunc">Marsh — whole first floor</span><span class="nno">N214</span></div></div>
+      <span class="tierpill">Retail</span>
+      <div class="mini"><span class="eb">Total</span><span class="money" style="font-size:13px">$1,412.85</span></div>
+    </div></div>`;
+}
+function popB(){
+  const row = (l, v, caret = true) => `<div class="pr"><span class="l">${l}</span><span class="v">${v}${caret ? ic('down') : ''}</span></div>`;
+  return `<div class="scrim"></div><div class="pop" style="top:76px">
+    ${row('Price level','<span class="tierpill" style="height:22px">Retail</span>')}
+    ${row('Estimate shows','All prices')}
+    ${row('Waste','Tile 10% · Floor 5%')}
+    ${row('Freight','<span style="display:flex;align-items:center;gap:5px">'+ic('truck',14)+' On · $185</span>')}
+    ${row('Samples','<span style="color:var(--amber)">2 to order</span>')}
+    ${row('Address','44 Beech Ln')}
+    ${row('Salesperson','Sam')}
+    <div class="acts"><span class="act">${ic('print',16)}Print</span><span class="act">${ic('mail',16)}Email</span><span class="act">${ic('clip',16)}Files</span><span class="act">${ic('hist',16)}Versions</span></div>
+  </div>`;
+}
+function hdrCfold(){
+  return `<div style="background:#EFEBE0;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:6px;height:44px;padding:0 8px 0 4px;box-shadow:0 4px 10px rgba(28,26,23,.06)"><span class="iconbtn">${ic('menu',19)}</span>
+    <div class="trunc" style="flex:1;display:flex;align-items:baseline;gap:6px"><span style="font-size:14.5px;font-weight:800;flex:none">Tom Marsh</span><span class="nno">N214</span></div>
+    <span class="caret">Retail ${ic('down')}</span><span class="iconbtn">${ic('more',16)}</span></div>`;
+}
+function hdrDtop(){
+  return `<div class="topbar" style="padding:4px 8px 4px 4px"><span class="iconbtn">${ic('menu',19)}</span><div class="trunc" style="flex:1;line-height:1.15"><div style="font-size:15px;font-weight:800">Tom Marsh</div><div class="projline" style="font-size:10.5px"><span class="trunc">Marsh — whole first floor</span><span class="nno">N214</span></div></div><span class="saved" style="margin-right:4px">Saved ✓</span><span class="iconbtn">${ic('more',16)}</span></div>`;
+}
+function dockD(){
+  return `<div class="dock"><div class="set"><span class="caret">Retail ${ic('down')}</span><span class="caret">All prices ${ic('down')}</span><span class="sp"></span><span class="iconbtn" style="width:26px">${ic('truck',15)}</span><span class="iconbtn rel" style="width:26px">${ic('layers',15)}<span class="badge">2</span></span><div class="mini"><span class="eb">Total</span><span class="money" style="font-size:12.5px">$1,412.85</span></div></div>
+    <div style="display:flex;gap:8px;padding:8px 10px 12px"><span class="ob">${ic('plus',14)} Area</span><span class="ob">${ic('plus',14)} Product</span><span class="pb"><span class="t">${ic('search',14)} Price book</span><span class="a">Kitchen</span></span></div></div>`;
+}
+
+function phone(id, parts, short){
+  document.getElementById(id).innerHTML = `<div class="phone ${short ? 'short' : ''}">${SB}${parts.head}<div class="scroll">${parts.body}${parts.over || ''}</div>${parts.foot || ''}</div>`;
+}
+phone('p-today', {head: hdrToday(), body: body('today'), foot: bottom('p1')});
+phone('p-A', {head: hdrA(), body: body('r1'), foot: bottom('p1')});
+phone('p-B', {head: hdrB(false), body: body('r1'), foot: bottom('p1')});
+phone('p-B2', {head: hdrB(true), body: body('r1'), over: '', foot: bottom('p1')});
+document.querySelector('#p-B2 .phone').insertAdjacentHTML('beforeend', popB().replace('class="scrim"', 'class="scrim" style="top:74px"'));
+phone('p-C', {head: hdrA().replace('class="cust trunc"', 'class="cust trunc" style="font-size:24px;flex:1"'), body: body('r1'), foot: bottom('p1')});
+phone('p-C2', {head: hdrCfold(), body: body('r1', {from: 1, active: 0}), foot: bottom('p1', 1)});
+phone('p-D', {head: hdrDtop(), body: body('r1'), foot: dockD()});
+phone('p-R1', {head: hdrA(), body: body('r1', {active: 1}), foot: bottom('p1', 1)});
+phone('p-R2', {head: hdrA(), body: body('r2', {active: 1}), foot: bottom('p1', 1)});
+phone('p-R3', {head: hdrA(), body: body('r3', {from: 1, stuck: true}), foot: bottom('p1', 1)});
+phone('p-P1', {head: hdrA(), body: body('r2'), foot: bottom('p1')}, true);
+phone('p-P2', {head: hdrA(), body: body('r2'), foot: bottom('p2')}, true);
+phone('p-P3', {head: hdrA(), body: body('r2'), foot: bottom('p2')}, true);
+document.querySelector('#p-P3 .phone').insertAdjacentHTML('beforeend', `<div class="scrim"></div><div class="minipop"><div>${ic('pen',15)} Product by hand</div><div>${ic('square',15)} New area</div></div>`);
+})();
+</script>
