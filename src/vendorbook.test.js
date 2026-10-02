@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { vendorBookFor, vendorBookForRow, vendorBookSeed, sheogaMarkups, normVendorMarkups } from "./vendorbook.js";
+import { vendorBookFor, vendorBookForRow, vendorBookSeed, sheogaMarkups, normVendorMarkups, trimBookOf, normTrimTexture } from "./vendorbook.js";
 
 const SHEOGA = { id: "vb1", kind: "vendor", name: "Sheoga Hardwood", data: { engine: "sheoga", markups: { flooring: 45, vents: 55 } } };
 const BOOKS = [{ id: "b1", kind: "order", name: "Glazzio", data: {} }, SHEOGA];
@@ -22,19 +22,45 @@ test("vendorBookForRow: a sheoga-marked row resolves to the Sheoga book, others 
 test("vendorBookSeed copies the Settings markups so nothing reprices on creation", () => {
   const s = vendorBookSeed("sheoga", SETTINGS);
   assert.equal(s.name, "Sheoga Hardwood");
-  assert.deepEqual(s.data, { engine: "sheoga", brandLabel: "Sheoga Hardwood", markups: { flooring: 35, vents: 60 } });
-  assert.deepEqual(vendorBookSeed("sheoga", {}).data.markups, { flooring: 40, vents: 50 });
+  assert.deepEqual(s.data, { engine: "sheoga", brandLabel: "Sheoga Hardwood", markups: { flooring: 35, vents: 60, trim: 100 } });
+  assert.deepEqual(vendorBookSeed("sheoga", {}).data.markups, { flooring: 40, vents: 50, trim: 100 });
+  assert.equal(vendorBookSeed("sheoga", {}).data.markups.trim, 100);
   assert.equal(vendorBookSeed("nope", SETTINGS), null);
 });
 
 test("sheogaMarkups: the book wins when it exists, Settings is the fallback", () => {
-  assert.deepEqual(sheogaMarkups(BOOKS, SETTINGS), { markupPct: 45, ventMarkupPct: 55, book: SHEOGA });
-  assert.deepEqual(sheogaMarkups([BOOKS[0]], SETTINGS), { markupPct: 35, ventMarkupPct: 60, book: null });
+  assert.deepEqual(sheogaMarkups(BOOKS, SETTINGS), { markupPct: 45, ventMarkupPct: 55, trimMarkupPct: 100, book: SHEOGA });
+  assert.deepEqual(sheogaMarkups([BOOKS[0]], SETTINGS), { markupPct: 35, ventMarkupPct: 60, trimMarkupPct: 100, book: null });
   const blank = { ...SHEOGA, data: { engine: "sheoga", markups: { flooring: "", vents: "abc" } } };
-  assert.deepEqual(sheogaMarkups([blank], SETTINGS), { markupPct: 40, ventMarkupPct: 50, book: blank });
+  assert.deepEqual(sheogaMarkups([blank], SETTINGS), { markupPct: 40, ventMarkupPct: 50, trimMarkupPct: 100, book: blank });
 });
 
 test("normVendorMarkups fills defaults and rejects negatives", () => {
-  assert.deepEqual(normVendorMarkups(undefined), { flooring: 40, vents: 50 });
-  assert.deepEqual(normVendorMarkups({ flooring: "30", vents: -5 }), { flooring: 30, vents: 50 });
+  assert.deepEqual(normVendorMarkups(undefined), { flooring: 40, vents: 50, trim: 100 });
+  assert.deepEqual(normVendorMarkups({ flooring: "30", vents: -5 }), { flooring: 30, vents: 50, trim: 100 });
+  assert.equal(normVendorMarkups({ flooring: 40, vents: 50 }).trim, 100);
+  assert.equal(normVendorMarkups({ trim: 80 }).trim, 80);
+});
+
+test("sheogaMarkups carries the trim markup: 100 by default, the book's when set", () => {
+  assert.equal(sheogaMarkups([], {}).trimMarkupPct, 100);
+  const withTrim = { ...SHEOGA, data: { ...SHEOGA.data, markups: { ...SHEOGA.data.markups, trim: 120 } } };
+  assert.equal(sheogaMarkups([withTrim], {}).trimMarkupPct, 120);
+});
+
+test("trimBookOf is null without a book or a sheet, else the sheet plus normalized texture", () => {
+  assert.equal(trimBookOf([]), null);
+  assert.equal(trimBookOf([BOOKS[0]]), null);
+  assert.equal(trimBookOf([SHEOGA]), null);
+  const S = { sheetDate: "2026-10-01", rows: [] };
+  const book = { ...SHEOGA, data: { ...SHEOGA.data, sheets: { accessories: S }, trimTexture: { nose35: "1.25", shoe: "" } } };
+  assert.deepEqual(trimBookOf([book]), { sheet: S, tex: { nose35: 1.25, nose55: null, shoe: null, reducer: null, tmold: null } });
+});
+
+test("normTrimTexture keeps 0 as a $0/lf charge; blank, negative and junk become null", () => {
+  assert.deepEqual(normTrimTexture({ tmold: 0 }).tmold, 0);
+  assert.equal(normTrimTexture({ nose35: "-1" }).nose35, null);
+  assert.equal(normTrimTexture({ nose35: -2, nose55: "abc", shoe: null, reducer: undefined }).nose55, null);
+  assert.deepEqual(normTrimTexture(undefined), { nose35: null, nose55: null, shoe: null, reducer: null, tmold: null });
+  assert.equal(normTrimTexture({ shoe: "0" }).shoe, 0);
 });
