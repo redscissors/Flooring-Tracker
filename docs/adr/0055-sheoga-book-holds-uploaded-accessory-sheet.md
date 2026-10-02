@@ -34,6 +34,9 @@ reducer, T-mold, slip tongue) comes off a fourth sheet, Sheoga's distributor
   `null`. A textured build charges texturable pieces and ships the others
   smooth, each noted "smooth — can't be textured"; nothing blocks the add. A
   sheet with no Texture row parses and reads every piece as can't-be-textured.
+  **Texture is never free** (owner, 2026-10-02): only a positive charge makes a
+  piece texturable — a 0, negative or non-number cell reads as can't-be-textured,
+  so a textured piece always carries Sheoga's charge.
   This supersedes the same-day first decision (a blank, hand-entered per-piece
   textured charge that blocked a textured add until filled); no such slot
   exists in the stored shape.

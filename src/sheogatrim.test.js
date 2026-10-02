@@ -194,6 +194,21 @@ test("calcTrim: texture is priced from the sheet; untexturable pieces ship smoot
   assert.ok(!items[1].brandColor.includes("Saw Cut"));
 });
 
+test("parse + calcTrim: texture is never free — a 0 or negative Texture cell means can't be textured", () => {
+  const sheets = load();
+  const [row, c] = cell(sheets, "Texture Charge");
+  row[c + 1] = 0;
+  row[c + 2] = -1;
+  const { sheet, problems } = parseAccessorySheet(sheets);
+  assert.deepEqual(problems, []);
+  assert.deepEqual(sheet.tex, { nose35: null, nose55: null, shoe: null, reducer: null, tmold: null });
+  const cfg = { ...wo(), tex: "sawcut", runs: { nose35: [run(1, 8)], nose55: [run(1, 8)], shoe: [] } };
+  for (const l of calcTrim(cfg, { sheet }).lines) {
+    assert.equal(l.textured, false);
+    assert.ok(l.rows.some((r) => r[0] === "Smooth — can't be textured"));
+  }
+});
+
 test("calcTrim: with no Texture row on the sheet every piece ships smooth", () => {
   const cfg = { ...wo(), tex: "sawcut", runs: { nose35: [run(1, 8)], nose55: [run(1, 8)], shoe: [run(1, 8)] }, tmold: 1, reducer: 1 };
   const b = calcTrim(cfg, book("sheoga-accessory-20261001-notexture.xlsx"));
