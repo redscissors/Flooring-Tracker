@@ -20,8 +20,8 @@ ADR `docs/adr/0055-sheoga-book-holds-uploaded-accessory-sheet.md` (amends
 
 ## What landed
 
-- **Parser/diff/pricing** (`sheogatrim.js`): reads the accessory .xlsx (40
-  species × profile prices, prefinished charges, the Texture Charge row, slip
+- **Parser/diff/pricing** (`sheogatrim.js`): reads the accessory .xlsx (8
+  species × 5 profiles (40 prices), prefinished charges, the Texture Charge row, slip
   tongue, UPDATED date); plugs skipped; any missing price is a named problem and
   blocks Save. Pricing, kit lines, Match floor mapping and the basket view.
 - **Sheoga book**: Price sheets tab (upload/replace, review with highlighted
@@ -49,6 +49,16 @@ ADR `docs/adr/0055-sheoga-book-holds-uploaded-accessory-sheet.md` (amends
 - The production build in this sandbox needs placeholder env:
   `VITE_SUPABASE_URL=https://example.supabase.co VITE_SUPABASE_ANON_KEY=x npm run build`.
 - Saved estimate lines never reprice on a new upload (ADR 0003).
+- Trim opened off a non-trim row (e.g. a placed floor's Reconfigure → Trim
+  tab) now APPENDS its kit to the area end instead of landing on that row
+  (`model.js landOrAppendKit`); a blank row or a trim kit's own anchor still
+  lands in place, so Reconfigure of a trim kit replaces just that kit.
+- Out of scope, unchanged: the vent tab's pre-existing behavior of Add after
+  Copy floor from a floor's Reconfigure still lands on (overwrites) the floor
+  row.
+- Trim lines read size once: `sizeText` is the profile size and
+  `brandColor` "Sheoga Rabbeted nosing · 6' pcs · …" (the vent idiom); the
+  build card keeps the sized name.
 
 ## Proof (harnesses, not product code)
 
@@ -72,3 +82,5 @@ ADR `docs/adr/0055-sheoga-book-holds-uploaded-accessory-sheet.md` (amends
    (2.00 / 2.00 / — / — / —)
 10. `12-book-markup-trim-100.png` — Markup tab, trim 100%
 11. `13-library-drop-routing.png` — library drop routing row
+12. `14-book-replace-slip-bundle.png` — replace review with a slip tongue
+    bundle change (40 → 50 lf) highlighted beside the price change
