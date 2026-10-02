@@ -23,7 +23,7 @@ const cell = (sheets, text, nth = 0) => {
 test("profiles: fixed ids, order and fixed lengths", () => {
   assert.deepEqual(TRIM_PROFILES.map((p) => p.id), ["nose35", "nose55", "shoe", "reducer", "tmold"]);
   assert.deepEqual(TRIM_PROFILES.filter((p) => p.fixedLen).map((p) => p.id), ["reducer", "tmold"]);
-  assert.equal(TRIM_PROFILES.find((p) => p.id === "shoe").size, '½" × ¾"');
+  assert.equal(TRIM_PROFILES.find((p) => p.id === "shoe").width, '½"×¾"');
 });
 
 test("parse: reads the 10/01/26 sheet", () => {
@@ -118,7 +118,7 @@ test("diff: names texture changes", () => {
   next.tex.nose35 = 2.5;
   next.tex.shoe = 1;
   assert.deepEqual(diffAccessorySheets(prev, next), [
-    { label: 'Textured — Nosing 3½"', from: 2, to: 2.5 },
+    { label: 'Textured — Stair nose 3½"', from: 2, to: 2.5 },
     { label: "Textured — Shoe mold", from: null, to: 1 },
   ]);
 });
@@ -251,17 +251,18 @@ test("trimLineItems: rows and markers", () => {
   assert.equal(items[0].priceSqft, "99.12");
   assert.equal(items[0].costSqft, "49.56");
   assert.equal(items[0].markupPct, "100");
-  assert.equal(items[0].sizeText, '3½"');
-  assert.equal(items[0].brandColor, 'Sheoga Rabbeted nosing · 6\' pcs · White Oak · Prefinished Toasted Acorn · 30 sheen');
+  assert.equal(items[0].sizeText, '3½"×6\'');
+  assert.equal(items[0].brandColor, 'Sheoga Stair nose · White Oak · Prefinished Toasted Acorn · 30 sheen');
   assert.equal(items[1].sellUnit, "LF");
-  assert.ok(items[1].brandColor.includes("random lengths"));
+  assert.equal(items[1].sizeText, '½"×¾"×RL');
+  assert.equal(items[1].brandColor, 'Sheoga Shoe mold · White Oak · Prefinished Toasted Acorn · 30 sheen');
   assert.equal(items.find((i) => i.sellUnit === "BDL").brandColor, "Sheoga Slip tongue · 50 lf bundle");
   assert.equal(items.find((i) => i.sellUnit === "BDL").sizeText, "");
   assert.ok(items.find((i) => i.sellUnit === "BDL" ).sheoga.part);
-  assert.ok(items.find((i) => i.brandColor.includes("T-mold")).brandColor.includes("8' pcs"));
+  assert.equal(items.find((i) => i.brandColor.includes("T-mold")).sizeText, '2½"×8\'');
 });
 
-test("trimLineItems: every piece's size reads exactly once in size + description", () => {
+test("trimLineItems: size is width×length with no spaces, and reads only in the size field", () => {
   const cfg = { ...wo(), runs: { nose35: [run(1, 6)], nose55: [run(1, 8)], shoe: [run(1, 8)] }, reducer: 1, tmold: 1, slip: 1 };
   const items = trimLineItems(cfg, book(), 100);
   const b = calcTrim(cfg, book());
@@ -269,12 +270,15 @@ test("trimLineItems: every piece's size reads exactly once in size + description
   for (const [i, it] of items.entries()) {
     const p = TRIM_PROFILES.find((x) => x.id === b.lines[i].profile);
     if (!p) continue;
-    const text = it.sizeText + " " + it.brandColor;
-    assert.equal(text.split(p.size).length - 1, 1, text);
+    assert.equal(it.sizeText, `${p.width}×${b.lines[i].len}'`);
+    assert.ok(!/\s/.test(it.sizeText), it.sizeText);
+    assert.ok(!it.brandColor.includes(p.width), it.brandColor);
+    assert.ok(!it.brandColor.includes("pcs"), it.brandColor);
     assert.ok(it.brandColor.startsWith("Sheoga " + p.label + " · "), it.brandColor);
   }
-  assert.deepEqual(items.slice(0, 2).map((i) => i.sizeText), ['3½"', '5½"'], "the two nosings differ by size");
-  assert.ok(b.lines[0].desc.startsWith('Rabbeted nosing 3½" · '), "the build card keeps the sized name");
+  assert.deepEqual(items.map((i) => i.sizeText), ['3½"×6\'', '5½"×8\'', '½"×¾"×8\'', '2½"×8\'', '2½"×8\'', ""]);
+  assert.ok(b.lines[0].desc.startsWith('Stair nose 3½" · '), "the build card keeps the sized name");
+  for (const p of TRIM_PROFILES) assert.ok(!/ × /.test(p.name), p.name);
 });
 
 test("trimFromFloor: floor, stocked, finish and non-matches", () => {
