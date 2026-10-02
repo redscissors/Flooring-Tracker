@@ -833,9 +833,15 @@ src/
                     # `vendorBookSeed` (name + data seeded from the Settings
                     # markups at creation), `sheogaMarkups(books, settings)`
                     # — the configurator's defaults: the Sheoga book's
-                    # `data.markups {flooring, vents}` when the book exists,
-                    # Settings' sheogaMarkupPct/sheogaVentMarkupPct otherwise
-                    # (vendorbook.test.js)
+                    # `data.markups {flooring, vents, trim}` when the book exists,
+                    # Settings' sheogaMarkupPct/sheogaVentMarkupPct otherwise —
+                    # `trimMarkupPct` has no Settings field: the book's, else
+                    # DEFAULT_TRIM_MARKUP (100); `normVendorMarkups` reads the
+                    # three, `trimBookOf(books)` returns `{ sheet }` (the
+                    # uploaded accessory sheet, texture rates included) or null
+                    # — what the configurator's trim tab prices from — and
+                    # `sheetMonth`/`sheetDateMDY` format a sheet's ISO date
+                    # (vendorbook.test.js; ADR 0055)
   vendorbook.jsx    # `VendorBookPage` — the vendor book's page: name, badge,
                     # "priced by the configurator" meta, Active, delete, and
                     # the Markup · Price sheets · Freight · Brand · Contacts
@@ -886,6 +892,37 @@ src/
                     # $600/$300 under-500-sf rule all three build paths use —
                     # Prefinished Natural is exempt (owner rule 2026-07-28).
                     # A sheet update is a re-transcription of this one file
+  sheogatrim.js     # Sheoga trim & accessories engine (ADR 0055, spec
+                    # 2026-10-02), pure: `parseAccessorySheet(sheets)` reads
+                    # Sheoga's distributor accessory .xlsx by scanning for
+                    # block headers (the five profile blocks sit side by side)
+                    # into `{ sheet, problems[] }` — 8 species × 5 profiles,
+                    # the Prefinished Charge row, the optional Texture Charge
+                    # row (`tex`: a positive number, else null = "Cannot Be
+                    # Textured" or no row), slip tongue, the UPDATED date
+                    # (serial or text); any missing price is a named problem
+                    # and no sheet. Plugs are never read.
+                    # `isSheogaAccessorySheet` (the title cell; the drop zone's
+                    # router), `diffAccessorySheets` (changed cells for the
+                    # replace review). Pricing: `trimRates` (per-profile
+                    # $/lf: species + prefinish + the texture charge when the
+                    # build is textured and the piece takes it; `smoothOnly`
+                    # when it can't), `calcTrim(cfg, trimBook)` (null with no
+                    # sheet; one line per piece/length run — nosing and shoe
+                    # as `runs` of N pcs × L' or lf at random lengths,
+                    # reducer/T-mold 8' counts, slip tongue in bundles),
+                    # `trimLineItems` (the kit: anchor `{ mode: "trim", cfg }`
+                    # with cfg.match false, companions `{ mode: "trim",
+                    # part: true }`, count rows, unit cost rounded then
+                    # sellOf), `trimEntryView` (the basket drawer's row; lists
+                    # at 0 with no sheet so it can be removed),
+                    # `trimFromFloor`/`effectiveTrimCfg` (Match floor: species
+                    # map, a stocked color's texture carried over; live only
+                    # inside one popup session). A piece Sheoga can't texture
+                    # in a textured build prices and orders smooth, noted
+                    # "Smooth — can't be textured"; nothing blocks the add
+                    # (sheogatrim.test.js, real 10/01/26 fixtures in
+                    # src/testdata/)
   SheogaConfigurator.jsx  # the configurator popup: mode tabs, an option rail,
                     # a build card (cost -> sell, carton preview, fee lines), and
                     # the price grids (issue 065): at ≥1400px the floor/stocked
@@ -929,9 +966,20 @@ src/
                     # Opened from a row's search (the pinned "Vendor configurators"
                     # row in GridOmniSearch or MobileSearchSheet — "she" is enough)
                     # or its "Sheoga — reconfigure" chip; Add fills the row via
-                    # addSheogaLines. Job size starts at 1. Two markups: flooring
+                    # addSheogaLines. Job size starts at 1. Three markups: flooring
                     # settings.pricing.sheogaMarkupPct (40%), vents & dampers
-                    # .sheogaVentMarkupPct (50%) — both Settings -> Price book.
+                    # .sheogaVentMarkupPct (50%) — both Settings -> Price book —
+                    # and Trim & accessories (default 100%, the Sheoga book's
+                    # `markups.trim`, no Settings field). The Trim & accessories
+                    # tab (last in MODES; SheogaTrim.jsx) takes `trimBook` (the
+                    # uploaded sheet, from App.jsx/AppsWorkspace via
+                    # `trimBookOf`), `sheogaBook` (a Sheoga book exists —
+                    # picks the empty state's wording) and `trimMarkupDefault`;
+                    # its footer box reads "Trim markup". It stages the one
+                    # `{ kind: "single", snap: { mode: "trim", cfg } }` basket
+                    # entry. Basket Move keeps any entry that would land no
+                    # lines (every kind — e.g. a trim kit with no sheet) in the
+                    # basket instead of dropping it.
                     # Responsive (useIsWide, 768px): desktop is the two-pane
                     # rail+BuildCard; on mobile the options fill the screen with a
                     # pinned price bar that pulls up a swipe-down MobileBuildSheet
@@ -967,9 +1015,13 @@ src/
                     # imports this file, so importing them back would cycle.
                     # What stages, lands or is reported for refresh restore
                     # is the resolved cfg, match:false, so a placed or
-                    # restored kit reopens unlinked. `TrimEmpty` says to
-                    # create the Sheoga book first when there is none
-                    # (the `sheogaBook` flag), else to upload the sheet
+                    # restored kit reopens unlinked. A textured build shows
+                    # "Textured — {texture} +$X/lf" on texturable pieces and
+                    # "smooth — can't be textured" on the rest; there is no
+                    # texture price to type in (the book's sheet carries it).
+                    # `TrimEmpty` says to create the Sheoga book first when
+                    # there is none (the `sheogaBook` flag), else to upload
+                    # the sheet
   wedi.js           # wedi shower-system configurator engine (issue 066): the
                     # opposite of Sheoga on both axes — every piece has a part
                     # number and wedi publishes retail, so nothing is marked up

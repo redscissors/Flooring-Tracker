@@ -1,6 +1,6 @@
 # A configurator-priced vendor gets an item-less `vendor`-kind price book
 
-Date: 2026-09-05 · Status: Accepted · Spec: docs/superpowers/specs/2026-09-05-sheoga-vendor-book-design.md
+Date: 2026-09-05 · Status: Accepted (amended by 0055) · Spec: docs/superpowers/specs/2026-09-05-sheoga-vendor-book-design.md
 
 ## Context
 
@@ -41,3 +41,7 @@ lived on a book.
   and ignore a vendor book by construction.
 - Deleting the book returns the configurator to the Settings markups and the
   Samples panel to a contact-less Sheoga group; nothing else references it.
+
+## Amended by 0055
+
+ADR 0055 (2026-10-02): "never imports" now means no item import — the Sheoga book may hold a parsed, uploaded accessory sheet (`data.sheets.accessories`) and a `markups.trim` field, which the configurator's Trim & accessories tab prices from.
