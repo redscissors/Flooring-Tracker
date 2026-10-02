@@ -209,13 +209,14 @@ test("a null/absent project passes through as retail", () => {
 
 // --- tierTag --------------------------------------------------------------------
 
-test("tierTag labels non-retail tiers", () => {
-  assert.equal(tierTag("retail", 0), "");
-  assert.equal(tierTag("builder", 8), "Builder pricing — 8% off retail");
+test("tierTag names every tier; only Sale and Custom show the percent", () => {
+  assert.equal(tierTag("retail", 0), "Retail pricing");
+  assert.equal(tierTag("builder", 8), "Builder pricing");
+  assert.equal(tierTag("employee", 0), "Employee pricing");
   assert.equal(tierTag("sale", 10), "Sale pricing — 10% off retail");
   assert.equal(tierTag("custom", 12.5), "Custom pricing — 12.5% off retail");
-  assert.equal(tierTag("custom", 0), "");
-  assert.equal(tierTag("employee", 0), "Employee pricing");
+  assert.equal(tierTag("custom", 0), "Custom pricing");
+  assert.equal(tierTag("sale", 0), "Sale pricing");
 });
 
 // --- Employee reprices costed extras (ADR 0018 amendment 2026-09-10) ----------
