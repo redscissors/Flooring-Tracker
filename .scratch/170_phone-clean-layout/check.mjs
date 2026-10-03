@@ -62,6 +62,7 @@ async function boot(browser, job, viewport) {
     if (table === "app_data") return wantsObject ? { data: { profile: { name: "Sam", phone: "", email: "" } } } : [];
     if (table === "shared_settings") return wantsObject ? null : [];
     if (table === "price_books") return [book];
+    if (table === "price_book_items") return [{ book_id: "bk1", sku: "DKEYWH", active: true, disabled: false, data: { description: "Daltile Keystones White 2x2", unit: "CT", price: 6.4, priceSqft: 6.4, sfPerUnit: 10, size: "12x24", type: "tile", vendorSkus: [], fits: [], cost: 3.84 } }];
     return [];
   };
   const ctx = await browser.newContext(viewport.width < 768 ? { viewport, hasTouch: true, isMobile: true, deviceScaleFactor: 2 } : { viewport });
