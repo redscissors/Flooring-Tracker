@@ -168,16 +168,36 @@ const CASES = {
     await page.click("[data-inst-hammer]");
     await page.waitForTimeout(400);
     await page.getByText("Manage installers →").click();
-    await page.waitForTimeout(1200);
+    await page.waitForSelector("[data-inst-row]", { timeout: 15000 }).catch(() => {});
     check("settings", (await page.locator("[data-inst-row]").count()) === 6, "Manage opens General → Installers with 6 rows");
     await page.click("[data-inst-row='i2']");
     await page.waitForTimeout(200);
+  },
+  async phone(page) {
+    const fits = await page.evaluate(() => { const el = document.querySelector("[data-phone-bar]"); return !!el && el.scrollWidth <= el.clientWidth; });
+    check("phone", fits, "phone bar still fits at 344px");
+    const badge = await page.locator("[data-phone-bar] [data-inst-hammer] span").textContent().catch(() => "");
+    check("phone", badge === "2", `hammer in the phone bar, badge 2 (got ${badge})`);
+    await page.locator("[data-phone-bar] [data-inst-hammer]").tap();
+    await page.waitForTimeout(600);
+    check("phone", (await page.locator("[data-inst-picker]").count()) === 1, "tap opens the installers sheet");
+    await page.locator("[data-inst-pick='i4']").tap();
+    await page.waitForTimeout(400);
+    const after = await page.locator("[data-phone-bar] [data-inst-hammer] span").textContent().catch(() => "");
+    check("phone", after === "3", `a tap adds Hartline (badge ${after})`);
+  },
+  async phonebar(page) {
+    const W = () => page.evaluate(() => [...document.querySelectorAll("[data-phone-bar] > *")].map((e) => `${(e.getAttribute("aria-label") || e.textContent || e.tagName).slice(0, 12)}:${Math.round(e.getBoundingClientRect().width)}`).join(" | "));
+    console.log("with hammer   ", await W());
+    await page.evaluate(() => document.querySelector("[data-phone-bar] [data-inst-hammer]").remove());
+    await page.waitForTimeout(200);
+    console.log("without hammer", await W());
   },
   async addnew(page) {
     await page.click("[data-inst-hammer]");
     await page.waitForTimeout(400);
     await page.getByText("Manage installers →").click();
-    await page.waitForTimeout(1200);
+    await page.waitForSelector("[data-inst-row]", { timeout: 15000 }).catch(() => {});
     await page.click("[data-inst-new]");
     await page.fill("#inst-company", "Lakeside Tile Co.");
     await page.fill("#inst-contact", "Ann Weaver");
@@ -193,7 +213,7 @@ const run = want.length ? want : Object.keys(CASES);
 const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
 for (const c of run) {
   n = 0;
-  const vp = c === "narrow" ? { width: 1280, height: 860 } : { width: 1440, height: 940 };
+  const vp = c === "narrow" ? { width: 1280, height: 860 } : (c === "phone" || c === "phonebar") ? { width: 344, height: 820 } : { width: 1440, height: 940 };
   try {
     const { page, ctx } = await boot(browser, job(c === "empty" ? [] : SET), vp);
     await CASES[c](page);

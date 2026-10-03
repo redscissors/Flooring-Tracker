@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Search, Plus, X, Check, ChevronRight, ChevronDown, Trash2, StickyNote, Settings, Layers, Bath, Menu, MoreHorizontal } from "lucide-react";
+import { Search, Plus, X, Check, ChevronRight, ChevronDown, Trash2, StickyNote, Settings, Layers, Bath, Menu, MoreHorizontal, Hammer } from "lucide-react";
 import { SAMPLE_LABEL, SAMPLE_CHIP } from "./samples.js";
+import { PickerList, TradeNeeds } from "./installersui.jsx";
 import { num, wasteFor, groutExact, mortarExact, getGrout, getMortar, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, offeredAttached, offeredCategories, getAttached } from "./catalog.js";
 import { groutSnapshotPatch, groutColorOptions } from "./stock.js";
 import { baseKey, groutBases, resolveGroutBase, baseLabel, baseOptionLabel, tickGroutChoice, pickGroutProductChoice, pickGroutBaseChoice } from "./groutbase.js";
@@ -711,11 +712,12 @@ export function MobileRowSheet({ p, groutMemory, areaName, canDelete, settings, 
 // shows, freight, samples, ⋯ and the total. Waste lives only in the ⋯ sheet so
 // the total fits. Same write paths as the desktop Clean bar; it never writes on
 // its own.
-export function MobileProjectHeader({ sel, cust, profile, tv, grandTotal, optionCount = 0, freightCost = 0, saveOk, updateProject, onOpenSidebar, onOpenCustomer, onPromote, onMore, samples = null, onOpenSamples }) {
+export function MobileProjectHeader({ sel, cust, profile, tv, grandTotal, optionCount = 0, freightCost = 0, saveOk, updateProject, onOpenSidebar, onOpenCustomer, onPromote, onMore, samples = null, onOpenSamples, installers = null }) {
+  const [instOpen, setInstOpen] = useState(false);
   const upd = (patch) => updateProject(sel.id, patch);
   const total = phoneTotal(grandTotal, optionCount);
   const addr = shownAddress(sel, cust);
-  const icon = "relative w-[24px] h-[28px] flex-none flex items-center justify-center rounded-md text-slate-500";
+  const icon = "relative w-[22px] h-[28px] flex-none flex items-center justify-center rounded-md text-slate-500";
   const totalCls = "ft-mono shrink-0 whitespace-nowrap font-extrabold text-[12.5px] pl-0.5";
   return (
     <div data-phone-head className="ft-noprint ft-rail border-b border-slate-200 shrink-0">
@@ -740,7 +742,7 @@ export function MobileProjectHeader({ sel, cust, profile, tv, grandTotal, option
           <span className="truncate" style={{ flex: "1 1 0", minWidth: 24, ...(addr.own ? {} : { color: "var(--ft-faint)" }) }}>{addr.text}</span>
         </>}
       </button>
-      <div data-phone-bar className="flex items-center" style={{ gap: 4, height: 38, padding: "0 10px 0 6px", borderTop: "1px solid var(--ft-border)" }}>
+      <div data-phone-bar className="flex items-center" style={{ gap: 3, height: 38, padding: "0 8px 0 6px", borderTop: "1px solid var(--ft-border)" }}>
         <PriceLevelMenu value={sel.priceTier || "retail"} customPct={sel.customPct} onPick={(v) => upd({ priceTier: v })} onPct={(v) => upd({ priceTier: "custom", customPct: v })} align="left" size="sm" className="min-w-0" />
         <MorphSelect value={sel.printPricing || "full"} onChange={(v) => upd({ printPricing: v })} bg="var(--ft-cream)" flat bold size="sm" className="min-w-0" minOpenW={150} title="What the estimate shows"
           options={[
@@ -756,6 +758,12 @@ export function MobileProjectHeader({ sel, cust, profile, tv, grandTotal, option
             {samples?.need > 0 && <span className="absolute rounded-full font-bold" style={{ top: -2, right: -5, fontSize: 9.5, lineHeight: "14px", minWidth: 14, padding: "0 3px", background: "#b45309", color: "#fff" }}>{samples.need}</span>}
           </button>
         )}
+        {installers && (
+          <button data-inst-hammer onClick={() => setInstOpen(true)} aria-label="Installers" title="Installers — who's installing this job" className={icon}>
+            <Hammer size={16} />
+            {installers.entries.length > 0 && <span className="absolute rounded-full font-bold" style={{ top: -2, right: -5, fontSize: 9.5, lineHeight: "14px", minWidth: 14, padding: "0 3px", background: "var(--ft-brand)", color: "var(--ft-card)" }}>{installers.entries.length}</span>}
+          </button>
+        )}
         <button onClick={onMore} aria-label="Project details" title="Project details — files, versions, waste, print" className={icon}><MoreHorizontal size={16} /></button>
         {total.options ? (
           <button data-phone-total onClick={onMore} title="Each option's total is in the project sheet" className={totalCls} style={{ color: "var(--ft-text)" }}>{total.text}</button>
@@ -763,6 +771,18 @@ export function MobileProjectHeader({ sel, cust, profile, tv, grandTotal, option
           <span data-phone-total className={totalCls} style={{ color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{total.text}</span>
         )}
       </div>
+      {installers && (
+        <MobileSheet open={instOpen} onClose={() => setInstOpen(false)} title="Installers for this job"
+          footer={<>
+            <span className="flex-1 text-[12px] text-slate-500">Tap to add or remove. Saves right away.</span>
+            {installers.onManage && <button type="button" onClick={() => { setInstOpen(false); installers.onManage(); }} className="text-[12.5px] font-bold" style={{ color: "var(--ft-brand-deep)" }}>Manage →</button>}
+          </>}>
+          <TradeNeeds trades={installers.trades} className="mb-2" />
+          <div className="-mx-4 border-b border-slate-100">
+            <PickerList installers={installers.installers} entries={installers.entries} trades={installers.trades} onToggle={installers.onToggle} />
+          </div>
+        </MobileSheet>
+      )}
     </div>
   );
 }

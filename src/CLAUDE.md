@@ -339,7 +339,11 @@ src/
                     # PriceLevelMenu · All $ ▾ · FreightToggle compact · samples ·
                     # ⋯ · the total (`phoneTotal` — "N options" with quote
                     # options, opening ⋯). Waste lives only in the ⋯ sheet, so
-                    # the total fits. Versions, files, save, order sheet, Email
+                    # the total fits. A hammer (installers, spec 2026-10-03) sits
+                    # between samples and ⋯ and opens a MobileSheet over the
+                    # shared PickerList; the bar's icons are 22px with a 3px gap
+                    # so the picks keep their full labels at 344px.
+                    # Versions, files, save, order sheet, Email
                     # and Print live only in the ⋯ sheet (owner call); the phone
                     # has no Edit / Print preview tabs. `useKeyboardInset` is
                     # the visualViewport keyboard gap MobileSheet's footer and
@@ -362,8 +366,10 @@ src/
                     # click adds/removes at once) and `InstallerBox` (beside
                     # the areas — App.jsx mounts it only once the job has an
                     # installer and <main> fits the 896 column + 12 + 240,
-                    # centering the pair; hidden narrower). Proof:
-                    # .scratch/172_installers
+                    # centering the pair; hidden narrower). `PickerList`/
+                    # `TradeNeeds` are the list the desktop popover and the
+                    # phone sheet share (mobile.jsx imports them; never the
+                    # reverse). Proof: .scratch/172_installers
   phonehead.js      # the phone header's derived text, pure (phonehead.test.js):
                     # `phoneTotal(grandTotal, optionCount)` and
                     # `shownAddress(sel, cust)` — the desktop Clean address rule
