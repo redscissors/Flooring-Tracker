@@ -2248,8 +2248,8 @@ export default function App({ user, onSignOut }) {
                           <div key={p.id} data-prod-card={p.id} data-flip={p.id} style={{
                             display: "flow-root",
                             position: "relative",
-                            background: "var(--ft-area-row)",
-                            borderBottom: "1px solid var(--ft-grid-line)",
+                            background: isWide ? "var(--ft-area-row)" : "var(--ft-card)",
+                            borderBottom: `1px solid ${isWide ? "var(--ft-grid-line)" : "var(--ft-row-line)"}`,
                           }}>
                             {!isWide ? (<>
                             {/* compact two-line summary (mobile rows 2026-07-17) — a tap

@@ -225,10 +225,12 @@ export function MobileProductRow({ p, settings, tv, onOpen, onPointerDown }) {
   ].filter(Boolean);
   return (
     <div onClick={onOpen} onPointerDown={onPointerDown} title="Tap to edit — hold to move"
-      className="flex items-start gap-2 w-full text-left cursor-pointer select-none" style={{ padding: "7px 10px", background: "var(--ft-area-row)" }}>
-      <span className="shrink-0 rounded flex items-center justify-center font-extrabold" style={{ width: 19, height: 19, fontSize: 10, marginTop: 1, background: blank ? "var(--ft-field, #fff)" : TYPE_ACCENT[p.type], color: blank ? "var(--ft-muted)" : "var(--ft-type-ink)", border: blank ? "1px dashed var(--ft-border)" : "none" }}>
-        {blank ? <Plus size={11} /> : p.type === "misc" ? "✕" : TLBL[p.type][0]}
-      </span>
+      className="flex items-start gap-2 w-full text-left cursor-pointer select-none" style={{ padding: "9px 12px", background: "var(--ft-card)" }}>
+      {blank ? (
+        <span className="shrink-0 rounded flex items-center justify-center" style={{ width: 19, height: 19, marginTop: 1, background: "var(--ft-field, #fff)", color: "var(--ft-muted)", border: "1px dashed var(--ft-border)" }}><Plus size={11} /></span>
+      ) : (
+        <span data-type-dot title={TLBL[p.type]} className="shrink-0 rounded-full" style={{ width: 8, height: 8, marginTop: 5, background: TYPE_ACCENT[p.type] }} />
+      )}
       <span className="flex-1 min-w-0">
         <span className="flex items-baseline gap-2">
           <span className={`text-[13px] font-bold truncate flex-1 min-w-0 ${blank ? "text-slate-400 font-semibold" : ""}`}>{blank ? "New product…" : p.brandColor || TLBL[p.type]}</span>

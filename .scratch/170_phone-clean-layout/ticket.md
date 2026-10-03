@@ -2,8 +2,8 @@
 issue_type: Feature
 summary: Phone Clean layout — header A pinned above the job, areas as a flat
   list with thin sticky titles, product lines with a type dot
-status: open
-labels: [ready-for-agent]
+status: done
+labels: [ready-for-human]
 ---
 
 # Phone Clean layout
@@ -19,3 +19,21 @@ Galaxy Z Fold 5's narrow front screen (344px). Picked from
 
 `check.mjs` drives the real app at 344×820 over a stubbed Supabase, asserts
 on the DOM per case, and saves a shot per case. `before/` is today's phone.
+
+Run with Vite up (`VITE_SUPABASE_URL=https://stub.supabase.co
+VITE_SUPABASE_ANON_KEY=stub npx vite --port 5199 --strictPort`), then
+`OUT_DIR=after node check.mjs`. Result: 23 PASS, 0 FAIL (`before/` had 17
+FAIL; desktop passed both times).
+
+| Case | Shot | What it shows |
+|---|---|---|
+| top | `after/top.png` | Header A, thin area titles, type dots, empty-area copy |
+| scroll | `after/scroll.png` | The area you're in stays pinned under the header |
+| name | `after/name.png` | Tapping an area name edits it; ⋯ opens the area menu |
+| sheet | `after/sheet.png` | The row sheet covers the header |
+| options | `after/options.png` | "2 options" opens ⋯; freight off is the amber struck truck |
+| unassigned | `after/unassigned.png` | Unassigned in amber, long names, $12,558.00 Builder total fits |
+| desk | `after/desk.png` | Desktop unchanged |
+
+`header-preview-344.png`: the header in header-preview.html's 344px frame.
+Ticket 169's repro still passes (one tap fills the line).

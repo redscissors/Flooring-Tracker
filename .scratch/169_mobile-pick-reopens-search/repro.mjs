@@ -72,8 +72,10 @@ const run = async () => {
   await page.waitForTimeout(400);
   await page.getByText("Tom Marsh").first().click();
   await page.waitForTimeout(500);
+  // Since ticket 170 an open job's header carries the project name too, and
+  // tapping it opens the ⋯ sheet — only click through when no job is open.
   const projLink = page.getByText("Marsh — whole first floor").first();
-  if (await projLink.isVisible().catch(() => false)) await projLink.click().catch(() => {});
+  if (!(await page.locator("[data-phone-head]").count()) && await projLink.isVisible().catch(() => false)) await projLink.click().catch(() => {});
   await page.getByRole("button", { name: /Price book/ }).last().waitFor({ timeout: 10000 });
   await page.waitForTimeout(1500); // stage-2 stock load
   await page.screenshot({ path: `${OUT}/1-job.png` });

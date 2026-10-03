@@ -55,6 +55,13 @@ src/
                     # line with content swaps its type chip for the extras +
                     # (type moves to LineMenu's `onType`), and the empty
                     # "＋ Extras" strip is dropped.
+                    # Phone (!isWide, spec 2026-10-02): no area cards — each
+                    # area is a 17px sticky `data-area-title` line (name in
+                    # small caps, option chip, subtotal, ⋯ → area menu with
+                    # Delete area…) over full-bleed lines; holding the line
+                    # (not the input/buttons) drags the area. The wrapper
+                    # carries no overflow-hidden on the phone — it would stop
+                    # the sticky title. MobileProductRow wears a type dot
   uiconst.js        # shared UI constants: TYPES/TLBL (incl. `underlayment`, ADR 0043), tier colors/labels,
                     # joints/thicknesses, grout color lists, sweep/keep constants,
                     # stock-loading messages, `skuSearchable`, `colorsFor`
