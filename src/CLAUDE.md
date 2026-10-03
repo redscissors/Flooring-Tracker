@@ -321,7 +321,11 @@ src/
                     # `UnitPick` (issue 138) — the SF/CT · PC/CT · EA tag as a
                     # select writing the row's cartonUnit / sellUnit, shared
                     # with mobile.jsx; a manual row had no way to say "sheet"
-  mobile.jsx        # mobile sheets: `MobileSheet`, `MobileSearchSheet`,
+  mobile.jsx        # mobile sheets: `MobileSheet`, `MobileSearchSheet` (thumb-
+                    # first, owner 2026-10-03: the field sits at the bottom on
+                    # the keyboard and results stack UP from it, best match
+                    # nearest — a flex-col-reverse list; vendor rows and
+                    # messages sit nearest the field; ticket 171),
                     # `MobileProductRow`, `MobileRowSheet` + `MobileProjectHeader`
                     # (phone Clean layout, spec 2026-10-02, owner pick from
                     # .scratch/mockups/mobile-clean-options-2026-10-02.html —
@@ -337,7 +341,9 @@ src/
                     # options, opening ⋯). Waste lives only in the ⋯ sheet, so
                     # the total fits. Versions, files, save, order sheet, Email
                     # and Print live only in the ⋯ sheet (owner call); the phone
-                    # has no Edit / Print preview tabs
+                    # has no Edit / Print preview tabs. `useKeyboardInset` is
+                    # the visualViewport keyboard gap MobileSheet's footer and
+                    # the search sheet's bottom field both lift by
   phonehead.js      # the phone header's derived text, pure (phonehead.test.js):
                     # `phoneTotal(grandTotal, optionCount)` and
                     # `shownAddress(sel, cust)` — the desktop Clean address rule
