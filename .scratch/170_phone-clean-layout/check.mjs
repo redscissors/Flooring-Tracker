@@ -19,7 +19,8 @@ const session = { access_token: jwt, token_type: "bearer", expires_in: 86400 * 3
 let n = 0;
 const prod = (over = {}) => ({ id: "pr" + (++n), type: "tile", sku: "", L: "12", W: "24", thickness: "0.375", sizeText: "12\"x24\"", brandColor: "", priceSqft: "", qtyType: "sqft", qty: "", ...over });
 const filled = (name, sku, price, qty, over = {}) => prod({ brandColor: name, sku, priceSqft: String(price), qty: String(qty), ...over });
-const area = (name, products, over = {}) => ({ id: "a" + (++n), name, option: "", products: [...products, prod()], ...over });
+const blank = () => prod({ L: "", W: "", thickness: "", sizeText: "" });
+const area = (name, products, over = {}) => ({ id: "a" + (++n), name, option: "", products: [...products, blank()], ...over });
 
 const baseProject = (over = {}) => ({
   name: "Marsh — whole first floor", address: "44 Beech Ln", phone: "", email: "", notes: "",
