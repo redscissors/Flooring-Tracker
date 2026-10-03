@@ -93,8 +93,9 @@ const CAN_RIGHT_CLICK = typeof window !== "undefined" && !!window.matchMedia?.("
 const UI_DESIGN_W = RAIL_W + 896;
 const UI_ZOOM_FLOOR = 0.7;
 // The installers box (spec 2026-10-03) sits right of the 896px column, level
-// with the first area, only when <main> has room for both; the pair is then
-// centered together. Narrower, the hammer's badge is the only cue.
+// with the first area, only once the job has an installer and <main> has room
+// for both; the pair is then centered together. Narrower, the hammer's badge
+// is the only cue.
 const INST_BOX_W = 240;
 const INST_GAP = 12;
 const INST_GROUP_W = 896 + INST_GAP + INST_BOX_W;
@@ -594,7 +595,7 @@ export default function App({ user, onSignOut }) {
     ro.observe(el);
     return () => ro.disconnect();
   }, [isWide, !!sel]);
-  const instBoxFits = isWide && uiZoom >= 1 && mainW >= INST_GROUP_W + 32;
+  const instBoxFits = isWide && uiZoom >= 1 && mainW >= INST_GROUP_W + 32 && (sel?.installers?.length || 0) > 0;
   const colShift = instBoxFits ? { marginLeft: Math.max(0, (mainW - INST_GROUP_W) / 2), marginRight: "auto" } : undefined;
 
   // Server-side search (debounced): ask the backend which customers match and

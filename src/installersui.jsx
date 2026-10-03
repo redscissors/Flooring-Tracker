@@ -286,7 +286,6 @@ export function InstallerBox({ entries, trades, onRemove, onOpen }) {
         <span className="flex-1" />
         <button type="button" onClick={onOpen} aria-label="Add installers" title="Add installers" className="w-6 h-6 -mr-1 rounded-md flex items-center justify-center text-slate-500 hover:bg-[color:var(--ft-hover)]"><Plus size={14} /></button>
       </div>
-      {!entries.length && <p className="pt-2 text-[11.5px] text-slate-400">None on this job yet. Click the hammer to pick.</p>}
       {entries.map((e, k) => (
         <div key={e.id} data-inst-entry={e.id} className={"py-2 grid gap-0.5 " + (k ? "border-t border-slate-100" : "")}>
           <div className="flex items-center gap-1.5 text-[12.5px] font-extrabold min-w-0">
@@ -299,7 +298,7 @@ export function InstallerBox({ entries, trades, onRemove, onOpen }) {
           <div className="flex flex-wrap gap-1 mt-0.5">{entryTradesOnJob(e, trades).map((t) => <TradeChip key={t} t={t} state="yes" />)}</div>
         </div>
       ))}
-      {entries.length > 0 && gaps.length > 0 && (
+      {gaps.length > 0 && (
         <div className="mt-1 rounded-md px-2 py-1.5 text-[11px]" style={{ background: "var(--ft-hover-amber)", color: "#92400e" }}>No installer yet for {gaps.map((t) => TRADE_LABEL[t]).join(" · ")}</div>
       )}
     </div>

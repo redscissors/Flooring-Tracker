@@ -360,9 +360,10 @@ src/
                     # trades/priority on click), `InstallerButton` +
                     # `InstallerPicker` (the header hammer, a SearchPop; a
                     # click adds/removes at once) and `InstallerBox` (beside
-                    # the areas — App.jsx mounts it only when <main> fits the
-                    # 896 column + 12 + 240, centering the pair; hidden
-                    # narrower). Proof: .scratch/172_installers
+                    # the areas — App.jsx mounts it only once the job has an
+                    # installer and <main> fits the 896 column + 12 + 240,
+                    # centering the pair; hidden narrower). Proof:
+                    # .scratch/172_installers
   phonehead.js      # the phone header's derived text, pure (phonehead.test.js):
                     # `phoneTotal(grandTotal, optionCount)` and
                     # `shownAddress(sel, cust)` — the desktop Clean address rule

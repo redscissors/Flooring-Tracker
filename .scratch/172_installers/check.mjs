@@ -136,6 +136,19 @@ const CASES = {
     await page.waitForTimeout(300);
     check("picker", (await page.locator("[data-inst-entry]").count()) === 3, "a click adds Hartline to the box at once");
   },
+  async empty(page) {
+    check("empty", (await page.locator("[data-inst-box]").count()) === 0, "no box until an installer is picked");
+    const area = await rect(page, "[data-area-drop]"), main = await rect(page, "main");
+    check("empty", area && main && Math.abs((area.left + area.right) / 2 - (main.left + main.right) / 2) <= 30, `column re-centers without the box (area ${area?.left}–${area?.right})`);
+    await page.screenshot({ path: `${OUT}/empty-before.png` });
+    await page.click("[data-inst-hammer]");
+    await page.waitForTimeout(400);
+    await page.click("[data-inst-pick='i4']");
+    await page.waitForTimeout(400);
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(300);
+    check("empty", (await page.locator("[data-inst-box]").count()) === 1, "box appears once an installer is picked");
+  },
   async narrow(page) {
     check("narrow", (await page.locator("[data-inst-box]").count()) === 0, "no box at 1280 wide");
     check("narrow", !!(await rect(page, "[data-inst-hammer]")), "hammer still in the header");
@@ -182,7 +195,7 @@ for (const c of run) {
   n = 0;
   const vp = c === "narrow" ? { width: 1280, height: 860 } : { width: 1440, height: 940 };
   try {
-    const { page, ctx } = await boot(browser, job(SET), vp);
+    const { page, ctx } = await boot(browser, job(c === "empty" ? [] : SET), vp);
     await CASES[c](page);
     await page.screenshot({ path: `${OUT}/${c}.png` });
     await ctx.close();
