@@ -39,6 +39,8 @@ import { EstimatePaper, PRINT_DASH } from "./EstimatePrint.jsx";
 import { estimateMail } from "./estimatemail.js";
 import { useToast } from "./usetoast.js";
 import { ProjectHeaderBar, ProjectHeaderClassic, ProjectHeaderClean } from "./projectheader.jsx";
+import { jobTrades, toggleProjInstaller } from "./installers.js";
+import { InstallerBox } from "./installersui.jsx";
 import { useDirectory, attPath, normProfile, vMeta } from "./usedirectory.js";
 import { useBooks } from "./usebooks.js";
 import { useBookStock } from "./usebookstock.js";
@@ -90,6 +92,12 @@ const RAIL_W = 205;
 const CAN_RIGHT_CLICK = typeof window !== "undefined" && !!window.matchMedia?.("(any-pointer: fine)").matches;
 const UI_DESIGN_W = RAIL_W + 896;
 const UI_ZOOM_FLOOR = 0.7;
+// The installers box (spec 2026-10-03) sits right of the 896px column, level
+// with the first area, only when <main> has room for both; the pair is then
+// centered together. Narrower, the hammer's badge is the only cue.
+const INST_BOX_W = 240;
+const INST_GAP = 12;
+const INST_GROUP_W = 896 + INST_GAP + INST_BOX_W;
 
 // The last-open restore only honors a FRESH spot (owner ask 2026-08-09):
 // "ft-last-seen" is stamped every minute while the app is on screen and again
@@ -185,6 +193,8 @@ export default function App({ user, onSignOut }) {
   // open underneath an app or Settings pane.
   const pickProject = (id) => { railDispatch({ type: "closePane" }); pickProjectRaw(id); };
   const goHome = () => { railDispatch({ type: "closePane" }); goHomeRaw(); };
+  const [generalSub, setGeneralSub] = useState("waste");
+  const [settingsNonce, setSettingsNonce] = useState(0);
   const railPick = (kind, id) => { railDispatch({ type: "pick", kind, id, inProgress: kind === "app" ? appsProgress.current(id) : false }); setSidebarOpen(false); };
   const settings = data.settings;
   const {
@@ -576,6 +586,16 @@ export default function App({ user, onSignOut }) {
     return () => window.removeEventListener("resize", on);
   }, []);
   const zoomStyle = isWide && uiZoom < 1 ? { zoom: uiZoom } : undefined;
+  const [mainW, setMainW] = useState(0);
+  useEffect(() => {
+    const el = mainRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => setMainW(el.clientWidth));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [isWide, !!sel]);
+  const instBoxFits = isWide && uiZoom >= 1 && mainW >= INST_GROUP_W + 32;
+  const colShift = instBoxFits ? { marginLeft: Math.max(0, (mainW - INST_GROUP_W) / 2), marginRight: "auto" } : undefined;
 
   // Server-side search (debounced): ask the backend which customers match and
   // merge any rows the client doesn't hold into the light list. The visible
@@ -1400,6 +1420,12 @@ export default function App({ user, onSignOut }) {
     (T.fList || []).forEach((l) => out.push({ id: `freight|${l.bookId}`, copyable: true }));
     return out;
   };
+  const projTrades = useMemo(() => (sel ? jobTrades(sel.categories, rowBlank) : []), [sel?.categories]);
+  const toggleInstaller = (i) => updateProject(sel.id, { installers: toggleProjInstaller(sel.installers, i, profile.name || user.email || "") });
+  const installerBag = sel && {
+    installers: settings.installers || [], entries: sel.installers || [], trades: projTrades, onToggle: toggleInstaller,
+    onManage: () => { setGeneralSub("installers"); setSettingsNonce((n) => n + 1); railPick("settings", "general"); },
+  };
   // The desktop project header — whichever layout this user picked.
   const deskHeader = () => {
     const cust = data.people.find((c) => c.id === sel.customerId);
@@ -1414,6 +1440,7 @@ export default function App({ user, onSignOut }) {
       openAttachment, delAttachment, attRef, addAttachment,
       setShowVersions, setConfirm,
       samples: sampleCounts(projSamples), onOpenSamples: () => { setShowSamples(true); refreshSampleRequests(); },
+      installers: installerBag,
       // Every header layout calls these with (true) / ("order") respectively —
       // wrapped here so projectheader.jsx needs no changes to route through
       // the option scope picker (Task 8). "estimate" passes straight through.
@@ -1733,10 +1760,10 @@ export default function App({ user, onSignOut }) {
             <>
             {cleanBand && (
               <div className="sticky top-0 z-30 border-b border-slate-100" style={{ height: railHeadH || 73, background: "var(--ft-cream)" }}>
-                <div className="h-full max-w-4xl mx-auto px-5">{deskHeader()}</div>
+                <div className="h-full max-w-4xl mx-auto px-5" style={colShift}>{deskHeader()}</div>
               </div>
             )}
-            <div className="max-w-4xl mx-auto p-2 md:p-5">
+            <div className="max-w-4xl mx-auto p-2 md:p-5" style={colShift}>
               {/* Edit / Print preview tabs are a desk thing (Fold 5 header
                   2026-09-15): on the phone the ⋯ sheet prints, and the area
                   menu's "Print this option…" prints straight away. */}
@@ -1875,6 +1902,14 @@ export default function App({ user, onSignOut }) {
                   notch at their seam that the flush product boxes don't.
                   `relative` anchors the area-drag insertion bar. */}
               <div className={cleanCards ? "relative flex flex-col gap-1.5" : isWide ? "relative" : "relative -mx-2"}>
+                {instBoxFits && (
+                  <div className="absolute top-0 bottom-0" style={{ left: `calc(100% + 20px + ${INST_GAP}px)`, width: INST_BOX_W }}>
+                    <div className="sticky" style={{ top: (cleanBand ? railHeadH || 73 : 0) + 12 }}>
+                      <InstallerBox entries={sel.installers || []} trades={projTrades} onRemove={toggleInstaller}
+                        onOpen={() => document.querySelector("[data-inst-hammer]")?.click()} />
+                    </div>
+                  </div>
+                )}
                 {sel.categories.map((a, ai) => {
                   const areaSf = a.products.reduce((t, p) => t + (p.qtyType === "sqft" ? num(p.qty) : 0), 0);
                   const areaTotal = printAreaFloor(tv.proj.categories[ai] || a, tSet);
@@ -2875,7 +2910,7 @@ export default function App({ user, onSignOut }) {
             <div className="flex-1 min-h-0">
               <LazyBoundary>
               <Suspense fallback={null}>
-              <SettingsWorkspace key={railNav.pane.id} section={railNav.pane.id} onClose={() => railDispatch({ type: "closePane" })}
+              <SettingsWorkspace key={`${railNav.pane.id}:${settingsNonce}`} section={railNav.pane.id} generalSub={generalSub} onGeneralSub={setGeneralSub} onClose={() => railDispatch({ type: "closePane" })}
                 settings={settings} setSettings={setSettings} gFamilies={gFamilies} ping={ping}
                 exportBackup={exportBackup} importBackup={importBackup} fileRef={fileRef}
                 inp={inp} lbl={lbl} types={TYPES} typeLabels={TLBL} theme={theme} setTheme={setTheme} headerLayout={headerLayout} setHeaderLayout={setHeaderLayout}

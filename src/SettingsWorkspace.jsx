@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Plus, Trash2, Download, Upload, X, Check, ChevronRight, Pencil, Package, Paintbrush, Layers, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, Lock, Star, Tag } from "lucide-react";
+import { Plus, Trash2, Download, Upload, X, Check, ChevronRight, Pencil, Package, Paintbrush, Layers, Link2, Link2Off, MoreHorizontal, Sun, Moon, Laptop, Lock, Star, Tag, Percent, MapPin, Palette, Hammer } from "lucide-react";
 import { offeredGrouts, offeredMortars, isOffered, setCatalogDefault, isDuplicateName, addCompany, addProduct, removeProduct, removeCompany, renameProduct, addCategory, updateCategory, removeCategory, isDuplicateCategoryName, isDuplicateAttachedName, offeredAttached } from "./catalog.js";
 import { stockBaseCompanion, stockAltBases, basePer } from "./stock.js";
 import { groutBases, editBaseAt, starBaseAt, removeBaseAt, addBaseTo } from "./groutbase.js";
@@ -12,6 +12,7 @@ import { PaneTitleBar } from "./raildrawer.jsx";
 import { probeMaps } from "./usemapslookup.js";
 import { probeText } from "./probetext.js";
 import { phoneChange } from "./phone.js";
+import { InstallersSettings } from "./installersui.jsx";
 
 // The shared grout/mortar catalog editor: a Company → Product tree. Each company
 // and product has an enabled checkbox (show/hide for the job dropdowns); a
@@ -232,10 +233,11 @@ function LinkMigration({ catalog, bookStock, books, onApply, onClose }) {
   );
 }
 
-export default function SettingsWorkspace({ settings, setSettings, gFamilies, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, headerLayout, setHeaderLayout, profile, saveProfile, user, books, addBook, updateBook, confirmBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setBookItemIssue, addClaudeIssue, bookStock = {}, orderBookStock = {}, loadFamilyBook = () => { }, bookStockReady, refreshBookStock, section, ping, onClose }) {
+export default function SettingsWorkspace({ settings, setSettings, gFamilies, exportBackup, importBackup, fileRef, inp, lbl, types, typeLabels, theme, setTheme, headerLayout, setHeaderLayout, profile, saveProfile, user, books, addBook, updateBook, confirmBook, delBook, loadBookItems, applyBookImport, loadBookVersions, loadBookVersionSnapshot, pinBookVersion, updateBookItem, setBookItemsDisabled, reviewBookItemFlags, setBookItemIssue, addClaudeIssue, bookStock = {}, orderBookStock = {}, loadFamilyBook = () => { }, bookStockReady, refreshBookStock, section, generalSub, onGeneralSub, ping, onClose }) {
   const catalog = settings.catalog;
   const onChange = (c) => setSettings({ catalog: c });
   const [cat, setCat] = useState("grout"); // which Materials & add-ons category is open
+  const [gsub, setGsub] = useState(generalSub || "waste"); // which General category is open
   // Master→detail selection: an existing product, or (via `adding`) an
   // add-draft under a company. View state only, never persisted.
   const [sel, setSel] = useState(null); // { companyId, kind, productId }
@@ -851,7 +853,6 @@ export default function SettingsWorkspace({ settings, setSettings, gFamilies, ex
           <PaneTitleBar onClose={onClose}
             title={section === "materials" ? <>Materials &amp; add-ons</> : section === "profile" ? "Your details" : section === "general" ? "General" : <>Backup &amp; restore</>}
             tip={section === "profile" ? <HelpTip className="align-middle" w={280} tip={<>Your contact info prints at the top of the estimate ("Your salesperson") so the customer knows who to reach. It's saved with your login - each person on the team sets their own. Leave a field blank to keep it off the estimate.</>} />
-              : section === "general" ? <HelpTip className="align-middle" w={300} tip={<>Calibrate coverage to your real-world results and set unit prices. Grout scales automatically for tile size, joint, and thickness from a 12×12×3/8" / 1/8"-joint baseline. Waste is the rate a new project starts with. Each job carries its own waste from there - changing these never touches a project that already exists.</>} />
               : section === "backup" ? <HelpTip className="align-middle" w={280} tip="Download everything (customers, versions, settings, attachments) as one file. Restoring adds each customer from the file as a new entry — nothing existing is overwritten." />
               : null} />
         )}
@@ -935,43 +936,84 @@ export default function SettingsWorkspace({ settings, setSettings, gFamilies, ex
             <p className="text-xs text-slate-400 mt-4">Signed in as {user.email}.</p>
           </div>
         ) : section === "general" ? (
-          <div className="flex-1 overflow-y-auto p-6">
-            <div className="flex gap-6">
-              <div><label className={lbl}>Tile waste (%)</label><input type="number" value={settings.waste.tile} onChange={(e) => setSettings({ waste: { ...settings.waste, tile: e.target.value } })} className={inp + " w-28"} /></div>
-              <div><label className={lbl}>Flooring waste (%)</label><input type="number" value={settings.waste.floor} onChange={(e) => setSettings({ waste: { ...settings.waste, floor: e.target.value } })} className={inp + " w-28"} /><div className="text-[11px] text-slate-400 mt-1">Hardwood, vinyl, laminate, carpet</div></div>
-            </div>
-            <div className="mt-8 pt-6 border-t border-slate-100">
-              <label className={lbl + " mb-2"}>Shop address <HelpTip className="align-middle" w={300} tip="Where job distance is measured from. Team-wide — one address, so a distance means the same thing whoever looked it up. Leave blank to turn job distance off. Job distance is internal - it never prints on an estimate." /></label>
-              <div className="max-w-xl">
-                <AddressField suggest value={settings.shop?.address || ""} onChange={(v) => setSettings({ shop: { address: v } })} inp={inp} placeholder="Shop address…" ping={ping} />
-              </div>
-              <div className="flex items-center gap-2 mt-2">
-                <button type="button" onClick={runProbe} disabled={probing}
-                  className="rounded-md border border-slate-200 px-2.5 py-1 text-[12px] font-semibold text-slate-500 hover:border-indigo-300 hover:text-indigo-700 disabled:opacity-40">
-                  {probing ? "Checking…" : "Test address lookup"}
+          <>
+            {/* General's categories (spec 2026-10-03), the Materials column's shape. */}
+            <div className="w-44 shrink-0 border-r border-slate-200 overflow-y-auto py-3 px-2 space-y-0.5">
+              <div className="ft-eyebrow text-[10px] text-slate-400 px-1.5 mb-1">General</div>
+              {[["waste", "Waste", Percent, `Tile ${settings.waste.tile}% · Floor ${settings.waste.floor}%`], ["shop", "Shop address", MapPin, "For job distance"], ["styles", "Styles", Palette, "Header & appearance"], ["installers", "Installers", Hammer, `${(settings.installers || []).length} on file`]].map(([id, label, Icon, hint]) => (
+                <button key={id} data-general={id} onClick={() => { setGsub(id); onGeneralSub?.(id); }}
+                  className={`w-full flex items-start gap-2 rounded-md px-2 py-1.5 text-sm text-left ${gsub === id ? "bg-indigo-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>
+                  <Icon size={14} className={"mt-0.5 shrink-0 " + (gsub === id ? "" : "text-slate-400")} />
+                  <span className="min-w-0"><span className="block truncate">{label}</span><span className={`block truncate text-[10px] ${gsub === id ? "text-white/70" : "text-slate-400"}`}>{hint}</span></span>
                 </button>
-                {probe && (probe.ok
-                  ? <span className="text-[11px]" style={{ color: "var(--ft-brand)" }}>{probeText(probe, lookupErrText)}</span>
-                  : <span className="text-[11px] text-amber-600">{probeText(probe, lookupErrText)}</span>)}
-              </div>
+              ))}
             </div>
-            {DARK_MODE && <div className="mt-8 pt-6 border-t border-slate-100">
-              <label className={lbl + " mb-2"}>Appearance <HelpTip className="align-middle" tip="Applies on this device only. The printed estimate stays on white paper." /></label>
-              <div className="inline-flex rounded-md border border-slate-200 overflow-hidden text-sm">
-                {[{ v: "system", label: "System", icon: Laptop }, { v: "light", label: "Light", icon: Sun }, { v: "dark", label: "Dark", icon: Moon }].map(({ v, label, icon: Icon }) => (
-                  <button key={v} onClick={() => setTheme(v)} className={`flex items-center gap-1.5 px-3.5 py-2 font-medium ${theme === v ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}><Icon size={14} /> {label}</button>
-                ))}
+            {gsub === "installers" ? (
+              <InstallersSettings installers={settings.installers || []} onSave={(list) => setSettings({ installers: list })} inp={inp} lbl={lbl} />
+            ) : (
+              <div className="flex-1 min-w-0 flex flex-col">
+                <div className="h-10 shrink-0 flex items-center gap-2 border-b border-slate-200 px-4">
+                  <span className="text-[14px] font-extrabold">{gsub === "waste" ? "Waste" : gsub === "shop" ? "Shop address" : "Styles"}</span>
+                  {gsub === "waste" && <HelpTip w={300} tip="Waste is the rate a new project starts with. Each job carries its own waste from there - changing these never touches a project that already exists." />}
+                  {gsub === "shop" && <HelpTip w={300} tip="Where job distance is measured from. Team-wide — one address, so a distance means the same thing whoever looked it up. Leave blank to turn job distance off. Job distance is internal - it never prints on an estimate." />}
+                  {gsub === "styles" && <HelpTip w={300} tip="Your choice follows you to every device. Clean (the default) puts the customer first with one quiet settings bar, and its page icon swaps in the print preview; Clean compact fits the same header into two rows that stay pinned at the top, level with the logo line; One-bar is the 2026-07 redesign; Classic is the original two-row header." />}
+                </div>
+                <div className="flex-1 overflow-y-auto px-4 py-3.5">
+                  {gsub === "waste" && (
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 max-w-[520px]">
+                      <div><label className={lbl}>Tile waste (%)</label><input type="number" value={settings.waste.tile} onChange={(e) => setSettings({ waste: { ...settings.waste, tile: e.target.value } })} className={inp} /></div>
+                      <div><label className={lbl}>Flooring waste (%)</label><input type="number" value={settings.waste.floor} onChange={(e) => setSettings({ waste: { ...settings.waste, floor: e.target.value } })} className={inp} /><div className="text-[11px] text-slate-400 mt-1">Hardwood, vinyl, laminate, carpet</div></div>
+                    </div>
+                  )}
+                  {gsub === "shop" && (
+                    <div className="max-w-[520px] space-y-2">
+                      <div>
+                        <label className={lbl}>Shop address</label>
+                        <AddressField suggest value={settings.shop?.address || ""} onChange={(v) => setSettings({ shop: { address: v } })} inp={inp} placeholder="Shop address…" ping={ping} />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button type="button" onClick={runProbe} disabled={probing}
+                          className="rounded-md border border-slate-200 px-2.5 py-1 text-[12px] font-semibold text-slate-500 hover:border-indigo-300 hover:text-indigo-700 disabled:opacity-40">
+                          {probing ? "Checking…" : "Test address lookup"}
+                        </button>
+                        {probe && (probe.ok
+                          ? <span className="text-[11px]" style={{ color: "var(--ft-brand)" }}>{probeText(probe, lookupErrText)}</span>
+                          : <span className="text-[11px] text-amber-600">{probeText(probe, lookupErrText)}</span>)}
+                      </div>
+                    </div>
+                  )}
+                  {gsub === "styles" && (
+                    <div className="max-w-[520px] space-y-4">
+                      <div>
+                        <label className={lbl + " mb-1.5"}>Project header</label>
+                        <div className="grid grid-cols-4 gap-2">
+                          {[{ v: "clean", label: "Clean", d: "Customer first, one quiet bar", parts: ["h", "s", "b"] }, { v: "cleancompact", label: "Clean compact", d: "Two pinned rows", parts: ["h", "b"] }, { v: "bar", label: "One-bar", d: "All on one bar", parts: ["b", "s"] }, { v: "classic", label: "Classic", d: "The original two rows", parts: ["h", "b", "b"] }].map(({ v, label, d, parts }) => (
+                            <button key={v} type="button" aria-pressed={headerLayout === v} onClick={() => setHeaderLayout(v)}
+                              className="grid content-start gap-1 rounded-lg border p-1.5 text-left"
+                              style={headerLayout === v ? { borderColor: "var(--ft-brand)", boxShadow: "0 0 0 2px var(--ft-brand-soft)" } : { borderColor: "var(--ft-border-strong)" }}>
+                              <span className="grid content-start gap-[3px] h-[42px] rounded border border-slate-200 p-[5px]" style={{ background: "var(--ft-cream)" }}>
+                                {[...parts, "l"].map((k, n) => <i key={n} className="block rounded-sm" style={k === "h" ? { height: 7, width: "55%", background: "var(--ft-text)" } : k === "b" ? { height: 7, background: "var(--ft-band)" } : { height: 4, width: k === "l" ? "70%" : undefined, background: "var(--ft-border-strong)" }} />)}
+                              </span>
+                              <span className="flex items-center gap-1 text-[12px] font-extrabold">{label}{headerLayout === v && <Check size={11} />}</span>
+                              <span className="text-[10.5px] leading-tight text-slate-500">{d}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      {DARK_MODE && <div>
+                        <label className={lbl + " mb-1.5"}>Appearance <HelpTip className="align-middle" tip="Applies on this device only. The printed estimate stays on white paper." /></label>
+                        <div className="inline-flex rounded-md border border-slate-200 overflow-hidden text-sm">
+                          {[{ v: "system", label: "System", icon: Laptop }, { v: "light", label: "Light", icon: Sun }, { v: "dark", label: "Dark", icon: Moon }].map(({ v, label, icon: Icon }) => (
+                            <button key={v} onClick={() => setTheme(v)} className={`flex items-center gap-1.5 px-3.5 py-2 font-medium ${theme === v ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}><Icon size={14} /> {label}</button>
+                          ))}
+                        </div>
+                      </div>}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>}
-            <div className="mt-8 pt-6 border-t border-slate-100">
-              <label className={lbl + " mb-2"}>Project header <HelpTip className="align-middle" tip="Your choice follows you to every device. Clean (the default) puts the customer first with one quiet settings bar, and its page icon swaps in the print preview; Clean compact fits the same header into two rows that stay pinned at the top, level with the logo line; One-bar is the 2026-07 redesign; Classic is the original two-row header." /></label>
-              <div className="inline-flex rounded-md border border-slate-200 overflow-hidden text-sm">
-                {[{ v: "clean", label: "Clean" }, { v: "cleancompact", label: "Clean compact" }, { v: "bar", label: "One-bar" }, { v: "classic", label: "Classic" }].map(({ v, label }) => (
-                  <button key={v} onClick={() => setHeaderLayout(v)} className={`px-3.5 py-2 font-medium ${headerLayout === v ? "bg-indigo-600 text-white" : "ft-field text-slate-500 hover:bg-slate-50"}`}>{label}</button>
-                ))}
-              </div>
-            </div>
-          </div>
+            )}
+          </>
         ) : section === "book" ? (
           <div className="flex-1 min-w-0 flex flex-col">
             <PriceBookLibrary onClose={onClose} note={settings.ops?.lastImport && <div className="text-[11px] text-slate-400 mb-2">Book imported {new Date(settings.ops.lastImport.at).toLocaleDateString()}{settings.ops.lastImport.by ? ` by ${settings.ops.lastImport.by}` : ""}</div>} books={books} addBook={addBook} updateBook={updateBook} confirmBook={confirmBook} delBook={delBook} loadBookItems={loadBookItems} applyBookImport={applyBookImport} loadBookVersions={loadBookVersions} loadBookVersionSnapshot={loadBookVersionSnapshot} pinBookVersion={pinBookVersion} updateBookItem={updateBookItem} setBookItemsDisabled={setBookItemsDisabled} reviewBookItemFlags={reviewBookItemFlags} setBookItemIssue={setBookItemIssue} addClaudeIssue={addClaudeIssue} settings={settings} setSettings={setSettings} userName={profile?.name || user?.email || ""} inp={inp} lbl={lbl} types={types} typeLabels={typeLabels} />
