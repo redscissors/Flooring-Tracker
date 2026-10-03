@@ -875,10 +875,10 @@ const levelInk = (t) => TIER_COLOR[t]?.main || "var(--ft-text)";
 // — Custom shows only its discount — and a click slides the list open while a
 // dark border grows around trigger and list as one piece (MorphSelect). `bg`
 // is the header's own fill, which the open box takes on.
-export function PriceLevelMenu({ value = "retail", customPct, onPick, onPct, bg = "var(--ft-cream)", align = "right", size = "md" }) {
+export function PriceLevelMenu({ value = "retail", customPct, onPick, onPct, bg = "var(--ft-cream)", align = "right", size = "md", className = "" }) {
   const options = PRICE_LEVELS.map((t) => ({ v: t, label: t[0].toUpperCase() + t.slice(1), dot: levelInk(t) }));
   return (
-    <MorphSelect value={value} onChange={onPick} options={options} bg={bg} flat tinted bold align={align} size={size} minOpenW={170} title="Price level"
+    <MorphSelect value={value} onChange={onPick} options={options} bg={bg} flat tinted bold align={align} size={size} className={className} minOpenW={170} title="Price level"
       display={value === "custom" ? `−${customPct || 0}%` : undefined}
       renderRow={(it, { close }) => it.v !== "custom" ? undefined : (
         <span className="flex-1">

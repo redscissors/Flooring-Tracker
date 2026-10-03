@@ -816,16 +816,17 @@ export default function App({ user, onSignOut }) {
   // write, so the two can't clobber each other.
   const updProductProj = (aid, pid, patch, projPatch) => updateProject(sel.id, { ...projPatch, categories: sel.categories.map((x) => x.id === aid ? { ...x, products: x.products.map((p) => p.id === pid ? { ...p, ...patch } : p) } : x) });
   // Mobile add bar (mobile shell 2026-07-16): + Product targets the area in
-  // view — tracked on scroll with the anchor 30% down the viewport (v2 mockup
-  // spec); tapping inside an area also claims it (onClickCapture on the card,
-  // which child stopPropagation can't suppress).
+  // view — the one whose sticky title is pinned at the top of <main> (phone
+  // Clean layout 2026-10-03; was 30% down the viewport, which could name a
+  // different area than the pinned title); tapping inside an area also claims
+  // it (onClickCapture on the card, which child stopPropagation can't suppress).
   useEffect(() => {
     if (isWide || !sel?._full || viewTab !== "edit") return;
     const el = mainRef.current; if (!el) return;
     const pick = () => {
       const nodes = el.querySelectorAll("[data-area-drop]");
       if (!nodes.length) return setActiveAreaId(null);
-      const anchor = el.getBoundingClientRect().top + el.clientHeight * 0.3;
+      const anchor = el.getBoundingClientRect().top + 18;
       let cur = nodes[0];
       nodes.forEach((n) => { if (n.getBoundingClientRect().top <= anchor) cur = n; });
       setActiveAreaId(cur.getAttribute("data-area-drop"));
@@ -1753,7 +1754,7 @@ export default function App({ user, onSignOut }) {
                   in projectheader.jsx. Clean sits above the edit/preview split
                   (Clean compact is pinned in the band above this column) so it
                   stays on screen in both; the other two live inside the edit
-                  view. Mobile keeps its own band below. */}
+                  view. The phone's header is MobileProjectHeader in the top-bar slot. */}
               {isWide && headerLayout === "clean" && deskHeader()}
               {/* Edit view stays mounted (hidden, not unmounted) so field focus and in-progress typing survive tab flips. */}
               <div className={viewTab === "edit" ? "" : "hidden"}>
@@ -1967,7 +1968,7 @@ export default function App({ user, onSignOut }) {
                     )}
 
                     <div data-prod-list="1" className="relative" onKeyDown={(e) => gridEnterNav(e, () => addProduct(a.id))}>
-                      {!isWide && a.products.every(rowBlank) && (
+                      {!isWide && a.products.every((pp, i) => rowBlank(pp) && i === a.products.length - 1) && (
                         <div className="text-[11.5px]" style={{ padding: "10px 12px", color: "var(--ft-faint)", background: "var(--ft-card)" }}>
                           {skuSearchable(stockItems, searchOrder, bookStockReady) ? "No products yet. Tap Price book below." : "No products yet. Tap + Product below."}
                         </div>
