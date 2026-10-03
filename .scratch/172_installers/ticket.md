@@ -18,7 +18,8 @@ Needs Vite up:
     VITE_SUPABASE_URL=https://stub.supabase.co VITE_SUPABASE_ANON_KEY=stub npx vite --port 5199 --strictPort
     OUT_DIR=after node check.mjs
 
-Cases: `box` (hammer badge, box level with the first area), `picker` (order,
+Cases: `box` (hammer badge, box level with the first area), `empty` (no box
+until an installer is picked; the column re-centers), `picker` (order,
 click-to-add), `narrow` (1280 — no box), `print` (block, stacked trades, no
 priority), `settings` (Manage → General → Installers), `addnew` (add an
 installer), `phone` (344px: the bar still fits, the hammer's sheet adds on

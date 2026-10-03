@@ -58,7 +58,8 @@ category list along the way.
   layouts — an icon in Clean, a labeled 19px button in One-bar, an icon tile
   in Classic. The picker (`InstallerPicker`) is a `SearchPop`; its footer
   links to Settings → General → Installers.
-- **Box** (`InstallerBox`, mounted by App.jsx in the areas wrapper): shown when
+- **Box** (`InstallerBox`, mounted by App.jsx in the areas wrapper): shown only
+  once the job has an installer (owner, 2026-10-03), and only when
   `<main>` is at least 896 + 12 + 240 + 32 px wide and the shell isn't zoomed;
   the column and box are then centered together. Sticky under the pinned
   Clean compact band. Lists each entry (×, contact, phone, trades on this
