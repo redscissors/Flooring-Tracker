@@ -1583,7 +1583,7 @@ export default function App({ user, onSignOut }) {
             <MobileProjectHeader sel={sel} cust={cust} profile={profile} tv={tv} grandTotal={grandTotal} optionCount={optionBadges?.length || 0}
               freightCost={freightCost} saveOk={saveOk} updateProject={updateProject}
               onOpenSidebar={() => setSidebarOpen(true)} onOpenCustomer={() => cust && setCustModal(cust.id)} onPromote={() => { setPromoteId(sel.id); setPromoteQ(""); }}
-              onMore={() => setProjSheet(true)} samples={sampleCounts(projSamples)} onOpenSamples={() => { setShowSamples(true); refreshSampleRequests(); }} />
+              onMore={() => setProjSheet(true)} samples={sampleCounts(projSamples)} onOpenSamples={() => { setShowSamples(true); refreshSampleRequests(); }} installers={installerBag} />
           );
         })() : !isWide && (
           <div className="flex items-center gap-2 px-2.5 py-1.5 ft-rail border-b border-slate-200">
