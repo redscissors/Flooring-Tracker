@@ -1,28 +1,29 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Search, Plus, X, Check, ChevronRight, ChevronDown, Trash2, StickyNote, Settings, Layers, Building2, Lock, Truck, Bath } from "lucide-react";
+import { Search, Plus, X, Check, ChevronRight, ChevronDown, Trash2, StickyNote, Settings, Layers, Bath, Menu, MoreHorizontal } from "lucide-react";
 import { SAMPLE_LABEL, SAMPLE_CHIP } from "./samples.js";
 import { num, wasteFor, groutExact, mortarExact, getGrout, getMortar, cartonExact, getCarton, getPieceCarton, underlayExact, getUnderlay, getUnderlayInstall, materialWarnings, offeredGrouts, offeredMortars, offeredUnderlayments, resolveMaterialDefault, offeredAttached, offeredCategories, getAttached } from "./catalog.js";
 import { groutSnapshotPatch, groutColorOptions } from "./stock.js";
 import { baseKey, groutBases, resolveGroutBase, baseLabel, baseOptionLabel, tickGroutChoice, pickGroutProductChoice, pickGroutBaseChoice } from "./groutbase.js";
-import { tierUnitPrice, employeeNoCost, normPricing } from "./pricing.js";
+import { tierUnitPrice, employeeNoCost } from "./pricing.js";
 import { queryHit as sheogaQueryHit, parseQuery as sheogaParseQuery, querySummary as sheogaQuerySummary } from "./sheoga.js";
 // wediquery.js, never wedi.js — the boot chunk pays for the recognizer only
 // (ADR 0026); the wedi catalog rides its lazy popup chunk.
 import { queryHit as wediQueryHit, parseQuery as wediParseQuery, querySummary as wediQuerySummary } from "./wediquery.js";
 // schluterquery.js, never schluter.js — same boot contract (ADR 0026).
 import { queryHit as schluterQueryHit, parseQuery as schluterParseQuery, querySummary as schluterQuerySummary } from "./schluterquery.js";
-import { STOCK_LOADING_MSG, skuSearchable, TYPES, TLBL, underlayLabel, TYPE_ACCENT, JOINTS, colorsFor, TIER_COLOR, tierBadgeText, PROJECT_NAME_MAX } from "./uiconst.js";
+import { STOCK_LOADING_MSG, skuSearchable, TYPES, TLBL, underlayLabel, TYPE_ACCENT, JOINTS, colorsFor, TIER_COLOR } from "./uiconst.js";
 import { money, sf1, miscQty, rowBlank } from "./model.js";
 import { lineTotal, printProduct, KSHORT } from "./print.js";
 import { unitCode, bundleUnit, BUNDLE_UNITS, COUNT_UNITS } from "./units.js";
 import { MARKUP_PRESETS, unitMargin, editCost, editMarkup, editPrice } from "./costentry.js";
-import { FitSelect, GroutColorOptions, useEscClose, SalespersonPop, MorphSelect } from "./widgets.jsx";
+import { FitSelect, GroutColorOptions, useEscClose, SalespersonPop, MorphSelect, PriceLevelMenu } from "./widgets.jsx";
 import { ClaudeMark } from "./claudeflag.jsx";
 import { SfPartsMenu } from "./SfPartsMenu.jsx";
 import { Hit, hitKey, matchSummary, useMergedResults, NearMatchNote, SearchingBar } from "./search.jsx";
 import { GridSizeInput, UnitPick } from "./grid.jsx";
-import { ErpChip } from "./projectheader.jsx";
+import { ErpChip, FreightToggle } from "./projectheader.jsx";
+import { phoneTotal, shownAddress } from "./phonehead.js";
 import { LineWasteControl, wasteTag, takesWaste } from "./linewaste.jsx";
 
 // Mobile bottom sheet (mobile shell 2026-07-16): the phone's pop-open editing
@@ -224,10 +225,12 @@ export function MobileProductRow({ p, settings, tv, onOpen, onPointerDown }) {
   ].filter(Boolean);
   return (
     <div onClick={onOpen} onPointerDown={onPointerDown} title="Tap to edit — hold to move"
-      className="flex items-start gap-2 w-full text-left cursor-pointer select-none" style={{ padding: "7px 10px", background: "var(--ft-area-row)" }}>
-      <span className="shrink-0 rounded flex items-center justify-center font-extrabold" style={{ width: 19, height: 19, fontSize: 10, marginTop: 1, background: blank ? "var(--ft-field, #fff)" : TYPE_ACCENT[p.type], color: blank ? "var(--ft-muted)" : "var(--ft-type-ink)", border: blank ? "1px dashed var(--ft-border)" : "none" }}>
-        {blank ? <Plus size={11} /> : p.type === "misc" ? "✕" : TLBL[p.type][0]}
-      </span>
+      className="flex items-start gap-2 w-full text-left cursor-pointer select-none" style={{ padding: "9px 12px", background: "var(--ft-card)" }}>
+      {blank ? (
+        <span className="shrink-0 rounded flex items-center justify-center" style={{ width: 19, height: 19, marginTop: 1, background: "var(--ft-field, #fff)", color: "var(--ft-muted)", border: "1px dashed var(--ft-border)" }}><Plus size={11} /></span>
+      ) : (
+        <span data-type-dot title={TLBL[p.type]} className="shrink-0 rounded-full" style={{ width: 8, height: 8, marginTop: 5, background: TYPE_ACCENT[p.type] }} />
+      )}
       <span className="flex-1 min-w-0">
         <span className="flex items-baseline gap-2">
           <span className={`text-[13px] font-bold truncate flex-1 min-w-0 ${blank ? "text-slate-400 font-semibold" : ""}`}>{blank ? "New product…" : p.brandColor || TLBL[p.type]}</span>
@@ -690,140 +693,64 @@ export function MobileRowSheet({ p, groutMemory, areaName, canDelete, settings, 
   );
 }
 
-// The phone's project header (Fold 5 header 2026-09-15,
-// .scratch/mockups/mobile-fold5-header-2026-09-15.html, C rev 2): the desktop
-// one-bar's vocabulary folded to a 344px cover screen — id boxes down the
-// left, project / tier + total / minis down the right. Versions, files, save,
-// print and the order sheet live only in the ⋯ sheet (owner call), so this
-// band never grows a button row. Same props and write paths as
-// ProjectHeaderBar; it never writes on its own.
-const BAND_BOX = { border: "1px solid var(--ft-border-strong)", borderRadius: 6, padding: "2px 7px 3px", minWidth: 0, display: "flex", flexDirection: "column", justifyContent: "center" };
-const BAND_MINI = "h-[22px] min-w-0 flex items-center justify-center gap-1 rounded-md px-1.5 text-[10px] font-bold text-slate-500 whitespace-nowrap";
-const BAND_MINI_STYLE = { border: "1px solid var(--ft-border-strong)", flex: "1 1 auto" };
-
-function TierDrop({ sel, tv, pcts, updateProject }) {
-  const tier = sel.priceTier || "retail";
-  const label = tierBadgeText(tv.tier, tv.pct) || (tier === "custom" ? "Custom" : "Retail");
-  const fill = TIER_COLOR[tier]?.main;
-  const dot = (v) => TIER_COLOR[v]?.main || "var(--ft-text)";
-  const options = [
-    { v: "retail", label: "Retail", dot: dot("retail") },
-    { v: "builder", label: "Builder", note: `−${pcts.builderPct}%`, dot: dot("builder") },
-    { v: "employee", label: "Employee", note: "cost +6%", dot: dot("employee") },
-    { v: "sale", label: "Sale", note: `−${pcts.salePct}%`, dot: dot("sale") },
-    { v: "custom", label: "Custom", dot: dot("custom") },
-  ];
+// The phone's project header (phone Clean layout, spec 2026-10-02, owner pick
+// from .scratch/mockups/mobile-clean-options-2026-10-02.html): desktop Clean's
+// header A at 344px, pinned above <main>. Customer headline + salesperson, the
+// project line (opens the ⋯ sheet), then the bar — price level, estimate
+// shows, freight, samples, ⋯ and the total. Waste lives only in the ⋯ sheet so
+// the total fits. Same write paths as the desktop Clean bar; it never writes on
+// its own.
+export function MobileProjectHeader({ sel, cust, profile, tv, grandTotal, optionCount = 0, freightCost = 0, saveOk, updateProject, onOpenSidebar, onOpenCustomer, onPromote, onMore, samples = null, onOpenSamples }) {
+  const upd = (patch) => updateProject(sel.id, patch);
+  const total = phoneTotal(grandTotal, optionCount);
+  const addr = shownAddress(sel, cust);
+  const icon = "relative w-[24px] h-[28px] flex-none flex items-center justify-center rounded-md text-slate-500";
+  const totalCls = "ft-mono shrink-0 whitespace-nowrap font-extrabold text-[12.5px] pl-0.5";
   return (
-    <MorphSelect value={tier} onChange={(v) => updateProject(sel.id, { priceTier: v })} options={options} display={label}
-      tinted bold size="sm" minOpenW={168} title="Price level" className="flex-1 min-w-0"
-      triggerClass={"h-[24px] w-full min-w-0 flex items-center gap-1 rounded-md px-1.5 text-[10px] font-extrabold overflow-hidden " + (fill ? "text-white" : "bg-indigo-600")}
-      triggerStyle={fill ? { background: fill } : {}}
-      renderRow={(it, { close }) => it.v !== "custom" ? undefined : (
-        <label className="flex-1 flex items-center gap-1 cursor-text" onClick={(e) => e.stopPropagation()}>
-          Custom
-          <input type="number" min="0" max="100" inputMode="numeric" value={sel.customPct ?? ""} placeholder="%"
-            onFocus={() => updateProject(sel.id, { priceTier: "custom" })}
-            onChange={(e) => updateProject(sel.id, { priceTier: "custom", customPct: e.target.value })}
-            onKeyDown={(e) => { if (e.key === "Enter") close(); }}
-            className="ft-nospin ml-auto w-9 bg-transparent text-right border-b border-slate-300 focus:outline-none" />
-          <span className="text-[10px] font-semibold">%</span>
-        </label>
-      )} />
-  );
-}
-
-const PRINT_OPTS = [["full", "All $", "Print every price and total"], ["unit", "Unit $", "Unit prices only — no line or job totals"], ["none", "No $", "No pricing"]];
-function PrintDrop({ sel, updateProject }) {
-  return (
-    <MorphSelect value={sel.printPricing || "full"} onChange={(v) => updateProject(sel.id, { printPricing: v })}
-      groups={[{ label: "Estimate shows", items: PRINT_OPTS.map(([v, label, title]) => ({ v, label, title })) }]}
-      size="sm" minOpenW={176} title="What the printed estimate shows" className="flex-auto min-w-0"
-      triggerClass={BAND_MINI + " w-full"} triggerStyle={{ border: BAND_MINI_STYLE.border }} />
-  );
-}
-
-export function MobileProjectBand({ sel, cust, builderName, profile, tv, grandTotal, optionBadges = null, freightCost = 0, saveOk, settings, updateProject, onOpenCustomer, onPromote, samples = null, onOpenSamples }) {
-  const sp = sel.salesperson || profile;
-  const pcts = normPricing(settings.pricing);
-  const freightOn = sel.freight !== false;
-  const eyebrow = { color: "var(--ft-faint)" };
-  return (
-    <div className="ft-noprint rounded-lg border mb-2" style={{ padding: 4, background: "var(--ft-band)", borderColor: "var(--ft-border)", display: "flex", gap: 4, alignItems: "stretch" }}>
-      <div className="flex flex-col gap-[3px] shrink-0" style={{ width: 106 }}>
-        <div style={{ ...BAND_BOX, flex: 1 }}>
-          <div className="ft-eyebrow text-[8px]" style={eyebrow}>Customer</div>
-          {cust ? (
-            <>
-              <button onClick={onOpenCustomer} title="Open customer details" className="flex items-center gap-1 min-w-0 max-w-full text-indigo-600 text-[12px] font-bold" style={{ lineHeight: 1.15 }}>
-                <span className="truncate">{cust.name || "Customer"}</span><ChevronDown size={10} className="shrink-0" />
-              </button>
-              {builderName && <div className="text-[9.5px] text-slate-500 truncate flex items-center gap-1" style={{ lineHeight: 1.2 }}><Building2 size={9} className="shrink-0 text-slate-400" /> {builderName}</div>}
-            </>
-          ) : (
-            <button onClick={onPromote} title="File this job under a customer" className="flex flex-col items-start gap-0.5 text-amber-600">
-              <span className="text-[12px] font-bold" style={{ lineHeight: 1.15 }}>{sel.quick ? "Quick price" : "Unassigned"}</span>
-              <span className="text-[9px] font-semibold rounded border border-amber-300 px-1 py-px">File under customer ▾</span>
-            </button>
-          )}
-        </div>
-        <div style={{ ...BAND_BOX, flex: 1 }}>
-          <div className="ft-eyebrow text-[8px] flex items-center gap-1" style={eyebrow}><Lock size={8} /> Salesperson</div>
-          <SalespersonPop small value={sel.salesperson} fallback={profile} onChange={(v) => updateProject(sel.id, { salesperson: v })} />
-          <div className="text-[9.5px] text-slate-500 truncate max-w-full" style={{ lineHeight: 1.2 }}>{sp.phone || " "}</div>
+    <div data-phone-head className="ft-noprint ft-rail border-b border-slate-200 shrink-0">
+      <div className="flex items-center gap-1.5" style={{ padding: "6px 10px 0 4px" }}>
+        <button onClick={onOpenSidebar} aria-label="Menu" className="p-1 text-slate-600 shrink-0"><Menu size={19} /></button>
+        {cust ? (
+          <button onClick={onOpenCustomer} title="Open customer details" className="flex-1 min-w-0 truncate text-left font-extrabold" style={{ fontSize: 20, lineHeight: 1.15, letterSpacing: "-.015em" }}>{cust.name || "Customer"}</button>
+        ) : (
+          <button onClick={onPromote} title="File this job under a customer" className="flex-1 min-w-0 truncate text-left font-extrabold" style={{ fontSize: 20, lineHeight: 1.15, letterSpacing: "-.015em", color: "#b45309" }}>{sel.quick ? "Quick price" : "Unassigned"}</button>
+        )}
+        <div className="shrink-0 flex flex-col items-end text-[12px] font-extrabold" style={{ lineHeight: 1.15, maxWidth: 120 }}>
+          {saveOk && <span className="text-[9.5px] font-bold" style={{ color: "var(--ft-brand)" }}>Saved ✓</span>}
+          <SalespersonPop plain alignRight value={sel.salesperson} fallback={profile} onChange={(v) => upd({ salesperson: v })} />
         </div>
       </div>
-
-      <div className="flex-1 min-w-0 flex flex-col gap-[3px]">
-        <div style={{ ...BAND_BOX, padding: "3px 7px 4px" }}>
-          <div className="flex items-center justify-between gap-2">
-            <div className="ft-eyebrow text-[8px]" style={eyebrow}>Project</div>
-            <div className="flex items-center gap-1.5">
-              {sel.projectNo && <div className="ft-eyebrow text-[8px]" style={{ ...eyebrow, letterSpacing: ".08em" }}>N{sel.projectNo}</div>}
-              <ErpChip erpOrders={sel.erpOrders} />
-            </div>
-          </div>
-          <input value={sel.name} maxLength={PROJECT_NAME_MAX} onChange={(e) => updateProject(sel.id, { name: e.target.value })} placeholder="Project name"
-            className="w-full bg-transparent text-[14px] font-extrabold border-b border-transparent focus:border-indigo-500 focus:outline-none min-w-0" style={{ lineHeight: 1.15, marginTop: 1 }} />
-          <input value={sel.address} onChange={(e) => updateProject(sel.id, { address: e.target.value })} placeholder="Project address…"
-            className="w-full bg-transparent text-[10px] text-slate-500 border-b border-transparent focus:border-indigo-500 focus:outline-none mt-0.5" />
-        </div>
-
-        <div className="flex gap-[3px] min-w-0">
-          <TierDrop sel={sel} tv={tv} pcts={pcts} updateProject={updateProject} />
-          {/* Same 24px as the dropdown: the label stacks over the money. With
-              quote options the box takes the row's slack and the badges scroll. */}
-          <div style={{ ...BAND_BOX, height: 24, padding: "0 6px", flex: optionBadges ? "1 1 0" : "0 0 86px", alignItems: optionBadges ? "stretch" : "flex-end", overflow: "hidden" }}>
-            {optionBadges ? (
-              <div className="flex items-center gap-1 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
-                {optionBadges.map((b) => (
-                  <span key={b.slot} className="ft-mono rounded px-1.5 text-[10px] font-bold whitespace-nowrap" style={{ background: `color-mix(in srgb, ${b.color.main} 12%, var(--ft-card))`, color: b.color.deep, boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${b.color.main} 45%, transparent)` }}>
-                    {b.label} <span className="opacity-75 font-semibold">{money(b.total)}</span>
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <>
-                <div className="ft-eyebrow" style={{ ...eyebrow, fontSize: 7, lineHeight: 1, marginBottom: 1, whiteSpace: "nowrap" }}>Total{saveOk && <span style={{ color: "var(--ft-brand)" }}> ✓</span>}</div>
-                <div className="ft-mono font-extrabold" style={{ fontSize: 12.5, lineHeight: 1, letterSpacing: "-.02em", color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{money(grandTotal)}</div>
-              </>
-            )}
-          </div>
-        </div>
-
-        <div className="flex gap-[3px] min-w-0">
-          <PrintDrop sel={sel} updateProject={updateProject} />
-          {onOpenSamples && (
-            <button onClick={onOpenSamples} title="Samples — this job's sample requests" className={BAND_MINI} style={BAND_MINI_STYLE}>
-              <Layers size={11} /> Samples
-              {samples?.need > 0 && <span className="rounded px-1 font-extrabold" style={{ background: "#fef6e2", color: "#b45309" }}>{samples.need}</span>}
-            </button>
-          )}
-          <button onClick={() => updateProject(sel.id, { freight: !freightOn })} className={BAND_MINI} style={BAND_MINI_STYLE}
-            title={freightOn ? "Vendor shipping is on this job's special orders — press to leave it off" : "No freight on this job — press to add vendor shipping"}>
-            <Truck size={11} className={freightOn ? "" : "opacity-50"} />
-            {freightOn ? <span className="rounded px-1 font-extrabold" style={{ background: "rgba(28,26,23,.08)" }}>{freightCost > 0 ? `$${Math.round(freightCost).toLocaleString()}` : "Incl."}</span> : <span className="opacity-60">None</span>}
+      <button onClick={onMore} title="Project details" className="w-full flex items-center gap-[5px] min-w-0 text-left text-[11.5px]" style={{ padding: "2px 12px 8px", color: "var(--ft-muted)" }}>
+        <span className="truncate font-bold" style={{ color: "var(--ft-text)", flex: "0 1 auto", maxWidth: "70%" }}>{sel.name || "Untitled project"}</span>
+        {sel.projectNo && <span className="shrink-0 font-bold text-[10.5px]" style={{ color: "var(--ft-faint)" }}>N{sel.projectNo}</span>}
+        <span className="shrink-0 flex"><ErpChip erpOrders={sel.erpOrders} /></span>
+        {addr.text && <>
+          <span className="shrink-0" style={{ color: "var(--ft-border-strong)" }}>·</span>
+          <span className="truncate" style={{ flex: "1 1 0", minWidth: 24, ...(addr.own ? {} : { color: "var(--ft-faint)" }) }}>{addr.text}</span>
+        </>}
+      </button>
+      <div data-phone-bar className="flex items-center" style={{ gap: 4, height: 38, padding: "0 10px 0 6px", borderTop: "1px solid var(--ft-border)" }}>
+        <PriceLevelMenu value={sel.priceTier || "retail"} customPct={sel.customPct} onPick={(v) => upd({ priceTier: v })} onPct={(v) => upd({ priceTier: "custom", customPct: v })} align="left" size="sm" />
+        <MorphSelect value={sel.printPricing || "full"} onChange={(v) => upd({ printPricing: v })} bg="var(--ft-cream)" flat bold size="sm" minOpenW={150} title="What the estimate shows"
+          options={[
+            { v: "full", label: "All $", title: "Print every price and total" },
+            { v: "unit", label: "Unit $", title: "Print unit prices only — no line or job totals" },
+            { v: "none", label: "No $", title: "Print no pricing" },
+          ]} />
+        <span className="flex-1" style={{ minWidth: 4 }} />
+        <FreightToggle compact on={sel.freight !== false} amount={freightCost > 0 ? `$${Math.round(freightCost).toLocaleString()}` : ""} onSet={(v) => upd({ freight: v })} />
+        {onOpenSamples && (
+          <button onClick={onOpenSamples} aria-label="Samples" title="Samples — this job's sample requests" className={icon}>
+            <Layers size={16} />
+            {samples?.need > 0 && <span className="absolute rounded-full font-bold" style={{ top: -2, right: -5, fontSize: 9.5, lineHeight: "14px", minWidth: 14, padding: "0 3px", background: "#b45309", color: "#fff" }}>{samples.need}</span>}
           </button>
-        </div>
+        )}
+        <button onClick={onMore} aria-label="Project details" title="Project details — files, versions, waste, print" className={icon}><MoreHorizontal size={16} /></button>
+        {total.options ? (
+          <button data-phone-total onClick={onMore} title="Each option's total is in the project sheet" className={totalCls} style={{ color: "var(--ft-text)" }}>{total.text}</button>
+        ) : (
+          <span data-phone-total className={totalCls} style={{ color: TIER_COLOR[tv.tier]?.main || "var(--ft-brand-deep)" }}>{total.text}</span>
+        )}
       </div>
     </div>
   );

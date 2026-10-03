@@ -33,7 +33,7 @@ import { OPTION_SLOTS, OPTION_COLOR, optionsUsed, bucketCats, scopedCats, option
 import { LazyBoundary, FitSelect, GroutColorOptions, BuilderCombo, MetaChip, SalespersonPop, SegBar, WasteBar, DARK_MODE, MarginLine, Modal, useEscClose, HelpTip, AddressField, PopMenu } from "./widgets.jsx";
 import { escPush } from "./escstack.js";
 import { TypeSelect, GRID_COLS, GridPriceCell, GridSizeInput, GridProductBox, GridOmniSearch, UnitPick } from "./grid.jsx";
-import { MobileSheet, MobileProductRow, MobileRowSheet, MobileProjectBand } from "./mobile.jsx";
+import { MobileSheet, MobileProductRow, MobileRowSheet, MobileProjectHeader } from "./mobile.jsx";
 import { TeamTodos } from "./TeamTodos.jsx";
 import { EstimatePaper, PRINT_DASH } from "./EstimatePrint.jsx";
 import { estimateMail } from "./estimatemail.js";
@@ -1547,8 +1547,17 @@ export default function App({ user, onSignOut }) {
   return (
     <div className="ft-vh bg-slate-50 text-slate-800 flex flex-col" style={{ fontFamily: 'var(--ft-ui)' }}>
       <div className={`print:hidden flex ${isWide ? "flex-row" : "flex-col"} flex-1 overflow-hidden relative`}>
-        {/* Mobile top bar */}
-        {!isWide && (
+        {/* Mobile top bar — an open job swaps it for the Clean header A
+            (spec 2026-10-02), pinned here above <main>. */}
+        {!isWide && !railNav.pane && sel && sel._full ? (() => {
+          const cust = data.people.find((c) => c.id === sel.customerId);
+          return (
+            <MobileProjectHeader sel={sel} cust={cust} profile={profile} tv={tv} grandTotal={grandTotal} optionCount={optionBadges?.length || 0}
+              freightCost={freightCost} saveOk={saveOk} updateProject={updateProject}
+              onOpenSidebar={() => setSidebarOpen(true)} onOpenCustomer={() => cust && setCustModal(cust.id)} onPromote={() => { setPromoteId(sel.id); setPromoteQ(""); }}
+              onMore={() => setProjSheet(true)} samples={sampleCounts(projSamples)} onOpenSamples={() => { setShowSamples(true); refreshSampleRequests(); }} />
+          );
+        })() : !isWide && (
           <div className="flex items-center gap-2 px-2.5 py-1.5 ft-rail border-b border-slate-200">
             <button onClick={() => setSidebarOpen(true)} className="p-1 -ml-1 text-slate-600"><Menu size={20} /></button>
             <button onClick={goHome} title="Home" className="shrink-0 hover:opacity-70 transition"><NedMark size={24} /></button>
@@ -1750,24 +1759,17 @@ export default function App({ user, onSignOut }) {
               <div className={viewTab === "edit" ? "" : "hidden"}>
               {isWide && !cleanHead && deskHeader()}
 
-              {/* Mobile shell (2026-07-16, .scratch/mockups/mobile-v2; header
-                  reworked for the Fold 5 cover screen 2026-09-15,
-                  .scratch/mockups/mobile-fold5-header-2026-09-15.html): the
-                  desktop one-bar folds into MobileProjectBand; the full
-                  project controls — files, versions, order sheet, print —
-                  live in the ⋯ bottom sheet. No Order entry on mobile —
-                  that's a desk task (owner call). */}
+              {/* Mobile shell (2026-07-16, .scratch/mockups/mobile-v2): the
+                  header is MobileProjectHeader in the top-bar slot (spec
+                  2026-10-02); the full project controls — files, versions,
+                  waste, order sheet, print — live in the ⋯ bottom sheet. No
+                  Order entry on mobile — that's a desk task (owner call). */}
               {!isWide && (() => {
-                const cust = data.people.find((c) => c.id === sel.customerId);
                 const pcts = normPricing(settings.pricing);
                 const act = "h-[34px] flex items-center justify-center gap-1.5 rounded-md border border-slate-200 bg-white text-[12px] font-semibold text-slate-600";
                 return (
                   <>
                     <input ref={attRef} type="file" onChange={addAttachment} className="hidden" />
-                    <MobileProjectBand sel={sel} cust={cust} builderName={cust ? builderNameOf(cust.builderId) : ""} profile={profile} tv={tv} grandTotal={grandTotal} optionBadges={optionBadges}
-                      freightCost={freightCost} saveOk={saveOk} settings={settings} updateProject={updateProject}
-                      onOpenCustomer={() => cust && setCustModal(cust.id)} onPromote={() => { setPromoteId(sel.id); setPromoteQ(""); }}
-                      samples={sampleCounts(projSamples)} onOpenSamples={() => { setShowSamples(true); refreshSampleRequests(); }} />
                     <MobileSheet open={projSheet} onClose={() => setProjSheet(false)} title={sel.name || "Untitled project"}
                       badge={tierBadgeText(tv.tier, tv.pct) ? <span className="shrink-0 rounded px-1 py-px font-semibold" style={{ background: TIER_COLOR[tv.tier]?.soft || "var(--ft-brand-soft)", color: TIER_COLOR[tv.tier]?.main, fontSize: 9.5 }}>{tierBadgeText(tv.tier, tv.pct)}</span> : null}
                       footer={<>
@@ -1871,7 +1873,7 @@ export default function App({ user, onSignOut }) {
                   rounds its own corners, so touching areas keep the soft "pill"
                   notch at their seam that the flush product boxes don't.
                   `relative` anchors the area-drag insertion bar. */}
-              <div className={cleanCards ? "relative flex flex-col gap-1.5" : "relative"}>
+              <div className={cleanCards ? "relative flex flex-col gap-1.5" : isWide ? "relative" : "relative -mx-2"}>
                 {sel.categories.map((a, ai) => {
                   const areaSf = a.products.reduce((t, p) => t + (p.qtyType === "sqft" ? num(p.qty) : 0), 0);
                   const areaTotal = printAreaFloor(tv.proj.categories[ai] || a, tSet);
@@ -1882,7 +1884,11 @@ export default function App({ user, onSignOut }) {
                   // card isn't clipped at its home area's edge) and while one of its
                   // products' materials drawers is open (so the drawer can float past
                   // the card's bottom edge without being clipped).
-                  <div key={a.id} data-area-drop={a.id} onClickCapture={isWide ? undefined : () => setActiveAreaId(a.id)} className={`${cleanCards ? "group" : ""} rounded-lg border bg-white transition-colors ${drag || areaMatOpen ? "" : "overflow-hidden"} ${drag?.to?.aid === a.id ? "border-indigo-400" : drag ? "border-dashed border-slate-300" : "border-slate-200"}`} style={!cleanCards && oc ? { borderColor: oc.main, borderWidth: 1.5 } : undefined}>
+                  <div key={a.id} data-area-drop={a.id} onClickCapture={isWide ? undefined : () => setActiveAreaId(a.id)}
+                    // Phone (spec 2026-10-02): no card — and no overflow-hidden, which would
+                    // stop the sticky area title from sticking.
+                    className={!isWide ? "transition-colors" : `${cleanCards ? "group" : ""} rounded-lg border bg-white transition-colors ${drag || areaMatOpen ? "" : "overflow-hidden"} ${drag?.to?.aid === a.id ? "border-indigo-400" : drag ? "border-dashed border-slate-300" : "border-slate-200"}`}
+                    style={!isWide ? (drag?.to?.aid === a.id ? { boxShadow: "inset 0 0 0 2px var(--ft-brand)" } : undefined) : !cleanCards && oc ? { borderColor: oc.main, borderWidth: 1.5 } : undefined}>
                     {cleanCards ? (() => {
                       // Clean's area bar (owner picks 2026-09-27, .scratch/159_clean-editor
                       // "D"): name, column labels and subtotal share one slim bar. An
@@ -1907,7 +1913,31 @@ export default function App({ user, onSignOut }) {
                           </div>
                         </div>
                       );
-                    })() : (
+                    })() : !isWide ? (
+                    // Phone area title (spec 2026-10-02): one thin sticky line. Holding
+                    // the line drags the area; the name and the buttons stay tappable.
+                    // Android fires contextmenu on a long-press — the same hold that drags
+                    // the area — so it opens nothing here; ⋯ is the phone's menu.
+                    <div data-area-title onPointerDown={(e) => { if (!e.target.closest("input, button")) startAreaDrag(e, a.id, ai, 350); }}
+                      onContextMenu={(e) => e.preventDefault()}
+                      className="flex items-center gap-1.5 select-none"
+                      style={{ position: "sticky", top: 0, zIndex: 5, height: 17, boxSizing: "border-box", background: "var(--ft-cream)", padding: "0 12px", borderBottom: "1px solid var(--ft-border)", ...(a.id === activeAreaId ? { boxShadow: "inset 3px 0 0 var(--ft-brand)" } : {}) }}>
+                      <input ref={(el) => { if (el) areaRefs.current[a.id] = el; }} value={a.name} onChange={(e) => updArea(a.id, { name: e.target.value })} placeholder={`Area ${ai + 1}`}
+                        className="bg-transparent focus:outline-none min-w-0 placeholder:text-slate-400"
+                        style={{ fontSize: 9, fontWeight: 800, letterSpacing: ".14em", textTransform: "uppercase", color: "var(--ft-brand-deep)", lineHeight: 1.1, height: 13, padding: 0, width: `calc(${Math.max(a.name.length || `Area ${ai + 1}`.length, 4) + 1} * 1.14em)` }} />
+                      {(a.option || optsUsed.length > 0) && (
+                        <button tabIndex={-1} onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setAreaMenu({ aid: a.id, x: r.left, y: r.bottom + 4, anchor: e.currentTarget, clean: true }); }}
+                          className="ft-noprint rounded shrink-0 font-extrabold"
+                          style={{ fontSize: 8, letterSpacing: ".06em", padding: "0 4px", lineHeight: "13px", ...(oc ? { background: `color-mix(in srgb, ${oc.main} 12%, var(--ft-card))`, color: oc.deep, boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${oc.main} 45%, transparent)` } : { border: "1px dashed var(--ft-border-strong)", color: "var(--ft-muted)" }) }}>
+                          {a.option ? optionShort(sel, a.option).toUpperCase() : "SHARED"}
+                        </button>
+                      )}
+                      <span className="flex-1" />
+                      {areaTotal > 0 && <span className="ft-mono shrink-0" style={{ fontSize: 10, fontWeight: 800, lineHeight: 1.1 }}>{money(areaTotal)}</span>}
+                      <button tabIndex={-1} aria-label="Area options" title="Area options" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setAreaMenu({ aid: a.id, x: r.right - 212, y: r.bottom + 4, clean: true }); }}
+                        className="ft-noprint shrink-0 flex items-center justify-center text-slate-400" style={{ width: 32, height: 32, margin: "-8px -8px -8px 0" }}><MoreHorizontal size={14} /></button>
+                    </div>
+                    ) : (
                     <div className="flex justify-between items-center gap-3" onContextMenu={(e) => { e.preventDefault(); setAreaMenu({ aid: a.id, x: e.clientX, y: e.clientY }); }} style={{ background: "var(--ft-area-head)", padding: isWide ? "8px 14px" : "6px 11px", ...(!isWide && a.id === activeAreaId ? { boxShadow: "inset 3px 0 0 var(--ft-brand)" } : {}) }}>
                       <div className="flex items-baseline gap-2.5 flex-1 min-w-0">
                         <input ref={(el) => { if (el) areaRefs.current[a.id] = el; }} value={a.name} onChange={(e) => updArea(a.id, { name: e.target.value })} placeholder={`Area ${ai + 1}`} className="ft-serif bg-transparent border-b border-transparent focus:border-indigo-500 focus:outline-none min-w-0 placeholder:text-slate-400" style={{ fontSize: isWide ? 20 : 18, lineHeight: 1.1, width: `${Math.max(a.name.length || `Area ${ai + 1}`.length, 4) + 1}ch` }} />
@@ -1937,6 +1967,11 @@ export default function App({ user, onSignOut }) {
                     )}
 
                     <div data-prod-list="1" className="relative" onKeyDown={(e) => gridEnterNav(e, () => addProduct(a.id))}>
+                      {!isWide && a.products.every(rowBlank) && (
+                        <div className="text-[11.5px]" style={{ padding: "10px 12px", color: "var(--ft-faint)", background: "var(--ft-card)" }}>
+                          {skuSearchable(stockItems, searchOrder, bookStockReady) ? "No products yet. Tap Price book below." : "No products yet. Tap + Product below."}
+                        </div>
+                      )}
                       {isWide && !cleanCards && (
                       <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, background: "var(--ft-area-head)", borderTop: "1px solid var(--ft-border)", borderBottom: "1px solid var(--ft-border)", fontSize: 8, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--ft-muted)" }}>
                         <div style={{ padding: "5px 10px", borderRight: "1px solid var(--ft-row-line)" }}>Size / Type ▾</div>
@@ -2215,8 +2250,8 @@ export default function App({ user, onSignOut }) {
                           <div key={p.id} data-prod-card={p.id} data-flip={p.id} style={{
                             display: "flow-root",
                             position: "relative",
-                            background: "var(--ft-area-row)",
-                            borderBottom: "1px solid var(--ft-grid-line)",
+                            background: isWide ? "var(--ft-area-row)" : "var(--ft-card)",
+                            borderBottom: `1px solid ${isWide ? "var(--ft-grid-line)" : "var(--ft-row-line)"}`,
                           }}>
                             {!isWide ? (<>
                             {/* compact two-line summary (mobile rows 2026-07-17) — a tap

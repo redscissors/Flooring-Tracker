@@ -118,6 +118,23 @@ section>.lede{font-size:13.5px;color:var(--muted);line-height:1.55;max-width:760
 .r3.thin .aname{font-size:9px;line-height:1.1}
 .r3.thin .atot{font-size:10px;line-height:1.1}
 .r3.thin .ahead .iconbtn{height:14px!important}
+.bar.sbar{gap:6px;padding:0 12px}
+.bar.sbar .iconbtn{width:24px;flex:none}
+.bar.sbar .sp{min-width:4px}
+.r3 .ahead.on{box-shadow:inset 3px 0 0 var(--moss)}
+.r3.thin .psub{display:flex;gap:6px;align-items:center}
+.erp{font-size:9.5px;font-weight:800;padding:0 4px;border-radius:3px;background:#EDE9DD;color:var(--mut);white-space:nowrap;line-height:15px}
+.tot{font-size:12.5px;font-weight:800;letter-spacing:-.01em;white-space:nowrap;padding-left:2px}
+.frt-off{color:var(--amber);position:relative}
+.frt-off::after{content:"";position:absolute;left:3px;right:3px;top:50%;height:1.5px;background:var(--amber);transform:rotate(-30deg)}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:3;background:var(--paper);border-radius:12px 12px 0 0;box-shadow:0 -8px 40px rgba(28,26,23,.25);padding:6px 14px 0}
+.sheet .grab{width:36px;height:4px;border-radius:2px;background:var(--lines);margin:0 auto 8px}
+.sheet .sr{margin-bottom:9px}
+.sheet .sl{font-size:8.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--fnt);margin-bottom:3px}
+.seg{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden;background:var(--card);width:max-content}
+.seg span{padding:6px 10px;font-size:11px;font-weight:700;color:var(--mut);border-right:1px solid var(--line)}
+.seg span:last-child{border-right:0}
+.seg span.on{background:var(--mosss);color:var(--ink)}
 .r3.thin .opt{font-size:8px;font-weight:800;letter-spacing:.06em;padding:0 4px;border-radius:3px;color:var(--mossd);background:var(--mosss);line-height:13px}
 
 /* bottom bars */
@@ -154,15 +171,21 @@ section>.lede{font-size:13.5px;color:var(--muted);line-height:1.55;max-width:760
   </section>
 
   <section>
-    <h2>Your pick: A + R3 + today's bar, thinner area titles</h2>
-    <p class="lede">Header A, the R3 flat list and today's three-button bar, with each area title cut to about half its height (about 16px instead of about 30px). The ⋯ keeps a full-size tap area even though the row is thin.</p>
+    <h2>Your pick, as the spec describes it</h2>
+    <p class="lede">Header A, the R3 flat list with thin area titles (about 16px), and today's three-button bar. It's updated to the spec: the job total sits on the right of the bar, waste moved into the ⋯ sheet, and the project line carries the ERP order number. Product lines keep their material letters (G, M, U).</p>
     <div class="row">
-      <div class="col"><div class="cap"><span class="k">✓</span><b>Top of the job</b></div><div id="p-pick"></div>
-        <ul class="notes"><li>Each title is one thin line: area name in small caps, subtotal, ⋯. A quote-option area shows its letter chip in the same line.</li></ul></div>
-      <div class="col"><div class="cap"><span class="k">✓</span><b>Scrolled into Hall bath</b></div><div id="p-pick2"></div>
-        <ul class="notes"><li>The area you're in sticks under the header as a thin band, and the Price book button names it.</li></ul></div>
-      <div class="col"><div class="cap"><span class="k">R3</span><b>Before (the first R3)</b></div><div id="p-pick3"></div>
-        <ul class="notes"><li>For comparison: the first version's taller titles.</li></ul></div>
+      <div class="col"><div class="cap"><span class="k">1</span><b>Top of the job</b></div><div id="p-pick"></div>
+        <ul class="notes"><li><b>Bar:</b> Retail ▾ · All $ ▾ · freight · samples · ⋯ · <b>total</b> in the price-level colour.</li><li>Tap the customer to open the customer, Sam to change the salesperson, and the project line to open ⋯.</li><li>The moss mark on KITCHEN is the area the Price book button adds to.</li></ul></div>
+      <div class="col"><div class="cap"><span class="k">2</span><b>Scrolled into Hall bath</b></div><div id="p-pick2"></div>
+        <ul class="notes"><li>The header stays put. The area you're in sticks under it as a thin band, and the Price book button names it.</li></ul></div>
+      <div class="col"><div class="cap"><span class="k">3</span><b>The ⋯ sheet</b></div><div id="p-pick3"></div>
+        <ul class="notes"><li>Today's sheet, unchanged, with one change: <b>waste now lives only here</b>, so the total fits on the bar.</li></ul></div>
+    </div>
+    <div class="row" style="margin-top:36px">
+      <div class="col"><div class="cap"><span class="k">4</span><b>Quote options, freight off</b></div><div id="p-pick4"></div>
+        <ul class="notes"><li>With options, the total spot reads “3 options” and opens ⋯, where each option's total is listed.</li><li>Freight off: the truck turns amber and is struck through.</li><li>Each option area shows its chip in its title line.</li></ul></div>
+      <div class="col"><div class="cap"><span class="k">5</span><b>Unassigned, long names, big total</b></div><div id="p-pick5"></div>
+        <ul class="notes"><li>“Unassigned” in amber opens File under customer.</li><li>Long names truncate. A five-figure total in Builder blue still fits beside the icons.</li></ul></div>
     </div>
   </section>
 
@@ -258,12 +281,12 @@ function body(style, opt){
   opt = opt || {};
   const active = opt.active ?? 0;
   const from = opt.from || 0;
-  const list = AREAS.slice(from);
+  const list = (opt.areas || AREAS).slice(from);
   if (style === 'r3'){
     return `<div class="areas r3 ${opt.thin ? 'thin' : ''}">${list.map((a,i)=>`
-      <div class="ahead ${opt.stuck && i===0 ? 'stuck':''}"><span class="aname">${a.name}</span>${opt.thin && a.opt ? `<span class="opt">${a.opt}</span>` : ''}<span class="atot money">${a.tot}</span><span class="iconbtn" style="width:22px;height:22px;color:var(--fnt)">${ic('more',14)}</span></div>
+      <div class="ahead ${opt.stuck && i===0 ? 'stuck':''} ${opt.spec && i===active ? 'on':''}"><span class="aname">${a.name}</span>${opt.thin && a.opt ? `<span class="opt">${a.opt}</span>` : ''}<span class="atot money">${a.tot}</span><span class="iconbtn" style="width:22px;height:22px;color:var(--fnt)">${ic('more',14)}</span></div>
       <div class="list">${a.rows.length ? a.rows.map(r=>`
-        <div class="prow"><span class="tdot" style="background:${TC[r.t]}"></span><div class="trunc" style="flex:1"><div style="display:flex;gap:8px;align-items:baseline"><span class="pname trunc" style="flex:1">${r.name}</span><span class="ptot">${r.tot}</span></div><div class="psub trunc">${r.sub}</div></div></div>`).join('') : `<div class="empty">No products yet. Tap Price book below.</div>`}</div>`).join('')}</div>`;
+        <div class="prow"><span class="tdot" style="background:${TC[r.t]}"></span><div class="trunc" style="flex:1"><div style="display:flex;gap:8px;align-items:baseline"><span class="pname trunc" style="flex:1">${r.name}</span><span class="ptot">${r.tot}</span></div>${opt.spec ? `<div class="psub"><span class="trunc">${r.sub}</span>${tagsHtml(r)}</div>` : `<div class="psub trunc">${r.sub}</div>`}</div></div>`).join('') : `<div class="empty">No products yet. Tap Price book below.</div>`}</div>`).join('')}</div>`;
   }
   if (style === 'r2'){
     return `<div class="areas r2">${list.map((a,i)=>`
@@ -310,6 +333,26 @@ function hdrToday(){
 }
 const carets = (waste) => `<span class="caret">Retail ${ic('down')}</span><span class="caret">All prices ${ic('down')}</span>${waste ? `<span class="caret" style="color:var(--mut)">10/5% ${ic('down')}</span>` : ''}`;
 const iconsR = `<span class="iconbtn">${ic('truck',16)}</span><span class="iconbtn rel">${ic('layers',16)}<span class="badge">2</span></span><span class="iconbtn">${ic('more',16)}</span>`;
+function hdrSpec(o){
+  o = o || {};
+  const cust = o.unassigned ? `<span class="cust trunc" style="flex:1;color:var(--amber)">Unassigned</span>` : `<span class="cust trunc" style="flex:1">${o.cust || 'Tom Marsh'}</span>`;
+  const truck = `<span class="iconbtn ${o.freightOff ? 'frt-off' : ''}">${ic('truck',16)}</span>`;
+  return `<div style="background:#EFEBE0;border-bottom:1px solid var(--line)">
+    <div style="display:flex;align-items:center;gap:6px;padding:6px 10px 0 4px"><span class="iconbtn">${ic('menu',19)}</span>${cust}<div style="text-align:right;line-height:1.1"><div class="saved">Saved ✓</div><div class="sales">Sam</div></div></div>
+    <div class="projline" style="padding:2px 12px 8px"><b class="trunc">${o.proj || 'Marsh — whole first floor'}</b><span class="nno">N214</span>${o.erp === false ? '' : '<span class="erp">ERP 48213</span>'}<span class="dot">·</span><span class="trunc">${o.addr || '44 Beech Ln'}</span></div>
+    <div class="bar sbar"><span class="caret">${o.tier || 'Retail'} ${ic('down')}</span><span class="caret">All $ ${ic('down')}</span><span class="sp"></span>${truck}<span class="iconbtn rel">${ic('layers',16)}<span class="badge">2</span></span><span class="iconbtn">${ic('more',16)}</span><span class="tot" style="color:${o.totColor || 'var(--mossd)'}">${o.total || '$1,412.85'}</span></div></div>`;
+}
+function sheetSpec(){
+  return `<div class="scrim"></div><div class="sheet"><div class="grab"></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><span style="font-size:16px;font-weight:800;flex:1">Marsh — whole first floor</span><span class="iconbtn box">${ic('plus',14,'transform:rotate(45deg)')}</span></div>
+    <div class="sr"><div class="sl">Price tier</div><div class="seg"><span class="on">Retail</span><span>Bldr</span><span>Emp</span><span>Sale</span><span>%</span></div></div>
+    <div class="sr"><div class="sl">Printed pricing</div><div class="seg"><span class="on">All $</span><span>Unit $</span><span>No $</span></div></div>
+    <div class="sr" style="background:var(--mosss);margin-left:-8px;margin-right:-8px;padding:6px 8px;border-radius:8px"><div class="sl" style="color:var(--mossd)">Waste · moved here off the bar</div><div class="seg"><span class="on">Tile 10%</span><span class="on">Floor 5%</span><span>Custom</span></div></div>
+    <div class="sr"><div class="sl">Freight</div><div class="seg"><span class="on">$185</span><span>None</span></div></div>
+    <div class="sr"><div class="sl">Files · Versions · Order sheet · Delete</div><div style="font-size:11px;color:var(--fnt)">(unchanged)</div></div>
+    <div style="display:flex;align-items:center;gap:8px;border-top:1px solid var(--line);padding:9px 0 12px;margin:0 -14px;padding-left:14px;padding-right:14px"><div style="flex:1;line-height:1.1"><div class="eb">Total</div><div class="money" style="font-size:16px;color:var(--mossd)">$1,412.85</div></div><span class="iconbtn box" style="width:38px;height:36px">${ic('mail',16)}</span><span style="height:36px;padding:0 22px;border-radius:7px;background:var(--ink);color:var(--paper);font-weight:800;font-size:13px;display:flex;align-items:center;gap:6px">${ic('print',15)} Print</span></div>
+  </div>`;
+}
 function hdrA(){
   return `<div style="background:#EFEBE0;border-bottom:1px solid var(--line)">
     <div style="display:flex;align-items:center;gap:6px;padding:6px 10px 0 4px"><span class="iconbtn">${ic('menu',19)}</span><span class="cust trunc" style="flex:1">Tom Marsh</span><div style="text-align:right;line-height:1.1"><div class="saved">Saved ✓</div><div class="sales">Sam</div></div></div>
@@ -353,9 +396,18 @@ function dockD(){
 function phone(id, parts, short){
   document.getElementById(id).innerHTML = `<div class="phone ${short ? 'short' : ''}">${SB}${parts.head}<div class="scroll">${parts.body}${parts.over || ''}</div>${parts.foot || ''}</div>`;
 }
-phone('p-pick', {head: hdrA(), body: body('r3', {thin: true}), foot: bottom('p1')});
-phone('p-pick2', {head: hdrA(), body: body('r3', {thin: true, from: 1, stuck: true}), foot: bottom('p1', 1)});
-phone('p-pick3', {head: hdrA(), body: body('r3'), foot: bottom('p1')});
+const OPT_AREAS = [
+  {name:'Kitchen', tot:'$513.30', opt:'SHARED', rows:[AREAS[0].rows[0]]},
+  {name:'Hall bath — tile', tot:'$458.00', opt:'OPTION A', rows:AREAS[1].rows},
+  {name:'Hall bath — LVP', tot:'$413.25', opt:'OPTION B', rows:[{t:'vinyl',L:'V',name:'COREtec Blond Oak',sub:'VV012 · 7×48 · 4 ct × 23.6 SF · @ $4.35',tot:'$413.25',tags:['U']}]},
+  {name:'Hall bath — stone', tot:'$612.00', opt:'OPTION C', rows:[{t:'tile',L:'T',name:'Carrara Hex 2″',sub:'CARHEX02 · 2×2 · 60 SF · @ $8.10',tot:'$486.00',tags:['G','M']}]},
+];
+phone('p-pick', {head: hdrSpec(), body: body('r3', {thin: true, spec: true}), foot: bottom('p1')});
+phone('p-pick2', {head: hdrSpec(), body: body('r3', {thin: true, spec: true, from: 1, stuck: true, active: 0}), foot: bottom('p1', 1)});
+phone('p-pick3', {head: hdrSpec(), body: body('r3', {thin: true, spec: true}), foot: bottom('p1')});
+document.querySelector('#p-pick3 .phone').insertAdjacentHTML('beforeend', sheetSpec());
+phone('p-pick4', {head: hdrSpec({total: '3 options', totColor: 'var(--ink)', freightOff: true}), body: body('r3', {thin: true, spec: true, areas: OPT_AREAS, active: 1}), foot: bottom('p1')});
+phone('p-pick5', {head: hdrSpec({unassigned: true, proj: 'Lakeview Commons — Building C, units 101 through 118', addr: '2200 Lakeview Commons Pkwy', erp: false, tier: 'Builder', total: '$12,345.67', totColor: '#2563eb'}), body: body('r3', {thin: true, spec: true}), foot: bottom('p1')});
 phone('p-today', {head: hdrToday(), body: body('today'), foot: bottom('p1')});
 phone('p-A', {head: hdrA(), body: body('r1'), foot: bottom('p1')});
 phone('p-B', {head: hdrB(false), body: body('r1'), foot: bottom('p1')});

@@ -55,6 +55,13 @@ src/
                     # line with content swaps its type chip for the extras +
                     # (type moves to LineMenu's `onType`), and the empty
                     # "＋ Extras" strip is dropped.
+                    # Phone (!isWide, spec 2026-10-02): no area cards — each
+                    # area is a 17px sticky `data-area-title` line (name in
+                    # small caps, option chip, subtotal, ⋯ → area menu with
+                    # Delete area…) over full-bleed lines; holding the line
+                    # (not the input/buttons) drags the area. The wrapper
+                    # carries no overflow-hidden on the phone — it would stop
+                    # the sticky title. MobileProductRow wears a type dot
   uiconst.js        # shared UI constants: TYPES/TLBL (incl. `underlayment`, ADR 0043), tier colors/labels,
                     # joints/thicknesses, grout color lists, sweep/keep constants,
                     # stock-loading messages, `skuSearchable`, `colorsFor`
@@ -315,17 +322,25 @@ src/
                     # select writing the row's cartonUnit / sellUnit, shared
                     # with mobile.jsx; a manual row had no way to say "sheet"
   mobile.jsx        # mobile sheets: `MobileSheet`, `MobileSearchSheet`,
-                    # `MobileProductRow`, `MobileRowSheet` + `MobileProjectBand`
-                    # (Fold 5 header 2026-09-15, .scratch/mockups/
-                    # mobile-fold5-header-2026-09-15.html C rev 2): the desktop
-                    # one-bar folded to a 344px cover screen — Customer /
-                    # Salesperson boxes left; Project, a tier-coloured price
-                    # dropdown beside the Total at the same height, and the
-                    # All $ / Samples / Freight minis right. Same props and
-                    # write paths as ProjectHeaderBar. Versions, files, save,
-                    # order sheet and Print live only in the ⋯ sheet (owner
-                    # call) — the band never grows a button row, and the
-                    # phone has no Edit / Print preview tabs
+                    # `MobileProductRow`, `MobileRowSheet` + `MobileProjectHeader`
+                    # (phone Clean layout, spec 2026-10-02, owner pick from
+                    # .scratch/mockups/mobile-clean-options-2026-10-02.html —
+                    # it replaced the 2026-09-15 Fold 5 band for EVERY phone
+                    # user, whatever their Settings header): desktop Clean's
+                    # header A at 344px, mounted by App in the phone top-bar
+                    # slot so it stays pinned above <main>. Customer headline
+                    # (Unassigned / Quick price in amber → File under customer)
+                    # + salesperson; the project line (name · N · ErpChip ·
+                    # phonehead.js `shownAddress`) opens the ⋯ sheet; the bar is
+                    # PriceLevelMenu · All $ ▾ · FreightToggle compact · samples ·
+                    # ⋯ · the total (`phoneTotal` — "N options" with quote
+                    # options, opening ⋯). Waste lives only in the ⋯ sheet, so
+                    # the total fits. Versions, files, save, order sheet, Email
+                    # and Print live only in the ⋯ sheet (owner call); the phone
+                    # has no Edit / Print preview tabs
+  phonehead.js      # the phone header's derived text, pure (phonehead.test.js):
+                    # `phoneTotal(grandTotal, optionCount)` and
+                    # `shownAddress(sel, cust)` — the desktop Clean address rule
   projectheader.jsx # the desktop project header, three layouts behind a PER-USER
                     # switch (Settings → General, saved as ui.header through
                     # saveUiPref; localStorage "ft-header" only until a user
@@ -361,7 +376,9 @@ src/
                     # Samples icon (`onEmail`, ADR 0055; Clean only).
                     # Exported `ErpChip` (ADR 0044, `ERP 48213` · `+N`) mounts
                     # in both layouts (opens order entry) and is imported by
-                    # mobile.jsx for the band (static there)
+                    # mobile.jsx for the phone header (static there).
+                    # `FreightToggle` is exported for the phone header too —
+                    # `compact` reads off as the amber struck truck alone
   TeamTodos.jsx     # the Issues & To-Do modal: the team list (issue 006,
                     # unchanged) behind a tab strip beside the central Claude
                     # issue bucket (issue 087) — every "Flag for Claude" from
@@ -434,8 +451,8 @@ src/
                     # and the book page's config drawers (stateful
                     # updateBook + a mock Glazzio book with items, so the
                     # markup/freight/brand tabs save-and-rerender) + the
-                    # MobileProjectBand in a 344px frame (Fold 5 header
-                    # 2026-09-15); not part of the app build
+                    # MobileProjectHeader in a 344px frame (phone Clean layout,
+                    # spec 2026-10-02); not part of the app build
   importpreview.jsx # dev-only harness (import-preview.html): the REAL
                     # BookImportWizard over local mock state, no Supabase —
                     # preview proof for the diff review's unfolding new/changed/

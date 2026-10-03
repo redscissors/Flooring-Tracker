@@ -522,7 +522,9 @@ function WastePop({ w, dflt, onChange }) {
 
 // Freight is on for nearly every job, so "on" is a quiet truck and "off" is
 // the thing that has to be seen: amber, struck through, and named.
-function FreightToggle({ on, amount, onSet }) {
+// `compact` (the phone header): off reads as the amber struck truck alone, no
+// words, so the bar keeps room for the total.
+export function FreightToggle({ on, amount, onSet, compact = false }) {
   const tip = on ? `Freight included${amount ? ` — ${amount}` : ""}: vendor shipping is added to this job's special orders. Press to leave it off.` : "No freight on this job. Press to add vendor shipping to the special orders.";
   const truck = (
     <span className="relative inline-flex">
@@ -532,9 +534,9 @@ function FreightToggle({ on, amount, onSet }) {
   );
   return (
     <button onClick={() => onSet(!on)} aria-pressed={on} aria-label={on ? "Freight included" : "No freight"} title={tip}
-      className={on ? ICON + " text-slate-500" : "h-[30px] shrink-0 inline-flex items-center gap-1.5 rounded-md px-2.5 text-[12.5px] font-bold whitespace-nowrap"}
-      style={on ? undefined : { background: "var(--ft-hover-amber-strong)", color: "#b45309", border: "1px solid color-mix(in oklab, #b45309 40%, transparent)" }}>
-      {truck}{!on && "No freight"}
+      className={compact ? "relative w-[24px] h-[28px] flex-none flex items-center justify-center rounded-md" + (on ? " text-slate-500" : "") : on ? ICON + " text-slate-500" : "h-[30px] shrink-0 inline-flex items-center gap-1.5 rounded-md px-2.5 text-[12.5px] font-bold whitespace-nowrap"}
+      style={compact ? (on ? undefined : { color: "#b45309" }) : on ? undefined : { background: "var(--ft-hover-amber-strong)", color: "#b45309", border: "1px solid color-mix(in oklab, #b45309 40%, transparent)" }}>
+      {truck}{!on && !compact && "No freight"}
     </button>
   );
 }
