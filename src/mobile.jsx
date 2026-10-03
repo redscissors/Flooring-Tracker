@@ -26,6 +26,26 @@ import { ErpChip, FreightToggle } from "./projectheader.jsx";
 import { phoneTotal, shownAddress } from "./phonehead.js";
 import { LineWasteControl, wasteTag, takesWaste } from "./linewaste.jsx";
 
+// Keyboard-follow (mobile layout 2026-07-23): iOS Safari — and Android Chrome
+// since 108, with no interactive-widget in the viewport meta — overlays the
+// keyboard on the layout viewport instead of resizing it, so anything pinned
+// to the bottom vanishes behind the keys. visualViewport reports the visible
+// height; the gap below it is the keyboard, which callers lift their bottom
+// edge by.
+function useKeyboardInset(on) {
+  const [kb, setKb] = useState(0);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!on || !vv) return;
+    const update = () => setKb(Math.max(0, window.innerHeight - vv.height - vv.offsetTop));
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    update();
+    return () => { setKb(0); vv.removeEventListener("resize", update); vv.removeEventListener("scroll", update); };
+  }, [on]);
+  return kb;
+}
+
 // Mobile bottom sheet (mobile shell 2026-07-16): the phone's pop-open editing
 // surface — scrim + slide-up panel with an optional pinned footer. Portaled so
 // nothing in the edit view can clip it; desktop never renders one. Exported
@@ -37,26 +57,12 @@ export function MobileSheet({ open, onClose, title, badge, children, footer }) {
   // stay reachable above the keyboard. It stays tall until closed (shrinking
   // on blur would bounce the layout between every field).
   const [tall, setTall] = useState(false);
-  const [kb, setKb] = useState(0);
+  const kb = useKeyboardInset(open);
   const panelRef = useRef(null);
   const bodyRef = useRef(null);
   const drag = useRef(null);
   useEscClose(open, onClose);
   useEffect(() => { if (!open) setTall(false); }, [open]);
-  // Keyboard-follow footer (mobile layout 2026-07-23): iOS Safari overlays the
-  // keyboard on the layout viewport instead of resizing it, so a bottom-pinned
-  // footer vanishes behind the keys. visualViewport reports the visible
-  // height; the gap below it is the keyboard — translate the footer up by that
-  // amount so Done / Search price book stay reachable while typing.
-  useEffect(() => {
-    const vv = window.visualViewport;
-    if (!open || !vv) return;
-    const update = () => setKb(Math.max(0, window.innerHeight - vv.height - vv.offsetTop));
-    vv.addEventListener("resize", update);
-    vv.addEventListener("scroll", update);
-    update();
-    return () => { setKb(0); vv.removeEventListener("resize", update); vv.removeEventListener("scroll", update); };
-  }, [open]);
   // Swipe-down to dismiss. Native listeners because React registers touchmove
   // as passive, which blocks the preventDefault that keeps the pull from also
   // scrolling. A pull starting inside the scroll body only grabs the sheet
@@ -124,14 +130,18 @@ export function MobileSheet({ open, onClose, title, badge, children, footer }) {
 
 // Full-screen price-book search (mobile rows 2026-07-17): on the phone the
 // SKU / product search gets its own surface — never a half sheet — so the
-// keyboard and the results list can share the screen. Same merged stock+order
-// search as the grid pickers; tapping a row picks it, the leading checkbox
-// builds a multi-selection (the shift-click stand-in), and a no-match query
-// can be handed to manual entry.
+// keyboard and the results list can share the screen. Thumb-first (owner
+// 2026-10-03): the field sits at the bottom on the keyboard and results stack
+// UP from it, best match nearest the thumb (a column-reverse list, so it also
+// opens scrolled to the bottom). Same merged stock+order search as the grid
+// pickers; tapping a row picks it, the leading checkbox builds a
+// multi-selection (the shift-click stand-in), and a no-match query can be
+// handed to manual entry.
 export function MobileSearchSheet({ stock, stockReady, searchOrder, bookName, initial = "", onPick, onPickMany, onManual, onVendor, onClose, strictness, fallback }) {
   const [q, setQ] = useState(initial);
   const [picked, setPicked] = useState([]);
   const inputRef = useRef(null);
+  const kb = useKeyboardInset(true);
   useEffect(() => { inputRef.current?.focus(); inputRef.current?.select?.(); }, []);
   const { results, total, near, pending } = useMergedResults(true, stock, q, searchOrder, strictness, fallback);
   const toggle = (it) => setPicked((prev) => prev.some((x) => hitKey(x) === hitKey(it)) ? prev.filter((x) => hitKey(x) !== hitKey(it)) : [...prev, it]);
@@ -145,31 +155,25 @@ export function MobileSearchSheet({ stock, stockReady, searchOrder, bookName, in
   ].filter(Boolean);
   const vendor = vendorRows.length > 0;
   const noHits = q.trim() && results.length === 0;
+  const msg = (text, children) => <div className="px-4 py-6 text-center text-sm text-slate-400">{text}{children}</div>;
+  // The list is flex-col-reverse: the FIRST child renders at the bottom, so
+  // children run nearest-the-field first — messages, vendor rows, the
+  // near-match note, then the hits best-first.
   return createPortal(
-    <div className="fixed inset-0 z-[60] flex flex-col print:hidden" style={{ background: "var(--ft-cream)" }}>
-      <div className="flex items-center gap-2 px-3 py-2.5 border-b border-slate-200 shrink-0">
-        <Search size={16} className="shrink-0 text-slate-400" />
-        <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search SKU or product…"
-          className="flex-1 min-w-0 bg-transparent text-[15px] font-semibold focus:outline-none placeholder:text-slate-300" />
-        {q && <button onClick={() => { setQ(""); inputRef.current?.focus(); }} className="shrink-0 w-6 h-6 flex items-center justify-center rounded-full text-slate-400"><X size={14} /></button>}
-        <button onClick={onClose} className="shrink-0 text-[12.5px] font-bold text-slate-500 px-1">Cancel</button>
-      </div>
-      {pending && <SearchingBar />}
-      <div className="flex-1 min-h-0 overflow-y-auto">
-        {near && results.length > 0 && <NearMatchNote />}
-        {results.map((it) => {
-          const sel = picked.some((x) => hitKey(x) === hitKey(it));
-          return (
-            <div key={hitKey(it)} onClick={() => (picked.length ? toggle(it) : onPick(it))}
-              className={`flex items-start gap-2.5 px-3 py-2.5 border-b border-slate-100 ${sel ? "bg-indigo-50/60" : "bg-white"}`}>
-              <button onClick={(e) => { e.stopPropagation(); toggle(it); }} title={sel ? "Remove from selection" : "Add to selection"}
-                className={`mt-0.5 w-5 h-5 rounded flex items-center justify-center shrink-0 ${sel ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{sel && <Check size={12} />}</button>
-              <div className="flex-1 min-w-0"><Hit it={it} bookName={bookName} /></div>
-            </div>
-          );
-        })}
+    <div className="fixed inset-0 z-[60] flex flex-col print:hidden" style={{ background: "var(--ft-cream)", paddingBottom: kb }}>
+      <div className="flex-1 min-h-0 overflow-y-auto flex flex-col-reverse">
+        {!q.trim() && msg("Type a SKU or product words — picks fill the row.")}
+        {noHits && !vendor && (!stockReady ? (
+          // A no-match claim would be a lie while stage 2 is in flight — it
+          // steers a real book SKU into hand entry with no snapshot.
+          msg("Price book still loading…")
+        ) : pending ? (
+          msg("Searching the order books…")
+        ) : (
+          msg("No price-book match.", <button onClick={() => onManual(q.trim())} className="mt-3 mx-auto block rounded-md bg-indigo-600 text-white px-4 h-[38px] text-[12.5px] font-bold">Enter "{q.trim()}" by hand</button>)
+        ))}
         {vendorRows.map((v) => (
-          <button key={v.id} onClick={() => onVendor(q, v.id)} {...{ [v.attr]: true }} className="w-full flex items-center gap-2.5 px-3 py-2.5 border-b border-slate-100 text-left" style={{ background: "var(--ft-tint)" }}>
+          <button key={v.id} onClick={() => onVendor(q, v.id)} {...{ [v.attr]: true }} className="w-full shrink-0 flex items-center gap-2.5 px-3 py-2.5 border-t border-slate-100 text-left" style={{ background: "var(--ft-tint)" }}>
             <span className="w-6 h-6 rounded flex items-center justify-center text-white shrink-0" style={{ background: "var(--ft-brand)" }}><Settings size={13} /></span>
             <span className="flex-1 min-w-0">
               <span className="block text-[13px] font-extrabold">{v.title}</span>
@@ -178,27 +182,34 @@ export function MobileSearchSheet({ stock, stockReady, searchOrder, bookName, in
             <span className="shrink-0 font-extrabold" style={{ color: "var(--ft-brand-deep)" }}>→</span>
           </button>
         ))}
-        {noHits && !vendor && (!stockReady ? (
-          // A no-match claim would be a lie while stage 2 is in flight — it
-          // steers a real book SKU into hand entry with no snapshot.
-          <div className="px-4 py-6 text-center text-sm text-slate-400">Price book still loading…</div>
-        ) : pending ? (
-          <div className="px-4 py-6 text-center text-sm text-slate-400">Searching the order books…</div>
-        ) : (
-          <div className="px-4 py-6 text-center text-sm text-slate-400">
-            No price-book match.
-            <button onClick={() => onManual(q.trim())} className="mt-3 mx-auto block rounded-md bg-indigo-600 text-white px-4 h-[38px] text-[12.5px] font-bold">Enter "{q.trim()}" by hand</button>
-          </div>
-        ))}
-        {!q.trim() && <div className="px-4 py-6 text-center text-sm text-slate-300">Type a SKU or product words — picks fill the row.</div>}
+        {near && results.length > 0 && <NearMatchNote />}
+        {results.map((it, i) => {
+          const sel = picked.some((x) => hitKey(x) === hitKey(it));
+          return (
+            <div key={hitKey(it)} data-hit-rank={i} onClick={() => (picked.length ? toggle(it) : onPick(it))}
+              className={`shrink-0 flex items-start gap-2.5 px-3 py-2.5 border-t border-slate-100 ${sel ? "bg-indigo-50/60" : "bg-white"}`}>
+              <button onClick={(e) => { e.stopPropagation(); toggle(it); }} title={sel ? "Remove from selection" : "Add to selection"}
+                className={`mt-0.5 w-5 h-5 rounded flex items-center justify-center shrink-0 ${sel ? "bg-indigo-600 text-white" : "border border-slate-300"}`}>{sel && <Check size={12} />}</button>
+              <div className="flex-1 min-w-0"><Hit it={it} bookName={bookName} /></div>
+            </div>
+          );
+        })}
       </div>
-      <div className="shrink-0 flex items-center gap-2 px-3 pt-2 border-t border-slate-200 text-[11px] text-slate-400" style={{ paddingBottom: "max(10px, env(safe-area-inset-bottom))" }}>
+      {pending && <SearchingBar />}
+      <div data-search-status className="shrink-0 flex items-center gap-2 px-3 py-1.5 border-t border-slate-200 text-[11px] text-slate-400" style={{ minHeight: 30 }}>
         <span className="truncate">{q.trim() && !(pending && results.length === 0) ? matchSummary(results.length, total) : ""}</span>
         {picked.length > 0 ? (
-          <button onClick={commit} className="ml-auto shrink-0 rounded-md bg-indigo-600 text-white px-3 h-[34px] text-xs font-bold">Add {picked.length} product{picked.length === 1 ? "" : "s"}</button>
+          <button onClick={commit} className="ml-auto shrink-0 rounded-md bg-indigo-600 text-white px-3 h-[30px] text-xs font-bold">Add {picked.length} product{picked.length === 1 ? "" : "s"}</button>
         ) : q.trim() ? (
-          <button onClick={() => onManual(q.trim())} className="ml-auto shrink-0 rounded-md border border-slate-300 px-3 h-[34px] text-xs font-semibold text-slate-500">Enter by hand</button>
+          <button onClick={() => onManual(q.trim())} className="ml-auto shrink-0 rounded-md border border-slate-300 px-3 h-[30px] text-xs font-semibold text-slate-500">Enter by hand</button>
         ) : null}
+      </div>
+      <div className="flex items-center gap-2 px-3 pt-2.5 border-t border-slate-200 shrink-0" style={{ paddingBottom: kb ? 10 : "max(10px, env(safe-area-inset-bottom))" }}>
+        <Search size={16} className="shrink-0 text-slate-400" />
+        <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search SKU or product…"
+          className="flex-1 min-w-0 bg-transparent text-[15px] font-semibold focus:outline-none placeholder:text-slate-300" />
+        {q && <button onClick={() => { setQ(""); inputRef.current?.focus(); }} className="shrink-0 w-6 h-6 flex items-center justify-center rounded-full text-slate-400"><X size={14} /></button>}
+        <button onClick={onClose} className="shrink-0 text-[12.5px] font-bold text-slate-500 px-1">Cancel</button>
       </div>
     </div>,
     document.body
