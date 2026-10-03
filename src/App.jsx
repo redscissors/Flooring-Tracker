@@ -33,7 +33,7 @@ import { OPTION_SLOTS, OPTION_COLOR, optionsUsed, bucketCats, scopedCats, option
 import { LazyBoundary, FitSelect, GroutColorOptions, BuilderCombo, MetaChip, SalespersonPop, SegBar, WasteBar, DARK_MODE, MarginLine, Modal, useEscClose, HelpTip, AddressField, PopMenu } from "./widgets.jsx";
 import { escPush } from "./escstack.js";
 import { TypeSelect, GRID_COLS, GridPriceCell, GridSizeInput, GridProductBox, GridOmniSearch, UnitPick } from "./grid.jsx";
-import { MobileSheet, MobileProductRow, MobileRowSheet, MobileProjectBand } from "./mobile.jsx";
+import { MobileSheet, MobileProductRow, MobileRowSheet, MobileProjectHeader } from "./mobile.jsx";
 import { TeamTodos } from "./TeamTodos.jsx";
 import { EstimatePaper, PRINT_DASH } from "./EstimatePrint.jsx";
 import { estimateMail } from "./estimatemail.js";
@@ -1547,8 +1547,17 @@ export default function App({ user, onSignOut }) {
   return (
     <div className="ft-vh bg-slate-50 text-slate-800 flex flex-col" style={{ fontFamily: 'var(--ft-ui)' }}>
       <div className={`print:hidden flex ${isWide ? "flex-row" : "flex-col"} flex-1 overflow-hidden relative`}>
-        {/* Mobile top bar */}
-        {!isWide && (
+        {/* Mobile top bar — an open job swaps it for the Clean header A
+            (spec 2026-10-02), pinned here above <main>. */}
+        {!isWide && !railNav.pane && sel && sel._full ? (() => {
+          const cust = data.people.find((c) => c.id === sel.customerId);
+          return (
+            <MobileProjectHeader sel={sel} cust={cust} profile={profile} tv={tv} grandTotal={grandTotal} optionCount={optionBadges?.length || 0}
+              freightCost={freightCost} saveOk={saveOk} updateProject={updateProject}
+              onOpenSidebar={() => setSidebarOpen(true)} onOpenCustomer={() => cust && setCustModal(cust.id)} onPromote={() => { setPromoteId(sel.id); setPromoteQ(""); }}
+              onMore={() => setProjSheet(true)} samples={sampleCounts(projSamples)} onOpenSamples={() => { setShowSamples(true); refreshSampleRequests(); }} />
+          );
+        })() : !isWide && (
           <div className="flex items-center gap-2 px-2.5 py-1.5 ft-rail border-b border-slate-200">
             <button onClick={() => setSidebarOpen(true)} className="p-1 -ml-1 text-slate-600"><Menu size={20} /></button>
             <button onClick={goHome} title="Home" className="shrink-0 hover:opacity-70 transition"><NedMark size={24} /></button>
@@ -1750,24 +1759,17 @@ export default function App({ user, onSignOut }) {
               <div className={viewTab === "edit" ? "" : "hidden"}>
               {isWide && !cleanHead && deskHeader()}
 
-              {/* Mobile shell (2026-07-16, .scratch/mockups/mobile-v2; header
-                  reworked for the Fold 5 cover screen 2026-09-15,
-                  .scratch/mockups/mobile-fold5-header-2026-09-15.html): the
-                  desktop one-bar folds into MobileProjectBand; the full
-                  project controls — files, versions, order sheet, print —
-                  live in the ⋯ bottom sheet. No Order entry on mobile —
-                  that's a desk task (owner call). */}
+              {/* Mobile shell (2026-07-16, .scratch/mockups/mobile-v2): the
+                  header is MobileProjectHeader in the top-bar slot (spec
+                  2026-10-02); the full project controls — files, versions,
+                  waste, order sheet, print — live in the ⋯ bottom sheet. No
+                  Order entry on mobile — that's a desk task (owner call). */}
               {!isWide && (() => {
-                const cust = data.people.find((c) => c.id === sel.customerId);
                 const pcts = normPricing(settings.pricing);
                 const act = "h-[34px] flex items-center justify-center gap-1.5 rounded-md border border-slate-200 bg-white text-[12px] font-semibold text-slate-600";
                 return (
                   <>
                     <input ref={attRef} type="file" onChange={addAttachment} className="hidden" />
-                    <MobileProjectBand sel={sel} cust={cust} builderName={cust ? builderNameOf(cust.builderId) : ""} profile={profile} tv={tv} grandTotal={grandTotal} optionBadges={optionBadges}
-                      freightCost={freightCost} saveOk={saveOk} settings={settings} updateProject={updateProject}
-                      onOpenCustomer={() => cust && setCustModal(cust.id)} onPromote={() => { setPromoteId(sel.id); setPromoteQ(""); }}
-                      samples={sampleCounts(projSamples)} onOpenSamples={() => { setShowSamples(true); refreshSampleRequests(); }} />
                     <MobileSheet open={projSheet} onClose={() => setProjSheet(false)} title={sel.name || "Untitled project"}
                       badge={tierBadgeText(tv.tier, tv.pct) ? <span className="shrink-0 rounded px-1 py-px font-semibold" style={{ background: TIER_COLOR[tv.tier]?.soft || "var(--ft-brand-soft)", color: TIER_COLOR[tv.tier]?.main, fontSize: 9.5 }}>{tierBadgeText(tv.tier, tv.pct)}</span> : null}
                       footer={<>
