@@ -1916,8 +1916,10 @@ export default function App({ user, onSignOut }) {
                     })() : !isWide ? (
                     // Phone area title (spec 2026-10-02): one thin sticky line. Holding
                     // the line drags the area; the name and the buttons stay tappable.
+                    // Android fires contextmenu on a long-press — the same hold that drags
+                    // the area — so it opens nothing here; ⋯ is the phone's menu.
                     <div data-area-title onPointerDown={(e) => { if (!e.target.closest("input, button")) startAreaDrag(e, a.id, ai, 350); }}
-                      onContextMenu={(e) => { e.preventDefault(); setAreaMenu({ aid: a.id, x: e.clientX, y: e.clientY, clean: true }); }}
+                      onContextMenu={(e) => e.preventDefault()}
                       className="flex items-center gap-1.5 select-none"
                       style={{ position: "sticky", top: 0, zIndex: 5, height: 17, boxSizing: "border-box", background: "var(--ft-cream)", padding: "0 12px", borderBottom: "1px solid var(--ft-border)", ...(a.id === activeAreaId ? { boxShadow: "inset 3px 0 0 var(--ft-brand)" } : {}) }}>
                       <input ref={(el) => { if (el) areaRefs.current[a.id] = el; }} value={a.name} onChange={(e) => updArea(a.id, { name: e.target.value })} placeholder={`Area ${ai + 1}`}
@@ -1932,7 +1934,7 @@ export default function App({ user, onSignOut }) {
                       )}
                       <span className="flex-1" />
                       {areaTotal > 0 && <span className="ft-mono shrink-0" style={{ fontSize: 10, fontWeight: 800, lineHeight: 1.1 }}>{money(areaTotal)}</span>}
-                      <button tabIndex={-1} aria-label="Area options" title="Area options" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setAreaMenu({ aid: a.id, x: r.right - 212, y: r.bottom + 4, anchor: e.currentTarget, clean: true }); }}
+                      <button tabIndex={-1} aria-label="Area options" title="Area options" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setAreaMenu({ aid: a.id, x: r.right - 212, y: r.bottom + 4, clean: true }); }}
                         className="ft-noprint shrink-0 flex items-center justify-center text-slate-400" style={{ width: 32, height: 32, margin: "-8px -8px -8px 0" }}><MoreHorizontal size={14} /></button>
                     </div>
                     ) : (

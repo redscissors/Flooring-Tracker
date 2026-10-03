@@ -22,14 +22,15 @@ on the DOM per case, and saves a shot per case. `before/` is today's phone.
 
 Run with Vite up (`VITE_SUPABASE_URL=https://stub.supabase.co
 VITE_SUPABASE_ANON_KEY=stub npx vite --port 5199 --strictPort`), then
-`OUT_DIR=after node check.mjs`. Result: 23 PASS, 0 FAIL (`before/` had 17
+`OUT_DIR=after node check.mjs`. Result: 25 PASS, 0 FAIL (`before/` had 17
 FAIL; desktop passed both times).
 
 | Case | Shot | What it shows |
 |---|---|---|
 | top | `after/top.png` | Header A, thin area titles, type dots, empty-area copy |
 | scroll | `after/scroll.png` | The area you're in stays pinned under the header |
-| name | `after/name.png` | Tapping an area name edits it; ⋯ opens the area menu |
+| name | `after/name.png` | Tapping an area name edits it; ⋯ opens the area menu with its "This area is in" heading |
+| hold | `after/hold.png` | A long-press (Android contextmenu) on a title opens no menu |
 | sheet | `after/sheet.png` | The row sheet covers the header |
 | options | `after/options.png` | "2 options" opens ⋯; freight off is the amber struck truck |
 | unassigned | `after/unassigned.png` | Unassigned in amber, long names, $12,558.00 Builder total fits |

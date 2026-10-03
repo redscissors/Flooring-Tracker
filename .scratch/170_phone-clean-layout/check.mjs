@@ -44,7 +44,7 @@ const JOBS = {
   unassigned: () => ({ customer: null, project: baseProject({ name: "Lakeview Commons — Building C, units 101 through 118 (phase 2)", address: "2200 Lakeview Commons Parkway, Suite 400", priceTier: "builder", erpOrders: [],
     categories: [area("Units 101–118", [filled("Mohawk Slate Grey commercial", "MHSLGR", 6.5, 2100)])] }) }),
 };
-JOBS.name = JOBS.top; JOBS.sheet = JOBS.top; JOBS.desk = JOBS.top;
+JOBS.name = JOBS.top; JOBS.hold = JOBS.top; JOBS.sheet = JOBS.top; JOBS.desk = JOBS.top;
 
 const book = { id: "bk1", kind: "stock", name: "Shop stock", active: true, data: {}, updated_at: "2026-09-01T00:00:00Z" };
 const cors = { "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-allow-methods": "GET,POST,PATCH,PUT,DELETE,OPTIONS", "access-control-expose-headers": "*" };
@@ -130,6 +130,18 @@ const CASES = {
     await page.locator("[data-area-title] [aria-label='Area options']").first().tap();
     await page.waitForTimeout(400);
     check("name", await page.getByText("Delete area…").isVisible().catch(() => false), "⋯ opens the area menu with Delete area…");
+    const headSeen = await page.evaluate(() => [...document.querySelectorAll("div, span")].filter((el) => el.textContent.trim() === "This area is in").some((el) => {
+      const r = el.getBoundingClientRect(); if (r.width < 20) return false;
+      const hit = document.elementFromPoint(r.left + Math.min(30, r.width / 2), r.top + r.height / 2);
+      return !!hit && (hit === el || el.contains(hit));
+    }));
+    check("name", headSeen, "the area menu keeps its 'This area is in' heading (on screen, not clipped)");
+  },
+  async hold(page) {
+    // Android fires contextmenu on a long-press — the same hold that drags the area.
+    await page.locator("[data-area-title]").first().dispatchEvent("contextmenu", { clientX: 200, clientY: 230 });
+    await page.waitForTimeout(400);
+    check("hold", !(await page.getByText("Delete area…").isVisible().catch(() => false)), "a long-press (contextmenu) on the title doesn't open the area menu");
   },
   async sheet(page) {
     await page.getByText("Daltile Keystones White").first().tap();
