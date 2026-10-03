@@ -1,0 +1,534 @@
+<title>Installers Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* Layout: the app's own surfaces, redrawn — settings master→detail, the desktop project with a right rail, the paper sheet. Tokens are the ned Moss kit (src/index.css). */
+:root{
+  --ft-cream:#F6F3EC; --ft-card:#FFFFFF; --ft-side:#FBFAF6; --ft-border:rgba(28,26,23,.10); --ft-border-strong:rgba(28,26,23,.25);
+  --ft-text:#1C1A17; --ft-muted:#57534C; --ft-faint:#8A8378; --ft-brand:#57703A; --ft-brand-deep:#40542A;
+  --ft-sand:#EDE9DD; --ft-band:#E7E3D6; --ft-row-line:#ECE8DC; --ft-ink:#1C1A17; --ft-ink-on:#F6F3EC;
+  --ft-tint:color-mix(in oklab, var(--ft-brand) 7%, var(--ft-card)); --ft-brand-soft:color-mix(in oklab, var(--ft-brand) 15%, transparent);
+  --ft-tint-border:color-mix(in oklab, var(--ft-brand) 40%, var(--ft-border));
+  --ft-warn:#9A5B13; --ft-warn-soft:color-mix(in oklab, #C98A2B 14%, transparent);
+  --paper:#FFFFFF; --paper-ink:#000; --paper-muted:#403C36; --paper-faint:#615B51; --paper-band:#EDE9DE; --paper-rule:#ABA494; --paper-brand:#40542A;
+  --ui:"Manrope", ui-sans-serif, system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --ft-cream:#1C1A17; --ft-card:#26231F; --ft-side:#221F1B; --ft-border:rgba(246,243,236,.10); --ft-border-strong:rgba(246,243,236,.24);
+  --ft-text:#F6F3EC; --ft-muted:#A8A29A; --ft-faint:#7A756C; --ft-brand:#93B56A; --ft-brand-deep:#93B56A;
+  --ft-sand:#33302A; --ft-band:#2F2C26; --ft-row-line:#37342D; --ft-ink:#F6F3EC; --ft-ink-on:#1C1A17; --ft-warn:#E0A957; color-scheme:dark } }
+:root[data-theme="dark"]{
+  --ft-cream:#1C1A17; --ft-card:#26231F; --ft-side:#221F1B; --ft-border:rgba(246,243,236,.10); --ft-border-strong:rgba(246,243,236,.24);
+  --ft-text:#F6F3EC; --ft-muted:#A8A29A; --ft-faint:#7A756C; --ft-brand:#93B56A; --ft-brand-deep:#93B56A;
+  --ft-sand:#33302A; --ft-band:#2F2C26; --ft-row-line:#37342D; --ft-ink:#F6F3EC; --ft-ink-on:#1C1A17; --ft-warn:#E0A957; color-scheme:dark }
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--ft-cream);color:var(--ft-text);font-family:var(--ui);font-size:13px;line-height:1.4}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid var(--ft-brand);outline-offset:2px}
+svg.i{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+svg.i.s{width:12px;height:12px} svg.i.l{width:18px;height:18px}
+.wrap{max-width:1240px;margin:0 auto;padding-block:22px 64px;padding-inline:16px}
+.eyebrow{font-size:9.5px;font-weight:800;letter-spacing:.2em;text-transform:uppercase;color:var(--ft-brand-deep)}
+h1{font-size:26px;font-weight:800;margin:4px 0 6px;text-wrap:balance;letter-spacing:-.01em}
+.lede{color:var(--ft-muted);max-width:72ch;margin:0}
+.muted{color:var(--ft-muted)} .faint{color:var(--ft-faint)}
+
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:18px 0 6px}
+.tab{border:1px solid var(--ft-border-strong);background:var(--ft-card);border-radius:999px;padding:7px 15px;font-weight:700}
+.tab[aria-selected="true"]{background:var(--ft-ink);color:var(--ft-ink-on);border-color:var(--ft-ink)}
+.why{color:var(--ft-muted);margin:10px 0 14px;max-width:80ch}
+.why b{color:var(--ft-text)}
+.variant{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+.variant .lab{font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--ft-faint)}
+.seg{display:inline-flex;border:1px solid var(--ft-border-strong);border-radius:8px;overflow:hidden;background:var(--ft-card)}
+.seg button{border:0;background:none;padding:6px 12px;font-weight:700;color:var(--ft-muted)}
+.seg button[aria-pressed="true"]{background:var(--ft-brand-soft);color:var(--ft-text)}
+.rec{font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--ft-brand-deep);margin-left:4px}
+.panel[hidden]{display:none}
+
+/* ---------- Settings ---------- */
+.shell{display:flex;background:var(--ft-card);border:1px solid var(--ft-border);border-radius:12px;overflow:hidden;min-height:560px}
+.rail{width:178px;flex:none;border-right:1px solid var(--ft-border);padding:12px 8px;background:var(--ft-side)}
+.navi{display:flex;align-items:center;gap:8px;width:100%;border:0;background:none;padding:7px 9px;border-radius:7px;font-weight:600;color:var(--ft-muted);text-align:left;margin-bottom:2px}
+.navi:hover{background:var(--ft-sand)}
+.navi[aria-current="true"]{background:var(--ft-ink);color:var(--ft-ink-on)}
+.navi .cnt{margin-left:auto;font-size:10px;opacity:.7}
+.sub{width:176px;flex:none;border-right:1px solid var(--ft-border);padding:12px 8px}
+.sub .navi[aria-current="true"]{background:var(--ft-brand-soft);color:var(--ft-text)}
+.sub .navi .hint{display:block;font-size:10px;font-weight:500;opacity:.75}
+.pane{flex:1;min-width:0;display:flex;flex-direction:column}
+.titlebar{display:flex;align-items:center;gap:8px;padding:13px 20px;border-bottom:1px solid var(--ft-border);font-weight:800;font-size:16px}
+.q{display:inline-grid;place-items:center;width:16px;height:16px;border-radius:50%;border:1px solid var(--ft-border-strong);font-size:10px;color:var(--ft-faint);font-weight:800}
+.body{padding:20px;overflow:auto;flex:1;min-width:0}
+.lbl{display:block;font-size:11px;font-weight:700;color:var(--ft-muted);margin-bottom:5px}
+.inp{border:1px solid var(--ft-border-strong);border-radius:7px;padding:7px 10px;font:inherit;background:var(--ft-card);color:var(--ft-text);width:100%}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--ft-border-strong);background:var(--ft-card);border-radius:7px;padding:6px 12px;font-weight:700;color:var(--ft-muted)}
+.btn:hover{border-color:var(--ft-brand);color:var(--ft-text)}
+.btn.ink{background:var(--ft-ink);border-color:var(--ft-ink);color:var(--ft-ink-on)}
+.btn.ghost{border-style:dashed}
+.btn.danger{color:#B4552D}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.stack{display:grid;gap:14px}
+
+.styles{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;max-width:760px}
+.opt{border:1px solid var(--ft-border-strong);border-radius:10px;background:var(--ft-card);padding:10px;text-align:left;display:grid;gap:8px}
+.opt[aria-pressed="true"]{border-color:var(--ft-brand);box-shadow:0 0 0 2px var(--ft-brand-soft)}
+.opt .nm{font-weight:800;display:flex;align-items:center;gap:6px}
+.opt .ds{font-size:11px;color:var(--ft-muted)}
+.thumb{height:62px;border-radius:6px;background:var(--ft-cream);border:1px solid var(--ft-border);padding:7px;display:grid;gap:4px;align-content:start}
+.thumb i{display:block;height:5px;border-radius:2px;background:var(--ft-border-strong)}
+.thumb i.h{height:9px;width:55%;background:var(--ft-text)}
+.thumb i.b{background:var(--ft-band);height:9px}
+
+/* installer master list */
+.ilist{width:300px;flex:none;border-right:1px solid var(--ft-border);overflow:auto;display:flex;flex-direction:column}
+.ilist .head{padding:12px 12px 8px;display:flex;align-items:center;gap:8px}
+.filters{display:flex;gap:4px;flex-wrap:wrap;padding:0 12px 8px}
+.fchip{border:1px solid var(--ft-border);background:none;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:700;color:var(--ft-muted)}
+.fchip[aria-pressed="true"]{background:var(--ft-ink);color:var(--ft-ink-on);border-color:var(--ft-ink)}
+.irow{display:grid;grid-template-columns:1fr auto;gap:2px 8px;width:100%;text-align:left;border:0;border-left:2px solid transparent;background:none;padding:9px 12px}
+.irow:hover{background:var(--ft-cream)}
+.irow[aria-current="true"]{border-left-color:var(--ft-brand);background:var(--ft-tint)}
+.irow .co{font-weight:800;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.irow .who{grid-column:1;font-size:11px;color:var(--ft-muted)}
+.irow .tr{grid-column:1/-1;display:flex;gap:3px;flex-wrap:wrap;margin-top:3px}
+.prio{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:800;font-variant-numeric:tabular-nums}
+.ticks{display:inline-grid;grid-template-columns:repeat(10,3px);gap:1.5px;height:9px}
+.ticks i{background:var(--ft-border-strong);border-radius:1px}
+.ticks i.on{background:var(--ft-brand)}
+.tchip{display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:999px;background:var(--ft-sand);color:var(--ft-muted)}
+.tchip.yes{background:var(--ft-brand-soft);color:var(--ft-brand-deep)}
+.tchip.no{background:none;border:1px dashed var(--ft-border-strong);color:var(--ft-faint);text-decoration:line-through}
+.tchip.off{background:none;color:var(--ft-faint);padding-inline:3px}
+
+.form{max-width:560px}
+.trades{display:flex;gap:6px;flex-wrap:wrap}
+.trade{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--ft-border-strong);border-radius:8px;padding:6px 11px;background:var(--ft-card);font-weight:700;color:var(--ft-muted)}
+.trade[aria-pressed="true"]{border-color:var(--ft-brand);background:var(--ft-tint);color:var(--ft-text)}
+.trade .bx{width:13px;height:13px;border-radius:3px;border:1.5px solid var(--ft-border-strong);display:grid;place-items:center}
+.trade[aria-pressed="true"] .bx{background:var(--ft-brand);border-color:var(--ft-brand);color:var(--ft-ink-on)}
+.scale{display:grid;grid-template-columns:repeat(10,1fr);gap:4px;max-width:420px}
+.scale button{border:1px solid var(--ft-border-strong);background:var(--ft-card);border-radius:6px;padding:6px 0;font-weight:800;font-variant-numeric:tabular-nums;color:var(--ft-muted)}
+.scale button.fill{background:var(--ft-brand-soft);border-color:var(--ft-tint-border);color:var(--ft-text)}
+.scale button[aria-pressed="true"]{background:var(--ft-brand);border-color:var(--ft-brand);color:var(--ft-ink-on)}
+.scalecap{display:flex;justify-content:space-between;max-width:420px;font-size:10.5px;color:var(--ft-faint);margin-top:4px}
+
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.icard{border:1px solid var(--ft-border);border-radius:10px;padding:12px;display:grid;gap:6px;text-align:left;background:var(--ft-card)}
+.icard:hover{border-color:var(--ft-tint-border)}
+.icard .top{display:flex;align-items:flex-start;gap:8px}
+.icard .co{font-weight:800;flex:1;min-width:0}
+.icard .ln{font-size:11.5px;color:var(--ft-muted);display:flex;align-items:center;gap:6px}
+.addcard{border:1px dashed var(--ft-border-strong);border-radius:10px;display:grid;place-items:center;color:var(--ft-muted);font-weight:700;min-height:120px;background:none}
+dialog{border:1px solid var(--ft-border);border-radius:12px;padding:0;background:var(--ft-card);color:var(--ft-text);width:min(600px,calc(100vw - 32px))}
+dialog::backdrop{background:rgba(28,26,23,.35)}
+
+/* ---------- Project ---------- */
+.desk{min-height:660px;display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:18px;align-items:start;background:var(--ft-cream);border:1px solid var(--ft-border);border-radius:12px;padding:22px 20px}
+.desk.under{grid-template-columns:minmax(0,1fr)}
+.cust{font-size:26px;font-weight:800;letter-spacing:-.01em}
+.subl{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;font-weight:700;margin-top:2px}
+.subl .n{color:var(--ft-faint)} .subl .erp{font-size:10.5px;background:var(--ft-sand);padding:1px 6px;border-radius:4px;color:var(--ft-muted)}
+.bar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--ft-border);padding:10px 0;margin-top:10px;position:relative}
+.bar .t{font-weight:700;padding:4px 6px}
+.ib{position:relative;border:0;background:none;padding:6px;border-radius:6px;color:var(--ft-muted);display:inline-grid;place-items:center}
+.ib:hover{background:var(--ft-sand);color:var(--ft-text)}
+.ib[aria-expanded="true"]{background:var(--ft-brand-soft);color:var(--ft-text)}
+.badge{position:absolute;top:-3px;right:-4px;min-width:15px;height:15px;border-radius:99px;background:var(--ft-brand);color:var(--ft-ink-on);font-size:9.5px;font-weight:800;display:grid;place-items:center;padding:0 3px}
+.spacer{flex:1}
+.area{border:1px solid var(--ft-border-strong);border-radius:6px;overflow:hidden;margin-top:12px;background:var(--ft-card)}
+.area .ah{display:flex;gap:10px;background:var(--ft-band);padding:6px 12px;font-weight:800}
+.area .ah .tot{margin-left:auto;font-variant-numeric:tabular-nums}
+.line{display:grid;grid-template-columns:70px 1fr 64px 80px;gap:10px;padding:7px 12px;border-top:1px solid var(--ft-row-line);font-weight:600;align-items:center}
+.line .ty{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--ft-brand-deep)}
+.line .m{text-align:right;font-variant-numeric:tabular-nums}
+
+.pop{position:absolute;top:calc(100% + 6px);left:0;z-index:5;width:min(470px,calc(100vw - 48px));background:var(--ft-card);border:1px solid var(--ft-border-strong);border-radius:12px;box-shadow:0 14px 40px rgba(28,26,23,.18);overflow:hidden}
+.pop .ph{padding:12px 14px 10px;border-bottom:1px solid var(--ft-border)}
+.pop .ph .tt{display:flex;align-items:center;gap:8px;font-weight:800;font-size:14px}
+.needs{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-top:8px;font-size:11px;color:var(--ft-muted)}
+.grp{padding:8px 14px 4px;font-size:9.5px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--ft-faint);display:flex;align-items:center;gap:6px}
+.grp.full{color:var(--ft-brand-deep)}
+.prow{display:grid;grid-template-columns:22px 1fr auto;gap:2px 10px;width:100%;text-align:left;border:0;background:none;padding:9px 14px;border-top:1px solid var(--ft-row-line);align-items:start}
+.prow:hover{background:var(--ft-cream)}
+.prow.full{background:var(--ft-tint)}
+.prow.full:hover{background:color-mix(in oklab, var(--ft-brand) 11%, var(--ft-card))}
+.prow .ck{width:18px;height:18px;border-radius:50%;border:1.5px solid var(--ft-border-strong);display:grid;place-items:center;margin-top:1px;color:transparent}
+.prow[aria-pressed="true"] .ck{background:var(--ft-brand);border-color:var(--ft-brand);color:var(--ft-ink-on)}
+.prow .co{font-weight:800}
+.prow .who{grid-column:2;font-size:11px;color:var(--ft-muted)}
+.prow .tr{grid-column:2/-1;display:flex;gap:3px;flex-wrap:wrap;margin-top:4px}
+.prow .state{font-size:10px;font-weight:800;color:var(--ft-brand-deep);text-transform:uppercase;letter-spacing:.08em}
+.pop .pf{display:flex;align-items:center;gap:8px;padding:9px 14px;border-top:1px solid var(--ft-border);background:var(--ft-side);font-size:11px;color:var(--ft-muted)}
+.linkbtn{border:0;background:none;padding:0;color:var(--ft-brand-deep);font-weight:700}
+.more{width:100%;border:0;border-top:1px solid var(--ft-row-line);background:none;padding:8px 14px;text-align:left;color:var(--ft-faint);font-weight:700;font-size:11px}
+
+.box{background:var(--ft-card);border:1px solid var(--ft-border);border-radius:10px;padding:12px;position:sticky;top:12px}
+.box .bh{display:flex;align-items:center;gap:7px;font-weight:800}
+.box .bh .ib{margin-left:auto}
+.binst{border-top:1px solid var(--ft-row-line);padding:9px 0 8px;display:grid;gap:3px}
+.binst:first-of-type{border-top:0}
+.binst .co{font-weight:800;display:flex;align-items:center;gap:6px}
+.binst .co .x{margin-left:auto;border:0;background:none;color:var(--ft-faint);padding:2px;border-radius:4px;opacity:.6}
+.binst .co .x:hover{opacity:1;color:var(--ft-text)}
+.binst .ln{font-size:11.5px;color:var(--ft-muted);display:flex;align-items:center;gap:6px;min-width:0}
+.binst .ln span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gap{font-size:11px;color:var(--ft-warn);background:var(--ft-warn-soft);border-radius:6px;padding:5px 8px;margin-top:6px}
+.empty{font-size:11.5px;color:var(--ft-faint);padding:8px 0 2px}
+.strip{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 0 2px;font-size:12px}
+.strip .pill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--ft-border);background:var(--ft-card);border-radius:999px;padding:3px 4px 3px 10px;font-weight:700}
+.strip .pill .x{border:0;background:none;color:var(--ft-faint);padding:1px;border-radius:99px}
+
+/* ---------- Print ---------- */
+.sheetwrap{background:var(--ft-sand);border-radius:12px;padding:22px 16px;overflow-x:auto}
+.sheet{background:var(--paper);color:var(--paper-ink);width:760px;max-width:none;margin:0 auto;padding:40px 44px 46px;box-shadow:0 2px 14px rgba(0,0,0,.12)}
+.sheet .pe{font-size:9px;font-weight:800;letter-spacing:.3em;color:var(--paper-brand)}
+.sheet .ttl{font-size:30px;font-weight:800;letter-spacing:.16em;margin:2px 0}
+.sheet .r{display:flex;justify-content:space-between;gap:12px}
+.sheet .hr{border-top:2.5px solid var(--paper-ink);margin:12px 0 10px}
+.sheet .thin{border-top:1px solid var(--paper-rule);margin:10px 0}
+.sheet .band{background:var(--paper-band);padding:4px 10px;display:flex;justify-content:space-between;font-size:11px;margin-top:10px}
+.sheet .band b{letter-spacing:.2em;color:var(--paper-brand)}
+.sheet .pl{display:flex;justify-content:space-between;padding:6px 10px 6px 18px;font-size:11.5px}
+.sheet .pl .s{color:var(--paper-muted);font-size:10px}
+.sheet .tots{display:grid;grid-template-columns:auto auto;gap:3px 26px;justify-content:end;font-size:12.5px;margin-top:14px;font-variant-numeric:tabular-nums}
+.sheet .tots .big{font-weight:800;border-top:2px solid var(--paper-ink);padding-top:4px}
+.sheet .sec{margin-top:22px;border-top:2.5px solid var(--paper-ink);padding-top:8px}
+.sheet .sec h4{margin:0 0 6px;font-size:11px;font-weight:800;letter-spacing:.22em;color:var(--paper-brand)}
+.sheet table{width:100%;border-collapse:collapse;font-size:11px}
+.sheet th{font-size:8.5px;letter-spacing:.16em;text-align:left;color:var(--paper-muted);border-bottom:1px solid var(--paper-ink);padding:3px 6px 3px 0}
+.sheet td{padding:5px 6px 5px 0;border-bottom:1px solid var(--paper-band);vertical-align:top}
+.sheet td.tr{font-size:9px;font-weight:800;letter-spacing:.14em;color:var(--paper-brand);text-transform:uppercase;white-space:nowrap}
+.sheet .pcards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px 16px}
+.sheet .pcard{border-left:2px solid var(--paper-rule);padding-left:9px;font-size:11px}
+.sheet .pcard .k{font-size:8.5px;font-weight:800;letter-spacing:.16em;color:var(--paper-brand);text-transform:uppercase}
+.sheet .pcard b{display:block;font-size:12px}
+.sheet .foot{font-size:9.5px;color:var(--paper-faint);margin-top:8px}
+
+.notes{margin-top:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.note{background:var(--ft-card);border:1px solid var(--ft-border);border-radius:10px;padding:12px 14px;color:var(--ft-muted)}
+.note h3{margin:0 0 4px;font-size:12.5px;color:var(--ft-text)}
+.note p{margin:0}
+
+@media (max-width:860px){
+  .shell{flex-direction:column}
+  .rail,.sub,.ilist{width:auto;border-right:0;border-bottom:1px solid var(--ft-border)}
+  .rail,.sub{display:flex;gap:4px;overflow-x:auto}
+  .rail .navi,.sub .navi{width:auto;white-space:nowrap;margin:0}
+  .sub .navi .hint{display:none}
+  .ilist{max-height:340px}
+  .desk{grid-template-columns:minmax(0,1fr)}
+  .row2{grid-template-columns:1fr}
+  .line{grid-template-columns:58px 1fr 70px}
+  .line .q2{display:none}
+}
+@media (prefers-reduced-motion:no-preference){ .prow,.irow,.opt,.trade{transition:background .12s,border-color .12s} }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="hammer" viewBox="0 0 24 24"><path d="m15 12-8.373 8.373a1 1 0 1 1-3-3L12 9"/><path d="m18 15 4-4"/><path d="m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172V7l-2.26-1.13a6 6 0 0 0-4.47-.15l-1.48.54 1.58 1.18a4 4 0 0 1 1.59 3.04v1.52l2 2h1.17a2 2 0 0 1 1.42.59L21.5 16.5"/></symbol>
+  <symbol id="truck" viewBox="0 0 24 24"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></symbol>
+  <symbol id="file" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/></symbol>
+  <symbol id="clip" viewBox="0 0 24 24"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></symbol>
+  <symbol id="layers" viewBox="0 0 24 24"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></symbol>
+  <symbol id="mail" viewBox="0 0 24 24"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></symbol>
+  <symbol id="dots" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+  <symbol id="print" viewBox="0 0 24 24"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></symbol>
+  <symbol id="check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+  <symbol id="plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+  <symbol id="phone" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></symbol>
+  <symbol id="user" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+  <symbol id="pct" viewBox="0 0 24 24"><path d="M19 5 5 19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></symbol>
+  <symbol id="pin" viewBox="0 0 24 24"><path d="M20 10c0 4.99-5.54 10.19-7.4 11.8a1 1 0 0 1-1.2 0C9.54 20.19 4 14.99 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></symbol>
+  <symbol id="palette" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.93 0 1.65-.75 1.65-1.69 0-.44-.18-.84-.44-1.13-.29-.29-.44-.65-.44-1.13a1.64 1.64 0 0 1 1.67-1.67h2c3.05 0 5.56-2.5 5.56-5.55C21.97 6.01 17.46 2 12 2z"/></symbol>
+  <symbol id="cog" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.17V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 3.18 14H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 2.82 1.17l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
+  <symbol id="book" viewBox="0 0 24 24"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></symbol>
+  <symbol id="box" viewBox="0 0 24 24"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5"/><path d="M12 13v8"/></symbol>
+  <symbol id="save" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></symbol>
+</svg>
+
+<div class="wrap">
+  <div class="eyebrow">FloorTrack · prototype · 2026-10-03</div>
+  <h1>Installers</h1>
+  <p class="lede">Every screen below is clickable, and they all share one set of sample data. Add an installer in Settings and they show up in the hammer picker. Add one to the job and they appear in the side box and on the printout. The companies are made-up examples.</p>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" data-tab="settings" aria-selected="true">1 · General settings</button>
+    <button class="tab" role="tab" data-tab="project" aria-selected="false">2 · Hammer on the project</button>
+    <button class="tab" role="tab" data-tab="print" aria-selected="false">3 · Printout</button>
+  </div>
+
+  <!-- ================= SETTINGS ================= -->
+  <section class="panel" id="p-settings">
+    <p class="why">General gets its own category list, just like <b>Materials &amp; add-ons</b> does today. Pick a category on the left and its options open on the right. <b>Styles</b> holds Appearance and Project header, and <b>Installers</b> is new.</p>
+    <div class="variant" id="v-ilayout"><span class="lab">Installers layout</span>
+      <div class="seg"><button data-v="list" aria-pressed="true">List + detail<span class="rec">rec.</span></button><button data-v="cards" aria-pressed="false">Card grid</button></div>
+    </div>
+    <div class="shell">
+      <nav class="rail" aria-label="Settings">
+        <button class="navi"><svg class="i"><use href="#user"/></svg>Your details</button>
+        <button class="navi" aria-current="true"><svg class="i"><use href="#cog"/></svg>General</button>
+        <button class="navi"><svg class="i"><use href="#book"/></svg>Price book</button>
+        <button class="navi"><svg class="i"><use href="#box"/></svg>Materials</button>
+        <button class="navi"><svg class="i"><use href="#save"/></svg>Backup</button>
+      </nav>
+      <nav class="sub" aria-label="General" id="gsub">
+        <div class="eyebrow" style="padding:0 9px 6px;color:var(--ft-faint)">General</div>
+        <button class="navi" data-g="waste"><svg class="i"><use href="#pct"/></svg><span>Waste<span class="hint">Tile 10% · Floor 5%</span></span></button>
+        <button class="navi" data-g="shop"><svg class="i"><use href="#pin"/></svg><span>Shop address<span class="hint">For job distance</span></span></button>
+        <button class="navi" data-g="styles"><svg class="i"><use href="#palette"/></svg><span>Styles<span class="hint">Header &amp; appearance</span></span></button>
+        <button class="navi" data-g="installers" aria-current="true"><svg class="i"><use href="#hammer"/></svg><span>Installers<span class="hint" id="icount"></span></span></button>
+      </nav>
+      <div class="pane" id="gpane"></div>
+    </div>
+  </section>
+
+  <!-- ================= PROJECT ================= -->
+  <section class="panel" id="p-project" hidden>
+    <p class="why">The hammer goes in the project's icon row, and its badge counts the installers on the job. The picker reads what's on the job (Tile, Vinyl and Carpet here). Installers who can do all of it come first, in green. Next come installers who can do part of it, sorted by how much they cover and then by priority. <b>Clicking a row adds or removes that installer right away</b>, so there's no Done button.</p>
+    <div class="variant" id="v-place"><span class="lab">On the project</span>
+      <div class="seg"><button data-v="rail" aria-pressed="true">Box on the right<span class="rec">rec.</span></button><button data-v="under" aria-pressed="false">Strip under the header</button></div>
+    </div>
+    <div class="desk" id="desk">
+      <div style="min-width:0">
+        <div class="cust">Tom Marsh</div>
+        <div class="subl">Marsh — whole first floor <span class="n">N214</span><span class="erp">ERP 48213</span><span class="faint" style="font-weight:600">· 44 Beech Ln</span></div>
+        <div class="bar" id="bar">
+          <span class="t">Retail ▾</span><span class="t">All prices ▾</span><span class="t">Tile 10% · Floor 5%</span>
+          <button class="ib" title="Freight"><svg class="i"><use href="#truck"/></svg></button>
+          <button class="ib" title="Notes"><svg class="i"><use href="#file"/></svg></button>
+          <button class="ib" title="Attachments"><svg class="i"><use href="#clip"/></svg></button>
+          <button class="ib" title="Options"><svg class="i"><use href="#layers"/></svg></button>
+          <button class="ib" title="Installers" id="hammerBtn" aria-expanded="true" aria-haspopup="dialog"><svg class="i"><use href="#hammer"/></svg><span class="badge" id="hbadge" hidden></span></button>
+          <button class="ib" title="Email"><svg class="i"><use href="#mail"/></svg></button>
+          <button class="ib" title="More"><svg class="i"><use href="#dots"/></svg></button>
+          <span class="spacer"></span>
+          <button class="btn ink"><svg class="i"><use href="#print"/></svg>Print</button>
+          <div class="pop" id="pop" role="dialog" aria-label="Installers for this job"></div>
+        </div>
+        <div id="stripSlot"></div>
+        <div class="area"><div class="ah">Kitchen<span class="tot">$413.25</span></div>
+          <div class="line"><span class="ty">Vinyl</span><span>COREtec Blond Oak 7"×48"</span><span class="m q2">95 sf</span><span class="m">$413.25</span></div></div>
+        <div class="area"><div class="ah">Hall bath — stone<span class="tot">$458.00</span></div>
+          <div class="line"><span class="ty">Tile</span><span>Daltile Keystones White 12"×24"</span><span class="m q2">60 sf</span><span class="m">$384.00</span></div>
+          <div class="line"><span class="ty">Misc</span><span>Schluter Jolly 3/8 Satin</span><span class="m q2">4 ea</span><span class="m">$74.00</span></div></div>
+        <div class="area"><div class="ah">Bedrooms<span class="tot">$1,206.40</span></div>
+          <div class="line"><span class="ty">Carpet</span><span>Shaw Bellera Pebble Path</span><span class="m q2">58 sy</span><span class="m">$1,206.40</span></div></div>
+      </div>
+      <aside class="box" id="ibox" aria-label="Installers on this job"></aside>
+    </div>
+  </section>
+
+  <!-- ================= PRINT ================= -->
+  <section class="panel" id="p-print" hidden>
+    <p class="why">The installers print as the last block on the sheet, below the totals. Each one shows the trades they're on <b>for this job</b> and how to reach them. Priority never prints, because that's internal.</p>
+    <div class="variant" id="v-print"><span class="lab">Print block</span>
+      <div class="seg"><button data-v="table" aria-pressed="true">Table<span class="rec">rec.</span></button><button data-v="cards" aria-pressed="false">Contact cards</button></div>
+    </div>
+    <div class="sheetwrap"><div class="sheet" id="sheet"></div></div>
+  </section>
+
+  <div class="notes">
+    <div class="note"><h3>Who sees the list</h3><p>Installers are shared by the whole team, like the shop address, so one person adds a company and everyone can pick it.</p></div>
+    <div class="note"><h3>What the job keeps</h3><p>The job saves a copy of each installer's name and contact info when you add them. If you later edit or remove that installer in Settings, jobs you already quoted still print correctly.</p></div>
+    <div class="note"><h3>Trades</h3><p>The trades are the product types you already have: Tile, Hardwood, Vinyl, Laminate and Carpet. Underlayment and Misc ride along with whichever trade they belong to.</p></div>
+  </div>
+</div>
+
+<script>
+const TRADES = ["tile","hardwood","vinyl","laminate","carpet"];
+const TL = {tile:"Tile",hardwood:"Hardwood",vinyl:"Vinyl",laminate:"Laminate",carpet:"Carpet"};
+const JOB = ["tile","vinyl","carpet"];
+let installers = [
+  {id:"a",co:"Keystone Interiors",who:"Rachel Yoder",phone:"(574) 555-0114",email:"rachel@keystoneint.example",trades:["tile","vinyl","carpet","laminate"],prio:8},
+  {id:"b",co:"Elkhart Flooring Group",who:"Dan Miller",phone:"(574) 555-0187",email:"dan@efgfloors.example",trades:["tile","hardwood","vinyl","laminate","carpet"],prio:6},
+  {id:"c",co:"Hartline Tile & Stone",who:"Mike Ostrander",phone:"(574) 555-0162",email:"mike@hartlinetile.example",trades:["tile"],prio:9},
+  {id:"d",co:"Northside Carpet Install",who:"Lisa Graber",phone:"(574) 555-0139",email:"lisa@northsidecarpet.example",trades:["carpet"],prio:8},
+  {id:"e",co:"J&R Plank Works",who:"Jose Ramirez",phone:"(574) 555-0120",email:"jose@jrplank.example",trades:["vinyl","laminate"],prio:7},
+  {id:"f",co:"Precision Floor Co.",who:"Dana Kees",phone:"(574) 555-0173",email:"dana@precisionfloor.example",trades:["hardwood","vinyl","laminate"],prio:5},
+  {id:"g",co:"Amish Country Hardwood",who:"Eli Bontrager",phone:"(574) 555-0151",email:"",trades:["hardwood"],prio:7},
+];
+let onJob = ["c"];
+let sel = "a", editing = null, gsec = "installers", filter = "all", iLayout = "list", place = "rail", printV = "table", popOpen = true, showNone = false;
+
+const $ = (s, r=document) => r.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const ic = (id, cls="") => `<svg class="i ${cls}"><use href="#${id}"/></svg>`;
+const ticks = (p) => `<span class="prio" title="Priority ${p} of 10"><span class="ticks">${Array.from({length:10},(_,i)=>`<i class="${i<p?"on":""}"></i>`).join("")}</span>${p}</span>`;
+const byId = (id) => installers.find(i => i.id === id);
+const sortPrio = (a,b) => b.prio - a.prio || a.co.localeCompare(b.co);
+
+// ---------- tabs & variants ----------
+document.querySelectorAll(".tab").forEach(t => t.onclick = () => {
+  document.querySelectorAll(".tab").forEach(x => x.setAttribute("aria-selected", x===t));
+  ["settings","project","print"].forEach(p => $("#p-"+p).hidden = p !== t.dataset.tab);
+  render();
+});
+function seg(id, set){ document.querySelectorAll(`#${id} button`).forEach(b => b.onclick = () => {
+  document.querySelectorAll(`#${id} button`).forEach(x => x.setAttribute("aria-pressed", x===b)); set(b.dataset.v); render(); }); }
+seg("v-ilayout", v => { iLayout = v; editing = null; });
+seg("v-place", v => place = v);
+seg("v-print", v => printV = v);
+document.querySelectorAll("#gsub .navi").forEach(b => b.onclick = () => { gsec = b.dataset.g; editing = null; render(); });
+
+// ---------- settings ----------
+function titlebar(t, tip){ return `<div class="titlebar">${t} <span class="q" title="${esc(tip)}">?</span></div>`; }
+function renderSettings(){
+  document.querySelectorAll("#gsub .navi").forEach(b => b.setAttribute("aria-current", b.dataset.g === gsec));
+  $("#icount").textContent = installers.length + " on file";
+  const pane = $("#gpane");
+  if (gsec === "waste") pane.innerHTML = titlebar("Waste","The rate a new project starts with. Each job carries its own waste from there.") + `<div class="body"><div class="row2" style="max-width:420px">
+    <div><label class="lbl" for="w1">Tile waste (%)</label><input id="w1" class="inp" value="10"></div>
+    <div><label class="lbl" for="w2">Flooring waste (%)</label><input id="w2" class="inp" value="5"><div class="faint" style="font-size:11px;margin-top:4px">Hardwood, vinyl, laminate, carpet</div></div></div></div>`;
+  else if (gsec === "shop") pane.innerHTML = titlebar("Shop address","Where job distance is measured from. Team-wide. Never prints.") + `<div class="body"><div style="max-width:560px" class="stack">
+    <div><label class="lbl" for="sa">Shop address</label><input id="sa" class="inp" value="1210 Elkhart Rd, Goshen, IN 46526"></div>
+    <div><button class="btn">Test address lookup</button></div></div></div>`;
+  else if (gsec === "styles") pane.innerHTML = titlebar("Styles","Follows you to every device. The printed estimate stays on white paper.") + `<div class="body stack" style="gap:22px">
+    <div><div class="lbl">Project header</div><div class="styles">
+      ${[["Clean","Customer first, one quiet settings bar",["h","s","b"],true],["Clean compact","Same header in two pinned rows",["h","b"]],["One-bar","Everything on a single bar",["b","s"]],["Classic","The original two-row header",["h","b","b"]]].map(([n,d,parts,on]) =>
+        `<button class="opt" aria-pressed="${!!on}"><div class="thumb">${parts.map(p=>`<i class="${p}"></i>`).join("")}<i style="width:70%"></i><i style="width:40%"></i></div><span class="nm">${n}${on?ic("check","s"):""}</span><span class="ds">${d}</span></button>`).join("")}
+    </div></div>
+    <div><div class="lbl">Appearance</div><div class="seg"><button aria-pressed="true">System</button><button aria-pressed="false">Light</button><button aria-pressed="false">Dark</button></div></div></div>`;
+  else pane.innerHTML = iLayout === "list" ? installersList() : installersCards();
+  pane.querySelectorAll(".opt").forEach(o => o.onclick = () => { pane.querySelectorAll(".opt").forEach(x => { x.setAttribute("aria-pressed", x===o); x.querySelector(".nm svg")?.remove(); }); o.querySelector(".nm").insertAdjacentHTML("beforeend", ic("check","s")); });
+  pane.querySelectorAll(".seg button").forEach(b => b.onclick = () => b.parentNode.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x===b)));
+  wireInstallerPane(pane);
+}
+function filtered(){ return installers.filter(i => filter === "all" || i.trades.includes(filter)).sort(sortPrio); }
+function filterChips(){ return `<div class="filters">${["all",...TRADES].map(t => `<button class="fchip" data-f="${t}" aria-pressed="${filter===t}">${t==="all"?"All":TL[t]}</button>`).join("")}</div>`; }
+function tradeChips(tr){ return TRADES.filter(t => tr.includes(t)).map(t => `<span class="tchip">${TL[t]}</span>`).join(""); }
+function installersList(){
+  const rows = filtered().map(i => `<button class="irow" data-id="${i.id}" aria-current="${!editing && sel===i.id}"><span class="co">${esc(i.co)}</span>${ticks(i.prio)}<span class="who">${esc(i.who)} · ${esc(i.phone)}</span><span class="tr">${tradeChips(i.trades)}</span></button>`).join("");
+  const cur = editing || byId(sel);
+  return titlebar("Installers","Shared with the whole team. Higher priority comes up first in a job's hammer picker.") + `<div style="display:flex;flex:1;min-height:0;flex-wrap:wrap">
+    <div class="ilist"><div class="head"><b>${installers.length} installers</b><span class="spacer" style="flex:1"></span><button class="btn ink" data-new>${ic("plus","s")}Add installer</button></div>${filterChips()}${rows || `<div class="empty" style="padding:12px">No installers do ${TL[filter]} yet.</div>`}</div>
+    <div class="body">${cur ? installerForm(cur, !!editing) : ""}</div></div>`;
+}
+function installersCards(){
+  const cards = filtered().map(i => `<button class="icard" data-edit="${i.id}"><div class="top"><span class="co">${esc(i.co)}</span>${ticks(i.prio)}</div>
+    <span class="ln">${ic("user","s")}${esc(i.who)}</span><span class="ln">${ic("phone","s")}${esc(i.phone)}</span>${i.email?`<span class="ln">${ic("mail","s")}${esc(i.email)}</span>`:""}
+    <span style="display:flex;gap:3px;flex-wrap:wrap;margin-top:2px">${tradeChips(i.trades)}</span></button>`).join("");
+  return titlebar("Installers","Shared with the whole team. Higher priority comes up first in a job's hammer picker.") + `<div class="body"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><b>${installers.length} installers</b></div>
+    <div style="margin:0 -12px 10px">${filterChips()}</div><div class="cards"><button class="addcard" data-new>${ic("plus")} Add installer</button>${cards}</div></div>
+    <dialog id="dlg"><div class="titlebar">${editing && editing.id ? "Edit installer" : "New installer"}</div><div class="body">${editing ? installerForm(editing, true) : ""}</div></dialog>`;
+}
+function installerForm(i, live){
+  const v = (k) => esc(i[k] || "");
+  const isNew = !i.id;
+  return `<form class="form stack" id="iform" autocomplete="off">
+    ${live ? "" : `<div style="display:flex;align-items:center;gap:8px"><div style="font-size:20px;font-weight:800;flex:1">${esc(i.co)}</div></div>`}
+    <div><label class="lbl" for="f-co">Company</label><input class="inp" id="f-co" name="co" value="${v("co")}" placeholder="e.g. Hartline Tile & Stone"></div>
+    <div class="row2"><div><label class="lbl" for="f-who">Contact name</label><input class="inp" id="f-who" name="who" value="${v("who")}"></div>
+      <div><label class="lbl" for="f-ph">Phone</label><input class="inp" id="f-ph" name="phone" value="${v("phone")}" inputmode="tel"></div></div>
+    <div><label class="lbl" for="f-em">Email</label><input class="inp" id="f-em" name="email" value="${v("email")}"></div>
+    <div><div class="lbl">Installs</div><div class="trades">${TRADES.map(t => `<button type="button" class="trade" data-t="${t}" aria-pressed="${i.trades.includes(t)}"><span class="bx">${ic("check","s")}</span>${TL[t]}</button>`).join("")}</div></div>
+    <div><div class="lbl">Priority</div><div class="scale">${Array.from({length:10},(_,k)=>k+1).map(n => `<button type="button" data-p="${n}" class="${n<i.prio?"fill":""}" aria-pressed="${n===i.prio}">${n}</button>`).join("")}</div>
+      <div class="scalecap"><span>1 · last resort</span><span>10 · first call</span></div></div>
+    <div style="display:flex;gap:8px;padding-top:4px">${isNew || iLayout==="cards" ? `<button class="btn ink" type="submit">${isNew?"Add installer":"Save"}</button><button class="btn" type="button" data-cancel>Cancel</button>` : `<span class="faint" style="font-size:11px;align-self:center;flex:1">Changes save as you type.</span>`}
+      ${!isNew ? `<button class="btn danger" type="button" data-del>Remove</button>` : ""}</div>
+  </form>`;
+}
+function wireInstallerPane(pane){
+  pane.querySelectorAll(".fchip").forEach(b => b.onclick = () => { filter = b.dataset.f; render(); });
+  pane.querySelectorAll(".irow").forEach(b => b.onclick = () => { sel = b.dataset.id; editing = null; render(); });
+  pane.querySelectorAll("[data-new]").forEach(b => b.onclick = () => { editing = {co:"",who:"",phone:"",email:"",trades:[],prio:5}; render(); });
+  pane.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => { editing = {...byId(b.dataset.edit), trades:[...byId(b.dataset.edit).trades]}; render(); });
+  const dlg = $("#dlg", pane); if (dlg && editing && !dlg.open) dlg.showModal();
+  if (dlg) dlg.addEventListener("close", () => { if (editing) { editing = null; render(); } });
+  const f = $("#iform", pane); if (!f) return;
+  const target = editing || byId(sel);
+  const liveEdit = !editing && iLayout === "list";
+  f.querySelectorAll(".trade").forEach(b => b.onclick = () => { const t = b.dataset.t; target.trades = target.trades.includes(t) ? target.trades.filter(x=>x!==t) : [...target.trades, t]; b.setAttribute("aria-pressed", target.trades.includes(t)); if (liveEdit) refreshSoft(); });
+  f.querySelectorAll(".scale button").forEach(b => b.onclick = () => { target.prio = +b.dataset.p; f.querySelectorAll(".scale button").forEach(x => { x.setAttribute("aria-pressed", +x.dataset.p===target.prio); x.className = +x.dataset.p<target.prio?"fill":""; }); if (liveEdit) refreshSoft(); });
+  f.querySelectorAll("input").forEach(inp => inp.oninput = () => { target[inp.name] = inp.value; if (liveEdit) refreshSoft(); });
+  f.onsubmit = (e) => { e.preventDefault(); if (!target.co.trim()) { $("#f-co", f).focus(); return; }
+    if (!target.id) { target.id = "n" + Date.now(); installers.push(target); sel = target.id; } else { Object.assign(byId(target.id), target); }
+    editing = null; filter = "all"; render(); };
+  const c = $("[data-cancel]", f); if (c) c.onclick = () => { editing = null; render(); };
+  const d = $("[data-del]", f); if (d) d.onclick = () => { const id = target.id; installers = installers.filter(i => i.id !== id); onJob = onJob.filter(x => x !== id); sel = installers[0]?.id; editing = null; render(); };
+}
+function refreshSoft(){ // re-render the list column only, so the focused input keeps focus
+  const list = $(".ilist"); if (!list) return;
+  const tmp = document.createElement("div"); tmp.innerHTML = installersList(); list.replaceWith($(".ilist", tmp)); wireInstallerPane($("#gpane"));
+}
+
+// ---------- project ----------
+function coverage(i){ const yes = JOB.filter(t => i.trades.includes(t)); return {yes, full: yes.length === JOB.length}; }
+function ranked(){
+  const all = installers.map(i => ({i, ...coverage(i)}));
+  const full = all.filter(x => x.full).sort((a,b) => sortPrio(a.i,b.i));
+  const part = all.filter(x => !x.full && x.yes.length).sort((a,b) => b.yes.length - a.yes.length || sortPrio(a.i,b.i));
+  const none = all.filter(x => !x.yes.length).sort((a,b) => sortPrio(a.i,b.i));
+  return {full, part, none};
+}
+function prow(x, kind){
+  const on = onJob.includes(x.i.id);
+  const chips = JOB.map(t => `<span class="tchip ${x.i.trades.includes(t)?"yes":"no"}">${x.i.trades.includes(t)?ic("check","s"):""}${TL[t]}</span>`).join("")
+    + TRADES.filter(t => !JOB.includes(t) && x.i.trades.includes(t)).map(t => `<span class="tchip off">+${TL[t]}</span>`).join("");
+  return `<button class="prow ${kind}" data-id="${x.i.id}" aria-pressed="${on}"><span class="ck">${ic("check","s")}</span><span class="co">${esc(x.i.co)}</span>${on?`<span class="state">On job</span>`:ticks(x.i.prio)}
+    <span class="who">${esc(x.i.who)} · ${esc(x.i.phone)}</span><span class="tr">${chips}</span></button>`;
+}
+function renderProject(){
+  const r = ranked();
+  const pop = $("#pop"); pop.hidden = !popOpen; $("#hammerBtn").setAttribute("aria-expanded", popOpen);
+  pop.innerHTML = `<div class="ph"><div class="tt">${ic("hammer")}Installers for this job<span style="flex:1"></span><button class="ib" data-close title="Close">${ic("x")}</button></div>
+    <div class="needs">This job needs ${JOB.map(t => `<span class="tchip">${TL[t]}</span>`).join("")}</div></div>
+    <div style="max-height:420px;overflow:auto">
+    ${r.full.length ? `<div class="grp full">${ic("check","s")}Can do the whole job</div>${r.full.map(x => prow(x,"full")).join("")}` : ""}
+    ${r.part.length ? `<div class="grp">Can do part of it</div>${r.part.map(x => prow(x,"")).join("")}` : ""}
+    ${r.none.length ? (showNone ? `<div class="grp">Don't do anything on this job</div>${r.none.map(x => prow(x,"")).join("")}` : `<button class="more" data-none>Show ${r.none.length} who don't do anything on this job</button>`) : ""}
+    </div>
+    <div class="pf">Click to add or remove. Saves right away.<span style="flex:1"></span><button class="linkbtn" data-manage>Manage installers →</button></div>`;
+  pop.querySelectorAll(".prow").forEach(b => b.onclick = () => { const id = b.dataset.id; onJob = onJob.includes(id) ? onJob.filter(x => x!==id) : [...onJob, id]; render(); });
+  $("[data-close]", pop).onclick = () => { popOpen = false; render(); };
+  const n = $("[data-none]", pop); if (n) n.onclick = () => { showNone = true; render(); };
+  $("[data-manage]", pop).onclick = () => { document.querySelector('.tab[data-tab="settings"]').click(); };
+  $("#hammerBtn").onclick = () => { popOpen = !popOpen; render(); };
+  const b = $("#hbadge"); b.hidden = !onJob.length; b.textContent = onJob.length;
+
+  const added = onJob.map(byId).filter(Boolean);
+  const covered = new Set(added.flatMap(i => i.trades.filter(t => JOB.includes(t))));
+  const gaps = JOB.filter(t => !covered.has(t));
+  const gapLine = gaps.length && added.length ? `<div class="gap">No installer yet for ${gaps.map(t => TL[t]).join(" · ")}</div>` : "";
+  $("#desk").classList.toggle("under", place === "under");
+  $("#ibox").hidden = place !== "rail";
+  $("#ibox").innerHTML = `<div class="bh">${ic("hammer")}Installers<button class="ib" data-open title="Add installers">${ic("plus")}</button></div>
+    ${added.length ? added.map(i => `<div class="binst"><span class="co">${esc(i.co)}<button class="x" data-rm="${i.id}" title="Remove from job">${ic("x","s")}</button></span>
+      <span class="ln">${ic("user","s")}<span>${esc(i.who)}</span></span><span class="ln">${ic("phone","s")}<span>${esc(i.phone)}</span></span>
+      <span style="display:flex;gap:3px;flex-wrap:wrap;margin-top:2px">${i.trades.filter(t => JOB.includes(t)).map(t => `<span class="tchip yes">${TL[t]}</span>`).join("")}</span></div>`).join("")
+      : `<div class="empty">None on this job yet. Click the hammer to pick.</div>`}${gapLine}`;
+  $("#stripSlot").innerHTML = place === "under" ? `<div class="strip"><span class="faint" style="font-weight:700">${ic("hammer","s")} Installers</span>${added.map(i => `<span class="pill">${esc(i.co)} <span class="faint">· ${i.trades.filter(t=>JOB.includes(t)).map(t=>TL[t]).join(", ")}</span><button class="x" data-rm="${i.id}" title="Remove">${ic("x","s")}</button></span>`).join("") || `<span class="faint">none yet</span>`}${gaps.length && added.length ? `<span style="color:var(--ft-warn);font-size:11px">· none for ${gaps.map(t=>TL[t]).join(", ")}</span>` : ""}</div>` : "";
+  document.querySelectorAll("[data-rm]").forEach(x => x.onclick = () => { onJob = onJob.filter(id => id !== x.dataset.rm); render(); });
+  const o = $("[data-open]"); if (o) o.onclick = () => { popOpen = true; render(); };
+}
+
+// ---------- print ----------
+function renderPrint(){
+  const added = onJob.map(byId).filter(Boolean);
+  const jobTrades = (i) => i.trades.filter(t => JOB.includes(t)).map(t => TL[t]).join(" · ");
+  const block = !added.length ? "" : printV === "table"
+    ? `<div class="sec"><h4>INSTALLERS</h4><table><thead><tr><th>TRADE</th><th>COMPANY</th><th>CONTACT</th><th>PHONE</th><th>EMAIL</th></tr></thead><tbody>
+       ${added.map(i => `<tr><td class="tr">${jobTrades(i)}</td><td><b>${esc(i.co)}</b></td><td>${esc(i.who)}</td><td style="white-space:nowrap">${esc(i.phone)}</td><td>${esc(i.email)}</td></tr>`).join("")}</tbody></table></div>`
+    : `<div class="sec"><h4>INSTALLERS</h4><div class="pcards">${added.map(i => `<div class="pcard"><span class="k">${jobTrades(i)}</span><b>${esc(i.co)}</b>${esc(i.who)}<br>${esc(i.phone)}${i.email?`<br>${esc(i.email)}`:""}</div>`).join("")}</div></div>`;
+  $("#sheet").innerHTML = `<div class="r"><div><div class="pe">FLOORING &amp; TILE</div><div class="ttl">SELECTION SHEET</div><div style="font-size:11px;color:var(--paper-muted)">Rough pricing and quantities for planning purposes only</div></div>
+    <div style="text-align:right"><div style="font-size:24px;font-weight:800;letter-spacing:-.02em">Keim</div><div style="font-size:12px"><b>N214</b> &nbsp;10/3/2026</div></div></div>
+    <div class="hr"></div>
+    <div class="r" style="font-size:11.5px"><div><b style="font-size:13px">Tom Marsh</b><br>44 Beech Ln, Goshen IN</div><div><b style="font-size:13px">Marsh — whole first floor</b><br>3 areas selected</div><div style="text-align:right"><b style="font-size:13px">Sam Miller</b><br>(574) 555-0199</div></div>
+    <div class="thin"></div>
+    <div class="band"><b>KITCHEN</b><span>95 SF · flooring $413.25</span></div><div class="pl"><span><b>COREtec — Blond Oak</b><br><span class="s">vinyl plank · 7" × 48"</span></span><b>$413.25</b></div>
+    <div class="band"><b>HALL BATH — STONE</b><span>60 SF · flooring $458.00</span></div><div class="pl"><span><b>Daltile Keystones — White</b><br><span class="s">wall tile · 12" × 24"</span></span><b>$384.00</b></div>
+    <div class="band"><b>BEDROOMS</b><span>58 SY · flooring $1,206.40</span></div><div class="pl"><span><b>Shaw Bellera — Pebble Path</b><br><span class="s">carpet · 12' roll</span></span><b>$1,206.40</b></div>
+    <div class="tots"><span>Flooring &amp; trim</span><span>$2,077.65</span><span>Install materials</span><span>$312.40</span><span class="big">Estimated total</span><span class="big">$2,390.05</span></div>
+    ${block}
+    ${added.length ? "" : `<div class="foot" style="margin-top:22px">No installers on this job, so the block is left off.</div>`}`;
+}
+
+function render(){
+  if (!$("#p-settings").hidden) renderSettings();
+  if (!$("#p-project").hidden) renderProject();
+  if (!$("#p-print").hidden) renderPrint();
+}
+render();
+</script>
