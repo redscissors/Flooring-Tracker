@@ -66,8 +66,12 @@ category list along the way.
 - **Print** (`EstimateColumns.jsx`): the Installers table after the totals,
   only when the job has installers. Trades print via `entryTradesOnJob` — the
   job's trades they cover, or all of theirs when none overlap.
+- **Phone** (owner, 2026-10-03 follow-up): a hammer icon with the badge in
+  `MobileProjectHeader`'s bar, between Samples and ⋯, opens the same ranked
+  list (`PickerList`) in a `MobileSheet`; Manage → opens the Installers
+  settings. The bar's icons went 24 → 22px and its gap 4 → 3px so the price
+  and print picks still read in full at 344px.
 
 ## Out of scope
 
-- The phone layout has no hammer yet; installers added on desktop still print.
 - No scheduling, pricing or availability for installers.

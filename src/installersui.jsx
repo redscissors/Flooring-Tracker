@@ -215,12 +215,17 @@ function PickRow({ i, trades, on, full, onToggle }) {
   );
 }
 
-export function InstallerPicker({ anchorRef, installers, entries, trades, onToggle, onManage, onClose }) {
-  const panelRef = useRef(null);
-  const pos = useAnchoredPanel(true, anchorRef, panelRef, onClose);
-  useEscClose(true, onClose);
+export function TradeNeeds({ trades, className = "" }) {
+  return (
+    <div className={"flex flex-wrap items-center gap-1 text-[11px] text-slate-500 " + className}>
+      {trades.length ? <>This job needs {trades.map((t) => <TradeChip key={t} t={t} />)}</> : "No tile, hard surface or carpet lines yet."}
+    </div>
+  );
+}
+
+// The ranked list both the desktop popover and the phone sheet show.
+export function PickerList({ installers, entries, trades, onToggle }) {
   const [showNone, setShowNone] = useState(false);
-  if (!pos) return null;
   const r = rankInstallers(installers, trades);
   const onJob = (i) => entries.some((e) => e.id === i.id);
   const group = (label, list, full) => list.length > 0 && (
@@ -230,30 +235,38 @@ export function InstallerPicker({ anchorRef, installers, entries, trades, onTogg
     </>
   );
   return (
+    <div data-inst-picker>
+      {!installers.length && <p className="px-3.5 py-3 text-[12px] text-slate-500">No installers on file yet.</p>}
+      {group("Can do the whole job", r.full, true)}
+      {group(trades.length ? "Can do part of it" : "Installers", r.part, false)}
+      {trades.length > 0 && r.none.length > 0 && !showNone && (
+        <button type="button" onClick={() => setShowNone(true)} className="w-full text-left px-3.5 py-2 border-t border-slate-100 text-[11px] font-bold text-slate-400 hover:text-slate-600">
+          Show {r.none.length} who don't do anything on this job
+        </button>
+      )}
+      {(showNone || !trades.length) && group(trades.length ? "Don't do anything on this job" : "Installers", r.none, false)}
+    </div>
+  );
+}
+
+export function InstallerPicker({ anchorRef, installers, entries, trades, onToggle, onManage, onClose }) {
+  const panelRef = useRef(null);
+  const pos = useAnchoredPanel(true, anchorRef, panelRef, onClose);
+  useEscClose(true, onClose);
+  if (!pos) return null;
+  return (
     <SearchPop pos={pos} box={growBox(pos, 440)} fieldRef={anchorRef} panelRef={panelRef} bg="var(--ft-card)">
-      <div data-inst-picker>
-        <div className="px-3.5 pt-2.5 pb-2 border-b border-slate-200">
-          <div className="flex items-center gap-2 text-[14px] font-extrabold"><Hammer size={15} /> Installers for this job</div>
-          <div className="flex flex-wrap items-center gap-1 mt-1.5 text-[11px] text-slate-500">
-            {trades.length ? <>This job needs {trades.map((t) => <TradeChip key={t} t={t} />)}</> : "No tile, hard surface or carpet lines yet."}
-          </div>
-        </div>
-        <div className="overflow-y-auto" style={{ maxHeight: Math.max(160, Math.min(440, pos.maxH - 110)) }}>
-          {!installers.length && <p className="px-3.5 py-3 text-[12px] text-slate-500">No installers on file yet.</p>}
-          {group("Can do the whole job", r.full, true)}
-          {group(trades.length ? "Can do part of it" : "Installers", r.part, false)}
-          {trades.length > 0 && r.none.length > 0 && !showNone && (
-            <button type="button" onClick={() => setShowNone(true)} className="w-full text-left px-3.5 py-2 border-t border-slate-100 text-[11px] font-bold text-slate-400 hover:text-slate-600">
-              Show {r.none.length} who don't do anything on this job
-            </button>
-          )}
-          {(showNone || !trades.length) && group(trades.length ? "Don't do anything on this job" : "Installers", r.none, false)}
-        </div>
-        <div className="flex items-center gap-2 px-3.5 py-2 border-t border-slate-200 text-[11px] text-slate-500" style={{ background: "var(--ft-cream)" }}>
-          Click to add or remove. Saves right away.
-          <span className="flex-1" />
-          {onManage && <button type="button" onClick={() => { onClose(); onManage(); }} className="font-bold" style={{ color: "var(--ft-brand-deep)" }}>Manage installers →</button>}
-        </div>
+      <div className="px-3.5 pt-2.5 pb-2 border-b border-slate-200">
+        <div className="flex items-center gap-2 text-[14px] font-extrabold"><Hammer size={15} /> Installers for this job</div>
+        <TradeNeeds trades={trades} className="mt-1.5" />
+      </div>
+      <div className="overflow-y-auto" style={{ maxHeight: Math.max(160, Math.min(440, pos.maxH - 110)) }}>
+        <PickerList installers={installers} entries={entries} trades={trades} onToggle={onToggle} />
+      </div>
+      <div className="flex items-center gap-2 px-3.5 py-2 border-t border-slate-200 text-[11px] text-slate-500" style={{ background: "var(--ft-cream)" }}>
+        Click to add or remove. Saves right away.
+        <span className="flex-1" />
+        {onManage && <button type="button" onClick={() => { onClose(); onManage(); }} className="font-bold" style={{ color: "var(--ft-brand-deep)" }}>Manage installers →</button>}
       </div>
     </SearchPop>
   );

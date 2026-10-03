@@ -21,4 +21,7 @@ Needs Vite up:
 Cases: `box` (hammer badge, box level with the first area), `picker` (order,
 click-to-add), `narrow` (1280 — no box), `print` (block, stacked trades, no
 priority), `settings` (Manage → General → Installers), `addnew` (add an
-installer). All pass; shots in `after/`.
+installer), `phone` (344px: the bar still fits, the hammer's sheet adds on
+tap). `phonebar` prints the bar's child widths with and without the hammer.
+All pass; shots in `after/`. The phone follow-up also re-ran
+`.scratch/170_phone-clean-layout/check.mjs`: all pass.
