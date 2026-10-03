@@ -344,6 +344,25 @@ src/
                     # has no Edit / Print preview tabs. `useKeyboardInset` is
                     # the visualViewport keyboard gap MobileSheet's footer and
                     # the search sheet's bottom field both lift by
+  installers.js     # installers (spec 2026-10-03, ADR 0057), pure and
+                    # import-free (model.js and catalog.js import it):
+                    # INSTALL_TRADES tile/hard/carpet — hardwood, vinyl and
+                    # laminate roll up to Hard Surface (`tradeOfType`);
+                    # `normInstaller(s)` (the settings directory, priority
+                    # clamped 1–10, default 5), `normProjInstallers` (the job's
+                    # contact snapshots), `jobTrades(cats, rowBlank)` (derived,
+                    # never stored), `rankInstallers` (whole job → part, more
+                    # of the job first → none, priority inside each),
+                    # `toggleProjInstaller`, `entryTradesOnJob` (what prints),
+                    # `uncoveredTrades` (installers.test.js)
+  installersui.jsx  # `InstallersSettings` (Settings → General → Installers:
+                    # list + detail on one 520px grid; text commits on blur,
+                    # trades/priority on click), `InstallerButton` +
+                    # `InstallerPicker` (the header hammer, a SearchPop; a
+                    # click adds/removes at once) and `InstallerBox` (beside
+                    # the areas — App.jsx mounts it only when <main> fits the
+                    # 896 column + 12 + 240, centering the pair; hidden
+                    # narrower). Proof: .scratch/172_installers
   phonehead.js      # the phone header's derived text, pure (phonehead.test.js):
                     # `phoneTotal(grandTotal, optionCount)` and
                     # `shownAddress(sel, cust)` — the desktop Clean address rule
@@ -380,6 +399,8 @@ src/
                     # line is keyed, an "N left" pill before that. No order
                     # sheet button in Clean. An Email icon sits right after the
                     # Samples icon (`onEmail`, ADR 0055; Clean only).
+                    # The installers hammer (`installers` bag → InstallerButton,
+                    # spec 2026-10-03) sits after Samples in all three layouts.
                     # Exported `ErpChip` (ADR 0044, `ERP 48213` · `+N`) mounts
                     # in both layouts (opens order entry) and is imported by
                     # mobile.jsx for the phone header (static there).
@@ -562,6 +583,9 @@ src/
                     # ("SKU n" / the part number), no spec line; every other
                     # row keeps its spec line with the SKU part wrapped
                     # no-wrap. Proof: .scratch/165_shower-line-descriptions
+                    # Installers (spec 2026-10-03, ADR 0057): a table after the
+                    # totals when the job has any — Trade (stacked, this job's
+                    # only) · Company · Contact · Phone · Email; no priority
   emailestimate.jsx # the Email estimate button's work (ADR 0055), a lazy chunk
                     # (modern-screenshot + jsPDF load on the first click): the
                     # Print paper rendered in an off-screen root, captured, and
@@ -695,6 +719,11 @@ src/
                     # Renders in the work-area pane with a controlled
                     # `section` (ADR 0047) — no overlay shell or section menu;
                     # mounted with `key={section}`.
+                    # General (spec 2026-10-03) is a category column like
+                    # Materials: Waste · Shop address · Styles (header picker
+                    # + Appearance) · Installers; `generalSub`/`onGeneralSub`
+                    # remember the open one (App bumps the key's nonce for
+                    # the hammer's "Manage installers →").
   catalog.js        # settings normalization + material math + shared catalog.
                     # Every material entry carries `cost` beside `price` (ADR
                     # 0018 amendment 2026-09-10) and the getters expose it as

@@ -113,6 +113,13 @@ Customer { id, name, address, phone, email, notes, createdAt,
            // picked on this project and, per type, the base last picked; a
            // newly ticked Grout starts there (color is never remembered).
            // Written with the row edit in one updateProject; absent = empty.
+           installers: [{ id, company, contact, phone, email, trades, addedAt, addedBy }],
+           // installers (ADR 0057, spec 2026-10-03) = CONTACT SNAPSHOTS of the
+           // directory installers on this job, taken on add (installerEntry) —
+           // a Settings edit or delete never changes them; remove + re-add to
+           // refresh. trades ⊆ tile/hard/carpet. Written only through
+           // updateProject with toggleProjInstaller's list; normProjInstallers
+           // in normC; absent = []. Prints at the bottom of the sheet. No SQL.
            erpOrders: [{ no, addedBy, addedAt }],          // ERP 1 orders the job was keyed
            erpKeyed: { [lineId]: { no, at, by } } }        // under + one stamp per order-entry
            // line (ADR 0044, spec 2026-09-19). Normalized by src/erporders.js
@@ -297,6 +304,12 @@ Product  { id, type:"tile|hardwood|vinyl|laminate|carpet|underlayment|misc",
            // (ADR 0003), so a re-import never re-labels a saved row.
 Att      { id, name, type, size }   // file bytes live in Storage, not here
 Settings { wastePct, mortars{...}, grouts{...},
+           installers: [{ id, company, contact, phone, email,
+                          trades: ("tile"|"hard"|"carpet")[], priority: 1–10 }],
+           // installers (ADR 0057) = the team's installer directory, edited in
+           // Settings → General → Installers through setSettings; normInstallers
+           // in normalizeSettings/serializeSettings (an empty list isn't written).
+           // Hard Surface = hardwood/vinyl/laminate lines.
            pricing: { builderPct: 8, salePct: 10, wediBuilderPct: 18,
                       quickMarkups: [30,50,100], descLimit: 30 } }
            // Every catalog material entry (grout, mortar, underlayment, custom

@@ -6,6 +6,7 @@ import { normPricing } from "./pricing.js";
 import { TIER_COLOR, tierBadgeText, PROJECT_NAME_MAX } from "./uiconst.js";
 import { money } from "./model.js";
 import { erpLabel } from "./erporders.js";
+import { InstallerButton } from "./installersui.jsx";
 
 // The desktop project header, three layouts behind a per-user switch
 // (Settings → General, saved as ui.header; "ft-header" in localStorage is the
@@ -156,7 +157,7 @@ function SaveVersionPop({ open, onOpen, onClose, name, setName, onConfirm, tip, 
   );
 }
 
-export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTotal, optionBadges = null, freightCost = 0, saveOk, settings, jobWasteUI, updateProject, onOpenCustomer, onPromote, nameRef, nameTabRef, orderEntryRef, focusName, namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion, openAttachment, delAttachment, attRef, addAttachment, setShowVersions, setPrintMode, setConfirm, setShowOrderCopy, samples = null, onOpenSamples }) {
+export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTotal, optionBadges = null, freightCost = 0, saveOk, settings, jobWasteUI, updateProject, onOpenCustomer, onPromote, nameRef, nameTabRef, orderEntryRef, focusName, namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion, openAttachment, delAttachment, attRef, addAttachment, setShowVersions, setPrintMode, setConfirm, setShowOrderCopy, samples = null, onOpenSamples, installers = null }) {
   const sp = sel.salesperson || profile;
   const pcts = normPricing(settings.pricing);
   const tierFill = TIER_COLOR[sel.priceTier] ? { background: TIER_COLOR[sel.priceTier].main } : undefined;
@@ -277,6 +278,8 @@ export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTot
               {samples?.need > 0 && <span className="rounded px-1 font-bold" style={{ background: "#fef6e2", color: "#b45309" }}>{samples.need}</span>}
             </button>
           )}
+          {installers && <InstallerButton {...installers} label="Installers"
+            triggerClass="relative rounded-md flex items-center justify-center gap-1.5 text-[10px] font-bold shrink-0 border text-slate-500 hover:bg-slate-50 h-[19px] border-[color:var(--ft-border-strong)]" />}
           <button ref={orderEntryRef} data-flow-end="1" onClick={() => setShowOrderCopy(true)} className={prim} style={{ flex: 1, ...tierFill }}>
             <span className="flex items-center gap-1.5"><Copy size={13} /> Order entry</span>
             <span className="text-[9px] font-semibold opacity-70">For ERP One</span>
@@ -294,7 +297,7 @@ export function ProjectHeaderBar({ sel, cust, builderName, profile, tv, grandTot
 // Moved whole from App.jsx (print-sheet style: customer | project | salesperson
 // up top, then pricing + notes | actions, then the Add-area row).
 
-export function ProjectHeaderClassic({ sel, cust, builderName, profile, tv, grandTotal, optionBadges = null, saveOk, settings, jobWasteUI, updateProject, onOpenCustomer, onPromote, nameRef, nameTabRef, orderEntryRef, focusName, namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion, openAttachment, delAttachment, attRef, addAttachment, setShowVersions, setPrintMode, setConfirm, setShowOrderCopy, samples = null, onOpenSamples }) {
+export function ProjectHeaderClassic({ sel, cust, builderName, profile, tv, grandTotal, optionBadges = null, saveOk, settings, jobWasteUI, updateProject, onOpenCustomer, onPromote, nameRef, nameTabRef, orderEntryRef, focusName, namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion, openAttachment, delAttachment, attRef, addAttachment, setShowVersions, setPrintMode, setConfirm, setShowOrderCopy, samples = null, onOpenSamples, installers = null }) {
   const sp = sel.salesperson || profile;
   const cols = { display: "grid", gridTemplateColumns: "1fr 1.28fr 1.08fr", gap: 16 };
   const midPad = { borderLeft: "1px solid var(--ft-border)", borderRight: "1px solid var(--ft-border)", padding: "0 16px" };
@@ -404,6 +407,7 @@ export function ProjectHeaderClassic({ sel, cust, builderName, profile, tv, gran
                     {samples?.need > 0 && <span className="absolute rounded-full px-1 font-bold" style={{ top: -5, right: -5, fontSize: 9, lineHeight: "13px", minWidth: 13, background: "#b45309", color: "#fff" }}>{samples.need}</span>}
                   </button>
                 )}
+                {installers && <InstallerButton {...installers} triggerClass="h-[30px] flex-1 flex items-center justify-center rounded-md border border-slate-200 hover:bg-slate-50 relative" />}
               </div>
               <div className="flex gap-1.5">
                 <button onClick={() => setPrintMode("order")} className="h-[30px] flex-1 flex items-center justify-center gap-1.5 text-[12.5px] font-semibold rounded-md border border-slate-200 hover:bg-slate-50 whitespace-nowrap"><ClipboardList size={14} /> Order sheet</button>
@@ -541,7 +545,7 @@ export function FreightToggle({ on, amount, onSet, compact = false }) {
   );
 }
 
-export function ProjectHeaderClean({ sel, cust, builderName, profile, freightCost = 0, saveOk, settings, jobWasteUI, updateProject, onOpenCustomer, onPromote, nameRef, nameTabRef, orderEntryRef, focusName, namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion, openAttachment, delAttachment, attRef, addAttachment, setShowVersions, setPrintMode, setConfirm, setShowOrderCopy, samples = null, onOpenSamples, preview = false, onTogglePreview, erp = null, ping, compact = false, onEmail, emailBusy = false }) {
+export function ProjectHeaderClean({ sel, cust, builderName, profile, freightCost = 0, saveOk, settings, jobWasteUI, updateProject, onOpenCustomer, onPromote, nameRef, nameTabRef, orderEntryRef, focusName, namingVersion, setNamingVersion, versionName, setVersionName, startVersionName, confirmVersion, openAttachment, delAttachment, attRef, addAttachment, setShowVersions, setPrintMode, setConfirm, setShowOrderCopy, samples = null, onOpenSamples, installers = null, preview = false, onTogglePreview, erp = null, ping, compact = false, onEmail, emailBusy = false }) {
   const [menu, setMenu] = useState(false);
   const [addrAt, setAddrAt] = useState(null);
   useEscClose(menu, () => setMenu(false));
@@ -616,6 +620,7 @@ export function ProjectHeaderClean({ sel, cust, builderName, profile, freightCos
         {samples?.need > 0 && <span className="absolute rounded-full font-bold" style={{ top: -4, right: -4, fontSize: 9.5, lineHeight: "14px", minWidth: 14, padding: "0 3px", background: "#b45309", color: "#fff" }}>{samples.need}</span>}
       </button>
     )}
+    {installers && <InstallerButton {...installers} triggerClass={ICON + " text-slate-500"} />}
     {onEmail && (
       <button onClick={onEmail} disabled={emailBusy} aria-label="Email selections" data-tip="Email selections — PDF + a new email to the customer" className={ICON + " text-slate-500 disabled:opacity-50"}>
         <Mail size={16} />

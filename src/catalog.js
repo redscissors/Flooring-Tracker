@@ -11,6 +11,7 @@ import { normQuickMarkups } from "./costentry.js";
 import { DEFAULT_DESC_LIMIT } from "./descfit.js";
 import { bundleUnit } from "./units.js";
 import { baseKey, resolveGroutBase } from "./groutbase.js";
+import { normInstallers } from "./installers.js";
 
 export const GROUTS = ["PermaColor Select", "SpectraLOCK 1", "SpectraLOCK PRO", "CEG-Lite", "Tec Power Grout"];
 export const MORTARS = ["ProLite", "AcrylPro", "Schluter All Set"];
@@ -859,7 +860,8 @@ const serializeApps = (apps) => {
 export const serializeSettings = (s) => {
   const ops = normOps(s.ops);
   const shop = normShop(s.shop);
-  return { waste: s.waste, catalog: s.catalog, pricing: normPricing(s.pricing), apps: serializeApps(s.apps), ...(ops ? { ops } : {}), ...(shop ? { shop } : {}) };
+  const installers = normInstallers(s.installers);
+  return { waste: s.waste, catalog: s.catalog, pricing: normPricing(s.pricing), apps: serializeApps(s.apps), ...(ops ? { ops } : {}), ...(shop ? { shop } : {}), ...(installers.length ? { installers } : {}) };
 };
 
 // Entry point for loaded/imported settings: backfill a pre-catalog record by
@@ -872,5 +874,5 @@ export function normalizeSettings(raw) {
     : seedCatalog(mergeSettings(raw));
   const ops = normOps(raw?.ops);
   const shop = normShop(raw?.shop);
-  return withDerived({ waste, catalog, pricing: normPricing(raw?.pricing), apps: normApps(raw?.apps), ...(ops ? { ops } : {}), ...(shop ? { shop } : {}) });
+  return withDerived({ waste, catalog, pricing: normPricing(raw?.pricing), apps: normApps(raw?.apps), ...(ops ? { ops } : {}), ...(shop ? { shop } : {}), installers: normInstallers(raw?.installers) });
 }

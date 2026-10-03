@@ -6,6 +6,7 @@ import { TLBL } from "./uiconst.js";
 import { printProduct, printAreaFloor, areaPrintLabel, u1 } from "./print.js";
 import { brandRow, specParts, qtyCells, priceCells, lineCells, columnsUsed, gridSpec, jobListGroups, specialCheck, isOneLine, cellParts, loneUnnamedArea, fitColumns, stripRuled } from "./printcols.js";
 import { SheetHead } from "./sheethead.jsx";
+import { jobTrades, entryTradesOnJob, TRADE_LABEL } from "./installers.js";
 
 const MUTED = "var(--ft-muted)", FAINT = "var(--ft-faint)", DEEP = "var(--ft-brand-deep)";
 const RULE = "var(--ft-paper-rule)", HAIR = "var(--ft-border)", BAND = "var(--ft-paper-band)";
@@ -186,6 +187,27 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
       </div>
     );
   };
+  // Installers (spec 2026-10-03): the job's own contact snapshots, last on the
+  // sheet. Each lists only the trades it covers on THIS job; priority never prints.
+  const instTrades = jobTrades(tv.proj.categories, rowBlank);
+  const ir = { display: "grid", gridTemplateColumns: "84px minmax(0,1.2fr) minmax(0,1fr) 92px minmax(0,1.4fr)", columnGap: 8, fontSize: 9.1, padding: "2px 0", alignItems: "baseline", breakInside: "avoid" };
+  const installerBlock = (sel.installers || []).length > 0 && (
+    <div data-print-installers style={{ borderTop: "2px solid var(--ft-text)", marginTop: 14, paddingTop: 6, breakInside: "avoid" }}>
+      <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: ".22em", textTransform: "uppercase", color: DEEP, marginBottom: 3 }}>Installers</div>
+      <div style={{ ...ir, borderBottom: "1px solid var(--ft-text)" }}>
+        <span style={eyebrow}>Trade</span><span style={eyebrow}>Company</span><span style={eyebrow}>Contact</span><span style={eyebrow}>Phone</span><span style={eyebrow}>Email</span>
+      </div>
+      {sel.installers.map((e) => (
+        <div key={e.id} style={{ ...ir, borderBottom: `1px solid ${HAIR}` }}>
+          <span style={{ ...kindLabel, lineHeight: 1.55 }}>{entryTradesOnJob(e, instTrades).map((t) => <span key={t} style={{ display: "block", whiteSpace: "nowrap" }}>{TRADE_LABEL[t]}</span>)}</span>
+          <span style={{ fontWeight: 800 }}>{e.company}</span>
+          <span>{e.contact}</span>
+          <span className="ft-mono" style={{ whiteSpace: "nowrap" }}>{e.phone}</span>
+          <span style={{ overflowWrap: "anywhere" }}>{e.email}</span>
+        </div>
+      ))}
+    </div>
+  );
   const specialLine = anySpecial && <div style={{ fontSize: 9.5 }}><b>{DIAMOND} Special order</b> — special-order items can&apos;t be returned.</div>;
   const waste = wasteNote(jobWaste, wVar);
   const totalRow = (label, value, strong) => (
@@ -245,6 +267,7 @@ export function EstimateColumnsPaper({ sel, people, profile, tv, jobWaste, pMats
         )}
       </div>
       {waste && <div className="break-inside-avoid" style={{ fontSize: 8.5, color: FAINT, marginTop: 3, textAlign: "right" }}>Includes {waste}</div>}
+      {installerBlock}
     </div>
   );
 }
