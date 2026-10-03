@@ -38,3 +38,18 @@ FAIL; desktop passed both times).
 
 `header-preview-344.png`: the header in header-preview.html's 344px frame.
 Ticket 169's repro still passes (one tap fills the line).
+
+## Follow-up: the review's minors (owner 2026-10-03)
+
+Owner: fix the six deferred minors, but keep the builder name off the phone
+header. Five fixed, each pinned by a check case that failed first:
+
+| Minor | Fix | Check |
+|---|---|---|
+| Bar had no shrink path | Both bar menus may shrink (`min-w-0`), labels truncate before the total | `wide`: Employee + Unit $ + $127,200.00 |
+| Empty copy above a stray blank row | Copy only when the area's one row is the trailing adder | `stray` |
+| Name capped at 70% with no address | Cap only when an address shows | `noaddr` |
+| Pinned title vs Price book area | The active area is the one whose title is pinned (anchor `main` top + 18px, was 30% down) | `scroll` |
+| Stale "Mobile keeps its own band" comment | Reworded | n/a |
+
+Builder name: stays off the phone header (owner). Result: 32 PASS, 0 FAIL.

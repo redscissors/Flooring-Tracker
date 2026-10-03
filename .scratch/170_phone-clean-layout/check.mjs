@@ -44,6 +44,10 @@ const JOBS = {
   unassigned: () => ({ customer: null, project: baseProject({ name: "Lakeview Commons — Building C, units 101 through 118 (phase 2)", address: "2200 Lakeview Commons Parkway, Suite 400", priceTier: "builder", erpOrders: [],
     categories: [area("Units 101–118", [filled("Mohawk Slate Grey commercial", "MHSLGR", 6.5, 2100)])] }) }),
 };
+JOBS.wide = () => ({ project: baseProject({ priceTier: "employee", printPricing: "unit", address: "",
+  categories: [area("Warehouse", [filled("Mohawk Slate Grey commercial", "MHSLGR", 6.5, 20000, { costSqft: "6" })])] }) });
+JOBS.stray = () => ({ project: baseProject({ categories: [area("Kitchen", [filled("COREtec Blond Oak", "VV012", 4.35, 95, { type: "vinyl" })]), area("Den", [blank()])] }) });
+JOBS.noaddr = () => ({ customer: null, project: baseProject({ name: "Lakeview Commons — Building C units", address: "", erpOrders: [] }) });
 JOBS.name = JOBS.top; JOBS.hold = JOBS.top; JOBS.sheet = JOBS.top; JOBS.desk = JOBS.top;
 
 const book = { id: "bk1", kind: "stock", name: "Shop stock", active: true, data: {}, updated_at: "2026-09-01T00:00:00Z" };
@@ -119,6 +123,14 @@ const CASES = {
     check("scroll", r.d <= 1, `2nd area title sticks at main's top (off by ${r.d.toFixed(1)}px)`);
     const head = await rect(page, "[data-phone-head]");
     check("scroll", head && head.top < 30, "header stays pinned");
+    await page.waitForTimeout(200);
+    const names = await page.evaluate(() => {
+      const m = document.querySelector("main").getBoundingClientRect();
+      const pinned = [...document.querySelectorAll("[data-area-title]")].find((t) => Math.abs(t.getBoundingClientRect().top - m.top) <= 1);
+      const pb = [...document.querySelectorAll("button")].filter((b) => /Price book/.test(b.textContent) && b.closest(".ft-rail")).pop();
+      return { pinned: pinned?.querySelector("input")?.value, button: pb?.textContent };
+    });
+    check("scroll", !!names.pinned && (names.button || "").includes(names.pinned), `Price book targets the pinned area (pinned ${names.pinned}, button "${names.button}")`);
   },
   async name(page) {
     const input = page.locator("[data-area-title] input").first();
@@ -165,6 +177,22 @@ const CASES = {
     const bar = await rect(page, "[data-phone-bar]");
     const more = await rect(page, "[data-phone-bar] [aria-label='Project details']");
     check("unassigned", bar && more && more.right <= bar.right, "⋯ stays inside the bar");
+  },
+  async wide(page) {
+    const t = await page.locator("[data-phone-total]").textContent().catch(() => "");
+    check("wide", /^\$\d{3},\d{3}\.\d\d$/.test(t || ""), `six-figure total (got ${t})`);
+    check("wide", await fits(page, "[data-phone-bar]"), "Employee + Unit $ + six-figure total fits the bar");
+    check("wide", await page.evaluate(() => { const el = document.querySelector("[data-phone-total]"); return !!el && el.scrollWidth <= el.clientWidth + 0.5; }), "the total itself is never clipped");
+  },
+  async stray(page) {
+    // Den holds a blank row ahead of its trailing adder — it renders as "New product…", so the area isn't empty.
+    const den = page.locator("[data-area-drop]").nth(1);
+    check("stray", (await den.getByText("New product…").count()) > 0, "the stray blank row shows as New product…");
+    check("stray", (await den.getByText(/No products yet/).count()) === 0, "no empty-area copy above a visible row");
+  },
+  async noaddr(page) {
+    const ok = await page.evaluate(() => { const btn = document.querySelector("[data-phone-head] button[title='Project details']"); const nm = btn?.querySelector("span"); return !!nm && nm.scrollWidth <= nm.clientWidth; });
+    check("noaddr", ok, "with no address, a name that fits the line isn't truncated");
   },
   async desk(page) {
     check("desk", (await page.locator("[data-phone-head]").count()) === 0, "no phone header on desktop");

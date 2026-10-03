@@ -721,7 +721,7 @@ export function MobileProjectHeader({ sel, cust, profile, tv, grandTotal, option
         </div>
       </div>
       <button onClick={onMore} title="Project details" className="w-full flex items-center gap-[5px] min-w-0 text-left text-[11.5px]" style={{ padding: "2px 12px 8px", color: "var(--ft-muted)" }}>
-        <span className="truncate font-bold" style={{ color: "var(--ft-text)", flex: "0 1 auto", maxWidth: "70%" }}>{sel.name || "Untitled project"}</span>
+        <span className="truncate font-bold" style={{ color: "var(--ft-text)", flex: "0 1 auto", maxWidth: addr.text ? "70%" : undefined }}>{sel.name || "Untitled project"}</span>
         {sel.projectNo && <span className="shrink-0 font-bold text-[10.5px]" style={{ color: "var(--ft-faint)" }}>N{sel.projectNo}</span>}
         <span className="shrink-0 flex"><ErpChip erpOrders={sel.erpOrders} /></span>
         {addr.text && <>
@@ -730,8 +730,8 @@ export function MobileProjectHeader({ sel, cust, profile, tv, grandTotal, option
         </>}
       </button>
       <div data-phone-bar className="flex items-center" style={{ gap: 4, height: 38, padding: "0 10px 0 6px", borderTop: "1px solid var(--ft-border)" }}>
-        <PriceLevelMenu value={sel.priceTier || "retail"} customPct={sel.customPct} onPick={(v) => upd({ priceTier: v })} onPct={(v) => upd({ priceTier: "custom", customPct: v })} align="left" size="sm" />
-        <MorphSelect value={sel.printPricing || "full"} onChange={(v) => upd({ printPricing: v })} bg="var(--ft-cream)" flat bold size="sm" minOpenW={150} title="What the estimate shows"
+        <PriceLevelMenu value={sel.priceTier || "retail"} customPct={sel.customPct} onPick={(v) => upd({ priceTier: v })} onPct={(v) => upd({ priceTier: "custom", customPct: v })} align="left" size="sm" className="min-w-0" />
+        <MorphSelect value={sel.printPricing || "full"} onChange={(v) => upd({ printPricing: v })} bg="var(--ft-cream)" flat bold size="sm" className="min-w-0" minOpenW={150} title="What the estimate shows"
           options={[
             { v: "full", label: "All $", title: "Print every price and total" },
             { v: "unit", label: "Unit $", title: "Print unit prices only — no line or job totals" },
