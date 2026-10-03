@@ -125,8 +125,12 @@ dialog{border:1px solid var(--ft-border);border-radius:12px;padding:0;background
 dialog::backdrop{background:rgba(28,26,23,.35)}
 
 /* ---------- Project ---------- */
-.desk{min-height:660px;display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:18px;align-items:start;background:var(--ft-cream);border:1px solid var(--ft-border);border-radius:12px;padding:22px 20px}
+.desk{min-height:660px;display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:12px 18px;align-items:start;align-content:start;background:var(--ft-cream);border:1px solid var(--ft-border);border-radius:12px;padding:22px 20px}
 .desk.under{grid-template-columns:minmax(0,1fr)}
+.dhead{grid-column:1;grid-row:1;min-width:0}
+.areas{grid-column:1;grid-row:2;min-width:0}
+.areas .area:first-child{margin-top:0}
+.desk .box{grid-column:2;grid-row:2}
 .cust{font-size:26px;font-weight:800;letter-spacing:-.01em}
 .subl{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;font-weight:700;margin-top:2px}
 .subl .n{color:var(--ft-faint)} .subl .erp{font-size:10.5px;background:var(--ft-sand);padding:1px 6px;border-radius:4px;color:var(--ft-muted)}
@@ -199,7 +203,7 @@ dialog::backdrop{background:rgba(28,26,23,.35)}
 .sheet table{width:100%;border-collapse:collapse;font-size:11px}
 .sheet th{font-size:8.5px;letter-spacing:.16em;text-align:left;color:var(--paper-muted);border-bottom:1px solid var(--paper-ink);padding:3px 6px 3px 0}
 .sheet td{padding:5px 6px 5px 0;border-bottom:1px solid var(--paper-band);vertical-align:top}
-.sheet td.tr{font-size:9px;font-weight:800;letter-spacing:.14em;color:var(--paper-brand);text-transform:uppercase;white-space:nowrap}
+.sheet td.tr{font-size:9px;font-weight:800;letter-spacing:.14em;color:var(--paper-brand);text-transform:uppercase;white-space:nowrap;line-height:1.55;width:92px}
 .sheet .pcards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px 16px}
 .sheet .pcard{border-left:2px solid var(--paper-rule);padding-left:9px;font-size:11px}
 .sheet .pcard .k{font-size:8.5px;font-weight:800;letter-spacing:.16em;color:var(--paper-brand);text-transform:uppercase}
@@ -287,12 +291,12 @@ dialog::backdrop{background:rgba(28,26,23,.35)}
 
   <!-- ================= PROJECT ================= -->
   <section class="panel" id="p-project" hidden>
-    <p class="why">The hammer goes in the project's icon row, and its badge counts the installers on the job. The picker reads what's on the job (Tile, Vinyl and Carpet here). Installers who can do all of it come first, in green. Next come installers who can do part of it, sorted by how much they cover and then by priority. <b>Clicking a row adds or removes that installer right away</b>, so there's no Done button.</p>
+    <p class="why">The hammer goes in the project's icon row, and its badge counts the installers on the job. The picker reads what's on the job (Tile, Hardwood, Vinyl and Carpet here). Installers who can do all of it come first, in green. Next come installers who can do part of it, sorted by how much they cover and then by priority. <b>Clicking a row adds or removes that installer right away</b>, so there's no Done button.</p>
     <div class="variant" id="v-place"><span class="lab">On the project</span>
       <div class="seg"><button data-v="rail" aria-pressed="true">Box on the right<span class="rec">rec.</span></button><button data-v="under" aria-pressed="false">Strip under the header</button></div>
     </div>
     <div class="desk" id="desk">
-      <div style="min-width:0">
+      <div class="dhead">
         <div class="cust">Tom Marsh</div>
         <div class="subl">Marsh — whole first floor <span class="n">N214</span><span class="erp">ERP 48213</span><span class="faint" style="font-weight:600">· 44 Beech Ln</span></div>
         <div class="bar" id="bar">
@@ -309,6 +313,8 @@ dialog::backdrop{background:rgba(28,26,23,.35)}
           <div class="pop" id="pop" role="dialog" aria-label="Installers for this job"></div>
         </div>
         <div id="stripSlot"></div>
+      </div>
+      <div class="areas">
         <div class="area"><div class="ah">Kitchen<span class="tot">$413.25</span></div>
           <div class="line"><span class="ty">Vinyl</span><span>COREtec Blond Oak 7"×48"</span><span class="m q2">95 sf</span><span class="m">$413.25</span></div></div>
         <div class="area"><div class="ah">Hall bath — stone<span class="tot">$458.00</span></div>
@@ -316,6 +322,8 @@ dialog::backdrop{background:rgba(28,26,23,.35)}
           <div class="line"><span class="ty">Misc</span><span>Schluter Jolly 3/8 Satin</span><span class="m q2">4 ea</span><span class="m">$74.00</span></div></div>
         <div class="area"><div class="ah">Bedrooms<span class="tot">$1,206.40</span></div>
           <div class="line"><span class="ty">Carpet</span><span>Shaw Bellera Pebble Path</span><span class="m q2">58 sy</span><span class="m">$1,206.40</span></div></div>
+        <div class="area"><div class="ah">Living room<span class="tot">$1,512.00</span></div>
+          <div class="line"><span class="ty">Hardwood</span><span>Somerset Character Oak 5"</span><span class="m q2">240 sf</span><span class="m">$1,512.00</span></div></div>
       </div>
       <aside class="box" id="ibox" aria-label="Installers on this job"></aside>
     </div>
@@ -323,7 +331,7 @@ dialog::backdrop{background:rgba(28,26,23,.35)}
 
   <!-- ================= PRINT ================= -->
   <section class="panel" id="p-print" hidden>
-    <p class="why">The installers print as the last block on the sheet, below the totals. Each one shows the trades they're on <b>for this job</b> and how to reach them. Priority never prints, because that's internal.</p>
+    <p class="why">The installers print as the last block on the sheet, below the totals. One row per installer. The Trade column stacks the trades they're on <b>for this job</b>, one per line, so Goshen Floor Covering reads Tile / Hardwood / Carpet. A trade they install that this job doesn't have is left off. Priority never prints, because that's internal.</p>
     <div class="variant" id="v-print"><span class="lab">Print block</span>
       <div class="seg"><button data-v="table" aria-pressed="true">Table<span class="rec">rec.</span></button><button data-v="cards" aria-pressed="false">Contact cards</button></div>
     </div>
@@ -340,17 +348,18 @@ dialog::backdrop{background:rgba(28,26,23,.35)}
 <script>
 const TRADES = ["tile","hardwood","vinyl","laminate","carpet"];
 const TL = {tile:"Tile",hardwood:"Hardwood",vinyl:"Vinyl",laminate:"Laminate",carpet:"Carpet"};
-const JOB = ["tile","vinyl","carpet"];
+const JOB = ["tile","hardwood","vinyl","carpet"];
 let installers = [
   {id:"a",co:"Keystone Interiors",who:"Rachel Yoder",phone:"(574) 555-0114",email:"rachel@keystoneint.example",trades:["tile","vinyl","carpet","laminate"],prio:8},
   {id:"b",co:"Elkhart Flooring Group",who:"Dan Miller",phone:"(574) 555-0187",email:"dan@efgfloors.example",trades:["tile","hardwood","vinyl","laminate","carpet"],prio:6},
+  {id:"h",co:"Goshen Floor Covering",who:"Tom Hochstetler",phone:"(574) 555-0146",email:"tom@goshenfloorcovering.example",trades:["tile","hardwood","carpet"],prio:8},
   {id:"c",co:"Hartline Tile & Stone",who:"Mike Ostrander",phone:"(574) 555-0162",email:"mike@hartlinetile.example",trades:["tile"],prio:9},
   {id:"d",co:"Northside Carpet Install",who:"Lisa Graber",phone:"(574) 555-0139",email:"lisa@northsidecarpet.example",trades:["carpet"],prio:8},
   {id:"e",co:"J&R Plank Works",who:"Jose Ramirez",phone:"(574) 555-0120",email:"jose@jrplank.example",trades:["vinyl","laminate"],prio:7},
   {id:"f",co:"Precision Floor Co.",who:"Dana Kees",phone:"(574) 555-0173",email:"dana@precisionfloor.example",trades:["hardwood","vinyl","laminate"],prio:5},
   {id:"g",co:"Amish Country Hardwood",who:"Eli Bontrager",phone:"(574) 555-0151",email:"",trades:["hardwood"],prio:7},
 ];
-let onJob = ["c"];
+let onJob = ["h","e"];
 let sel = "a", editing = null, gsec = "installers", filter = "all", iLayout = "list", place = "rail", printV = "table", popOpen = true, showNone = false;
 
 const $ = (s, r=document) => r.querySelector(s);
@@ -507,20 +516,21 @@ function renderProject(){
 // ---------- print ----------
 function renderPrint(){
   const added = onJob.map(byId).filter(Boolean);
-  const jobTrades = (i) => i.trades.filter(t => JOB.includes(t)).map(t => TL[t]).join(" · ");
+  const jobTrades = (i, sep = " · ") => JOB.filter(t => i.trades.includes(t)).map(t => TL[t]).join(sep);
   const block = !added.length ? "" : printV === "table"
     ? `<div class="sec"><h4>INSTALLERS</h4><table><thead><tr><th>TRADE</th><th>COMPANY</th><th>CONTACT</th><th>PHONE</th><th>EMAIL</th></tr></thead><tbody>
-       ${added.map(i => `<tr><td class="tr">${jobTrades(i)}</td><td><b>${esc(i.co)}</b></td><td>${esc(i.who)}</td><td style="white-space:nowrap">${esc(i.phone)}</td><td>${esc(i.email)}</td></tr>`).join("")}</tbody></table></div>`
+       ${added.map(i => `<tr><td class="tr">${jobTrades(i, "<br>")}</td><td><b>${esc(i.co)}</b></td><td>${esc(i.who)}</td><td style="white-space:nowrap">${esc(i.phone)}</td><td>${esc(i.email)}</td></tr>`).join("")}</tbody></table></div>`
     : `<div class="sec"><h4>INSTALLERS</h4><div class="pcards">${added.map(i => `<div class="pcard"><span class="k">${jobTrades(i)}</span><b>${esc(i.co)}</b>${esc(i.who)}<br>${esc(i.phone)}${i.email?`<br>${esc(i.email)}`:""}</div>`).join("")}</div></div>`;
   $("#sheet").innerHTML = `<div class="r"><div><div class="pe">FLOORING &amp; TILE</div><div class="ttl">SELECTION SHEET</div><div style="font-size:11px;color:var(--paper-muted)">Rough pricing and quantities for planning purposes only</div></div>
     <div style="text-align:right"><div style="font-size:24px;font-weight:800;letter-spacing:-.02em">Keim</div><div style="font-size:12px"><b>N214</b> &nbsp;10/3/2026</div></div></div>
     <div class="hr"></div>
-    <div class="r" style="font-size:11.5px"><div><b style="font-size:13px">Tom Marsh</b><br>44 Beech Ln, Goshen IN</div><div><b style="font-size:13px">Marsh — whole first floor</b><br>3 areas selected</div><div style="text-align:right"><b style="font-size:13px">Sam Miller</b><br>(574) 555-0199</div></div>
+    <div class="r" style="font-size:11.5px"><div><b style="font-size:13px">Tom Marsh</b><br>44 Beech Ln, Goshen IN</div><div><b style="font-size:13px">Marsh — whole first floor</b><br>4 areas selected</div><div style="text-align:right"><b style="font-size:13px">Sam Miller</b><br>(574) 555-0199</div></div>
     <div class="thin"></div>
     <div class="band"><b>KITCHEN</b><span>95 SF · flooring $413.25</span></div><div class="pl"><span><b>COREtec — Blond Oak</b><br><span class="s">vinyl plank · 7" × 48"</span></span><b>$413.25</b></div>
     <div class="band"><b>HALL BATH — STONE</b><span>60 SF · flooring $458.00</span></div><div class="pl"><span><b>Daltile Keystones — White</b><br><span class="s">wall tile · 12" × 24"</span></span><b>$384.00</b></div>
     <div class="band"><b>BEDROOMS</b><span>58 SY · flooring $1,206.40</span></div><div class="pl"><span><b>Shaw Bellera — Pebble Path</b><br><span class="s">carpet · 12' roll</span></span><b>$1,206.40</b></div>
-    <div class="tots"><span>Flooring &amp; trim</span><span>$2,077.65</span><span>Install materials</span><span>$312.40</span><span class="big">Estimated total</span><span class="big">$2,390.05</span></div>
+    <div class="band"><b>LIVING ROOM</b><span>240 SF · flooring $1,512.00</span></div><div class="pl"><span><b>Somerset Character Oak — Natural</b><br><span class="s">solid hardwood · 5" plank</span></span><b>$1,512.00</b></div>
+    <div class="tots"><span>Flooring &amp; trim</span><span>$3,589.65</span><span>Install materials</span><span>$312.40</span><span class="big">Estimated total</span><span class="big">$3,902.05</span></div>
     ${block}
     ${added.length ? "" : `<div class="foot" style="margin-top:22px">No installers on this job, so the block is left off.</div>`}`;
 }
