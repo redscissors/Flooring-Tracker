@@ -48,52 +48,62 @@ h1{font-size:26px;font-weight:800;margin:4px 0 6px;text-wrap:balance;letter-spac
 .panel[hidden]{display:none}
 
 /* ---------- Settings ---------- */
-.shell{display:flex;background:var(--ft-card);border:1px solid var(--ft-border);border-radius:12px;overflow:hidden;min-height:560px}
-.rail{width:178px;flex:none;border-right:1px solid var(--ft-border);padding:12px 8px;background:var(--ft-side)}
-.navi{display:flex;align-items:center;gap:8px;width:100%;border:0;background:none;padding:7px 9px;border-radius:7px;font-weight:600;color:var(--ft-muted);text-align:left;margin-bottom:2px}
+/* one rhythm: 40px head rows, 16px pane inset, 10px field gaps, one 520px form column */
+.shell{display:flex;background:var(--ft-card);border:1px solid var(--ft-border);border-radius:12px;overflow:hidden;height:520px}
+.rail{width:160px;flex:none;border-right:1px solid var(--ft-border);padding:8px 6px;background:var(--ft-side)}
+.navi{display:flex;align-items:center;gap:7px;width:100%;border:0;background:none;padding:6px 8px;border-radius:6px;font-weight:600;color:var(--ft-muted);text-align:left;margin-bottom:1px}
 .navi:hover{background:var(--ft-sand)}
 .navi[aria-current="true"]{background:var(--ft-ink);color:var(--ft-ink-on)}
-.navi .cnt{margin-left:auto;font-size:10px;opacity:.7}
-.sub{width:176px;flex:none;border-right:1px solid var(--ft-border);padding:12px 8px}
+.sub{width:168px;flex:none;border-right:1px solid var(--ft-border);padding:8px 6px}
+.sub .eyebrow{height:24px;display:flex;align-items:center;padding:0 8px;color:var(--ft-faint)}
+.sub .navi{align-items:flex-start}
+.sub .navi svg{margin-top:1px}
 .sub .navi[aria-current="true"]{background:var(--ft-brand-soft);color:var(--ft-text)}
-.sub .navi .hint{display:block;font-size:10px;font-weight:500;opacity:.75}
+.sub .navi .hint{display:block;font-size:10px;font-weight:500;opacity:.75;line-height:1.3}
 .pane{flex:1;min-width:0;display:flex;flex-direction:column}
-.titlebar{display:flex;align-items:center;gap:8px;padding:13px 20px;border-bottom:1px solid var(--ft-border);font-weight:800;font-size:16px}
-.q{display:inline-grid;place-items:center;width:16px;height:16px;border-radius:50%;border:1px solid var(--ft-border-strong);font-size:10px;color:var(--ft-faint);font-weight:800}
-.body{padding:20px;overflow:auto;flex:1;min-width:0}
-.lbl{display:block;font-size:11px;font-weight:700;color:var(--ft-muted);margin-bottom:5px}
-.inp{border:1px solid var(--ft-border-strong);border-radius:7px;padding:7px 10px;font:inherit;background:var(--ft-card);color:var(--ft-text);width:100%}
-.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--ft-border-strong);background:var(--ft-card);border-radius:7px;padding:6px 12px;font-weight:700;color:var(--ft-muted)}
+.titlebar{display:flex;align-items:center;gap:8px;height:40px;padding:0 16px;border-bottom:1px solid var(--ft-border);font-weight:800;font-size:14px;flex:none}
+.q{display:inline-grid;place-items:center;width:15px;height:15px;border-radius:50%;border:1px solid var(--ft-border-strong);font-size:9.5px;color:var(--ft-faint);font-weight:800}
+.body{padding:14px 16px;overflow:auto;flex:1;min-width:0}
+.lbl{display:block;font-size:10.5px;font-weight:700;color:var(--ft-muted);margin-bottom:3px}
+.inp{border:1px solid var(--ft-border-strong);border-radius:6px;height:30px;padding:0 9px;font:inherit;background:var(--ft-card);color:var(--ft-text);width:100%}
+.btn{display:inline-flex;align-items:center;gap:5px;height:28px;border:1px solid var(--ft-border-strong);background:var(--ft-card);border-radius:6px;padding:0 10px;font-weight:700;font-size:12px;color:var(--ft-muted)}
 .btn:hover{border-color:var(--ft-brand);color:var(--ft-text)}
 .btn.ink{background:var(--ft-ink);border-color:var(--ft-ink);color:var(--ft-ink-on)}
-.btn.ghost{border-style:dashed}
+.btn.sm{height:24px;padding:0 8px;font-size:11.5px}
+.btn.quiet{border-color:transparent;background:none}
 .btn.danger{color:#B4552D}
-.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.stack{display:grid;gap:14px}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px;max-width:520px}
+.fgrid .full{grid-column:1/-1}
+.cap{font-size:10.5px;color:var(--ft-faint);margin-top:3px}
 
-.styles{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;max-width:760px}
-.opt{border:1px solid var(--ft-border-strong);border-radius:10px;background:var(--ft-card);padding:10px;text-align:left;display:grid;gap:8px}
+.styles{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;max-width:520px}
+.opt{border:1px solid var(--ft-border-strong);border-radius:8px;background:var(--ft-card);padding:6px;text-align:left;display:grid;gap:4px;align-content:start}
 .opt[aria-pressed="true"]{border-color:var(--ft-brand);box-shadow:0 0 0 2px var(--ft-brand-soft)}
-.opt .nm{font-weight:800;display:flex;align-items:center;gap:6px}
-.opt .ds{font-size:11px;color:var(--ft-muted)}
-.thumb{height:62px;border-radius:6px;background:var(--ft-cream);border:1px solid var(--ft-border);padding:7px;display:grid;gap:4px;align-content:start}
-.thumb i{display:block;height:5px;border-radius:2px;background:var(--ft-border-strong)}
-.thumb i.h{height:9px;width:55%;background:var(--ft-text)}
-.thumb i.b{background:var(--ft-band);height:9px}
+.opt .nm{font-weight:800;font-size:12px;display:flex;align-items:center;gap:4px}
+.opt .ds{font-size:10.5px;color:var(--ft-muted);line-height:1.3}
+.thumb{height:42px;border-radius:5px;background:var(--ft-cream);border:1px solid var(--ft-border);padding:5px;display:grid;gap:3px;align-content:start}
+.thumb i{display:block;height:4px;border-radius:2px;background:var(--ft-border-strong)}
+.thumb i.h{height:7px;width:55%;background:var(--ft-text)}
+.thumb i.b{background:var(--ft-band);height:7px}
 
 /* installer master list */
-.ilist{width:300px;flex:none;border-right:1px solid var(--ft-border);overflow:auto;display:flex;flex-direction:column}
-.ilist .head{padding:12px 12px 8px;display:flex;align-items:center;gap:8px}
-.filters{display:flex;gap:4px;flex-wrap:wrap;padding:0 12px 8px}
-.fchip{border:1px solid var(--ft-border);background:none;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:700;color:var(--ft-muted)}
+.split{display:flex;flex:1;min-height:0}
+.ilist{width:280px;flex:none;border-right:1px solid var(--ft-border);display:flex;flex-direction:column;min-height:0}
+.ilist .head,.idet .head{height:40px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px 0 16px;border-bottom:1px solid var(--ft-border)}
+.ilist .head{padding-left:12px}
+.ilist .head b,.idet .head b{font-size:13px}
+.ilist .rows{overflow:auto;flex:1}
+.filters{display:flex;align-items:center;gap:4px;height:40px;padding:0 12px;border-bottom:1px solid var(--ft-border);flex:none}
+.fchip{border:1px solid var(--ft-border);background:none;border-radius:999px;height:22px;padding:0 8px;font-size:11px;font-weight:700;color:var(--ft-muted)}
 .fchip[aria-pressed="true"]{background:var(--ft-ink);color:var(--ft-ink-on);border-color:var(--ft-ink)}
-.irow{display:grid;grid-template-columns:1fr auto;gap:2px 8px;width:100%;text-align:left;border:0;border-left:2px solid transparent;background:none;padding:9px 12px}
+.irow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:1px 8px;width:100%;text-align:left;border:0;border-bottom:1px solid var(--ft-row-line);box-shadow:inset 2px 0 0 transparent;background:none;padding:6px 12px}
 .irow:hover{background:var(--ft-cream)}
-.irow[aria-current="true"]{border-left-color:var(--ft-brand);background:var(--ft-tint)}
+.irow[aria-current="true"]{box-shadow:inset 2px 0 0 var(--ft-brand);background:var(--ft-tint)}
 .irow .co{font-weight:800;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.irow .who{grid-column:1;font-size:11px;color:var(--ft-muted)}
-.irow .tr{grid-column:1/-1;display:flex;gap:3px;flex-wrap:wrap;margin-top:3px}
+.irow .meta{grid-column:1/-1;font-size:11px;color:var(--ft-faint);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.irow .meta b{color:var(--ft-brand-deep);font-weight:700}
 .prio{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:800;font-variant-numeric:tabular-nums}
+.prio .n{width:14px;text-align:right}
 .ticks{display:inline-grid;grid-template-columns:repeat(10,3px);gap:1.5px;height:9px}
 .ticks i{background:var(--ft-border-strong);border-radius:1px}
 .ticks i.on{background:var(--ft-brand)}
@@ -102,27 +112,19 @@ h1{font-size:26px;font-weight:800;margin:4px 0 6px;text-wrap:balance;letter-spac
 .tchip.no{background:none;border:1px dashed var(--ft-border-strong);color:var(--ft-faint);text-decoration:line-through}
 .tchip.off{background:none;color:var(--ft-faint);padding-inline:3px}
 
-.form{max-width:560px}
-.trades{display:flex;gap:6px;flex-wrap:wrap}
-.trade{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--ft-border-strong);border-radius:8px;padding:6px 11px;background:var(--ft-card);font-weight:700;color:var(--ft-muted)}
+.idet{flex:1;min-width:0;display:flex;flex-direction:column}
+.idet .head .sp{flex:1}
+.trades{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.trade{display:flex;align-items:center;gap:6px;height:30px;border:1px solid var(--ft-border-strong);border-radius:6px;padding:0 9px;background:var(--ft-card);font-weight:700;color:var(--ft-muted);white-space:nowrap}
 .trade[aria-pressed="true"]{border-color:var(--ft-brand);background:var(--ft-tint);color:var(--ft-text)}
-.trade .bx{width:13px;height:13px;border-radius:3px;border:1.5px solid var(--ft-border-strong);display:grid;place-items:center}
+.trade .bx{width:13px;height:13px;border-radius:3px;border:1.5px solid var(--ft-border-strong);display:grid;place-items:center;flex:none;color:transparent}
 .trade[aria-pressed="true"] .bx{background:var(--ft-brand);border-color:var(--ft-brand);color:var(--ft-ink-on)}
-.scale{display:grid;grid-template-columns:repeat(10,1fr);gap:4px;max-width:420px}
-.scale button{border:1px solid var(--ft-border-strong);background:var(--ft-card);border-radius:6px;padding:6px 0;font-weight:800;font-variant-numeric:tabular-nums;color:var(--ft-muted)}
+.scale{display:grid;grid-template-columns:repeat(10,1fr);gap:4px}
+.scale button{height:28px;border:1px solid var(--ft-border-strong);background:var(--ft-card);border-radius:6px;padding:0;font-weight:800;font-variant-numeric:tabular-nums;color:var(--ft-muted)}
 .scale button.fill{background:var(--ft-brand-soft);border-color:var(--ft-tint-border);color:var(--ft-text)}
 .scale button[aria-pressed="true"]{background:var(--ft-brand);border-color:var(--ft-brand);color:var(--ft-ink-on)}
-.scalecap{display:flex;justify-content:space-between;max-width:420px;font-size:10.5px;color:var(--ft-faint);margin-top:4px}
-
-.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
-.icard{border:1px solid var(--ft-border);border-radius:10px;padding:12px;display:grid;gap:6px;text-align:left;background:var(--ft-card)}
-.icard:hover{border-color:var(--ft-tint-border)}
-.icard .top{display:flex;align-items:flex-start;gap:8px}
-.icard .co{font-weight:800;flex:1;min-width:0}
-.icard .ln{font-size:11.5px;color:var(--ft-muted);display:flex;align-items:center;gap:6px}
-.addcard{border:1px dashed var(--ft-border-strong);border-radius:10px;display:grid;place-items:center;color:var(--ft-muted);font-weight:700;min-height:120px;background:none}
-dialog{border:1px solid var(--ft-border);border-radius:12px;padding:0;background:var(--ft-card);color:var(--ft-text);width:min(600px,calc(100vw - 32px))}
-dialog::backdrop{background:rgba(28,26,23,.35)}
+.scalecap{display:flex;justify-content:space-between;font-size:10.5px;color:var(--ft-faint);margin-top:3px}
+.ffoot{display:flex;align-items:center;gap:8px;margin-top:2px}
 
 /* ---------- Project ---------- */
 .desk{min-height:660px;display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:12px 18px;align-items:start;align-content:start;background:var(--ft-cream);border:1px solid var(--ft-border);border-radius:12px;padding:22px 20px}
@@ -267,9 +269,6 @@ dialog::backdrop{background:rgba(28,26,23,.35)}
   <!-- ================= SETTINGS ================= -->
   <section class="panel" id="p-settings">
     <p class="why">General gets its own category list, just like <b>Materials &amp; add-ons</b> does today. Pick a category on the left and its options open on the right. <b>Styles</b> holds Appearance and Project header, and <b>Installers</b> is new.</p>
-    <div class="variant" id="v-ilayout"><span class="lab">Installers layout</span>
-      <div class="seg"><button data-v="list" aria-pressed="true">List + detail<span class="rec">rec.</span></button><button data-v="cards" aria-pressed="false">Card grid</button></div>
-    </div>
     <div class="shell">
       <nav class="rail" aria-label="Settings">
         <button class="navi"><svg class="i"><use href="#user"/></svg>Your details</button>
@@ -279,7 +278,7 @@ dialog::backdrop{background:rgba(28,26,23,.35)}
         <button class="navi"><svg class="i"><use href="#save"/></svg>Backup</button>
       </nav>
       <nav class="sub" aria-label="General" id="gsub">
-        <div class="eyebrow" style="padding:0 9px 6px;color:var(--ft-faint)">General</div>
+        <div class="eyebrow">General</div>
         <button class="navi" data-g="waste"><svg class="i"><use href="#pct"/></svg><span>Waste<span class="hint">Tile 10% · Floor 5%</span></span></button>
         <button class="navi" data-g="shop"><svg class="i"><use href="#pin"/></svg><span>Shop address<span class="hint">For job distance</span></span></button>
         <button class="navi" data-g="styles"><svg class="i"><use href="#palette"/></svg><span>Styles<span class="hint">Header &amp; appearance</span></span></button>
@@ -291,9 +290,9 @@ dialog::backdrop{background:rgba(28,26,23,.35)}
 
   <!-- ================= PROJECT ================= -->
   <section class="panel" id="p-project" hidden>
-    <p class="why">The hammer goes in the project's icon row, and its badge counts the installers on the job. The picker reads what's on the job (Tile, Hard Surface and Carpet here, because its vinyl and hardwood lines both count as Hard Surface). Installers who can do all of it come first, in green. Next come installers who can do part of it, sorted by how much they cover and then by priority. <b>Clicking a row adds or removes that installer right away</b>, so there's no Done button.</p>
-    <div class="variant" id="v-place"><span class="lab">On the project</span>
-      <div class="seg"><button data-v="rail" aria-pressed="true">Box on the right<span class="rec">rec.</span></button><button data-v="under" aria-pressed="false">Strip under the header</button></div>
+    <p class="why">The hammer goes in the project's icon row, and its badge counts the installers on the job. The picker reads what's on the job (Tile, Hard Surface and Carpet here, because its vinyl and hardwood lines both count as Hard Surface). Installers who can do all of it come first, in green. Next come installers who can do part of it, sorted by how much they cover and then by priority. <b>Clicking a row adds or removes that installer right away</b>, so there's no Done button. On a screen too narrow for the box, the box is hidden and the hammer's badge count is the cue.</p>
+    <div class="variant" id="v-place"><span class="lab">Screen</span>
+      <div class="seg"><button data-v="rail" aria-pressed="true">Wide screen</button><button data-v="narrow" aria-pressed="false">Narrow screen</button></div>
     </div>
     <div class="desk" id="desk">
       <div class="dhead">
@@ -312,7 +311,6 @@ dialog::backdrop{background:rgba(28,26,23,.35)}
           <button class="btn ink"><svg class="i"><use href="#print"/></svg>Print</button>
           <div class="pop" id="pop" role="dialog" aria-label="Installers for this job"></div>
         </div>
-        <div id="stripSlot"></div>
       </div>
       <div class="areas">
         <div class="area"><div class="ah">Kitchen<span class="tot">$413.25</span></div>
@@ -364,12 +362,12 @@ let installers = [
   {id:"g",co:"Amish Country Hardwood",who:"Eli Bontrager",phone:"(574) 555-0151",email:"",trades:["hard"],prio:7},
 ];
 let onJob = ["h","e"];
-let sel = "a", editing = null, gsec = "installers", filter = "all", iLayout = "list", place = "rail", printV = "table", popOpen = true, showNone = false;
+let sel = "a", editing = null, gsec = "installers", filter = "all", place = "rail", printV = "table", popOpen = true, showNone = false;
 
 const $ = (s, r=document) => r.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const ic = (id, cls="") => `<svg class="i ${cls}"><use href="#${id}"/></svg>`;
-const ticks = (p) => `<span class="prio" title="Priority ${p} of 10"><span class="ticks">${Array.from({length:10},(_,i)=>`<i class="${i<p?"on":""}"></i>`).join("")}</span>${p}</span>`;
+const ticks = (p) => `<span class="prio" title="Priority ${p} of 10"><span class="ticks">${Array.from({length:10},(_,i)=>`<i class="${i<p?"on":""}"></i>`).join("")}</span><span class="n">${p}</span></span>`;
 const byId = (id) => installers.find(i => i.id === id);
 const sortPrio = (a,b) => b.prio - a.prio || a.co.localeCompare(b.co);
 
@@ -381,86 +379,75 @@ document.querySelectorAll(".tab").forEach(t => t.onclick = () => {
 });
 function seg(id, set){ document.querySelectorAll(`#${id} button`).forEach(b => b.onclick = () => {
   document.querySelectorAll(`#${id} button`).forEach(x => x.setAttribute("aria-pressed", x===b)); set(b.dataset.v); render(); }); }
-seg("v-ilayout", v => { iLayout = v; editing = null; });
 seg("v-place", v => place = v);
 seg("v-print", v => printV = v);
 document.querySelectorAll("#gsub .navi").forEach(b => b.onclick = () => { gsec = b.dataset.g; editing = null; render(); });
 
 // ---------- settings ----------
-function titlebar(t, tip){ return `<div class="titlebar">${t} <span class="q" title="${esc(tip)}">?</span></div>`; }
+function titlebar(t, tip, right = ""){ return `<div class="titlebar">${t} <span class="q" title="${esc(tip)}">?</span>${right ? `<span style="flex:1"></span>${right}` : ""}</div>`; }
 function renderSettings(){
   document.querySelectorAll("#gsub .navi").forEach(b => b.setAttribute("aria-current", b.dataset.g === gsec));
   $("#icount").textContent = installers.length + " on file";
   const pane = $("#gpane");
-  if (gsec === "waste") pane.innerHTML = titlebar("Waste","The rate a new project starts with. Each job carries its own waste from there.") + `<div class="body"><div class="row2" style="max-width:420px">
+  if (gsec === "waste") pane.innerHTML = titlebar("Waste","The rate a new project starts with. Each job carries its own waste from there.") + `<div class="body"><div class="fgrid">
     <div><label class="lbl" for="w1">Tile waste (%)</label><input id="w1" class="inp" value="10"></div>
-    <div><label class="lbl" for="w2">Flooring waste (%)</label><input id="w2" class="inp" value="5"><div class="faint" style="font-size:11px;margin-top:4px">Hardwood, vinyl, laminate, carpet</div></div></div></div>`;
-  else if (gsec === "shop") pane.innerHTML = titlebar("Shop address","Where job distance is measured from. Team-wide. Never prints.") + `<div class="body"><div style="max-width:560px" class="stack">
-    <div><label class="lbl" for="sa">Shop address</label><input id="sa" class="inp" value="1210 Elkhart Rd, Goshen, IN 46526"></div>
-    <div><button class="btn">Test address lookup</button></div></div></div>`;
-  else if (gsec === "styles") pane.innerHTML = titlebar("Styles","Follows you to every device. The printed estimate stays on white paper.") + `<div class="body stack" style="gap:22px">
-    <div><div class="lbl">Project header</div><div class="styles">
-      ${[["Clean","Customer first, one quiet settings bar",["h","s","b"],true],["Clean compact","Same header in two pinned rows",["h","b"]],["One-bar","Everything on a single bar",["b","s"]],["Classic","The original two-row header",["h","b","b"]]].map(([n,d,parts,on]) =>
-        `<button class="opt" aria-pressed="${!!on}"><div class="thumb">${parts.map(p=>`<i class="${p}"></i>`).join("")}<i style="width:70%"></i><i style="width:40%"></i></div><span class="nm">${n}${on?ic("check","s"):""}</span><span class="ds">${d}</span></button>`).join("")}
+    <div><label class="lbl" for="w2">Flooring waste (%)</label><input id="w2" class="inp" value="5"><div class="cap">Hardwood, vinyl, laminate, carpet</div></div></div></div>`;
+  else if (gsec === "shop") pane.innerHTML = titlebar("Shop address","Where job distance is measured from. Team-wide. Never prints.") + `<div class="body"><div class="fgrid">
+    <div class="full"><label class="lbl" for="sa">Shop address</label><input id="sa" class="inp" value="1210 Elkhart Rd, Goshen, IN 46526"></div>
+    <div class="full"><button class="btn">Test address lookup</button></div></div></div>`;
+  else if (gsec === "styles") pane.innerHTML = titlebar("Styles","Follows you to every device. The printed estimate stays on white paper.") + `<div class="body"><div class="fgrid">
+    <div class="full"><div class="lbl">Project header</div><div class="styles">
+      ${[["Clean","Customer first, one quiet bar",["h","s","b"],true],["Clean compact","Two pinned rows",["h","b"]],["One-bar","All on one bar",["b","s"]],["Classic","The original two rows",["h","b","b"]]].map(([n,d,parts,on]) =>
+        `<button class="opt" aria-pressed="${!!on}"><div class="thumb">${parts.map(p=>`<i class="${p}"></i>`).join("")}<i style="width:70%"></i></div><span class="nm">${n}${on?ic("check","s"):""}</span><span class="ds">${d}</span></button>`).join("")}
     </div></div>
-    <div><div class="lbl">Appearance</div><div class="seg"><button aria-pressed="true">System</button><button aria-pressed="false">Light</button><button aria-pressed="false">Dark</button></div></div></div>`;
-  else pane.innerHTML = iLayout === "list" ? installersList() : installersCards();
+    <div class="full"><div class="lbl">Appearance</div><div class="seg"><button aria-pressed="true">System</button><button aria-pressed="false">Light</button><button aria-pressed="false">Dark</button></div></div></div></div>`;
+  else pane.innerHTML = installersList();
   pane.querySelectorAll(".opt").forEach(o => o.onclick = () => { pane.querySelectorAll(".opt").forEach(x => { x.setAttribute("aria-pressed", x===o); x.querySelector(".nm svg")?.remove(); }); o.querySelector(".nm").insertAdjacentHTML("beforeend", ic("check","s")); });
   pane.querySelectorAll(".seg button").forEach(b => b.onclick = () => b.parentNode.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x===b)));
   wireInstallerPane(pane);
 }
 function filtered(){ return installers.filter(i => filter === "all" || i.trades.includes(filter)).sort(sortPrio); }
 function filterChips(){ return `<div class="filters">${["all",...TRADES].map(t => `<button class="fchip" data-f="${t}" aria-pressed="${filter===t}">${t==="all"?"All":TL[t]}</button>`).join("")}</div>`; }
-function tradeChips(tr){ return TRADES.filter(t => tr.includes(t)).map(t => `<span class="tchip">${TL[t]}</span>`).join(""); }
+const tradeText = (tr) => TRADES.filter(t => tr.includes(t)).map(t => TL[t]).join(" · ");
 function installersList(){
-  const rows = filtered().map(i => `<button class="irow" data-id="${i.id}" aria-current="${!editing && sel===i.id}"><span class="co">${esc(i.co)}</span>${ticks(i.prio)}<span class="who">${esc(i.who)} · ${esc(i.phone)}</span><span class="tr">${tradeChips(i.trades)}</span></button>`).join("");
+  const rows = filtered().map(i => `<button class="irow" data-id="${i.id}" aria-current="${!editing && sel===i.id}"><span class="co">${esc(i.co)}</span>${ticks(i.prio)}<span class="meta"><b>${tradeText(i.trades) || "No trades yet"}</b> · ${esc(i.who)}</span></button>`).join("");
   const cur = editing || byId(sel);
-  return titlebar("Installers","Shared with the whole team. Higher priority comes up first in a job's hammer picker.") + `<div style="display:flex;flex:1;min-height:0;flex-wrap:wrap">
-    <div class="ilist"><div class="head"><b>${installers.length} installers</b><span class="spacer" style="flex:1"></span><button class="btn ink" data-new>${ic("plus","s")}Add installer</button></div>${filterChips()}${rows || `<div class="empty" style="padding:12px">No installers do ${TL[filter]} yet.</div>`}</div>
-    <div class="body">${cur ? installerForm(cur, !!editing) : ""}</div></div>`;
+  return titlebar(`Installers <span class="faint" style="font-weight:600;font-size:12px">${installers.length} on file</span>`,"Shared with the whole team. Higher priority comes up first in a job's hammer picker.", `<button class="btn ink sm" data-new>${ic("plus","s")}Add installer</button>`) + `<div class="split">
+    <div class="ilist">${filterChips()}
+      <div class="rows">${rows || `<div class="empty" style="padding:10px 12px">No installers do ${TL[filter]} yet.</div>`}</div></div>
+    <div class="idet">${cur ? installerForm(cur) : ""}</div></div>`;
 }
-function installersCards(){
-  const cards = filtered().map(i => `<button class="icard" data-edit="${i.id}"><div class="top"><span class="co">${esc(i.co)}</span>${ticks(i.prio)}</div>
-    <span class="ln">${ic("user","s")}${esc(i.who)}</span><span class="ln">${ic("phone","s")}${esc(i.phone)}</span>${i.email?`<span class="ln">${ic("mail","s")}${esc(i.email)}</span>`:""}
-    <span style="display:flex;gap:3px;flex-wrap:wrap;margin-top:2px">${tradeChips(i.trades)}</span></button>`).join("");
-  return titlebar("Installers","Shared with the whole team. Higher priority comes up first in a job's hammer picker.") + `<div class="body"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><b>${installers.length} installers</b></div>
-    <div style="margin:0 -12px 10px">${filterChips()}</div><div class="cards"><button class="addcard" data-new>${ic("plus")} Add installer</button>${cards}</div></div>
-    <dialog id="dlg"><div class="titlebar">${editing && editing.id ? "Edit installer" : "New installer"}</div><div class="body">${editing ? installerForm(editing, true) : ""}</div></dialog>`;
-}
-function installerForm(i, live){
+function installerForm(i){
   const v = (k) => esc(i[k] || "");
   const isNew = !i.id;
-  return `<form class="form stack" id="iform" autocomplete="off">
-    ${live ? "" : `<div style="display:flex;align-items:center;gap:8px"><div style="font-size:20px;font-weight:800;flex:1">${esc(i.co)}</div></div>`}
+  return `<div class="head"><b>${isNew ? "New installer" : esc(i.co) || "Untitled"}</b><span class="sp"></span>${isNew ? "" : `<button class="btn quiet sm danger" type="button" data-del>Remove</button>`}</div>
+  <form class="body" id="iform" autocomplete="off"><div class="fgrid">
     <div><label class="lbl" for="f-co">Company</label><input class="inp" id="f-co" name="co" value="${v("co")}" placeholder="e.g. Hartline Tile & Stone"></div>
-    <div class="row2"><div><label class="lbl" for="f-who">Contact name</label><input class="inp" id="f-who" name="who" value="${v("who")}"></div>
-      <div><label class="lbl" for="f-ph">Phone</label><input class="inp" id="f-ph" name="phone" value="${v("phone")}" inputmode="tel"></div></div>
+    <div><label class="lbl" for="f-who">Contact name</label><input class="inp" id="f-who" name="who" value="${v("who")}"></div>
+    <div><label class="lbl" for="f-ph">Phone</label><input class="inp" id="f-ph" name="phone" value="${v("phone")}" inputmode="tel"></div>
     <div><label class="lbl" for="f-em">Email</label><input class="inp" id="f-em" name="email" value="${v("email")}"></div>
-    <div><div class="lbl">Installs</div><div class="trades">${TRADES.map(t => `<button type="button" class="trade" data-t="${t}" aria-pressed="${i.trades.includes(t)}"><span class="bx">${ic("check","s")}</span>${TL[t]}${TRADE_HINT[t] ? `<span class="faint" style="font-weight:500;font-size:11px">${TRADE_HINT[t]}</span>` : ""}</button>`).join("")}</div></div>
-    <div><div class="lbl">Priority</div><div class="scale">${Array.from({length:10},(_,k)=>k+1).map(n => `<button type="button" data-p="${n}" class="${n<i.prio?"fill":""}" aria-pressed="${n===i.prio}">${n}</button>`).join("")}</div>
+    <div class="full"><div class="lbl">Installs</div><div class="trades">${TRADES.map(t => `<button type="button" class="trade" data-t="${t}" aria-pressed="${i.trades.includes(t)}"><span class="bx">${ic("check","s")}</span>${TL[t]}</button>`).join("")}</div>
+      <div class="cap">Hard Surface covers hardwood, vinyl and laminate.</div></div>
+    <div class="full"><div class="lbl">Priority</div><div class="scale">${Array.from({length:10},(_,k)=>k+1).map(n => `<button type="button" data-p="${n}" class="${n<i.prio?"fill":""}" aria-pressed="${n===i.prio}">${n}</button>`).join("")}</div>
       <div class="scalecap"><span>1 · last resort</span><span>10 · first call</span></div></div>
-    <div style="display:flex;gap:8px;padding-top:4px">${isNew || iLayout==="cards" ? `<button class="btn ink" type="submit">${isNew?"Add installer":"Save"}</button><button class="btn" type="button" data-cancel>Cancel</button>` : `<span class="faint" style="font-size:11px;align-self:center;flex:1">Changes save as you type.</span>`}
-      ${!isNew ? `<button class="btn danger" type="button" data-del>Remove</button>` : ""}</div>
-  </form>`;
+    <div class="full ffoot">${isNew ? `<button class="btn ink" type="submit">Add installer</button><button class="btn" type="button" data-cancel>Cancel</button>` : `<span class="cap" style="margin:0">Changes save as you type.</span>`}</div>
+  </div></form>`;
 }
 function wireInstallerPane(pane){
   pane.querySelectorAll(".fchip").forEach(b => b.onclick = () => { filter = b.dataset.f; render(); });
   pane.querySelectorAll(".irow").forEach(b => b.onclick = () => { sel = b.dataset.id; editing = null; render(); });
   pane.querySelectorAll("[data-new]").forEach(b => b.onclick = () => { editing = {co:"",who:"",phone:"",email:"",trades:[],prio:5}; render(); });
-  pane.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => { editing = {...byId(b.dataset.edit), trades:[...byId(b.dataset.edit).trades]}; render(); });
-  const dlg = $("#dlg", pane); if (dlg && editing && !dlg.open) dlg.showModal();
-  if (dlg) dlg.addEventListener("close", () => { if (editing) { editing = null; render(); } });
   const f = $("#iform", pane); if (!f) return;
   const target = editing || byId(sel);
-  const liveEdit = !editing && iLayout === "list";
+  const liveEdit = !editing;
   f.querySelectorAll(".trade").forEach(b => b.onclick = () => { const t = b.dataset.t; target.trades = target.trades.includes(t) ? target.trades.filter(x=>x!==t) : [...target.trades, t]; b.setAttribute("aria-pressed", target.trades.includes(t)); if (liveEdit) refreshSoft(); });
   f.querySelectorAll(".scale button").forEach(b => b.onclick = () => { target.prio = +b.dataset.p; f.querySelectorAll(".scale button").forEach(x => { x.setAttribute("aria-pressed", +x.dataset.p===target.prio); x.className = +x.dataset.p<target.prio?"fill":""; }); if (liveEdit) refreshSoft(); });
-  f.querySelectorAll("input").forEach(inp => inp.oninput = () => { target[inp.name] = inp.value; if (liveEdit) refreshSoft(); });
+  f.querySelectorAll("input").forEach(inp => inp.oninput = () => { target[inp.name] = inp.value; if (liveEdit) { refreshSoft(); if (inp.name === "co") $(".idet .head b").textContent = inp.value || "Untitled"; } });
   f.onsubmit = (e) => { e.preventDefault(); if (!target.co.trim()) { $("#f-co", f).focus(); return; }
     if (!target.id) { target.id = "n" + Date.now(); installers.push(target); sel = target.id; } else { Object.assign(byId(target.id), target); }
     editing = null; filter = "all"; render(); };
   const c = $("[data-cancel]", f); if (c) c.onclick = () => { editing = null; render(); };
-  const d = $("[data-del]", f); if (d) d.onclick = () => { const id = target.id; installers = installers.filter(i => i.id !== id); onJob = onJob.filter(x => x !== id); sel = installers[0]?.id; editing = null; render(); };
+  const d = $("[data-del]", pane); if (d) d.onclick = () => { const id = target.id; installers = installers.filter(i => i.id !== id); onJob = onJob.filter(x => x !== id); sel = installers[0]?.id; editing = null; render(); };
 }
 function refreshSoft(){ // re-render the list column only, so the focused input keeps focus
   const list = $(".ilist"); if (!list) return;
@@ -505,14 +492,13 @@ function renderProject(){
   const covered = new Set(added.flatMap(i => i.trades.filter(t => JOB.includes(t))));
   const gaps = JOB.filter(t => !covered.has(t));
   const gapLine = gaps.length && added.length ? `<div class="gap">No installer yet for ${gaps.map(t => TL[t]).join(" · ")}</div>` : "";
-  $("#desk").classList.toggle("under", place === "under");
+  $("#desk").classList.toggle("under", place === "narrow");
   $("#ibox").hidden = place !== "rail";
   $("#ibox").innerHTML = `<div class="bh">${ic("hammer")}Installers<button class="ib" data-open title="Add installers">${ic("plus")}</button></div>
     ${added.length ? added.map(i => `<div class="binst"><span class="co">${esc(i.co)}<button class="x" data-rm="${i.id}" title="Remove from job">${ic("x","s")}</button></span>
       <span class="ln">${ic("user","s")}<span>${esc(i.who)}</span></span><span class="ln">${ic("phone","s")}<span>${esc(i.phone)}</span></span>
       <span style="display:flex;gap:3px;flex-wrap:wrap;margin-top:2px">${i.trades.filter(t => JOB.includes(t)).map(t => `<span class="tchip yes">${TL[t]}</span>`).join("")}</span></div>`).join("")
       : `<div class="empty">None on this job yet. Click the hammer to pick.</div>`}${gapLine}`;
-  $("#stripSlot").innerHTML = place === "under" ? `<div class="strip"><span class="faint" style="font-weight:700">${ic("hammer","s")} Installers</span>${added.map(i => `<span class="pill">${esc(i.co)} <span class="faint">· ${i.trades.filter(t=>JOB.includes(t)).map(t=>TL[t]).join(", ")}</span><button class="x" data-rm="${i.id}" title="Remove">${ic("x","s")}</button></span>`).join("") || `<span class="faint">none yet</span>`}${gaps.length && added.length ? `<span style="color:var(--ft-warn);font-size:11px">· none for ${gaps.map(t=>TL[t]).join(", ")}</span>` : ""}</div>` : "";
   document.querySelectorAll("[data-rm]").forEach(x => x.onclick = () => { onJob = onJob.filter(id => id !== x.dataset.rm); render(); });
   const o = $("[data-open]"); if (o) o.onclick = () => { popOpen = true; render(); };
 }
