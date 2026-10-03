@@ -203,7 +203,7 @@ dialog::backdrop{background:rgba(28,26,23,.35)}
 .sheet table{width:100%;border-collapse:collapse;font-size:11px}
 .sheet th{font-size:8.5px;letter-spacing:.16em;text-align:left;color:var(--paper-muted);border-bottom:1px solid var(--paper-ink);padding:3px 6px 3px 0}
 .sheet td{padding:5px 6px 5px 0;border-bottom:1px solid var(--paper-band);vertical-align:top}
-.sheet td.tr{font-size:9px;font-weight:800;letter-spacing:.14em;color:var(--paper-brand);text-transform:uppercase;white-space:nowrap;line-height:1.55;width:92px}
+.sheet td.tr{font-size:9px;font-weight:800;letter-spacing:.14em;color:var(--paper-brand);text-transform:uppercase;white-space:nowrap;line-height:1.55;width:104px}
 .sheet .pcards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px 16px}
 .sheet .pcard{border-left:2px solid var(--paper-rule);padding-left:9px;font-size:11px}
 .sheet .pcard .k{font-size:8.5px;font-weight:800;letter-spacing:.16em;color:var(--paper-brand);text-transform:uppercase}
@@ -291,7 +291,7 @@ dialog::backdrop{background:rgba(28,26,23,.35)}
 
   <!-- ================= PROJECT ================= -->
   <section class="panel" id="p-project" hidden>
-    <p class="why">The hammer goes in the project's icon row, and its badge counts the installers on the job. The picker reads what's on the job (Tile, Hardwood, Vinyl and Carpet here). Installers who can do all of it come first, in green. Next come installers who can do part of it, sorted by how much they cover and then by priority. <b>Clicking a row adds or removes that installer right away</b>, so there's no Done button.</p>
+    <p class="why">The hammer goes in the project's icon row, and its badge counts the installers on the job. The picker reads what's on the job (Tile, Hard Surface and Carpet here, because its vinyl and hardwood lines both count as Hard Surface). Installers who can do all of it come first, in green. Next come installers who can do part of it, sorted by how much they cover and then by priority. <b>Clicking a row adds or removes that installer right away</b>, so there's no Done button.</p>
     <div class="variant" id="v-place"><span class="lab">On the project</span>
       <div class="seg"><button data-v="rail" aria-pressed="true">Box on the right<span class="rec">rec.</span></button><button data-v="under" aria-pressed="false">Strip under the header</button></div>
     </div>
@@ -331,7 +331,7 @@ dialog::backdrop{background:rgba(28,26,23,.35)}
 
   <!-- ================= PRINT ================= -->
   <section class="panel" id="p-print" hidden>
-    <p class="why">The installers print as the last block on the sheet, below the totals. One row per installer. The Trade column stacks the trades they're on <b>for this job</b>, one per line, so Goshen Floor Covering reads Tile / Hardwood / Carpet. A trade they install that this job doesn't have is left off. Priority never prints, because that's internal.</p>
+    <p class="why">The installers print as the last block on the sheet, below the totals. One row per installer. The Trade column stacks the trades they're on <b>for this job</b>, one per line, so Goshen Floor Covering reads Tile / Hard Surface / Carpet. A trade they install that this job doesn't have is left off. Priority never prints, because that's internal.</p>
     <div class="variant" id="v-print"><span class="lab">Print block</span>
       <div class="seg"><button data-v="table" aria-pressed="true">Table<span class="rec">rec.</span></button><button data-v="cards" aria-pressed="false">Contact cards</button></div>
     </div>
@@ -341,23 +341,27 @@ dialog::backdrop{background:rgba(28,26,23,.35)}
   <div class="notes">
     <div class="note"><h3>Who sees the list</h3><p>Installers are shared by the whole team, like the shop address, so one person adds a company and everyone can pick it.</p></div>
     <div class="note"><h3>What the job keeps</h3><p>The job saves a copy of each installer's name and contact info when you add them. If you later edit or remove that installer in Settings, jobs you already quoted still print correctly.</p></div>
-    <div class="note"><h3>Trades</h3><p>The trades are the product types you already have: Tile, Hardwood, Vinyl, Laminate and Carpet. Underlayment and Misc ride along with whichever trade they belong to.</p></div>
+    <div class="note"><h3>Trades</h3><p>Installers pick from three trades: Tile, Hard Surface and Carpet. Hard Surface covers hardwood, vinyl and laminate lines. Underlayment and Misc lines don't count as a trade on their own.</p></div>
   </div>
 </div>
 
 <script>
-const TRADES = ["tile","hardwood","vinyl","laminate","carpet"];
-const TL = {tile:"Tile",hardwood:"Hardwood",vinyl:"Vinyl",laminate:"Laminate",carpet:"Carpet"};
-const JOB = ["tile","hardwood","vinyl","carpet"];
+const TRADES = ["tile","hard","carpet"];
+const TL = {tile:"Tile",hard:"Hard Surface",carpet:"Carpet"};
+const TRADE_HINT = {tile:"", hard:"Hardwood · vinyl · laminate", carpet:""};
+// a product type rolls up into the installer trade that lays it
+const TRADE_OF = {tile:"tile", hardwood:"hard", vinyl:"hard", laminate:"hard", carpet:"carpet"};
+const LINE_TYPES = ["vinyl","tile","carpet","hardwood"];
+const JOB = TRADES.filter(t => LINE_TYPES.some(x => TRADE_OF[x] === t));
 let installers = [
-  {id:"a",co:"Keystone Interiors",who:"Rachel Yoder",phone:"(574) 555-0114",email:"rachel@keystoneint.example",trades:["tile","vinyl","carpet","laminate"],prio:8},
-  {id:"b",co:"Elkhart Flooring Group",who:"Dan Miller",phone:"(574) 555-0187",email:"dan@efgfloors.example",trades:["tile","hardwood","vinyl","laminate","carpet"],prio:6},
-  {id:"h",co:"Goshen Floor Covering",who:"Tom Hochstetler",phone:"(574) 555-0146",email:"tom@goshenfloorcovering.example",trades:["tile","hardwood","carpet"],prio:8},
+  {id:"a",co:"Keystone Interiors",who:"Rachel Yoder",phone:"(574) 555-0114",email:"rachel@keystoneint.example",trades:["tile","hard"],prio:8},
+  {id:"b",co:"Elkhart Flooring Group",who:"Dan Miller",phone:"(574) 555-0187",email:"dan@efgfloors.example",trades:["tile","hard","carpet"],prio:6},
+  {id:"h",co:"Goshen Floor Covering",who:"Tom Hochstetler",phone:"(574) 555-0146",email:"tom@goshenfloorcovering.example",trades:["tile","hard","carpet"],prio:8},
   {id:"c",co:"Hartline Tile & Stone",who:"Mike Ostrander",phone:"(574) 555-0162",email:"mike@hartlinetile.example",trades:["tile"],prio:9},
   {id:"d",co:"Northside Carpet Install",who:"Lisa Graber",phone:"(574) 555-0139",email:"lisa@northsidecarpet.example",trades:["carpet"],prio:8},
-  {id:"e",co:"J&R Plank Works",who:"Jose Ramirez",phone:"(574) 555-0120",email:"jose@jrplank.example",trades:["vinyl","laminate"],prio:7},
-  {id:"f",co:"Precision Floor Co.",who:"Dana Kees",phone:"(574) 555-0173",email:"dana@precisionfloor.example",trades:["hardwood","vinyl","laminate"],prio:5},
-  {id:"g",co:"Amish Country Hardwood",who:"Eli Bontrager",phone:"(574) 555-0151",email:"",trades:["hardwood"],prio:7},
+  {id:"e",co:"J&R Plank Works",who:"Jose Ramirez",phone:"(574) 555-0120",email:"jose@jrplank.example",trades:["hard"],prio:7},
+  {id:"f",co:"Precision Floor Co.",who:"Dana Kees",phone:"(574) 555-0173",email:"dana@precisionfloor.example",trades:["hard","carpet"],prio:5},
+  {id:"g",co:"Amish Country Hardwood",who:"Eli Bontrager",phone:"(574) 555-0151",email:"",trades:["hard"],prio:7},
 ];
 let onJob = ["h","e"];
 let sel = "a", editing = null, gsec = "installers", filter = "all", iLayout = "list", place = "rail", printV = "table", popOpen = true, showNone = false;
@@ -432,7 +436,7 @@ function installerForm(i, live){
     <div class="row2"><div><label class="lbl" for="f-who">Contact name</label><input class="inp" id="f-who" name="who" value="${v("who")}"></div>
       <div><label class="lbl" for="f-ph">Phone</label><input class="inp" id="f-ph" name="phone" value="${v("phone")}" inputmode="tel"></div></div>
     <div><label class="lbl" for="f-em">Email</label><input class="inp" id="f-em" name="email" value="${v("email")}"></div>
-    <div><div class="lbl">Installs</div><div class="trades">${TRADES.map(t => `<button type="button" class="trade" data-t="${t}" aria-pressed="${i.trades.includes(t)}"><span class="bx">${ic("check","s")}</span>${TL[t]}</button>`).join("")}</div></div>
+    <div><div class="lbl">Installs</div><div class="trades">${TRADES.map(t => `<button type="button" class="trade" data-t="${t}" aria-pressed="${i.trades.includes(t)}"><span class="bx">${ic("check","s")}</span>${TL[t]}${TRADE_HINT[t] ? `<span class="faint" style="font-weight:500;font-size:11px">${TRADE_HINT[t]}</span>` : ""}</button>`).join("")}</div></div>
     <div><div class="lbl">Priority</div><div class="scale">${Array.from({length:10},(_,k)=>k+1).map(n => `<button type="button" data-p="${n}" class="${n<i.prio?"fill":""}" aria-pressed="${n===i.prio}">${n}</button>`).join("")}</div>
       <div class="scalecap"><span>1 · last resort</span><span>10 · first call</span></div></div>
     <div style="display:flex;gap:8px;padding-top:4px">${isNew || iLayout==="cards" ? `<button class="btn ink" type="submit">${isNew?"Add installer":"Save"}</button><button class="btn" type="button" data-cancel>Cancel</button>` : `<span class="faint" style="font-size:11px;align-self:center;flex:1">Changes save as you type.</span>`}
